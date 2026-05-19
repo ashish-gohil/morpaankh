@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tapi & Co. — project map</title>
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  body { background: var(--cream); padding: 64px 40px; min-height: 100vh; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-family: var(--font-serif); font-size: clamp(40px, 5vw, 64px); font-weight: 500; letter-spacing: -0.018em; margin: 0 0 12px; line-height: 1.05; }
+  h2 { font-family: var(--font-serif); font-size: 24px; font-weight: 500; margin: 56px 0 20px; padding-top: 24px; border-top: 1px solid var(--hairline-2); }
+  .eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--warm-grey); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .card { display: block; padding: 24px; background: var(--ivory); border: 1px solid var(--hairline); text-decoration: none; color: inherit; transition: border-color 160ms, transform 160ms; }
+  .card:hover { border-color: var(--charcoal); transform: translateY(-2px); }
+  .card .ttl { font-family: var(--font-serif); font-size: 22px; font-weight: 500; }
+  .card .sub { font-size: 13px; color: var(--warm-grey); margin-top: 8px; line-height: 1.55; }
+  .arrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 16px; color: var(--terracotta); }
+  ul { padding-left: 18px; line-height: 1.8; font-size: 14px; }
+  code { font-family: var(--font-mono); background: var(--cream-2); padding: 2px 6px; border-radius: 2px; font-size: 12px; }
+  .lede { font-size: 17px; color: var(--warm-grey); max-width: 620px; line-height: 1.65; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <span class="eyebrow">— Project map · all artifacts</span>
+  <h1>Tapi <em style="color:var(--terracotta);font-weight:500">&amp;</em> Co.</h1>
+  <p class="lede">A mid-premium ethnic-wear storefront for Surat. This page lists everything in the project so you can jump straight to the right file.</p>
+
+  <h2>1 · Interactive prototype</h2>
+  <div class="grid">
+    <a class="card" href="index.html">
+      <div class="ttl">Storefront prototype →</div>
+      <div class="sub">Full clickable storefront — Home, Collection, PDP (interactive size quiz, pincode lookup, fit-feedback bar, cart drawer, size guide modal), About. All product imagery is text-only fabric-swatch placeholders.</div>
+      <div class="arrow">open index.html</div>
+    </a>
+  </div>
+
+  <h2>2 · Direction canvases (pick before we go deeper)</h2>
+  <div class="grid">
+    <a class="card" href="canvases/logos.html">
+      <div class="ttl">Logo directions →</div>
+      <div class="sub">Four logo studies side-by-side: <em>ripple mark</em>, <em>editorial wordmark</em>, <em>circular monogram seal</em>, <em>stacked loom mark</em>. Plus in-use mockups (header, footer, favicon, hangtag).</div>
+      <div class="arrow">open canvases/logos.html</div>
+    </a>
+    <a class="card" href="canvases/pdp-options.html">
+      <div class="ttl">PDP directions →</div>
+      <div class="sub">Three product-page directions: <em>A · classic editorial</em>, <em>B · storyteller (long-scroll)</em>, <em>C · specsheet (fabric-first)</em>. Each is the same product styled differently.</div>
+      <div class="arrow">open canvases/pdp-options.html</div>
+    </a>
+  </div>
+
+  <h2>3 · Brand assets (SVG)</h2>
+  <ul>
+    <li><code>brand/logo-horizontal.svg</code> — header use</li>
+    <li><code>brand/logo-stacked.svg</code> — wide-aspect / packaging</li>
+    <li><code>brand/logo-mark.svg</code> — favicon / avatar</li>
+    <li><code>favicon.svg</code> — the storefront favicon</li>
+  </ul>
+
+  <h2>4 · Shopify deliverables (paste into a Dawn theme)</h2>
+  <ul>
+    <li><code>shopify/README.md</code> — start here; the order of operations</li>
+    <li><code>shopify/theme-architecture.md</code> — templates, sections, principles</li>
+    <li><code>shopify/metafields.md</code> — exact metafields to define before importing products</li>
+    <li><code>shopify/theme-variables.css</code> — drop into <code>assets/</code></li>
+    <li><code>shopify/product.json</code> — replaces <code>templates/product.json</code></li>
+    <li><code>shopify/main-product-tapi.liquid</code> — replaces <code>sections/main-product.liquid</code></li>
+    <li><code>shopify/pincode-delivery.liquid</code> — drop into <code>snippets/</code></li>
+    <li><code>shopify/snippets.md</code> — six more snippets (logo, marquee, fabric-table, fit-feedback, editorial-break, card-product, studio-strip)</li>
+  </ul>
+
+  <h2>5 · What I didn't build (yet)</h2>
+  <ul>
+    <li><strong>Couple sets</strong> — de-scoped per your answer. Easy to add back later.</li>
+    <li><strong>Real product photography</strong> — placeholders only. The <code>FabricSwatch</code> component is the rendered placeholder; replace it with <code>&lt;img&gt;</code> once you have shots.</li>
+    <li><strong>Checkout</strong> — Shopify handles checkout itself; the prototype's "Checkout" button is a no-op.</li>
+    <li><strong>Real reviews integration</strong> — mocked. Wire to Judge.me or Loox later.</li>
+    <li><strong>Live shipping rates</strong> — pincode widget is a front-end mock. Marked TODO in the Liquid file.</li>
+  </ul>
+
+  <h2>6 · Tweaks (try the toggle)</h2>
+  <p style="font-size:14px;color:var(--warm-grey);line-height:1.65;">
+    Toggle <strong>Tweaks</strong> in the toolbar while viewing the prototype to change the brand name, accent color, and font pairing live. Useful for previewing alternatives before locking in.
+  </p>
+
+</div>
+</body>
+</html>

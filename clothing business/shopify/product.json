@@ -1,0 +1,81 @@
+{
+  "sections": {
+    "main": {
+      "type": "main-product-tapi",
+      "blocks": {
+        "vendor": { "type": "text", "settings": { "text": "{{ product.vendor }}" } },
+        "title": { "type": "title" },
+        "price": { "type": "price" },
+        "rating": { "type": "rating" },
+        "variant_picker": { "type": "variant_picker", "settings": { "picker_type": "button" } },
+        "buy_buttons": { "type": "buy_buttons", "settings": { "show_dynamic_checkout": true } },
+        "pincode": { "type": "pincode_delivery" },
+        "fabric_table": { "type": "fabric_table" },
+        "fit_feedback": { "type": "fit_feedback" },
+        "description": { "type": "description" },
+        "model_info": { "type": "model_info" },
+        "share": { "type": "share" }
+      },
+      "block_order": [
+        "vendor",
+        "title",
+        "rating",
+        "price",
+        "variant_picker",
+        "buy_buttons",
+        "pincode",
+        "fabric_table",
+        "fit_feedback",
+        "model_info",
+        "description",
+        "share"
+      ],
+      "settings": {
+        "enable_sticky_info": true,
+        "color_scheme": "background-1",
+        "media_size": "large",
+        "constrain_to_viewport": true,
+        "media_fit": "contain",
+        "gallery_layout": "thumbnail",
+        "media_position": "left",
+        "image_zoom": "lightbox",
+        "mobile_thumbnails": "show",
+        "hide_variants": true,
+        "enable_video_looping": false,
+        "padding_top": 36,
+        "padding_bottom": 12
+      }
+    },
+    "editorial_break": {
+      "type": "editorial-break",
+      "settings": {
+        "quote": "If it isn't in the fabric, it isn't worth the price.",
+        "attribution": "— A note from the studio"
+      }
+    },
+    "fabric_guide": {
+      "type": "fabric-guide",
+      "settings": {
+        "heading": "Know your fabric"
+      }
+    },
+    "related_products": {
+      "type": "related-products",
+      "settings": {
+        "heading": "You may also like",
+        "products_to_show": 4,
+        "columns_desktop": 4,
+        "image_ratio": "portrait",
+        "color_scheme": "background-1",
+        "padding_top": 36,
+        "padding_bottom": 36
+      }
+    }
+  },
+  "order": [
+    "main",
+    "editorial_break",
+    "fabric_guide",
+    "related_products"
+  ]
+}

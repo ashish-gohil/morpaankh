@@ -1,0 +1,256 @@
+{%- comment -%}
+  sections/main-product-tapi.liquid
+  Tapi & Co. — custom product section for Dawn.
+
+  Renders:
+    · Gallery on the left (Dawn's media gallery)
+    · Buy column on the right with editorial typography
+    · Fabric table (from product.metafields.tapi.*)
+    · Fit-feedback bar (from product.metafields.tapi.fit_pct_*)
+    · Pincode-delivery widget (snippets/pincode-delivery.liquid)
+    · Model / fit information
+
+  Reads metafields documented in shopify/metafields.md.
+{%- endcomment -%}
+
+{{ 'theme-variables.css' | asset_url | stylesheet_tag }}
+{{ 'section-main-product.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+  assign m = product.metafields.tapi
+  assign first_variant = product.selected_or_first_available_variant
+-%}
+
+<section class="tapi-pdp page-width" id="MainProduct-{{ section.id }}">
+  <div class="tapi-pdp__layout">
+
+    {%- comment -%} ===================== GALLERY ===================== {%- endcomment -%}
+    <div class="tapi-pdp__gallery">
+      {%- render 'product-media-gallery', variant_images: product.images -%}
+    </div>
+
+    {%- comment -%} ===================== BUY COLUMN ===================== {%- endcomment -%}
+    <div class="tapi-pdp__info">
+      {%- for block in section.blocks -%}
+        {%- case block.type -%}
+
+          {%- when 'vendor' -%}
+            <div class="tapi-eyebrow" {{ block.shopify_attributes }}>
+              {{ product.type | default: product.vendor }}
+            </div>
+
+          {%- when 'title' -%}
+            <h1 class="tapi-pdp__title" {{ block.shopify_attributes }}>{{ product.title }}</h1>
+            {%- if product.description != blank -%}
+              <p class="tapi-pdp__subtitle">
+                {{ m.blend | default: product.description | truncate: 80 }}
+                {%- if m.pieces.value -%}
+                  · {{ m.pieces.value | join: ' · ' }}
+                {%- endif -%}
+              </p>
+            {%- endif -%}
+
+          {%- when 'rating' -%}
+            {%- if product.metafields.reviews.rating.value != blank -%}
+              <div class="tapi-pdp__rating" {{ block.shopify_attributes }}>
+                {%- assign r = product.metafields.reviews.rating.value -%}
+                <span class="rating-stars" aria-label="{{ r.rating }} out of {{ r.scale_max }}">
+                  {%- for i in (1..5) -%}
+                    {%- if i <= r.rating -%}★{%- else -%}☆{%- endif -%}
+                  {%- endfor -%}
+                </span>
+                <span class="rating-count">
+                  {{ r.rating }} · {{ product.metafields.reviews.rating_count }} reviews
+                </span>
+              </div>
+            {%- endif -%}
+
+          {%- when 'price' -%}
+            <div class="tapi-pdp__price" {{ block.shopify_attributes }}>
+              <span class="price">{{ first_variant.price | money }}</span>
+              {%- if first_variant.compare_at_price > first_variant.price -%}
+                <span class="price--strike">{{ first_variant.compare_at_price | money }}</span>
+                {%- assign saved = first_variant.compare_at_price | minus: first_variant.price -%}
+                <span class="tapi-tag tapi-tag--terracotta">Save {{ saved | money }}</span>
+              {%- endif -%}
+            </div>
+            <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping above
+              {{ shop.metafields.tapi.free_ship_above | default: '₹2,499' }}.</p>
+
+          {%- when 'variant_picker' -%}
+            {%- render 'product-variant-picker',
+              product: product,
+              block: block,
+              product_form_id: 'product-form-' | append: section.id -%}
+
+          {%- when 'buy_buttons' -%}
+            {%- render 'buy-buttons',
+              block: block,
+              product: product,
+              product_form_id: 'product-form-' | append: section.id,
+              section_id: section.id,
+              show_pickup_availability: true -%}
+
+          {%- when 'pincode_delivery' -%}
+            {%- render 'pincode-delivery', product: product -%}
+
+          {%- when 'fabric_table' -%}
+            <details class="tapi-acc" open {{ block.shopify_attributes }}>
+              <summary>
+                <span>Fabric &amp; care</span>
+                <span class="tapi-acc__toggle">+</span>
+              </summary>
+              <table class="tapi-fabric-table">
+                <tbody>
+                  {%- if m.gsm           -%}<tr><td>GSM</td><td>{{ m.gsm }} gsm</td></tr>{%- endif -%}
+                  {%- if m.blend         -%}<tr><td>Blend</td><td>{{ m.blend }}</td></tr>{%- endif -%}
+                  {%- if m.weave         -%}<tr><td>Weave</td><td>{{ m.weave }}</td></tr>{%- endif -%}
+                  {%- if m.fit_type      -%}<tr><td>Fit type</td><td>{{ m.fit_type }}</td></tr>{%- endif -%}
+                  {%- if m.opacity_note  -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
+                  {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
+                  {%- if m.wash_care     -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
+                </tbody>
+              </table>
+            </details>
+
+          {%- when 'fit_feedback' -%}
+            {%- if m.fit_pct_true -%}
+              <div class="tapi-fit-feedback">
+                <strong class="tapi-fit-feedback__label">
+                  Fit feedback from {{ product.metafields.reviews.rating_count | default: '100+' }} buyers
+                </strong>
+                <div class="tapi-fit-feedback__bar" role="img"
+                     aria-label="{{ m.fit_pct_true }}% true to size">
+                  <span style="width: {{ m.fit_pct_down }}%; background: var(--tapi-terracotta-soft);"></span>
+                  <span style="width: {{ m.fit_pct_true }}%; background: var(--tapi-sage);"></span>
+                  <span style="width: {{ m.fit_pct_up   }}%; background: var(--tapi-terracotta);"></span>
+                </div>
+                <div class="tapi-fit-feedback__legend">
+                  <span>{{ m.fit_pct_down }}% size down</span>
+                  <span>{{ m.fit_pct_true }}% true</span>
+                  <span>{{ m.fit_pct_up }}% size up</span>
+                </div>
+              </div>
+            {%- endif -%}
+
+          {%- when 'model_info' -%}
+            {%- if m.model_height -%}
+              <details class="tapi-acc" {{ block.shopify_attributes }}>
+                <summary>
+                  <span>Model &amp; fit</span>
+                  <span class="tapi-acc__toggle">+</span>
+                </summary>
+                <div class="tapi-model-grid">
+                  <div><span>Height</span><strong>{{ m.model_height }}</strong></div>
+                  <div><span>Wearing</span><strong>Size {{ m.model_size }}</strong></div>
+                  <div><span>Bust</span><strong>{{ m.model_bust }}″</strong></div>
+                  <div><span>Waist</span><strong>{{ m.model_waist }}″</strong></div>
+                  {%- if m.fit_note -%}
+                    <div class="tapi-model-grid__full">
+                      <span>Fit feedback</span><strong>{{ m.fit_note }}</strong>
+                    </div>
+                  {%- endif -%}
+                </div>
+              </details>
+            {%- endif -%}
+
+          {%- when 'description' -%}
+            {%- if product.description != blank -%}
+              <details class="tapi-acc" {{ block.shopify_attributes }}>
+                <summary>
+                  <span>Description</span>
+                  <span class="tapi-acc__toggle">+</span>
+                </summary>
+                <div class="rte tapi-acc__body">{{ product.description }}</div>
+              </details>
+            {%- endif -%}
+
+          {%- when 'share' -%}
+            {%- render 'share-button', block: block, share_link: canonical_url -%}
+
+        {%- endcase -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+<style>
+  .tapi-pdp { padding-top: var(--space-large, 4.8rem); padding-bottom: var(--space-large, 4.8rem); }
+  .tapi-pdp__layout { display: grid; grid-template-columns: 1fr 1fr; gap: 4.8rem; align-items: start; }
+  @media (max-width: 989px) { .tapi-pdp__layout { grid-template-columns: 1fr; } }
+
+  .tapi-pdp__info { display: flex; flex-direction: column; gap: 2.4rem; }
+  .tapi-pdp__title { font-family: var(--font-heading-family); font-size: 4.4rem; font-weight: 500; margin: 0; line-height: 1.08; letter-spacing: -0.012em; }
+  .tapi-pdp__subtitle { color: var(--tapi-warm-grey); margin: 0; font-size: 1.6rem; }
+  .tapi-pdp__rating { display: flex; align-items: center; gap: 1.2rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-pdp__rating .rating-stars { color: var(--tapi-terracotta); font-size: 1.6rem; }
+  .tapi-pdp__rating .rating-count { font-size: 1.3rem; color: var(--tapi-warm-grey); }
+  .tapi-pdp__price { display: flex; align-items: baseline; gap: 1rem; }
+  .tapi-pdp__price .price { font-family: var(--font-heading-family); font-size: 3rem; font-weight: 500; }
+  .tapi-pdp__price .price--strike { color: var(--tapi-muted); text-decoration: line-through; font-size: 1.7rem; }
+  .tapi-pdp__price-note { font-size: 1.1rem; color: var(--tapi-muted); margin: -1.2rem 0 0; }
+
+  .tapi-tag { display: inline-flex; height: 2.4rem; padding: 0 1rem; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; align-items: center; }
+  .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
+
+  /* Accordions */
+  .tapi-acc { border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-acc summary { display: flex; justify-content: space-between; align-items: center; padding: 1.6rem 0; cursor: pointer; list-style: none; font-family: var(--font-heading-family); font-size: 1.7rem; }
+  .tapi-acc summary::-webkit-details-marker { display: none; }
+  .tapi-acc[open] .tapi-acc__toggle { transform: rotate(45deg); }
+  .tapi-acc__toggle { font-size: 2rem; color: var(--tapi-warm-grey); transition: transform 0.16s; }
+  .tapi-acc__body { padding: 0 0 2rem; font-size: 1.4rem; line-height: 1.7; color: var(--tapi-warm-grey); }
+
+  .tapi-fabric-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; }
+  .tapi-fabric-table tr { border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-fabric-table td { padding: 1.2rem 0; }
+  .tapi-fabric-table td:first-child { color: var(--tapi-muted); width: 40%; letter-spacing: 0.04em; }
+
+  .tapi-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; padding-bottom: 1.6rem; }
+  .tapi-model-grid > div { padding-bottom: 1rem; border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-model-grid > div span { display: block; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin-bottom: 0.4rem; }
+  .tapi-model-grid > div strong { font-weight: 500; color: var(--tapi-charcoal); }
+  .tapi-model-grid__full { grid-column: 1 / -1; }
+</style>
+
+{% schema %}
+{
+  "name": "Tapi product",
+  "tag": "section",
+  "class": "section",
+  "blocks": [
+    { "type": "@app" },
+    { "type": "vendor", "name": "Vendor / category eyebrow", "limit": 1 },
+    { "type": "title", "name": "Title", "limit": 1 },
+    { "type": "rating", "name": "Rating", "limit": 1 },
+    { "type": "price", "name": "Price", "limit": 1 },
+    { "type": "variant_picker", "name": "Variant picker", "limit": 1,
+      "settings": [
+        { "type": "select", "id": "picker_type", "options": [
+          { "value": "dropdown", "label": "Dropdown" },
+          { "value": "button", "label": "Pills" }
+        ], "default": "button", "label": "Type" }
+      ]
+    },
+    { "type": "buy_buttons", "name": "Buy buttons", "limit": 1,
+      "settings": [
+        { "type": "checkbox", "id": "show_dynamic_checkout", "default": true, "label": "Show dynamic checkout button" }
+      ]
+    },
+    { "type": "pincode_delivery", "name": "Pincode delivery", "limit": 1 },
+    { "type": "fabric_table", "name": "Fabric & care", "limit": 1 },
+    { "type": "fit_feedback", "name": "Fit feedback bar", "limit": 1 },
+    { "type": "model_info", "name": "Model & fit", "limit": 1 },
+    { "type": "description", "name": "Description", "limit": 1 },
+    { "type": "share", "name": "Share", "limit": 1 }
+  ],
+  "settings": [
+    { "type": "checkbox", "id": "enable_sticky_info", "default": true, "label": "Sticky buy column on desktop" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 36 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 12 }
+  ],
+  "presets": [ { "name": "Tapi product" } ],
+  "enabled_on": { "templates": [ "product" ] }
+}
+{% endschema %}
