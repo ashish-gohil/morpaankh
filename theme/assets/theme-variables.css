@@ -555,3 +555,155 @@ sticky-header.shopify-section-header-hidden { transform: none !important; }
 
 /* Trust marquee should always sit above the header (above the sticky band) */
 .tapi-marquee { position: relative; z-index: 51; }
+
+/* ============================================================
+   Inputs — consistent, vertically-centered, no rings
+   (Footer subscribe field is intentionally excluded.)
+   ============================================================ */
+
+/* Reset Dawn's defaults globally for text-like inputs */
+.field, .product-form__input, .customer .field,
+.cart-drawer .field, .cart-page__form .field,
+.contact .field, .search-modal .field, .tapi-pincode {
+  position: relative;
+}
+
+/* Apply ONLY to inputs NOT in the footer subscribe form */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input),
+select:not(.tapi-footer__field select),
+textarea:not(.tapi-footer__field textarea),
+.field__input:not(.tapi-footer__field .field__input) {
+  height: 4.8rem;
+  padding: 0 1.4rem;
+  line-height: 4.8rem;          /* vertical centering for single-line */
+  font-family: var(--font-body-family) !important;
+  font-size: 1.4rem !important;
+  color: var(--tapi-charcoal);
+  background: var(--tapi-ivory) !important;
+  border: 1px solid var(--tapi-hairline-2) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 200ms;
+}
+textarea:not(.tapi-footer__field textarea) {
+  height: auto;
+  min-height: 9.6rem;
+  line-height: 1.6;
+  padding: 1.2rem 1.4rem;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input):focus,
+select:not(.tapi-footer__field select):focus,
+textarea:not(.tapi-footer__field textarea):focus,
+.field__input:not(.tapi-footer__field .field__input):focus {
+  border-color: var(--tapi-charcoal) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+input::placeholder, textarea::placeholder { color: var(--tapi-muted); opacity: 1; }
+
+/* Floating-label fields from Dawn — labels were sometimes hanging mid-input.
+   Lift the label out and rely on placeholders for hint copy. */
+.field__label { display: none !important; }
+.field { display: block; }
+
+/* PDP quantity stepper — buttons + number all flush, no inset rings */
+.tapi-pdp__qty input {
+  height: 100% !important;
+  line-height: 5.4rem !important;
+  background: transparent !important;
+  border: none !important;
+  text-align: center;
+}
+.tapi-pdp__qty button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Pincode input override — matches the height of buttons next to it */
+.tapi-pincode__input {
+  height: 4.4rem !important;
+  line-height: 4.4rem !important;
+}
+.tapi-pincode__row .button { height: 4.4rem !important; min-height: 4.4rem !important; }
+
+/* Search-modal big serif input keeps its own styling */
+search-modal .field__input, .search-modal__form .field__input {
+  height: auto !important;
+  line-height: 1.2 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 1.2rem 0 !important;
+}
+
+/* Disable browser's number-input spin arrows globally for a cleaner look */
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { appearance: none; margin: 0; }
+input[type="number"] { appearance: textfield; }
+
+/* ============================================================
+   Mobile interactions — premium tap/scroll feel
+   ============================================================ */
+
+/* Remove iOS blue tap-highlight everywhere */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Smooth anchor-link scroll */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Momentum scroll on horizontal scrollers (filter pills, related products) */
+.hscroll, .product-options, [class*="scroll-snap"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+/* Press-down feedback on touch devices — feels haptic without JS */
+@media (hover: none) and (pointer: coarse) {
+  a, button, .button, .tapi-card__media, .tapi-tile, .tapi-pdp__size, .tapi-pdp__color, .tapi-pdp__thumb, .icon-btn, .header__icon {
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+                background 200ms, color 200ms, opacity 200ms;
+  }
+  button:active, a:active, .button:active,
+  .tapi-pdp__size:active, .tapi-pdp__color:active,
+  .tapi-pdp__thumb:active, .icon-btn:active {
+    transform: scale(0.96);
+  }
+  .tapi-card:active .tapi-card__media,
+  .tapi-tile:active { transform: scale(0.99); }
+  /* Don't keep hover states "stuck" after a tap */
+  .button:hover { transform: none; box-shadow: none; }
+  .tapi-card:hover .tapi-card__media { transform: none; box-shadow: none; }
+  .tapi-tile:hover .tapi-tile__media img { transform: none; }
+  /* The dual-image cross-fade is hover-only on touch → disabled */
+  .tapi-card:hover .tapi-card__img--front { opacity: 1; }
+  .tapi-card:hover .tapi-card__img--back  { opacity: 0; }
+  .tapi-card__quick { display: none; }
+}
+
+/* Mobile drawer / cart drawer slide-in easing */
+.cart-drawer, .menu-drawer, cart-drawer, menu-drawer {
+  --duration-default: 320ms;
+  --duration-long: 480ms;
+}
+.cart-drawer.active, cart-drawer.active,
+.menu-drawer.menu-opening { transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important; }
+
+/* Mobile sticky bar appears with a small slide-in when the page loads */
+.tapi-pdp__mobile-cta { animation: tapi-mobile-cta-in 420ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both; }
+@keyframes tapi-mobile-cta-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .tapi-pdp__mobile-cta { animation: none; } }
+
+/* Larger touch targets on icons */
+@media (max-width: 749px) {
+  .icon-btn, .header__icon { min-width: 44px; min-height: 44px; }
+}
+
+/* Hide native arrow on Dawn select (we use the brand chevron style instead) */
+select:not(.tapi-footer__field select) {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%232C2826' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 1.4rem center !important;
+  padding-right: 3.6rem !important;
+}
