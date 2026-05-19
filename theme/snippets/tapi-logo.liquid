@@ -2,21 +2,43 @@
   Renders the Tapi & Co. ripple-mark + wordmark as inline SVG.
   Color inherits from the surrounding container so the same snippet
   works on cream and on charcoal backgrounds.
-  @param {string} [size] - Font-size for the wordmark in px (default 24)
+  @param {number} [size] - Font-size for the wordmark in px (default 24)
+  @param {boolean} [as_link] - Render as <a href="/"> instead of <span>.
+    Default false because callers (e.g. header.liquid) already wrap this
+    in their own <a class="header__heading-link">. Nested <a> tags break
+    layout on non-homepage routes. Pass true for standalone use (footer).
   @example
   {% render 'tapi-logo' %}
   {% render 'tapi-logo', size: 22 %}
+  {% render 'tapi-logo', size: 22, as_link: true %}
 {% enddoc %}
 {%- assign sz = size | default: 24 -%}
+{%- comment -%}
+  Render as <span> by default because the caller (header.liquid) already wraps
+  this in <a class="header__heading-link">. Nested <a> tags are invalid HTML
+  and were causing the logo to break layout on non-homepage routes (Dawn only
+  wraps the outer link in <h1> when request.page_type == 'index'). The
+  optional `as_link` argument can be passed by callers that need a standalone
+  clickable logo (e.g. mobile drawer, footer).
+{%- endcomment -%}
+{%- if as_link -%}
 <a href="{{ routes.root_url }}" class="tapi-logo" aria-label="{{ shop.name }}"
    style="display:inline-flex; align-items:center; color: inherit; text-decoration: none; line-height: 1;">
+{%- else -%}
+<span class="tapi-logo" aria-label="{{ shop.name }}"
+      style="display:inline-flex; align-items:center; color: inherit; line-height: 1;">
+{%- endif -%}
   <svg viewBox="0 0 44 44" width="{{ sz | times: 1.4 }}" height="{{ sz | times: 1.4 }}" role="img" aria-hidden="true" style="margin-right: 12px; flex: 0 0 auto;">
     <circle cx="22" cy="22" r="21" stroke="currentColor" stroke-width="1" fill="none"/>
     <path d="M9 18 C 14 14, 18 22, 22 18 S 30 14, 35 18" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/>
     <path d="M9 23 C 14 19, 18 27, 22 23 S 30 19, 35 23" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/>
     <path d="M9 28 C 14 24, 18 32, 22 28 S 30 24, 35 28" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/>
   </svg>
-  <span style="font-family: var(--font-heading-family); font-size: {{ sz }}px; font-weight: 500; letter-spacing: -0.012em; color: inherit;">
+  <span style="font-family: var(--font-heading-family); font-size: {{ sz }}px; font-weight: 500; letter-spacing: -0.012em; color: inherit; white-space: nowrap;">
     Tapi <em style="font-weight: 400; font-style: italic;">&amp;</em> Co.
   </span>
+{%- if as_link -%}
 </a>
+{%- else -%}
+</span>
+{%- endif -%}

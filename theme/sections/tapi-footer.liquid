@@ -23,7 +23,7 @@
 
     <div class="tapi-footer__cols" data-tapi-stagger="80">
       <div data-tapi-reveal>
-        {%- render 'tapi-logo', size: 22 -%}
+        {%- render 'tapi-logo', size: 22, as_link: true -%}
         <p class="tapi-footer__about">{{ section.settings.about_blurb }}</p>
         <div class="tapi-footer__social">
           {%- if settings.social_instagram_link != blank -%}
