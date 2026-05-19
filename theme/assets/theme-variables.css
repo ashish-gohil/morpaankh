@@ -533,3 +533,25 @@ search-modal .field__input, .search-modal__form .field__input {
 }
 search-modal .field__label, .search-modal__form .field__label { font-family: var(--font-heading-family) !important; opacity: 0.5; }
 search-modal .modal__close-button, .search-modal__close { color: var(--tapi-charcoal) !important; }
+
+/* ============================================================
+   Header — keep sticky/visible on ALL pages (PDP, cart, etc.)
+   ============================================================ */
+.shopify-section-group-header-group { position: sticky; top: 0; z-index: 50; }
+sticky-header, .header-wrapper {
+  background: var(--tapi-cream) !important;
+  position: sticky !important;
+  top: 0;
+  z-index: 50;
+  transform: none !important; /* override Dawn's on-scroll-down hide */
+}
+sticky-header.shopify-section-header-hidden { transform: none !important; }
+.header-wrapper, .header-wrapper--border-bottom { border-bottom: 1px solid var(--tapi-hairline); }
+
+/* Cart page — Dawn sometimes scopes the header to a darker scheme; force consistency */
+.template-cart .header-wrapper, .template-cart sticky-header { background: var(--tapi-cream) !important; }
+.template-cart .header, .template-cart .header__heading-link { padding-top: 0; padding-bottom: 0; }
+.template-cart .tapi-logo, .template-cart .tapi-logo span, .template-cart .tapi-logo svg { color: var(--tapi-charcoal); }
+
+/* Trust marquee should always sit above the header (above the sticky band) */
+.tapi-marquee { position: relative; z-index: 51; }
