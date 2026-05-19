@@ -539,7 +539,9 @@ search-modal .modal__close-button, .search-modal__close { color: var(--tapi-char
    ============================================================ */
 .shopify-section-group-header-group { position: sticky; top: 0; z-index: 50; }
 sticky-header, .header-wrapper {
-  background: var(--tapi-cream) !important;
+  /* Header sits on a slightly darker cream so it reads as distinct
+     from the page body without breaking the warm palette. */
+  background: var(--tapi-cream-2) !important;
   position: sticky !important;
   top: 0;
   z-index: 50;
@@ -564,7 +566,54 @@ sticky-header.shopify-section-header-hidden { transform: none !important; }
 }
 
 /* Cart page — Dawn sometimes scopes the header to a darker scheme; force consistency */
-.template-cart .header-wrapper, .template-cart sticky-header { background: var(--tapi-cream) !important; }
+.template-cart .header-wrapper, .template-cart sticky-header { background: var(--tapi-cream-2) !important; }
+
+/* ============================================================
+   Mobile menu drawer — re-skin the bottom utility links so the
+   "Log in" link reads as a brand CTA, not a tiny inline link.
+   ============================================================ */
+.menu-drawer__utility-links {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 2rem 2.4rem 3.2rem !important;
+  border-top: 1px solid var(--tapi-hairline) !important;
+  background: var(--tapi-cream) !important;
+}
+.menu-drawer__account {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.8rem !important;
+  width: 100% !important;
+  height: 5.2rem !important;
+  min-height: 5.2rem !important;
+  padding: 0 2rem !important;
+  background: var(--tapi-charcoal) !important;
+  color: var(--tapi-cream) !important;
+  border: none !important;
+  border-radius: 2px !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.2rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  text-decoration: none !important;
+  transition: background 200ms, transform 200ms;
+}
+.menu-drawer__account:hover {
+  background: var(--tapi-terracotta) !important;
+  color: var(--tapi-cream) !important;
+}
+.menu-drawer__account:active { transform: scale(0.98); }
+.menu-drawer__account svg,
+.menu-drawer__account .icon-account,
+.menu-drawer__account account-icon {
+  width: 18px; height: 18px;
+  color: currentColor;
+}
+/* Make the localization links underneath look tertiary */
+.menu-drawer__localization { padding-top: 0.4rem !important; }
 .template-cart .header, .template-cart .header__heading-link { padding-top: 0; padding-bottom: 0; }
 .template-cart .tapi-logo, .template-cart .tapi-logo span, .template-cart .tapi-logo svg { color: var(--tapi-charcoal); }
 
@@ -1049,18 +1098,22 @@ search-modal .field__input {
 }
 
 /* ============================================================
-   Search modal field — strict row layout + vertical centering
-   override the global column-reverse rule for this one place.
+   Search modal field — flex row, icons sit at the right, vertically
+   centered. Flex is more bulletproof than absolute positioning because
+   Dawn sometimes injects its own height/margin on these buttons.
    ============================================================ */
 
 .search-modal .field,
 .search-modal__form .field,
 search-modal .field {
-  display: block !important;          /* not flex column-reverse */
+  display: flex !important;
   flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.4rem !important;
   position: relative !important;
-  align-items: stretch !important;
   min-height: 5.6rem !important;
+  border-bottom: 1px solid var(--tapi-hairline-2) !important;
 }
 
 /* Hide the floating label inside the search field (placeholder carries the hint) */
@@ -1068,26 +1121,26 @@ search-modal .field {
 .search-modal__form .field__label,
 search-modal .field__label { display: none !important; }
 
-/* Input owns the row, full height */
+/* Input fills the row; icons sit after it at the right end */
 .search-modal .field__input,
 .search-modal__form .field__input,
 search-modal .field__input {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
   display: block !important;
-  width: 100% !important;
   height: 5.6rem !important;
   min-height: 5.6rem !important;
-  line-height: 5.6rem !important;     /* lock vertical centering to the input height */
-  padding: 0 7rem 0 2rem !important;
+  line-height: 5.6rem !important;
+  padding: 0 1.2rem 0 2rem !important;
   font-size: clamp(2rem, 3vw, 2.8rem) !important;
   font-family: var(--font-heading-family) !important;
   border: none !important;
-  border-bottom: 1px solid var(--tapi-hairline-2) !important;
   background: transparent !important;
   box-shadow: none !important;
   outline: none !important;
 }
 
-/* Buttons centered against the INPUT's middle, not the field's */
+/* Reset (×) + Submit (search) — flex items now, no absolute pos */
 .search-modal .field__button,
 .search-modal .field__submit,
 .search-modal .reset__button,
@@ -1097,27 +1150,32 @@ search-modal .field__input {
 search-modal .field__button,
 search-modal .field__submit,
 search-modal .reset__button {
-  position: absolute !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: 5.6rem !important;
+  position: static !important;
+  top: auto !important;
+  bottom: auto !important;
+  right: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  align-self: center !important;
+  flex: 0 0 auto !important;
   width: 44px !important;
-  margin: auto 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  height: 44px !important;
   background: transparent !important;
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
   padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--tapi-charcoal) !important;
+  cursor: pointer;
+  transition: color 200ms;
 }
-.search-modal .field__submit,
-.search-modal__form .field__submit,
-search-modal .field__submit { right: 0.6rem !important; left: auto !important; }
-.search-modal .reset__button,
-.search-modal__form .reset__button,
-search-modal .reset__button { right: 5rem !important; left: auto !important; }
+
+/* DOM order in Dawn is: input → label → reset → submit. With flex the
+   visual order matches the DOM order, so reset (×) appears immediately
+   left of submit (🔍). That's what we want. */
 
 .search-modal .field__button svg,
 .search-modal .field__submit svg,
@@ -1128,6 +1186,12 @@ search-modal .field__submit svg,
 search-modal .reset__button svg {
   width: 20px !important; height: 20px !important; display: block !important;
 }
+.search-modal .field__submit:hover,
+.search-modal .reset__button:hover,
+.search-modal__form .field__submit:hover,
+.search-modal__form .reset__button:hover,
+search-modal .field__submit:hover,
+search-modal .reset__button:hover { color: var(--tapi-terracotta) !important; }
 
 /* ============================================================
    Show the × (reset) only when the input has text.

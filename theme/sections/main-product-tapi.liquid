@@ -32,16 +32,39 @@
         {%- endfor -%}
       </div>
       <div class="tapi-pdp__gallery-main">
-        {%- for media in product.media limit: 6 -%}
-          <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}">
-            {{ media.preview_image | image_url: width: 1400 | image_tag:
-               loading: 'eager', widths: '600, 900, 1200, 1600',
-               sizes: '(min-width: 990px) 50vw, 100vw',
-               alt: media.preview_image.alt | default: product.title }}
+        <div class="tapi-pdp__gallery-stage" data-gallery-stage>
+          {%- for media in product.media limit: 6 -%}
+            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}">
+              {{ media.preview_image | image_url: width: 1400 | image_tag:
+                 loading: 'eager', widths: '600, 900, 1200, 1600',
+                 sizes: '(min-width: 990px) 50vw, 100vw',
+                 alt: media.preview_image.alt | default: product.title }}
+            </div>
+          {%- endfor -%}
+          {%- if product.media.size == 0 -%}
+            {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg tapi-pdp__placeholder' }}
+          {%- endif -%}
+
+          {%- if product.media.size > 1 -%}
+            <button type="button" class="tapi-pdp__nav tapi-pdp__nav--prev" data-gallery-prev aria-label="Previous image">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false">
+                <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button type="button" class="tapi-pdp__nav tapi-pdp__nav--next" data-gallery-next aria-label="Next image">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false">
+                <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+
+        {%- if product.media.size > 1 -%}
+          <div class="tapi-pdp__dots" data-gallery-dots aria-hidden="true">
+            {%- for media in product.media limit: 6 -%}
+              <button type="button" class="tapi-pdp__dot {% if forloop.first %}is-active{% endif %}" data-dot-index="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}"></button>
+            {%- endfor -%}
           </div>
-        {%- endfor -%}
-        {%- if product.media.size == 0 -%}
-          {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg tapi-pdp__placeholder' }}
         {%- endif -%}
       </div>
     </div>
@@ -241,6 +264,7 @@
   .tapi-pdp__thumb img { width: 100%; height: 100%; object-fit: cover; }
   .tapi-pdp__thumb.is-active { border-color: var(--tapi-charcoal); }
   .tapi-pdp__gallery-main { position: sticky; top: 130px; align-self: start; min-height: 600px; }
+  .tapi-pdp__gallery-stage { position: relative; }
   .tapi-pdp__main-img { display: none; position: relative; overflow: hidden; }
   .tapi-pdp__main-img.is-active { display: block; animation: tapi-rise 480ms cubic-bezier(0.16,1,0.3,1); }
   .tapi-pdp__main-img img {
@@ -255,6 +279,55 @@
     .tapi-pdp__main-img img { transition: none; }
     .tapi-pdp__main-img:hover img { transform: none; }
   }
+
+  /* Prev / next navigation overlay — sits on the main image, mid-height,
+     subtle by default and steps forward on hover. Hidden until the user
+     hovers (or always on touch). */
+  .tapi-pdp__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: rgba(248, 244, 237, 0.92);
+    border: 1px solid var(--tapi-hairline-2);
+    color: var(--tapi-charcoal);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
+                background 200ms,
+                transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: 2;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .tapi-pdp__nav:hover { background: var(--tapi-cream); }
+  .tapi-pdp__nav:active { transform: translateY(-50%) scale(0.94); }
+  .tapi-pdp__nav--prev { left: 1.2rem; }
+  .tapi-pdp__nav--next { right: 1.2rem; }
+  .tapi-pdp__gallery-stage:hover .tapi-pdp__nav,
+  .tapi-pdp__nav:focus-visible { opacity: 1; }
+  /* Touch devices have no hover — show the nav at low opacity always */
+  @media (hover: none) {
+    .tapi-pdp__nav { opacity: 0.72; }
+  }
+
+  /* Dot indicators — visible at all times, centered under the main image */
+  .tapi-pdp__dots {
+    display: flex; justify-content: center; gap: 8px;
+    margin-top: 1.6rem;
+  }
+  .tapi-pdp__dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--tapi-hairline-2);
+    border: none;
+    cursor: pointer;
+    transition: background 200ms, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 0;
+  }
+  .tapi-pdp__dot:hover { background: var(--tapi-warm-grey); }
+  .tapi-pdp__dot.is-active { background: var(--tapi-charcoal); transform: scale(1.25); }
   @keyframes tapi-rise { from { opacity: 0; transform: translate3d(0,12px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
 
   .tapi-pdp__info { display: flex; flex-direction: column; gap: 2.4rem; min-width: 0; }
@@ -442,15 +515,62 @@
       if (mobileAdd) mobileAdd.textContent = currentVariantText ? `Add — ${currentVariantText}` : 'Add to bag';
     };
 
-    // Thumb → main image swap (with rise animation)
-    thumbs.forEach(t => t.addEventListener('click', function () {
+    // Gallery state — single source of truth for active image index
+    const dots = sec.querySelectorAll('[data-gallery-dots] .tapi-pdp__dot');
+    const total = mains.length || 1;
+    const setActiveImage = (idx) => {
+      const next = ((idx % total) + total) % total; // wrap both directions
       thumbs.forEach(x => x.classList.remove('is-active'));
       mains.forEach(x => x.classList.remove('is-active'));
-      t.classList.add('is-active');
-      const idx = t.getAttribute('data-thumb-index');
-      const m = sec.querySelector(`.tapi-pdp__main-img[data-main-index="${idx}"]`);
+      dots.forEach(x => x.classList.remove('is-active'));
+      const t = sec.querySelector(`.tapi-pdp__thumb[data-thumb-index="${next}"]`);
+      const m = sec.querySelector(`.tapi-pdp__main-img[data-main-index="${next}"]`);
+      const d = sec.querySelector(`.tapi-pdp__dot[data-dot-index="${next}"]`);
+      if (t) t.classList.add('is-active');
       if (m) m.classList.add('is-active');
+      if (d) d.classList.add('is-active');
+    };
+    const currentIndex = () => {
+      const cur = sec.querySelector('.tapi-pdp__main-img.is-active');
+      return cur ? parseInt(cur.getAttribute('data-main-index'), 10) : 0;
+    };
+
+    // Thumbnail click → set active
+    thumbs.forEach(t => t.addEventListener('click', function () {
+      setActiveImage(parseInt(t.getAttribute('data-thumb-index'), 10));
     }));
+
+    // Dot click → set active
+    dots.forEach(d => d.addEventListener('click', function () {
+      setActiveImage(parseInt(d.getAttribute('data-dot-index'), 10));
+    }));
+
+    // Prev / next arrow buttons
+    const prevBtn = sec.querySelector('[data-gallery-prev]');
+    const nextBtn = sec.querySelector('[data-gallery-next]');
+    if (prevBtn) prevBtn.addEventListener('click', () => setActiveImage(currentIndex() - 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => setActiveImage(currentIndex() + 1));
+
+    // Keyboard arrows when stage has focus (or any descendant)
+    const stage = sec.querySelector('[data-gallery-stage]');
+    if (stage) {
+      stage.setAttribute('tabindex', '-1');
+      stage.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); setActiveImage(currentIndex() - 1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); setActiveImage(currentIndex() + 1); }
+      });
+
+      // Touch swipe — left/right swipes > 40px change image
+      let touchX = null;
+      stage.addEventListener('touchstart', (e) => { touchX = e.changedTouches[0].clientX; }, { passive: true });
+      stage.addEventListener('touchend', (e) => {
+        if (touchX == null) return;
+        const dx = e.changedTouches[0].clientX - touchX;
+        touchX = null;
+        if (Math.abs(dx) < 40) return;
+        setActiveImage(currentIndex() + (dx < 0 ? 1 : -1));
+      }, { passive: true });
+    }
 
     // Color swatch toggle — also refades the main image (design parity)
     sec.querySelectorAll('.tapi-pdp__color').forEach(c => {
