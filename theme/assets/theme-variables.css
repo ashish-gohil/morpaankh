@@ -764,12 +764,98 @@ html { scroll-behavior: smooth; }
   .icon-btn, .header__icon { min-width: 44px; min-height: 44px; }
 }
 
-/* Hide native arrow on Dawn select (we use the brand chevron style instead) */
+/* ============================================================
+   Selects + dropdowns — brand-styled, sharp edges, single chevron.
+
+   Dawn renders <select> WITH a sibling <span class="svg-wrapper">
+   that contains its own caret icon. Combined with the browser's
+   native arrow AND our brand-chevron background-image, we ended up
+   with two chevrons stacked. Fix: keep our brand chevron, suppress
+   Dawn's extra one, and style the <select> + .select wrapper to
+   match the design.
+   ============================================================ */
+
+/* Our brand chevron (single source of truth) */
 select:not(.tapi-footer__field select) {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%232C2826' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
   background-repeat: no-repeat !important;
   background-position: right 1.4rem center !important;
   padding-right: 3.6rem !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  border-radius: 2px !important;
+  background-color: var(--tapi-ivory) !important;
+  border: 1px solid var(--tapi-hairline-2) !important;
+  color: var(--tapi-charcoal) !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.3rem !important;
+  letter-spacing: 0.04em !important;
+  cursor: pointer;
+  transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 200ms;
+}
+select:not(.tapi-footer__field select):hover,
+select:not(.tapi-footer__field select):focus {
+  border-color: var(--tapi-charcoal) !important;
+  background-color: var(--tapi-cream) !important;
+}
+
+/* Hide Dawn's extra caret icon — both as a sibling and as a child of
+   the .select wrapper. Selector matches all known Dawn placements. */
+.select > .svg-wrapper,
+.select__select + .svg-wrapper,
+.facet-filters__field .svg-wrapper,
+.facets__sort + .svg-wrapper,
+.product-form__input--dropdown .svg-wrapper {
+  display: none !important;
+}
+
+/* The .select wrapper that Dawn puts around the select — strip its
+   own padding/border (it was meant to host a sibling icon) and let
+   the <select> own the chrome. */
+.select,
+.select__select-wrap {
+  position: relative !important;
+  display: inline-block !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  width: auto !important;
+}
+.select::before, .select::after,
+.select__select-wrap::before, .select__select-wrap::after {
+  display: none !important; content: none !important;
+}
+
+/* The <option> elements — browser support varies (Safari ignores most
+   of this) but Chromium/Firefox honor background + color. */
+select:not(.tapi-footer__field select) option {
+  background-color: var(--tapi-ivory);
+  color: var(--tapi-charcoal);
+  padding: 0.8rem 1.2rem;
+  font-family: var(--font-body-family);
+}
+select:not(.tapi-footer__field select) option:checked {
+  background-color: var(--tapi-cream-2);
+  color: var(--tapi-terracotta);
+  font-weight: 500;
+}
+
+/* Compact size variant — used in toolbars like the collection sort row */
+.facet-filters__field select,
+.facets-vertical-sort select {
+  height: 4rem !important;
+  min-height: 4rem !important;
+}
+
+/* Country / language localization selectors — same look as sort */
+localization-form select,
+.localization-form select {
+  height: 4rem !important;
+  min-height: 4rem !important;
 }
 
 /* ============================================================
