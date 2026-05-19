@@ -313,3 +313,73 @@ button.shopify-payment-button__button--unbranded {
   font-family: var(--font-body-family);
   font-weight: 500;
 }
+
+/* ============================================================
+   Global micro-interactions (added by Tapi customization)
+   ============================================================ */
+
+/* Eyebrow-line — the small terracotta dash that draws in then
+   expands on hover. Apply class `tapi-eyebrow--line` next to
+   `tapi-eyebrow`. */
+.tapi-eyebrow--line { display: inline-flex; align-items: center; gap: 1rem; }
+.tapi-eyebrow--line::before {
+  content: ""; height: 1px; background: var(--tapi-terracotta);
+  width: 0;
+  animation: tapi-eyebrow-line-draw 700ms cubic-bezier(0.22,1,0.36,1) 240ms forwards;
+  transition: width 360ms cubic-bezier(0.22,1,0.36,1);
+}
+.tapi-eyebrow--line:hover::before { width: 40px !important; }
+@keyframes tapi-eyebrow-line-draw { from { width: 0; } to { width: 20px; } }
+
+/* Lift card */
+.tapi-lift { transition: transform 480ms cubic-bezier(0.22,1,0.36,1), box-shadow 480ms cubic-bezier(0.22,1,0.36,1); }
+.tapi-lift:hover { transform: translateY(-6px); box-shadow: 0 24px 48px -28px rgba(44,40,38,0.25); }
+
+/* Arrow slide */
+.tapi-arrow-slide { display: inline-flex; align-items: center; gap: 8px; }
+.tapi-arrow-slide em, .tapi-arrow-slide svg, .tapi-arrow-slide > .tapi-arrow {
+  font-style: normal;
+  transition: transform 360ms cubic-bezier(0.22,1,0.36,1);
+  display: inline-block;
+}
+.tapi-arrow-slide:hover em,
+.tapi-arrow-slide:hover svg,
+.tapi-arrow-slide:hover > .tapi-arrow { transform: translateX(6px); }
+
+/* Underline that draws in */
+.tapi-underline { position: relative; display: inline-block; padding-bottom: 4px; }
+.tapi-underline::after {
+  content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 1px;
+  background: currentColor; transform: scaleX(0); transform-origin: right;
+  transition: transform 480ms cubic-bezier(0.22,1,0.36,1);
+}
+.tapi-underline:hover::after { transform: scaleX(1); transform-origin: left; }
+
+/* Button lift + sliding wash on hover */
+.button--primary, .button--terracotta, .button--outline {
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: background var(--duration-default, 160ms), color var(--duration-default, 160ms),
+              border-color var(--duration-default, 160ms),
+              transform 240ms cubic-bezier(0.22,1,0.36,1),
+              box-shadow 240ms cubic-bezier(0.22,1,0.36,1);
+}
+.button--primary::before, .button--terracotta::before, .button--outline::before {
+  content: ""; position: absolute; inset: 0; background: currentColor;
+  opacity: 0; transform: translateY(100%); z-index: -1; pointer-events: none;
+  transition: transform 360ms cubic-bezier(0.22,1,0.36,1), opacity 240ms;
+}
+.button--primary:hover    { transform: translateY(-2px); box-shadow: 0 16px 32px -16px rgba(183,71,42,0.5); }
+.button--terracotta:hover { transform: translateY(-2px); box-shadow: 0 16px 32px -16px rgba(143,54,33,0.45); }
+.button--outline:hover    { background: var(--tapi-charcoal); color: var(--tapi-cream); transform: translateY(-2px); box-shadow: 0 12px 24px -16px rgba(44,40,38,0.35); }
+.button--primary:hover::before, .button--terracotta:hover::before, .button--outline:hover::before { transform: translateY(0); opacity: 0.06; }
+.button--primary:active, .button--terracotta:active, .button--outline:active { transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-eyebrow--line::before { width: 20px; animation: none; }
+  .tapi-lift, .tapi-arrow-slide em, .tapi-arrow-slide svg, .button--primary, .button--terracotta, .button--outline { transition: none !important; }
+  .tapi-lift:hover, .button--primary:hover, .button--terracotta:hover, .button--outline:hover { transform: none !important; box-shadow: none !important; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .tapi-lift:hover { transform: none; box-shadow: none; }
+  .button--primary:hover, .button--terracotta:hover, .button--outline:hover { transform: none; box-shadow: none; }
+}

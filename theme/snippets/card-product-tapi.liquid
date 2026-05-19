@@ -1,56 +1,166 @@
 {% doc %}
-  Tapi-branded product card. Replaces Dawn's card-product when needed.
+  Tapi-branded product card with dual-image cross-fade hover, lift, quick-view CTA,
+  badge stack, compare-at savings %, color dots from tapi.color_options metafield,
+  and rating/GSM/low-stock meta.
   @param {object} product - The product to render.
   @example
   {% render 'card-product-tapi', product: product %}
 {% enddoc %}
 {%- assign m = product.metafields.tapi -%}
+{%- assign img1 = product.featured_image -%}
+{%- assign img2 = product.media[1].preview_image | default: product.images[1] -%}
+{%- assign compare = product.compare_at_price -%}
+{%- assign price = product.price -%}
+{%- assign saving_pct = 0 -%}
+{%- if compare > price -%}
+  {%- assign diff = compare | minus: price -%}
+  {%- assign saving_pct = diff | times: 100.0 | divided_by: compare | round -%}
+{%- endif -%}
+{%- assign low_stock = false -%}
+{%- for v in product.variants -%}
+  {%- if v.inventory_quantity > 0 and v.inventory_quantity <= 3 -%}{%- assign low_stock = true -%}{%- endif -%}
+{%- endfor -%}
+
 <article class="tapi-card">
-  <a href="{{ product.url }}" class="tapi-card__media" aria-label="{{ product.title }}">
-    {%- if product.featured_image -%}
-      {{ product.featured_image | image_url: width: 800 | image_tag:
-         loading: 'lazy', widths: '300, 600, 900',
-         sizes: '(min-width: 750px) 25vw, 50vw',
-         alt: product.featured_image.alt | default: product.title }}
-    {%- else -%}
-      {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg' }}
-    {%- endif -%}
-    {%- if product.tags contains 'new' -%}
-      <span class="tapi-tag tapi-tag--charcoal">New</span>
-    {%- elsif product.tags contains 'bestseller' -%}
-      <span class="tapi-tag tapi-tag--sage">Bestseller</span>
-    {%- elsif product.tags contains 'festive' -%}
-      <span class="tapi-tag tapi-tag--terracotta">Festive</span>
-    {%- endif -%}
-  </a>
-  <div class="tapi-card__info">
-    <h3 class="card__heading"><a href="{{ product.url }}">{{ product.title }}</a></h3>
-    <div class="tapi-card__row">
-      <span class="card__subtitle">{{ m.subtitle | default: m.blend | truncate: 36 }}</span>
-      <span class="price">{{ product.price | money }}</span>
+  <a class="tapi-card__media" href="{{ product.url }}" aria-label="{{ product.title }}">
+    <div class="tapi-card__img tapi-card__img--front">
+      {%- if img1 -%}
+        {{ img1 | image_url: width: 800 | image_tag:
+           loading: 'lazy', widths: '300, 600, 900',
+           sizes: '(min-width: 750px) 25vw, 50vw',
+           alt: img1.alt | default: product.title }}
+      {%- else -%}
+        {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg' }}
+      {%- endif -%}
     </div>
-    <div class="tapi-meta">
-      {%- if m.rating -%}<span>★ {{ m.rating }}</span>{%- endif -%}
-      {%- if m.gsm -%}<span>{{ m.gsm }} GSM</span>{%- endif -%}
-      {%- if product.available == false -%}<span style="color: var(--tapi-terracotta);">Sold out</span>{%- endif -%}
+    {%- if img2 -%}
+      <div class="tapi-card__img tapi-card__img--back" aria-hidden="true">
+        {{ img2 | image_url: width: 800 | image_tag:
+           loading: 'lazy', widths: '300, 600, 900',
+           sizes: '(min-width: 750px) 25vw, 50vw',
+           alt: '' }}
+      </div>
+    {%- endif -%}
+
+    <div class="tapi-card__badges">
+      {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+      {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
+      {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+    </div>
+    {%- if saving_pct > 0 -%}
+      <span class="tapi-card__savings">–{{ saving_pct }}%</span>
+    {%- endif -%}
+
+    <div class="tapi-card__quick">
+      <span class="tapi-card__quick-btn">Quick view <em>→</em></span>
+    </div>
+  </a>
+
+  <div class="tapi-card__info">
+    <div class="tapi-card__row">
+      <h3 class="tapi-card__title"><a href="{{ product.url }}">{{ product.title }}</a></h3>
+      <div class="tapi-card__price">
+        <span class="tapi-card__price-now">{{ product.price | money }}</span>
+        {%- if compare > price -%}
+          <span class="tapi-card__price-was">{{ compare | money }}</span>
+        {%- endif -%}
+      </div>
+    </div>
+
+    <div class="tapi-card__row tapi-card__row--meta">
+      <span class="tapi-card__subtitle">{{ m.subtitle | default: m.blend | truncate: 36 }}</span>
+      {%- if m.color_options != blank -%}
+        <div class="tapi-card__dots" aria-label="Color options">
+          {%- for c in m.color_options.value limit: 5 -%}
+            <span class="tapi-card__dot" style="background: {{ c.hex }};" title="{{ c.name }}"></span>
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+    </div>
+
+    <div class="tapi-card__metaline">
+      {%- if m.rating -%}<span>★ {{ m.rating }}</span><span class="tapi-card__sep"></span>{%- endif -%}
+      {%- if m.review_count -%}<span>{{ m.review_count }} reviews</span><span class="tapi-card__sep"></span>{%- endif -%}
+      {%- if m.gsm -%}<span class="tnum">{{ m.gsm }} GSM</span>{%- endif -%}
+      {%- if low_stock -%}<span class="tapi-card__sep"></span><span class="tapi-card__low"><span class="tapi-card__pulse"></span>Low stock</span>{%- endif -%}
+      {%- if product.available == false -%}<span class="tapi-card__sep"></span><span style="color: var(--tapi-terracotta);">Sold out</span>{%- endif -%}
     </div>
   </div>
 </article>
 
 {% stylesheet %}
-  .tapi-card { display: flex; flex-direction: column; gap: 1.2rem; }
-  .tapi-card__media { position: relative; display: block; overflow: hidden; aspect-ratio: 3 / 4; background: var(--tapi-cream-2); }
-  .tapi-card__media img { width: 100%; height: 100%; object-fit: cover; transition: transform 1200ms cubic-bezier(0.22,1,0.36,1); }
-  .tapi-card__media:hover img { transform: scale(1.04); }
-  .tapi-card__media .tapi-tag { position: absolute; top: 12px; left: 12px; }
+  .tapi-card { display: flex; flex-direction: column; gap: 1.4rem; position: relative; }
+  .tapi-card__media {
+    position: relative; display: block; overflow: hidden;
+    aspect-ratio: 3 / 4; background: var(--tapi-cream-2);
+    transition: transform 480ms cubic-bezier(0.22,1,0.36,1),
+                box-shadow 480ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-card:hover .tapi-card__media {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 48px -28px rgba(44,40,38,0.28);
+  }
+  .tapi-card__img { position: absolute; inset: 0; }
+  .tapi-card__img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1200ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-card__img--front { z-index: 1; transition: opacity 600ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-card__img--back  { z-index: 0; opacity: 0; transform: scale(1.04); transition: opacity 600ms cubic-bezier(0.22,1,0.36,1), transform 1200ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-card:hover .tapi-card__img--front { opacity: 0; }
+  .tapi-card:hover .tapi-card__img--front img { transform: scale(1.03); }
+  .tapi-card:hover .tapi-card__img--back  { opacity: 1; transform: scale(1); }
+
+  .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+  .tapi-card__savings {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+    font-size: 1.1rem; letter-spacing: 0.06em; font-weight: 500; border-radius: 9999px;
+    background: var(--tapi-charcoal); color: var(--tapi-cream); font-variant-numeric: tabular-nums;
+  }
+  .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; }
+  .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }
+  .tapi-tag--sage       { background: var(--tapi-sage-wash); color: var(--tapi-sage-deep); }
+  .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
+
+  .tapi-card__quick {
+    position: absolute; inset: 0; z-index: 3;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding: 16px; pointer-events: none;
+  }
+  .tapi-card__quick-btn {
+    width: 100%; max-width: 280px;
+    background: var(--tapi-charcoal); color: var(--tapi-cream);
+    height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 1.2rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;
+    border-radius: 2px;
+    transform: translateY(120%); opacity: 0;
+    transition: transform 480ms cubic-bezier(0.22,1,0.36,1), opacity 360ms;
+  }
+  .tapi-card__quick-btn em { font-style: normal; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-card:hover .tapi-card__quick-btn { transform: translateY(0); opacity: 1; }
+  .tapi-card:hover .tapi-card__quick-btn em { transform: translateX(6px); }
+
   .tapi-card__info { display: flex; flex-direction: column; gap: 0.6rem; }
   .tapi-card__row { display: flex; justify-content: space-between; align-items: baseline; gap: 1.2rem; }
-  .tapi-card .card__heading a { color: inherit; text-decoration: none; transition: color 240ms; }
-  .tapi-card:hover .card__heading a { color: var(--tapi-terracotta); }
-  .tapi-card .card__subtitle { font-size: 1.2rem; color: var(--tapi-warm-grey); }
-  .tapi-card .tapi-meta { display: flex; gap: 1rem; font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; }
-  .tapi-card .tapi-tag { display: inline-flex; height: 24px; padding: 0 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; align-items: center; }
-  .tapi-card .tapi-tag--charcoal { background: var(--tapi-charcoal); color: var(--tapi-cream); }
-  .tapi-card .tapi-tag--sage { background: var(--tapi-sage-wash); color: var(--tapi-sage-deep); }
-  .tapi-card .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
+  .tapi-card__row--meta { align-items: center; }
+  .tapi-card__title { font-family: var(--font-heading-family); font-size: 1.9rem; margin: 0; font-weight: 500; letter-spacing: -0.008em; }
+  .tapi-card__title a { color: var(--tapi-charcoal); text-decoration: none; transition: color 240ms; }
+  .tapi-card:hover .tapi-card__title a { color: var(--tapi-terracotta); }
+  .tapi-card__price { display: flex; align-items: baseline; gap: 0.6rem; }
+  .tapi-card__price-now { font-family: var(--font-heading-family); font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tapi-card__price-was { font-size: 1.2rem; color: var(--tapi-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+  .tapi-card__subtitle { font-size: 1.2rem; color: var(--tapi-warm-grey); }
+  .tapi-card__dots { display: flex; gap: 5px; align-items: center; }
+  .tapi-card__dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--tapi-hairline-2); transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .tapi-card__dot:hover { transform: scale(1.2); }
+  .tapi-card__metaline { display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; }
+  .tapi-card__sep { width: 2px; height: 2px; background: var(--tapi-muted); border-radius: 50%; }
+  .tapi-card__low { color: var(--tapi-terracotta); display: inline-flex; align-items: center; gap: 4px; }
+  .tapi-card__pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta); animation: tapi-pulse 2.2s ease-in-out infinite; }
+  @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.6; } }
+
+  @media (hover: none) and (pointer: coarse) {
+    .tapi-card__quick { display: none; }
+    .tapi-card:hover .tapi-card__media { transform: none; box-shadow: none; }
+    .tapi-card:hover .tapi-card__img--front { opacity: 1; }
+    .tapi-card:hover .tapi-card__img--back  { opacity: 0; }
+  }
 {% endstylesheet %}
