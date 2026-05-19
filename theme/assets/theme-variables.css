@@ -175,6 +175,69 @@ button.shopify-payment-button__button--unbranded {
   font-variant-numeric: tabular-nums;
 }
 
+/* ============================================================
+   Product grid — equal-height, equal-width tiles
+   Dawn's card snippet collapses around its content, so titles
+   wrapping to two lines push everything below them down. Forcing
+   each tile into a flex column with a fixed-aspect image area and
+   a pinned-bottom info row makes every card share the same shape
+   regardless of title or tag length.
+   ============================================================ */
+.product-grid { align-items: stretch; }
+.product-grid .grid__item {
+  display: flex !important;
+  flex-direction: column;
+}
+.product-grid .grid__item > .card-wrapper,
+.product-grid .grid__item > .card-wrapper > a,
+.product-grid .grid__item > .card-wrapper > .card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+/* Image area — locked aspect so every tile's photo is exactly the
+   same height regardless of original media dimensions. */
+.product-grid .card__inner,
+.product-grid .card .media,
+.product-grid .card__media {
+  aspect-ratio: 3 / 4;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.product-grid .card__inner img,
+.product-grid .card .media img,
+.product-grid .card__media img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+/* Info area — fills the rest, with internal items pinned so the
+   price always sits at the bottom of the tile. */
+.product-grid .card__content,
+.product-grid .card__information {
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+/* Title — clamp to two lines so the info row's height is stable.
+   Vendor / rating row sits between title and price. */
+.product-grid .card__information .card__heading {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(1.9rem * 1.3 * 2); /* roughly two lines */
+  line-height: 1.3;
+}
+.product-grid .card__information .price {
+  margin-top: auto; /* pins price to bottom of info area */
+  padding-top: 0.4rem;
+}
+/* Badges / tags inside the image — anchor consistently */
+.product-grid .card__badge { top: 12px; left: 12px; }
+
 /* ---------- Inputs ---------- */
 .field__input {
   background: var(--tapi-ivory);
