@@ -1032,3 +1032,109 @@ search-modal .field__input {
   line-height: 1.2 !important;
   min-height: 5.6rem !important;
 }
+
+/* ============================================================
+   Search modal field — strict row layout + vertical centering
+   override the global column-reverse rule for this one place.
+   ============================================================ */
+
+.search-modal .field,
+.search-modal__form .field,
+search-modal .field {
+  display: block !important;          /* not flex column-reverse */
+  flex-direction: row !important;
+  position: relative !important;
+  align-items: stretch !important;
+  min-height: 5.6rem !important;
+}
+
+/* Hide the floating label inside the search field (placeholder carries the hint) */
+.search-modal .field__label,
+.search-modal__form .field__label,
+search-modal .field__label { display: none !important; }
+
+/* Input owns the row, full height */
+.search-modal .field__input,
+.search-modal__form .field__input,
+search-modal .field__input {
+  display: block !important;
+  width: 100% !important;
+  height: 5.6rem !important;
+  min-height: 5.6rem !important;
+  line-height: 5.6rem !important;     /* lock vertical centering to the input height */
+  padding: 0 7rem 0 2rem !important;
+  font-size: clamp(2rem, 3vw, 2.8rem) !important;
+  font-family: var(--font-heading-family) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--tapi-hairline-2) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Buttons centered against the INPUT's middle, not the field's */
+.search-modal .field__button,
+.search-modal .field__submit,
+.search-modal .reset__button,
+.search-modal__form .field__button,
+.search-modal__form .field__submit,
+.search-modal__form .reset__button,
+search-modal .field__button,
+search-modal .field__submit,
+search-modal .reset__button {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 5.6rem !important;
+  width: 44px !important;
+  margin: auto 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.search-modal .field__submit,
+.search-modal__form .field__submit,
+search-modal .field__submit { right: 0.6rem !important; left: auto !important; }
+.search-modal .reset__button,
+.search-modal__form .reset__button,
+search-modal .reset__button { right: 5rem !important; left: auto !important; }
+
+.search-modal .field__button svg,
+.search-modal .field__submit svg,
+.search-modal .reset__button svg,
+.search-modal__form svg,
+search-modal .field__button svg,
+search-modal .field__submit svg,
+search-modal .reset__button svg {
+  width: 20px !important; height: 20px !important; display: block !important;
+}
+
+/* ============================================================
+   Show the × (reset) only when the input has text.
+   Uses :placeholder-shown — works on all modern browsers.
+   ============================================================ */
+.search-modal .reset__button,
+.search-modal__form .reset__button,
+search-modal .reset__button {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  transition: opacity 200ms;
+}
+/* When the search input is not in placeholder state (= user has typed), show × */
+.search-modal .field:has(input.field__input:not(:placeholder-shown)) .reset__button,
+.search-modal__form .field:has(input.field__input:not(:placeholder-shown)) .reset__button,
+search-modal .field:has(input.field__input:not(:placeholder-shown)) .reset__button {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+/* Fallback if :has() unsupported — show on focus + filled state via JS-less trick:
+   make the reset hidden via display until input is :not(:placeholder-shown) */
+.search-modal__form .field__input:placeholder-shown + .reset__button,
+search-modal .field__input:placeholder-shown + .reset__button { visibility: hidden !important; opacity: 0 !important; }
+.search-modal__form .field__input:not(:placeholder-shown) + .reset__button,
+search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility: visible !important; opacity: 1 !important; }
