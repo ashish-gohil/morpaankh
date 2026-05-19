@@ -1,0 +1,103 @@
+<section class="tapi-hero">
+  <div class="page-width">
+    <div class="tapi-hero__grid">
+      <div class="tapi-hero__copy">
+        <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
+        <h1 class="tapi-hero__title">
+          {{ section.settings.line_1 }}<br>
+          <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
+        </h1>
+        <p class="tapi-hero__lede">{{ section.settings.lede }}</p>
+        <div class="tapi-hero__cta-row">
+          {%- if section.settings.cta_primary != blank -%}
+            <a href="{{ section.settings.cta_primary_link }}" class="button button--primary">{{ section.settings.cta_primary }} →</a>
+          {%- endif -%}
+          {%- if section.settings.cta_secondary != blank -%}
+            <a href="{{ section.settings.cta_secondary_link }}" class="button button--outline">{{ section.settings.cta_secondary }}</a>
+          {%- endif -%}
+        </div>
+        <div class="tapi-hero__stats">
+          {%- for b in section.blocks -%}
+            <div {{ b.shopify_attributes }}>
+              <div class="tapi-hero__stat-key">{{ b.settings.label }}</div>
+              <div class="tapi-hero__stat-val">{{ b.settings.value }}</div>
+            </div>
+          {%- endfor -%}
+        </div>
+      </div>
+      <div class="tapi-hero__visual">
+        {%- if section.settings.image != blank -%}
+          {{ section.settings.image | image_url: width: 1200 | image_tag:
+             loading: 'eager', widths: '600, 900, 1200, 1600',
+             sizes: '(min-width: 750px) 60vw, 90vw',
+             alt: section.settings.image.alt | default: shop.name }}
+        {%- else -%}
+          <div class="tapi-hero__placeholder">
+            <span style="font-family: var(--font-heading-family); font-style: italic; font-size: 6.4rem; color: var(--tapi-cream);">Saanjh</span>
+            <span style="font-size: 1.1rem; letter-spacing: 0.2em; color: var(--tapi-terracotta-soft); text-transform: uppercase; margin-top: 1.2rem;">Drop 01 · The dusk edit</span>
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>
+
+{% stylesheet %}
+  .tapi-hero { padding: 4.8rem 0 9.6rem; background: var(--tapi-cream); }
+  .tapi-hero__grid { display: grid; grid-template-columns: 1.05fr 1.4fr; gap: 5.6rem; align-items: center; }
+  .tapi-eyebrow--line { display: inline-flex; align-items: center; gap: 1rem; }
+  .tapi-eyebrow--line::before { content: ""; width: 20px; height: 1px; background: var(--tapi-terracotta); }
+  .tapi-hero__title { font-family: var(--font-heading-family); font-size: clamp(3.8rem, 8vw, 9.6rem); line-height: 1.02; letter-spacing: -0.018em; font-weight: 500; margin: 1.6rem 0; }
+  .tapi-hero__title-accent { color: var(--tapi-terracotta); font-weight: 500; }
+  .tapi-hero__lede { font-size: clamp(1.5rem, 1.4vw, 1.7rem); line-height: 1.6; color: var(--tapi-warm-grey); margin: 0 0 2.8rem; max-width: 46rem; }
+  .tapi-hero__cta-row { display: flex; gap: 1.2rem; flex-wrap: wrap; margin-bottom: 4rem; }
+  .tapi-hero__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; padding-top: 2.8rem; border-top: 1px solid var(--tapi-hairline); }
+  .tapi-hero__stat-key { font-size: 1rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--tapi-muted); margin-bottom: 0.4rem; }
+  .tapi-hero__stat-val { font-family: var(--font-heading-family); font-size: 1.7rem; color: var(--tapi-charcoal); }
+  .tapi-hero__visual { aspect-ratio: 4 / 5; overflow: hidden; background: var(--tapi-cream-2); position: relative; }
+  .tapi-hero__visual img { width: 100%; height: 100%; object-fit: cover; }
+  .tapi-hero__placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background:
+    repeating-linear-gradient(45deg, rgba(248,244,237,0.06) 0 1px, transparent 1px 6px),
+    linear-gradient(135deg, var(--tapi-terracotta), var(--tapi-terracotta-deep)); }
+  @media (max-width: 989px) { .tapi-hero__grid { grid-template-columns: 1fr; gap: 3.2rem; } }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Tapi hero",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Drop 01 · Saanjh, the dusk edit" },
+    { "type": "text", "id": "line_1", "label": "Headline line 1", "default": "Woven by eleven hands." },
+    { "type": "text", "id": "line_2", "label": "Headline line 2 (accent)", "default": "Worn by yours." },
+    { "type": "textarea", "id": "lede", "label": "Lede", "default": "A small family in Surat — making ethnic wear the way we'd want to receive it ourselves. We'll tell you the weight, the weave, the fit. And what arrives, is exactly what you see." },
+    { "type": "text", "id": "cta_primary", "label": "Primary CTA", "default": "Shop kurta sets" },
+    { "type": "url", "id": "cta_primary_link", "label": "Primary CTA link" },
+    { "type": "text", "id": "cta_secondary", "label": "Secondary CTA", "default": "Our story" },
+    { "type": "url", "id": "cta_secondary_link", "label": "Secondary CTA link" },
+    { "type": "image_picker", "id": "image", "label": "Hero image" }
+  ],
+  "blocks": [
+    {
+      "type": "stat",
+      "name": "Stat",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Label" },
+        { "type": "text", "id": "value", "label": "Value" }
+      ]
+    }
+  ],
+  "max_blocks": 4,
+  "presets": [
+    {
+      "name": "Tapi hero",
+      "blocks": [
+        { "type": "stat", "settings": { "label": "Size", "value": "True to body" } },
+        { "type": "stat", "settings": { "label": "Fabric", "value": "120–180 GSM listed" } },
+        { "type": "stat", "settings": { "label": "Made in", "value": "Surat, Gujarat" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

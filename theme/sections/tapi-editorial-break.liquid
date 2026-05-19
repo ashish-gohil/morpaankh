@@ -1,0 +1,37 @@
+<section class="tapi-editorial-band page-width" aria-label="Editorial note">
+  <div>
+    <span class="tapi-eyebrow" style="color: var(--tapi-terracotta);">— A note from the studio</span>
+    <h3 class="tapi-editorial-band__quote">"{{ section.settings.quote }}"</h3>
+    <p class="tapi-editorial-band__body">{{ section.settings.body }}</p>
+  </div>
+  {%- if section.settings.cta_text != blank -%}
+    <a href="{{ section.settings.link | default: '/pages/fabric-guide' }}" class="button button--outline tapi-editorial-band__cta">
+      {{ section.settings.cta_text }} →
+    </a>
+  {%- endif -%}
+</section>
+
+{% stylesheet %}
+  .tapi-editorial-band { background: var(--tapi-cream-2); padding: 4.8rem; margin: 5.6rem auto; display: grid; grid-template-columns: 1fr auto; gap: 3.2rem; align-items: center; }
+  .tapi-editorial-band__quote { font-family: var(--font-heading-family); font-size: 2.4rem; font-style: italic; font-weight: 500; line-height: 1.4; margin: 1rem 0; }
+  .tapi-editorial-band__body { color: var(--tapi-warm-grey); margin: 0; line-height: 1.7; }
+  .tapi-editorial-band__cta { white-space: nowrap; align-self: start; }
+  @media (max-width: 749px) {
+    .tapi-editorial-band { grid-template-columns: 1fr; padding: 3.2rem 2.4rem; gap: 2rem; }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Editorial break",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "quote", "label": "Quote", "default": "If it isn't in the fabric, it isn't worth the price." },
+    { "type": "textarea", "id": "body", "label": "Body", "default": "Every kurta set lists its GSM — the weight of the fabric per square metre. Higher isn't always better; it depends on the season and the silhouette." },
+    { "type": "text", "id": "cta_text", "label": "CTA text", "default": "Read our fabric guide" },
+    { "type": "url", "id": "link", "label": "CTA link" }
+  ],
+  "presets": [{ "name": "Editorial break" }]
+}
+{% endschema %}

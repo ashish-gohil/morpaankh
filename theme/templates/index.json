@@ -1,210 +1,90 @@
 {
   "sections": {
-    "image_banner": {
-      "type": "image-banner",
-      "blocks": {
-        "heading": {
-          "type": "heading",
-          "settings": {
-            "heading": "Image banner",
-            "heading_size": "h0"
-          }
-        },
-        "text": {
-          "type": "text",
-          "settings": {
-            "text": "Give customers details about the banner image(s) or content on the template.",
-            "text_style": "body"
-          }
-        },
-        "button": {
-          "type": "buttons",
-          "settings": {
-            "button_label_1": "Shop all",
-            "button_link_1": "shopify://collections/all",
-            "button_style_secondary_1": true,
-            "button_label_2": "",
-            "button_link_2": "",
-            "button_style_secondary_2": false
-          }
-        }
-      },
-      "block_order": [
-        "heading",
-        "text",
-        "button"
-      ],
+    "tapi_hero": {
+      "type": "tapi-hero",
       "settings": {
-        "image_overlay_opacity": 40,
-        "image_height": "large",
-        "desktop_content_position": "bottom-center",
-        "show_text_box": false,
-        "desktop_content_alignment": "center",
-        "color_scheme": "scheme-3",
-        "mobile_content_alignment": "center",
-        "stack_images_on_mobile": false,
-        "show_text_below": false
-      }
+        "eyebrow": "Drop 01 · Saanjh, the dusk edit",
+        "line_1": "Woven by eleven hands.",
+        "line_2": "Worn by yours.",
+        "lede": "A small family in Surat — making ethnic wear the way we'd want to receive it ourselves. We'll tell you the weight, the weave, the fit. And what arrives, is exactly what you see.",
+        "cta_primary": "Shop kurta sets",
+        "cta_primary_link": "shopify://collections/kurta-sets",
+        "cta_secondary": "Our story",
+        "cta_secondary_link": "shopify://pages/about"
+      },
+      "blocks": {
+        "size": { "type": "stat", "settings": { "label": "Size", "value": "True to body" } },
+        "fabric": { "type": "stat", "settings": { "label": "Fabric", "value": "120–180 GSM listed" } },
+        "made": { "type": "stat", "settings": { "label": "Made in", "value": "Surat, Gujarat" } }
+      },
+      "block_order": ["size", "fabric", "made"]
     },
-    "rich_text": {
-      "type": "rich-text",
-      "blocks": {
-        "heading": {
-          "type": "heading",
-          "settings": {
-            "heading": "Talk about your brand",
-            "heading_size": "h1"
-          }
-        },
-        "text": {
-          "type": "text",
-          "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.<\/p>"
-          }
-        }
-      },
-      "block_order": [
-        "heading",
-        "text"
-      ],
+    "tapi_collection_tiles": {
+      "type": "tapi-collection-tiles",
       "settings": {
-        "color_scheme": "scheme-1",
-        "full_width": true,
-        "padding_top": 40,
-        "padding_bottom": 0
-      }
+        "eyebrow": "The wardrobe",
+        "heading": "Built around three ideas.",
+        "intro": "Kurta sets for the everyday. Co-ords for the in-between. Festive pieces for the days that ask to be remembered."
+      },
+      "blocks": {
+        "kurta": { "type": "tile", "settings": { "heading": "Kurta Sets", "tagline": "Three pieces, every day", "blurb": "Kurta, pants, and dupatta — cut for movement, finished by hand at the hem.", "placeholder_name": "Saanjh", "tint": "#B7472A" } },
+        "coord": { "type": "tile", "settings": { "heading": "Co-ord Sets", "tagline": "Two pieces, one story", "blurb": "Cropped jackets, wide pants, matching tops and bottoms made to be worn together — or apart.", "placeholder_name": "Amba", "tint": "#7A8761" } },
+        "festive": { "type": "tile", "settings": { "heading": "Festive Edit", "tagline": "For the days that ask to be remembered", "blurb": "Silk-cotton dobby, hand-finished tassel work, gold thread. Made to be photographed in.", "placeholder_name": "Mehfil", "tint": "#B08947" } }
+      },
+      "block_order": ["kurta", "coord", "festive"]
     },
     "featured_collection": {
       "type": "featured-collection",
       "settings": {
-        "title": "Featured products",
-        "heading_size": "h2",
-        "collection": "all",
-        "products_to_show": 8,
+        "title": "This week, from our table to yours.",
+        "heading_size": "h0",
+        "description": "",
+        "show_description": false,
+        "collection": "kurta-sets",
+        "products_to_show": 4,
         "columns_desktop": 4,
-        "color_scheme": "scheme-1",
-        "show_view_all": false,
-        "swipe_on_mobile": false,
-        "image_ratio": "adapt",
+        "color_scheme": "background-1",
+        "image_ratio": "portrait",
+        "image_shape": "default",
         "show_secondary_image": true,
         "show_vendor": false,
-        "show_rating": false,
-        "columns_mobile": "2",
-        "padding_top": 28,
-        "padding_bottom": 36
-      }
-    },
-    "collage": {
-      "type": "collage",
-      "blocks": {
-        "collection-0": {
-          "type": "collection",
-          "settings": {
-            "collection": ""
-          }
-        },
-        "product": {
-          "type": "product",
-          "settings": {
-            "product": "",
-            "second_image": false
-          }
-        },
-        "collection-1": {
-          "type": "collection",
-          "settings": {
-            "collection": ""
-          }
-        }
-      },
-      "block_order": [
-        "collection-0",
-        "product",
-        "collection-1"
-      ],
-      "settings": {
-        "heading": "Multimedia collage",
-        "heading_size": "h2",
-        "desktop_layout": "left",
-        "mobile_layout": "collage",
-        "color_scheme": "scheme-1",
-        "padding_top": 36,
-        "padding_bottom": 36
-      }
-    },
-    "video": {
-      "type": "video",
-      "settings": {
-        "heading": "",
-        "video_url": "https://www.youtube.com/watch?v=_9VUPq3SxOc",
-        "heading_size": "h1",
-        "description": "",
+        "show_rating": true,
+        "enable_quick_add": false,
+        "view_all_style": "link",
+        "enable_desktop_slider": false,
         "full_width": false,
-        "color_scheme": "scheme-1",
         "padding_top": 36,
         "padding_bottom": 36
       }
     },
-    "multicolumn": {
-      "type": "multicolumn",
-      "blocks": {
-        "column1": {
-          "type": "column",
-          "settings": {
-            "title": "Column",
-            "text": "<p>Pair text with an image to focus on your chosen product, collection, or blog post. Add details on availability, style, or even provide a review.<\/p>",
-            "link_label": "",
-            "link": ""
-          }
-        },
-        "column2": {
-          "type": "column",
-          "settings": {
-            "title": "Column",
-            "text": "<p>Pair text with an image to focus on your chosen product, collection, or blog post. Add details on availability, style, or even provide a review.<\/p>",
-            "link_label": "",
-            "link": ""
-          }
-        },
-        "column3": {
-          "type": "column",
-          "settings": {
-            "title": "Column",
-            "text": "<p>Pair text with an image to focus on your chosen product, collection, or blog post. Add details on availability, style, or even provide a review.<\/p>",
-            "link_label": "",
-            "link": ""
-          }
-        }
-      },
-      "block_order": [
-        "column1",
-        "column2",
-        "column3"
-      ],
+    "studio_strip": {
+      "type": "tapi-studio-strip",
       "settings": {
-        "title": "",
-        "heading_size": "h1",
-        "image_width": "third",
-        "image_ratio": "adapt",
-        "columns_desktop": 3,
-        "column_alignment": "center",
-        "background_style": "none",
-        "button_label": "",
-        "button_link": "",
-        "swipe_on_mobile": false,
-        "color_scheme": "scheme-1",
-        "columns_mobile": "1",
-        "padding_top": 36,
-        "padding_bottom": 36
+        "eyebrow": "— Our making",
+        "heading": "Five hands, twelve looms away."
+      },
+      "blocks": {
+        "s1": { "type": "stat", "settings": { "value": "11", "label": "Weavers within walking distance" } },
+        "s2": { "type": "stat", "settings": { "value": "5", "label": "Family + cousin operations" } },
+        "s3": { "type": "stat", "settings": { "value": "120–180", "label": "GSM range — listed per piece" } },
+        "s4": { "type": "stat", "settings": { "value": "48 hrs", "label": "Pickup-ready in Surat" } }
+      },
+      "block_order": ["s1", "s2", "s3", "s4"]
+    },
+    "editorial_break": {
+      "type": "tapi-editorial-break",
+      "settings": {
+        "quote": "If it isn't in the fabric, it isn't worth the price.",
+        "body": "Every kurta set lists its GSM — the weight of the fabric per square metre. Higher isn't always better; it depends on the season and the silhouette.",
+        "cta_text": "Read our fabric guide"
       }
     }
   },
   "order": [
-    "image_banner",
-    "rich_text",
+    "tapi_hero",
+    "tapi_collection_tiles",
     "featured_collection",
-    "collage",
-    "video",
-    "multicolumn"
+    "studio_strip",
+    "editorial_break"
   ]
 }

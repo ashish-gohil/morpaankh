@@ -1,0 +1,22 @@
+{% doc %}
+  Renders the 3-segment fit-feedback bar from product metafields.
+  @param {object} product - Product whose metafields.tapi.fit_pct_* drive the bar.
+  @example
+  {% render 'fit-feedback', product: product %}
+{% enddoc %}
+{%- assign m = product.metafields.tapi -%}
+{%- if m.fit_pct_true -%}
+  <div class="tapi-fit-feedback" role="group" aria-label="Fit feedback">
+    <strong class="tapi-fit-feedback__label">Fit feedback from {{ m.review_count | default: '100+' }} buyers</strong>
+    <div class="tapi-fit-feedback__bar">
+      <span style="width: {{ m.fit_pct_down }}%; background: var(--tapi-terracotta-soft);"></span>
+      <span style="width: {{ m.fit_pct_true }}%; background: var(--tapi-sage);"></span>
+      <span style="width: {{ m.fit_pct_up }}%; background: var(--tapi-terracotta);"></span>
+    </div>
+    <div class="tapi-fit-feedback__legend">
+      <span>{{ m.fit_pct_down }}% size down</span>
+      <span>{{ m.fit_pct_true }}% true</span>
+      <span>{{ m.fit_pct_up }}% size up</span>
+    </div>
+  </div>
+{%- endif -%}

@@ -1,0 +1,62 @@
+<section class="tapi-studio-strip">
+  <div class="page-width">
+    {%- if section.settings.heading != blank -%}
+      <div class="tapi-studio-strip__head">
+        <span class="tapi-eyebrow" style="color: var(--tapi-terracotta-soft);">{{ section.settings.eyebrow }}</span>
+        <h2 class="tapi-studio-strip__heading">{{ section.settings.heading }}</h2>
+      </div>
+    {%- endif -%}
+    <div class="tapi-studio-strip__grid">
+      {%- for s in section.blocks -%}
+        <div {{ s.shopify_attributes }}>
+          <div class="tapi-studio-strip__value">{{ s.settings.value }}</div>
+          <div class="tapi-studio-strip__label">{{ s.settings.label }}</div>
+        </div>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+{% stylesheet %}
+  .tapi-studio-strip { background: var(--tapi-charcoal); color: var(--tapi-cream); padding: 8rem 0; }
+  .tapi-studio-strip__head { margin-bottom: 4rem; }
+  .tapi-studio-strip__heading { font-family: var(--font-heading-family); font-size: clamp(3rem, 4vw, 5rem); font-weight: 500; color: var(--tapi-cream); margin: 1rem 0 0; }
+  .tapi-studio-strip__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3.2rem; padding-top: 4rem; border-top: 1px solid rgba(248,244,237,0.12); }
+  .tapi-studio-strip__value { font-family: var(--font-heading-family); font-size: 4.4rem; line-height: 1; color: var(--tapi-terracotta-soft); font-variant-numeric: tabular-nums; }
+  .tapi-studio-strip__label { margin-top: 0.8rem; font-size: 1.2rem; opacity: 0.7; line-height: 1.5; }
+  @media (max-width: 749px) { .tapi-studio-strip__grid { grid-template-columns: 1fr 1fr; gap: 2.4rem; } }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Studio strip",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "— Our making" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Five hands, twelve looms away." }
+  ],
+  "blocks": [
+    {
+      "type": "stat",
+      "name": "Stat",
+      "settings": [
+        { "type": "text", "id": "value", "label": "Value", "default": "11" },
+        { "type": "text", "id": "label", "label": "Label", "default": "Weavers within walking distance" }
+      ]
+    }
+  ],
+  "max_blocks": 8,
+  "presets": [
+    {
+      "name": "Studio strip",
+      "blocks": [
+        { "type": "stat", "settings": { "value": "11", "label": "Weavers within walking distance" } },
+        { "type": "stat", "settings": { "value": "5", "label": "Family + cousin operations" } },
+        { "type": "stat", "settings": { "value": "120–180", "label": "GSM range — listed per piece" } },
+        { "type": "stat", "settings": { "value": "48 hrs", "label": "Pickup-ready in Surat" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

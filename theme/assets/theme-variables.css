@@ -1,0 +1,315 @@
+/* ============================================================
+   theme-variables.css — Tapi & Co. theme overrides for Dawn
+   Drop into your Dawn theme's /assets/ folder.
+   Link from layout/theme.liquid BELOW Dawn's base.css:
+
+   {{ 'theme-variables.css' | asset_url | stylesheet_tag }}
+
+   This file:
+     1. Defines our brand tokens as CSS custom properties
+     2. Overrides Dawn's --color-* variables so its built-in
+        components (cards, buttons, headers) reskin automatically
+     3. Loads Cormorant Garamond + Inter (Dawn also lets you
+        do this via theme settings — either works)
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap");
+
+:root {
+  /* ---------- Tapi brand tokens ---------- */
+  --tapi-cream:           #F8F4ED;
+  --tapi-cream-2:         #F1EBDD;
+  --tapi-ivory:           #FCFAF4;
+  --tapi-paper:           #FFFFFF;
+
+  --tapi-charcoal:        #2C2826;
+  --tapi-charcoal-2:      #3A3431;
+  --tapi-warm-grey:       #6B5D54;
+  --tapi-muted:           #9A8D83;
+  --tapi-hairline:        #E5DDC8;
+  --tapi-hairline-2:      #D6CDB8;
+
+  --tapi-terracotta:      #B7472A;
+  --tapi-terracotta-deep: #8F3621;
+  --tapi-terracotta-soft: #D97A5F;
+  --tapi-terracotta-wash: #F3D9CD;
+
+  --tapi-sage:            #7A8761;
+  --tapi-sage-deep:       #5A6748;
+  --tapi-sage-wash:       #E3E6D6;
+
+  --tapi-gold:            #B08947;
+
+  /* ---------- Dawn variable overrides ----------
+     Dawn uses these natively; overriding them re-skins
+     Dawn's built-in components without touching their Liquid.
+  */
+  --color-background:        248, 244, 237;   /* cream */
+  --color-foreground:        44, 40, 38;      /* charcoal */
+  --color-foreground-secondary: 107, 93, 84;  /* warm-grey */
+
+  --color-button:            44, 40, 38;      /* primary CTA = charcoal */
+  --color-button-text:       248, 244, 237;
+  --color-secondary-button:  248, 244, 237;
+  --color-secondary-button-text: 44, 40, 38;
+
+  --color-accent-1:          183, 71, 42;     /* terracotta */
+  --color-accent-2:          122, 135, 97;    /* sage */
+
+  --color-link:              44, 40, 38;
+  --color-shadow:            44, 40, 38;
+
+  /* ---------- Type ---------- */
+  --font-heading-family: "Cormorant Garamond", Georgia, serif;
+  --font-heading-weight: 500;
+  --font-heading-style:  normal;
+
+  --font-body-family:    "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-body-weight:    400;
+
+  /* ---------- Spacing (Dawn variables) ---------- */
+  --page-width:          144rem;     /* 1440px */
+  --grid-desktop-horizontal-spacing: 2.4rem;
+
+  /* ---------- Radii ---------- */
+  --product-card-corner-radius:        2px;
+  --buttons-radius:                    2px;
+  --inputs-radius:                     2px;
+  --media-radius:                      2px;
+
+  /* ---------- Borders ---------- */
+  --buttons-border-width:              1px;
+  --buttons-border-opacity:            1;
+  --inputs-border-width:               1px;
+  --inputs-border-opacity:             1;
+
+  /* ---------- Motion ---------- */
+  --duration-default:    0.16s;
+  --duration-short:      0.12s;
+  --duration-long:       0.4s;
+}
+
+/* ---------- Headings — serif everywhere ---------- */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: var(--font-heading-family);
+  font-weight: var(--font-heading-weight);
+  letter-spacing: -0.012em;
+  color: rgb(var(--color-foreground));
+}
+
+/* ---------- Editorial uppercase eyebrow ---------- */
+.tapi-eyebrow {
+  font-family: var(--font-body-family);
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey);
+}
+
+/* ---------- Buttons — small radius, uppercase, tracked ---------- */
+.button,
+button.shopify-payment-button__button--unbranded {
+  border-radius: 2px;
+  font-family: var(--font-body-family);
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  height: 4.8rem;
+  padding: 0 2.2rem;
+}
+.button--primary {
+  background: var(--tapi-charcoal);
+  color: var(--tapi-cream);
+  border: none;
+}
+.button--primary:hover {
+  background: var(--tapi-terracotta);
+}
+.button--terracotta {
+  background: var(--tapi-terracotta);
+  color: var(--tapi-cream);
+  border: none;
+}
+.button--terracotta:hover {
+  background: var(--tapi-terracotta-deep);
+}
+.button--outline {
+  background: transparent;
+  color: var(--tapi-charcoal);
+  border: 1px solid var(--tapi-charcoal);
+}
+.button--outline:hover {
+  background: var(--tapi-charcoal);
+  color: var(--tapi-cream);
+}
+
+/* ---------- Product card ---------- */
+.card-wrapper { padding-bottom: 0.8rem; }
+.card__heading {
+  font-family: var(--font-heading-family);
+  font-size: 1.9rem;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+}
+.card__information {
+  padding-top: 1.4rem;
+}
+.price {
+  font-family: var(--font-heading-family);
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.price--on-sale .price-item--regular {
+  color: var(--tapi-muted);
+}
+.card .tapi-meta {
+  font-size: 1.1rem;
+  color: var(--tapi-muted);
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Inputs ---------- */
+.field__input {
+  background: var(--tapi-ivory);
+  border: 1px solid var(--tapi-hairline-2);
+  border-radius: 2px;
+  font-family: var(--font-body-family);
+}
+.field__input:focus {
+  border-color: var(--tapi-charcoal);
+  box-shadow: none;
+}
+
+/* ---------- Trust marquee ---------- */
+.tapi-marquee {
+  background: var(--tapi-charcoal);
+  color: var(--tapi-cream);
+  padding: 1rem 0;
+  overflow: hidden;
+  font-size: 1.2rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.tapi-marquee__track {
+  display: flex;
+  gap: 6.4rem;
+  width: max-content;
+  animation: tapi-marquee 60s linear infinite;
+  padding-right: 6.4rem;
+}
+@keyframes tapi-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ---------- Editorial pull-quote / break ---------- */
+.tapi-editorial-band {
+  background: var(--tapi-cream-2);
+  padding: 4.8rem;
+  margin: 5.6rem 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3.2rem;
+  align-items: center;
+}
+.tapi-editorial-band__quote {
+  font-family: var(--font-heading-family);
+  font-size: 2.4rem;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 0;
+}
+@media (max-width: 749px) {
+  .tapi-editorial-band { grid-template-columns: 1fr; padding: 3.2rem 2.4rem; }
+}
+
+/* ---------- Fabric table (PDP) ---------- */
+.tapi-fabric-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.4rem;
+}
+.tapi-fabric-table tr {
+  border-bottom: 1px dashed var(--tapi-hairline);
+}
+.tapi-fabric-table td {
+  padding: 1.2rem 0;
+}
+.tapi-fabric-table td:first-child {
+  color: var(--tapi-muted);
+  letter-spacing: 0.04em;
+  width: 40%;
+}
+
+/* ---------- Fit-feedback bar (PDP) ---------- */
+.tapi-fit-feedback {
+  margin-top: 1.6rem;
+  padding: 1.4rem;
+  background: var(--tapi-cream-2);
+  font-size: 1.3rem;
+  border-radius: 2px;
+}
+.tapi-fit-feedback__bar {
+  display: flex;
+  height: 6px;
+  background: var(--tapi-cream);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0.8rem 0 0.6rem;
+}
+.tapi-fit-feedback__bar > span { display: block; height: 100%; }
+.tapi-fit-feedback__legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.1rem;
+  color: var(--tapi-warm-grey);
+}
+
+/* ---------- Pincode widget ---------- */
+.tapi-pincode {
+  border: 1px solid var(--tapi-hairline);
+  background: var(--tapi-ivory);
+  padding: 1.6rem;
+  margin-top: 1.6rem;
+}
+.tapi-pincode__row {
+  display: flex;
+  gap: 0.8rem;
+}
+.tapi-pincode__input {
+  flex: 1;
+  height: 4rem;
+}
+.tapi-pincode__result {
+  margin-top: 1.2rem;
+  font-size: 1.3rem;
+  color: var(--tapi-charcoal);
+}
+.tapi-pincode__pickup {
+  margin-top: 0.8rem;
+  padding: 1.2rem;
+  background: var(--tapi-terracotta-wash);
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* ---------- Footer ---------- */
+.footer { background: var(--tapi-charcoal); color: var(--tapi-cream); }
+.footer a { color: var(--tapi-cream); opacity: 0.78; }
+.footer h2, .footer h3 {
+  color: var(--tapi-cream);
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-family: var(--font-body-family);
+  font-weight: 500;
+}

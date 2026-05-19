@@ -247,6 +247,13 @@
       ]
     }
   },
-  "pages": {},
+  "pages": {
+    "about": "gid://shopify/Page/709925962100",
+    "contact": "",
+    "fabric-guide": "gid://shopify/Page/709925994868",
+    "privacy": "gid://shopify/Page/709926027636",
+    "terms": "gid://shopify/Page/709926060404",
+    "refund": "gid://shopify/Page/709926093172"
+  },
   "files": {}
 }
