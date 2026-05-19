@@ -263,20 +263,6 @@
         </a>
       {%- endif -%}
 
-      <a
-        href="/pages/wishlist"
-        class="header__icon header__icon--wishlist link focus-inset small-hide medium-hide"
-        aria-label="Wishlist"
-        rel="nofollow"
-      >
-        <span class="svg-wrapper">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false">
-            <path d="M12 21s-7-4.5-9.3-9.2C1 8.3 3 4.5 6.8 4.5c2 0 3.6 1 5.2 3 1.6-2 3.2-3 5.2-3C21 4.5 23 8.3 21.3 11.8 19 16.5 12 21 12 21Z" stroke-linejoin="round"/>
-          </svg>
-        </span>
-        <span class="visually-hidden">Wishlist</span>
-      </a>
-
       {%- for block in section.blocks -%}
         {%- case block.type -%}
           {%- when '@app' -%}
