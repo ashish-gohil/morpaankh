@@ -3,7 +3,7 @@
 <section class="tapi-featured page-width">
   <header class="tapi-featured__head" data-tapi-reveal>
     <div>
-      <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
+      <span class="tapi-eyebrow">{{ section.settings.eyebrow }}</span>
       <h2 class="tapi-featured__heading">{{ section.settings.heading }}</h2>
     </div>
     {%- if coll != blank -%}
@@ -29,10 +29,17 @@
 </section>
 
 {% stylesheet %}
-  .tapi-featured { padding: 9.6rem var(--page-margin, 0); }
-  .tapi-featured__head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 4.8rem; gap: 2rem; flex-wrap: wrap; }
-  .tapi-featured__heading { font-family: var(--font-heading-family); font-size: clamp(2.8rem, 4.4vw, 5.2rem); font-weight: 500; margin: 0.8rem 0 0; letter-spacing: -0.012em; }
-  .tapi-featured__viewall { font-size: 1.2rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-charcoal); text-decoration: none; transition: color 240ms; }
+  .tapi-featured { padding: 9.6rem 0; }
+  .tapi-featured__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); gap: 2.4rem; flex-wrap: wrap; }
+  .tapi-featured__head .tapi-eyebrow { margin-bottom: 1.2rem; display: block; }
+  .tapi-featured__heading { font-family: var(--font-heading-family); font-size: clamp(2.6rem, 4.4vw, 5.2rem); line-height: 1.1; letter-spacing: -0.01em; font-weight: 500; margin: 0; }
+  .tapi-featured__viewall {
+    display: inline-flex; align-items: center; gap: 10px;
+    height: 48px; padding: 0;
+    font-size: 1.3rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--tapi-charcoal); background: transparent; border: none;
+    text-decoration: none; transition: color 240ms;
+  }
   .tapi-featured__viewall:hover { color: var(--tapi-terracotta); }
   .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.8rem; }
   @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
