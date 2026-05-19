@@ -868,3 +868,76 @@ predictive-search, .predictive-search { padding-left: 2rem !important; padding-r
 /* Error state lives on the input itself */
 .field.field--error .field__input,
 .field--with-error .field__input { border-color: var(--tapi-terracotta) !important; }
+
+/* ============================================================
+   Aggressive wrapper-border kill — search modal + contact page
+   Dawn uses inset box-shadow + ::after/::before pseudos to draw
+   a border around the .field wrapper. Strip all of it.
+   ============================================================ */
+
+/* Wrapper itself */
+.search-modal .field,
+.search-modal__form .field,
+search-modal .field,
+search-modal__form .field,
+details-modal .field,
+.contact .field,
+.contact-form .field,
+form.contact .field,
+.template-contact .field {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Dawn paints the wrapper border with ::after — neutralize */
+.search-modal .field::before, .search-modal .field::after,
+.search-modal__form .field::before, .search-modal__form .field::after,
+search-modal .field::before, search-modal .field::after,
+.contact .field::before, .contact .field::after,
+.contact-form .field::before, .contact-form .field::after,
+form.contact .field::before, form.contact .field::after,
+.template-contact .field::before, .template-contact .field::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Focus-within killer */
+.search-modal .field:focus-within,
+.search-modal__form .field:focus-within,
+search-modal .field:focus-within,
+.contact .field:focus-within,
+.contact-form .field:focus-within,
+form.contact .field:focus-within,
+.template-contact .field:focus-within {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* For the search modal specifically, the parent <form> may also paint a border */
+.search-modal__form,
+search-modal__form,
+search-modal .search-modal__form {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.search-modal__form::before, .search-modal__form::after,
+search-modal .search-modal__form::before, search-modal .search-modal__form::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Contact page sometimes wraps each field in a .product-form__input or .field__input-wrapper */
+.field__input-wrapper,
+.contact-form__input-wrapper {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
