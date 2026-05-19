@@ -275,10 +275,20 @@
   .tapi-pdp__guide-link::after { content:""; position: absolute; left:0; bottom:0; height:1px; width:100%; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-pdp__guide-link:hover::after { transform: scaleX(1); transform-origin: left; }
 
-  .tapi-pdp__colors { display: flex; gap: 1.4rem; flex-wrap: wrap; }
-  .tapi-pdp__color { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; cursor: pointer; }
-  .tapi-pdp__color-dot { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--tapi-hairline-2); transition: outline 200ms, transform 200ms; }
-  .tapi-pdp__color.is-active .tapi-pdp__color-dot { outline: 1.5px solid var(--tapi-charcoal); outline-offset: 3px; }
+  .tapi-pdp__colors { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .tapi-pdp__color { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; cursor: pointer; background: transparent; border: none; padding: 0; }
+  .tapi-pdp__color-dot {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--tapi-hairline-2);
+    transition: outline 240ms, border-color 240ms, transform 240ms cubic-bezier(0.22,1,0.36,1);
+  }
+  /* Active swatch — inset cream ring + charcoal border, matches page-pdp.jsx L162 */
+  .tapi-pdp__color.is-active .tapi-pdp__color-dot {
+    border: 1.5px solid var(--tapi-charcoal);
+    outline: 1.5px solid var(--tapi-cream);
+    outline-offset: -5px;
+  }
+  .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.06); }
   .tapi-pdp__color-name { font-size: 1rem; letter-spacing: 0.06em; color: var(--tapi-muted); text-transform: uppercase; }
   .tapi-pdp__color.is-active .tapi-pdp__color-name { color: var(--tapi-charcoal); }
 
@@ -293,7 +303,13 @@
   .tapi-pdp__size.is-active { background: var(--tapi-charcoal); color: var(--tapi-cream); border-color: var(--tapi-charcoal); }
   .tapi-pdp__size.is-out { color: var(--tapi-muted); cursor: not-allowed; opacity: 0.5; }
   .tapi-pdp__size.is-out::after { content:""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--tapi-muted); transform: rotate(-12deg); }
-  .tapi-pdp__size.is-low:not(.is-active)::before { content:""; position: absolute; top: -6px; right: -6px; width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta); }
+  .tapi-pdp__size.is-low:not(.is-active)::before {
+    content:""; position: absolute; top: -6px; right: -6px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta);
+    animation: tapi-pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.65; } }
+  @media (prefers-reduced-motion: reduce) { .tapi-pdp__size.is-low::before { animation: none; } }
   .tapi-pdp__stock-note { margin: 0; font-size: 1.2rem; color: var(--tapi-warm-grey); }
 
   .tapi-fit-feedback { margin-top: 0; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: 2px; font-size: 1.3rem; }
@@ -377,9 +393,45 @@
     const sec = document.currentScript ? document.currentScript.closest('[data-section-id]') : document.querySelector('.tapi-pdp');
     if (!sec) return;
 
-    // Thumb → main image swap
     const thumbs = sec.querySelectorAll('.tapi-pdp__thumb');
     const mains  = sec.querySelectorAll('.tapi-pdp__main-img');
+    const variantInput = sec.querySelector('[id^="variant-id-"]');
+    const addLabel  = sec.querySelector('[data-add-label]');
+    const mobileAdd = sec.querySelector('[data-mobile-add]');
+    const mobilePrice = sec.querySelector('[data-mobile-price]');
+    const qtyInput  = sec.querySelector('[data-qty-input]');
+
+    // Internal state — single source of truth for current variant + qty
+    let currentVariantText = (() => {
+      const initialSize = sec.querySelector('.tapi-pdp__size.is-active');
+      return initialSize ? initialSize.textContent.trim() : '';
+    })();
+    let currentUnitPriceText = addLabel ? addLabel.textContent.replace(/^Add to bag\s*[—-]\s*/, '').trim() : '';
+
+    // Re-run the rise animation by removing/adding the .is-active class.
+    // Force reflow between the two so the CSS animation restarts.
+    const refadeActiveMain = () => {
+      const active = sec.querySelector('.tapi-pdp__main-img.is-active');
+      if (!active) return;
+      active.classList.remove('is-active');
+      void active.offsetWidth; // reflow
+      active.classList.add('is-active');
+    };
+
+    // Re-render the CTA labels from the current state (so qty changes
+    // reflect in the same place size changes do — no hidden divergence).
+    const rerenderCta = () => {
+      if (!currentUnitPriceText) return;
+      const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10) || 1);
+      const lineLabel = qty > 1
+        ? `Add to bag (${qty}) — ${currentUnitPriceText}`
+        : `Add to bag — ${currentUnitPriceText}`;
+      if (addLabel) addLabel.textContent = lineLabel;
+      if (mobilePrice) mobilePrice.textContent = currentUnitPriceText;
+      if (mobileAdd) mobileAdd.textContent = currentVariantText ? `Add — ${currentVariantText}` : 'Add to bag';
+    };
+
+    // Thumb → main image swap (with rise animation)
     thumbs.forEach(t => t.addEventListener('click', function () {
       thumbs.forEach(x => x.classList.remove('is-active'));
       mains.forEach(x => x.classList.remove('is-active'));
@@ -389,21 +441,17 @@
       if (m) m.classList.add('is-active');
     }));
 
-    // Color swatch toggle (cosmetic)
+    // Color swatch toggle — also refades the main image (design parity)
     sec.querySelectorAll('.tapi-pdp__color').forEach(c => {
       c.addEventListener('click', function () {
         sec.querySelectorAll('.tapi-pdp__color').forEach(x => x.classList.remove('is-active'));
         c.classList.add('is-active');
+        refadeActiveMain();
       });
     });
 
-    // Size selection → updates hidden variant id + price + stock note + mobile bar
+    // Size selection — updates variant id + price state + refades main
     const sizeBtns = sec.querySelectorAll('.tapi-pdp__size');
-    const variantInput = sec.querySelector('[id^="variant-id-"]');
-    const addLabel = sec.querySelector('[data-add-label]');
-    const mobileAdd = sec.querySelector('[data-mobile-add]');
-    const mobilePrice = sec.querySelector('[data-mobile-price]');
-    const qtyInput = sec.querySelector('[data-qty-input]');
     sizeBtns.forEach(b => b.addEventListener('click', function () {
       if (b.disabled) return;
       sizeBtns.forEach(x => x.classList.remove('is-active'));
@@ -411,18 +459,23 @@
       const vid = b.getAttribute('data-variant-id');
       const price = b.getAttribute('data-variant-price');
       if (variantInput) variantInput.value = vid;
-      if (price) {
-        if (addLabel) addLabel.textContent = 'Add to bag — ' + price;
-        if (mobilePrice) mobilePrice.textContent = price;
-      }
-      if (mobileAdd) mobileAdd.textContent = 'Add — ' + b.textContent.trim();
+      if (price) currentUnitPriceText = price;
+      currentVariantText = b.textContent.trim();
+      rerenderCta();
+      refadeActiveMain();
     }));
 
-    // Qty stepper
+    // Qty stepper — now refreshes the CTA so the price reflects the order
+    const setQty = (next) => {
+      if (!qtyInput) return;
+      qtyInput.value = String(Math.max(1, next | 0));
+      rerenderCta();
+    };
     const qDown = sec.querySelector('[data-qty-down]');
     const qUp   = sec.querySelector('[data-qty-up]');
-    if (qDown) qDown.addEventListener('click', () => { qtyInput.value = Math.max(1, parseInt(qtyInput.value || '1') - 1); });
-    if (qUp)   qUp.addEventListener('click',   () => { qtyInput.value = parseInt(qtyInput.value || '1') + 1; });
+    if (qDown) qDown.addEventListener('click', () => setQty(parseInt(qtyInput.value || '1', 10) - 1));
+    if (qUp)   qUp.addEventListener('click',   () => setQty(parseInt(qtyInput.value || '1', 10) + 1));
+    if (qtyInput) qtyInput.addEventListener('input', () => setQty(parseInt(qtyInput.value || '1', 10)));
 
     // Fit-feedback bar reveal — flips the .in class to trigger width transitions
     const bar = sec.querySelector('.tapi-fit-feedback__bar');
@@ -432,6 +485,9 @@
     } else if (bar) {
       bar.classList.add('in');
     }
+
+    // Initial sync (in case size was preselected server-side)
+    rerenderCta();
   })();
 {% endjavascript %}
 
