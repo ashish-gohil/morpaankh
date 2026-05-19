@@ -1,0 +1,252 @@
+{
+  "collections": {
+    "kurta-sets": "gid://shopify/Collection/638070784372",
+    "co-ord-sets": "gid://shopify/Collection/638070817140",
+    "festive": "gid://shopify/Collection/638070849908"
+  },
+  "products": {
+    "saanjh-kurta-set": {
+      "id": "gid://shopify/Product/15066790199668",
+      "title": "Saanjh Kurta Set",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/54627105833332",
+          "title": "XS",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726301556"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627105866100",
+          "title": "S",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726334324"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627105898868",
+          "title": "M",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726367092"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627105931636",
+          "title": "L",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726399860"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627105964404",
+          "title": "XL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726432628"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627105997172",
+          "title": "XXL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726465396"
+        }
+      ],
+      "images": [
+        "saanjh-kurta-set — Terracotta",
+        "saanjh-kurta-set — Sage",
+        "saanjh-kurta-set — Ivory"
+      ]
+    },
+    "roohi-three-piece": {
+      "id": "gid://shopify/Product/15066790232436",
+      "title": "Roohi 3-Piece Set",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/54627106029940",
+          "title": "XS",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726498164"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106062708",
+          "title": "S",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726530932"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106095476",
+          "title": "M",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726563700"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106128244",
+          "title": "L",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726596468"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106161012",
+          "title": "XL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726629236"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106193780",
+          "title": "XXL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726662004"
+        }
+      ],
+      "images": [
+        "roohi-three-piece — Sage",
+        "roohi-three-piece — Wine"
+      ]
+    },
+    "amba-coord-set": {
+      "id": "gid://shopify/Product/15066790265204",
+      "title": "Amba Co-ord Set",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/54627106226548",
+          "title": "XS",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726694772"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106259316",
+          "title": "S",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726727540"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106292084",
+          "title": "M",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726760308"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106324852",
+          "title": "L",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726793076"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106357620",
+          "title": "XL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726825844"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106390388",
+          "title": "XXL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726858612"
+        }
+      ],
+      "images": [
+        "amba-coord-set — Cream",
+        "amba-coord-set — Charcoal"
+      ]
+    },
+    "noor-kurta-set": {
+      "id": "gid://shopify/Product/15066790297972",
+      "title": "Noor Kurta Set",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/54627106423156",
+          "title": "XS",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726891380"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106455924",
+          "title": "S",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726924148"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106488692",
+          "title": "M",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726956916"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106521460",
+          "title": "L",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495726989684"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106554228",
+          "title": "XL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727022452"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106586996",
+          "title": "XXL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727055220"
+        }
+      ],
+      "images": [
+        "noor-kurta-set — Ivory",
+        "noor-kurta-set — Powder"
+      ]
+    },
+    "bageecha-coord": {
+      "id": "gid://shopify/Product/15066790330740",
+      "title": "Bageecha Co-ord",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/54627106619764",
+          "title": "XS",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727087988"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106652532",
+          "title": "S",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727120756"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106685300",
+          "title": "M",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727153524"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106718068",
+          "title": "L",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727186292"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106750836",
+          "title": "XL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727219060"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106783604",
+          "title": "XXL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727251828"
+        }
+      ],
+      "images": [
+        "bageecha-coord — Olive",
+        "bageecha-coord — Terracotta"
+      ]
+    },
+    "mehfil-kurta": {
+      "id": "gid://shopify/Product/15066790363508",
+      "title": "Mehfil Kurta Set",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/54627106816372",
+          "title": "XS",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727284596"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106849140",
+          "title": "S",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727317364"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106881908",
+          "title": "M",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727350132"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106914676",
+          "title": "L",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727382900"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106947444",
+          "title": "XL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727415668"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/54627106980212",
+          "title": "XXL",
+          "inventoryItemId": "gid://shopify/InventoryItem/55495727448436"
+        }
+      ],
+      "images": [
+        "mehfil-kurta — Gold",
+        "mehfil-kurta — Wine"
+      ]
+    }
+  },
+  "pages": {},
+  "files": {}
+}

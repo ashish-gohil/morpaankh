@@ -1,0 +1,80 @@
+[
+  {
+    "handle": "saanjh-kurta-set",
+    "color": "Terracotta",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/saanjh-kurta-set-terracotta.png",
+    "basename": "saanjh-kurta-set-terracotta.png"
+  },
+  {
+    "handle": "saanjh-kurta-set",
+    "color": "Sage",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/saanjh-kurta-set-sage.png",
+    "basename": "saanjh-kurta-set-sage.png"
+  },
+  {
+    "handle": "saanjh-kurta-set",
+    "color": "Ivory",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/saanjh-kurta-set-ivory.png",
+    "basename": "saanjh-kurta-set-ivory.png"
+  },
+  {
+    "handle": "roohi-three-piece",
+    "color": "Sage",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/roohi-three-piece-sage.png",
+    "basename": "roohi-three-piece-sage.png"
+  },
+  {
+    "handle": "roohi-three-piece",
+    "color": "Wine",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/roohi-three-piece-wine.png",
+    "basename": "roohi-three-piece-wine.png"
+  },
+  {
+    "handle": "amba-coord-set",
+    "color": "Cream",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/amba-coord-set-cream.png",
+    "basename": "amba-coord-set-cream.png"
+  },
+  {
+    "handle": "amba-coord-set",
+    "color": "Charcoal",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/amba-coord-set-charcoal.png",
+    "basename": "amba-coord-set-charcoal.png"
+  },
+  {
+    "handle": "noor-kurta-set",
+    "color": "Ivory",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/noor-kurta-set-ivory.png",
+    "basename": "noor-kurta-set-ivory.png"
+  },
+  {
+    "handle": "noor-kurta-set",
+    "color": "Powder",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/noor-kurta-set-powder.png",
+    "basename": "noor-kurta-set-powder.png"
+  },
+  {
+    "handle": "bageecha-coord",
+    "color": "Olive",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/bageecha-coord-olive.png",
+    "basename": "bageecha-coord-olive.png"
+  },
+  {
+    "handle": "bageecha-coord",
+    "color": "Terracotta",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/bageecha-coord-terracotta.png",
+    "basename": "bageecha-coord-terracotta.png"
+  },
+  {
+    "handle": "mehfil-kurta",
+    "color": "Gold",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/mehfil-kurta-gold.png",
+    "basename": "mehfil-kurta-gold.png"
+  },
+  {
+    "handle": "mehfil-kurta",
+    "color": "Wine",
+    "file": "/Users/ashishgohil/garment-seller/scripts/images/mehfil-kurta-wine.png",
+    "basename": "mehfil-kurta-wine.png"
+  }
+]
