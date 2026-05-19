@@ -169,6 +169,156 @@
     }
   }
 
+  // ---------- Custom dropdown widget ----------
+  // Wraps targeted <select> elements with a brand-styled trigger + popover.
+  // The native <select> stays in DOM (so form submission, change events,
+  // and accessibility work as before); the wrapper handles the visible UI.
+  //
+  // Targets: sort dropdowns + localization. Anything with [data-tapi-select]
+  // also opts in. Stop at .tapi-footer__field selects (footer subscribe).
+  function setupCustomSelect(root) {
+    var selector = [
+      '.facet-filters__field select',
+      '.facets-vertical-sort select',
+      '.facets__sort',
+      'localization-form select',
+      '.localization-form select',
+      '[data-tapi-select]'
+    ].join(', ');
+    var selects = (root || document).querySelectorAll(selector);
+    selects.forEach(wrapSelect);
+  }
+
+  function wrapSelect(sel) {
+    if (sel.__tapiCustomSelect) return;
+    if (sel.closest && sel.closest('.tapi-footer__field')) return;
+    sel.__tapiCustomSelect = true;
+
+    // Build wrapper structure
+    var wrap = document.createElement('div');
+    wrap.className = 'tapi-select-wrap';
+
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'tapi-select__trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+
+    var valueSpan = document.createElement('span');
+    valueSpan.className = 'tapi-select__value';
+    valueSpan.textContent = (sel.options[sel.selectedIndex] || {}).text || '';
+
+    var chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'tapi-select__chevron');
+    chevron.setAttribute('width', '12');
+    chevron.setAttribute('height', '8');
+    chevron.setAttribute('viewBox', '0 0 12 8');
+    chevron.setAttribute('fill', 'none');
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.innerHTML = '<path d="M1 1l5 5 5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';
+
+    trigger.appendChild(valueSpan);
+    trigger.appendChild(chevron);
+
+    var menu = document.createElement('div');
+    menu.className = 'tapi-select__menu';
+    menu.setAttribute('role', 'listbox');
+
+    Array.prototype.forEach.call(sel.options, function (opt, i) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tapi-select__option';
+      btn.setAttribute('role', 'option');
+      btn.setAttribute('data-value', opt.value);
+      btn.setAttribute('aria-selected', String(i === sel.selectedIndex));
+      btn.textContent = opt.textContent;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        chooseOption(opt.value);
+      });
+      menu.appendChild(btn);
+    });
+
+    // Insert wrap before the select; move select inside it; flag as native-hidden
+    var parent = sel.parentNode;
+    parent.insertBefore(wrap, sel);
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    wrap.appendChild(sel);
+    sel.classList.add('tapi-select__native');
+
+    function open() {
+      // Close any other open widgets first
+      document.querySelectorAll('.tapi-select-wrap.is-open').forEach(function (w) {
+        if (w !== wrap) w.classList.remove('is-open');
+      });
+      wrap.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+    function close() {
+      wrap.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+    function toggle() { wrap.classList.contains('is-open') ? close() : open(); }
+
+    function chooseOption(value) {
+      if (sel.value === value) { close(); return; }
+      sel.value = value;
+      // Update option-selected state in the popover
+      menu.querySelectorAll('.tapi-select__option').forEach(function (b) {
+        b.setAttribute('aria-selected', String(b.getAttribute('data-value') === value));
+      });
+      // Update trigger label
+      var newOpt = sel.options[sel.selectedIndex];
+      if (newOpt) valueSpan.textContent = newOpt.text;
+      // Fire native change so Dawn's facet-filters-form (and others) pick it up
+      sel.dispatchEvent(new Event('input',  { bubbles: true }));
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      close();
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
+    });
+
+    // Keep custom widget in sync if the underlying select is changed
+    // programmatically (e.g. by Dawn after a page-section refresh)
+    sel.addEventListener('change', function () {
+      var newOpt = sel.options[sel.selectedIndex];
+      if (newOpt) valueSpan.textContent = newOpt.text;
+      menu.querySelectorAll('.tapi-select__option').forEach(function (b) {
+        b.setAttribute('aria-selected', String(b.getAttribute('data-value') === sel.value));
+      });
+    });
+
+    // Outside click closes
+    document.addEventListener('click', function (e) {
+      if (!wrap.contains(e.target)) close();
+    });
+    // ESC closes; arrow keys move focus across options when open
+    trigger.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { close(); return; }
+      if ((e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') && !wrap.classList.contains('is-open')) {
+        e.preventDefault();
+        open();
+        var first = menu.querySelector('.tapi-select__option');
+        if (first) first.focus();
+      }
+    });
+    menu.addEventListener('keydown', function (e) {
+      var opts = Array.prototype.slice.call(menu.querySelectorAll('.tapi-select__option'));
+      var idx = opts.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); (opts[idx + 1] || opts[0]).focus(); }
+      else if (e.key === 'ArrowUp')   { e.preventDefault(); (opts[idx - 1] || opts[opts.length - 1]).focus(); }
+      else if (e.key === 'Home')      { e.preventDefault(); opts[0] && opts[0].focus(); }
+      else if (e.key === 'End')       { e.preventDefault(); opts[opts.length - 1] && opts[opts.length - 1].focus(); }
+    });
+  }
+
   // ---------- Header scroll-shadow ----------
   // Toggle .is-scrolled on .header-wrapper when the page has scrolled past 8px.
   // rAF-throttled + passive listener so it stays cheap on long pages.
@@ -195,6 +345,7 @@
     setupMagnetic(document);
     setupHeaderScroll();
     setupPdpGallery(document);
+    setupCustomSelect(document);
   }
 
   if (document.readyState === 'loading') {
@@ -209,5 +360,6 @@
     setupCountUp(e.target);
     setupMagnetic(e.target);
     setupPdpGallery(e.target);
+    setupCustomSelect(e.target);
   });
 })();
