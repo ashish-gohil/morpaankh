@@ -439,3 +439,97 @@ input:focus, textarea:focus, select:focus,
   outline: 1px dashed var(--tapi-warm-grey) !important;
   outline-offset: 3px;
 }
+
+/* ============================================================
+   Header — never let logo wrap; keep utility icons tight
+   ============================================================ */
+.header { flex-wrap: nowrap !important; }
+.header__heading, .header__heading-link, .tapi-logo { flex: 0 0 auto; min-width: 0; }
+.tapi-logo { white-space: nowrap; }
+.tapi-logo span { display: inline-block; }
+.header__icons { flex: 0 0 auto; }
+.header__inline-menu, .header__menu { min-width: 0; }
+/* When the cart drawer or other drawer adds body classes, prevent layout shift */
+body.overflow-hidden,
+body.has-drawer-open { padding-right: 0 !important; }
+@media (max-width: 749px) {
+  .header { gap: 0.6rem; }
+  .header > * { min-width: 0; }
+}
+
+/* ============================================================
+   Footer — logo a touch larger right above the about blurb
+   ============================================================ */
+.tapi-footer__cols > div:first-child .tapi-logo svg { width: 40px; height: 40px; margin-right: 14px !important; }
+.tapi-footer__cols > div:first-child .tapi-logo span { font-size: 28px; }
+
+/* ============================================================
+   Predictive search — re-skin Dawn's results to the editorial look
+   ============================================================ */
+predictive-search,
+.predictive-search,
+.predictive-search__results-groups-wrapper { background: var(--tapi-cream); border: 1px solid var(--tapi-hairline) !important; }
+.predictive-search { box-shadow: 0 24px 48px -28px rgba(44,40,38,0.25) !important; padding: 1.4rem 1.6rem !important; }
+.predictive-search__heading,
+.predictive-search h2 {
+  font-family: var(--font-body-family) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--tapi-warm-grey) !important;
+  margin: 0.4rem 0 1.2rem !important;
+}
+.predictive-search__list-item { padding: 1rem 0.6rem !important; border-bottom: 1px solid var(--tapi-hairline) !important; transition: background 200ms; }
+.predictive-search__list-item:hover, .predictive-search__list-item[aria-selected="true"] { background: var(--tapi-cream-2) !important; }
+.predictive-search-item__heading,
+.predictive-search-item__heading a {
+  font-family: var(--font-heading-family) !important;
+  font-size: 1.7rem !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.008em !important;
+  color: var(--tapi-charcoal) !important;
+}
+.predictive-search-item__image, .predictive-search__image {
+  aspect-ratio: 3 / 4 !important;
+  background: var(--tapi-cream-2) !important;
+  border-radius: 2px !important;
+}
+.predictive-search-item__price,
+.predictive-search-item__price .price {
+  font-family: var(--font-heading-family) !important;
+  font-size: 1.4rem !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--tapi-charcoal) !important;
+}
+.predictive-search-item__vendor,
+.predictive-search-item__type {
+  font-size: 1.1rem !important;
+  color: var(--tapi-warm-grey) !important;
+  letter-spacing: 0.04em !important;
+}
+.predictive-search a,
+.predictive-search button {
+  text-decoration: none !important;
+}
+.predictive-search__view-all-button, .predictive-search__view-all {
+  display: inline-flex !important; align-items: center !important; gap: 8px !important;
+  height: 44px !important; padding: 0 1.6rem !important;
+  font-family: var(--font-body-family) !important; font-size: 1.2rem !important;
+  letter-spacing: 0.06em !important; text-transform: uppercase !important;
+  color: var(--tapi-cream) !important; background: var(--tapi-charcoal) !important;
+  border-radius: 2px !important; margin-top: 1.2rem !important;
+}
+.predictive-search__view-all-button:hover, .predictive-search__view-all:hover { background: var(--tapi-terracotta) !important; }
+
+/* The search modal input */
+search-modal .field, .search-modal__form .field { border-bottom: 1px solid var(--tapi-hairline-2) !important; }
+search-modal .field__input, .search-modal__form .field__input {
+  font-family: var(--font-heading-family) !important;
+  font-size: clamp(2.4rem, 4vw, 4rem) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 1.2rem 0 !important;
+}
+search-modal .field__label, .search-modal__form .field__label { font-family: var(--font-heading-family) !important; opacity: 0.5; }
+search-modal .modal__close-button, .search-modal__close { color: var(--tapi-charcoal) !important; }
