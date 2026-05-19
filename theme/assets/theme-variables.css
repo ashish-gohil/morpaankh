@@ -1138,3 +1138,37 @@ search-modal .field:has(input.field__input:not(:placeholder-shown)) .reset__butt
 search-modal .field__input:placeholder-shown + .reset__button { visibility: hidden !important; opacity: 0 !important; }
 .search-modal__form .field__input:not(:placeholder-shown) + .reset__button,
 search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility: visible !important; opacity: 1 !important; }
+
+/* ============================================================
+   Section spacing — one rule to govern every Tapi section
+   ============================================================ */
+:root { --tapi-section-y: clamp(6.4rem, 9vw, 11rem); }
+
+.tapi-hero,
+.tapi-collection-tiles,
+.tapi-featured,
+.tapi-studio-strip,
+.tapi-editorial-band,
+.tapi-pdp {
+  padding-top: var(--tapi-section-y) !important;
+  padding-bottom: var(--tapi-section-y) !important;
+  margin: 0 !important;
+}
+
+/* The PDP needs slightly tighter spacing — keep it slim */
+.tapi-pdp { padding-top: 2.4rem !important; padding-bottom: 4.8rem !important; }
+@media (max-width: 749px) { .tapi-pdp { padding-bottom: 10rem !important; } }
+
+/* Dawn wraps each Tapi section in <div class="shopify-section ..."> ; kill any
+   inherited margins/padding so our --tapi-section-y is the single source of truth */
+.shopify-section + .shopify-section { margin-top: 0 !important; }
+.shopify-section:has(> .tapi-hero),
+.shopify-section:has(> .tapi-collection-tiles),
+.shopify-section:has(> .tapi-featured),
+.shopify-section:has(> .tapi-studio-strip),
+.shopify-section:has(> .tapi-editorial-band) { margin: 0 !important; padding: 0 !important; }
+
+/* Mobile — keep proportional, but a touch tighter */
+@media (max-width: 749px) {
+  :root { --tapi-section-y: clamp(4.8rem, 8vw, 7.2rem); }
+}
