@@ -176,64 +176,61 @@ button.shopify-payment-button__button--unbranded {
 }
 
 /* ============================================================
-   Product grid — equal-height, equal-width tiles
-   Dawn's card snippet collapses around its content, so titles
-   wrapping to two lines push everything below them down. Forcing
-   each tile into a flex column with a fixed-aspect image area and
-   a pinned-bottom info row makes every card share the same shape
-   regardless of title or tag length.
+   Product grid — equal-size image boxes, tight info rows.
+
+   Image box locked to aspect-ratio 3/4 with object-fit: contain so
+   every tile gets the SAME image area (same width AND same height)
+   regardless of the source image's dimensions. Images shrink to fit
+   the box rather than crop; the letterboxing background is cream so
+   the empty area reads as intentional negative space.
+
+   Info row (title + price) is tight by default — no enforced equal
+   tile height, no pinned-bottom price. That avoids the giant gap
+   that appears when a title is short.
    ============================================================ */
-.product-grid { align-items: stretch; }
-.product-grid .grid__item {
-  display: flex !important;
-  flex-direction: column;
-}
-.product-grid .grid__item > .card-wrapper,
-.product-grid .grid__item > .card-wrapper > a,
-.product-grid .grid__item > .card-wrapper > .card {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-/* Image area — locked aspect so every tile's photo is exactly the
-   same height regardless of original media dimensions. */
+.product-grid .grid__item { display: block; }
+
+/* Image area — uniform across all tiles */
 .product-grid .card__inner,
 .product-grid .card .media,
 .product-grid .card__media {
-  aspect-ratio: 3 / 4;
-  flex: 0 0 auto;
+  aspect-ratio: 3 / 4 !important;
   overflow: hidden;
+  background: var(--tapi-cream-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .product-grid .card__inner img,
 .product-grid .card .media img,
 .product-grid .card__media img {
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
+  object-fit: contain !important;   /* shrink-to-fit, no cropping */
+  object-position: center;
 }
-/* Info area — fills the rest, with internal items pinned so the
-   price always sits at the bottom of the tile. */
+
+/* Info row — title and price hug each other tightly. No flex column
+   tricks, no auto margins; let the natural baseline gap (0.2rem) be
+   the only spacing between heading and price. */
 .product-grid .card__content,
 .product-grid .card__information {
-  flex: 1 1 auto;
-  display: flex !important;
-  flex-direction: column;
-  gap: 0.6rem;
+  display: block !important;
+  padding-top: 1rem !important;
 }
-/* Title — clamp to two lines so the info row's height is stable.
-   Vendor / rating row sits between title and price. */
+.product-grid .card__information > * { margin: 0; }
 .product-grid .card__information .card__heading {
+  font-family: var(--font-heading-family);
+  font-size: 1.6rem;
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: calc(1.9rem * 1.3 * 2); /* roughly two lines */
-  line-height: 1.3;
 }
 .product-grid .card__information .price {
-  margin-top: auto; /* pins price to bottom of info area */
-  padding-top: 0.4rem;
+  margin-top: 0.4rem !important;
+  padding: 0 !important;
 }
 /* Badges / tags inside the image — anchor consistently */
 .product-grid .card__badge { top: 12px; left: 12px; }
