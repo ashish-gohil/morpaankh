@@ -1,0 +1,72 @@
+{%- comment -%}
+  Tapi register — uses Shopify's create_customer form. Same auth flow as
+  Dawn's main-register, custom layout + tokens.
+{%- endcomment -%}
+
+<section class="tapi-customer tapi-customer--register" data-tapi-reveal>
+  <div class="tapi-customer__shell">
+    <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
+    <h1 class="tapi-customer__heading">{{ section.settings.heading }}</h1>
+    {%- if section.settings.lede != blank -%}
+      <p class="tapi-customer__lede">{{ section.settings.lede }}</p>
+    {%- endif -%}
+
+    {%- form 'create_customer', novalidate: 'novalidate', class: 'tapi-customer__form' -%}
+      {%- if form.posted_successfully? -%}
+        <div class="tapi-customer__success" role="status">Welcome to Tapi. Check your inbox for the activation link.</div>
+      {%- endif -%}
+      {%- if form.errors -%}
+        <div class="tapi-customer__errors" role="alert">
+          <strong>Please fix the following:</strong>
+          <ul>
+            {%- for error in form.errors -%}
+              <li>{{ form.errors.messages[error] }}</li>
+            {%- endfor -%}
+          </ul>
+        </div>
+      {%- endif -%}
+
+      <div class="tapi-customer__row tapi-customer__row--split">
+        <div>
+          <label class="tapi-customer__label" for="RegisterFirstName">First name</label>
+          <input type="text" name="customer[first_name]" id="RegisterFirstName" autocomplete="given-name" placeholder="Aanya" class="tapi-customer__input">
+        </div>
+        <div>
+          <label class="tapi-customer__label" for="RegisterLastName">Last name</label>
+          <input type="text" name="customer[last_name]" id="RegisterLastName" autocomplete="family-name" placeholder="Shah" class="tapi-customer__input">
+        </div>
+      </div>
+
+      <label class="tapi-customer__label" for="RegisterEmail">Email</label>
+      <input type="email" name="customer[email]" id="RegisterEmail" autocomplete="email" autocorrect="off" autocapitalize="off" required placeholder="you@example.com" class="tapi-customer__input">
+
+      <label class="tapi-customer__label" for="RegisterPassword">Password</label>
+      <input type="password" name="customer[password]" id="RegisterPassword" autocomplete="new-password" required placeholder="At least 8 characters" class="tapi-customer__input">
+
+      <button type="submit" class="button button--primary tapi-customer__submit">Create account</button>
+    {%- endform -%}
+
+    <div class="tapi-customer__divider"><span>or</span></div>
+
+    <a href="{{ routes.account_login_url }}" class="button button--outline tapi-customer__alt">
+      I already have an account
+    </a>
+
+    <p class="tapi-customer__help tapi-customer__fine">
+      By creating an account you agree to our <a href="/policies/privacy-policy" class="tapi-underline">privacy policy</a>.
+    </p>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Tapi register",
+  "tag": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "— Join us" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Open your account." },
+    { "type": "textarea", "id": "lede", "label": "Description", "default": "One account. Faster checkout, saved sizes, and pickup notes for Surat." }
+  ],
+  "enabled_on": { "templates": ["customers/register"] }
+}
+{% endschema %}

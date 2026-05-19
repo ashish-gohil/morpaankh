@@ -1,7 +1,7 @@
 {
   "sections": {
     "main": {
-      "type": "main-register"
+      "type": "tapi-customer-register"
     }
   },
   "order": [

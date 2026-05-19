@@ -1,0 +1,48 @@
+{%- comment -%}
+  Tapi activate account — customer arrives here from the welcome email,
+  sets initial password via Shopify's activate_customer_password form.
+{%- endcomment -%}
+
+<section class="tapi-customer tapi-customer--activate" data-tapi-reveal>
+  <div class="tapi-customer__shell">
+    <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
+    <h1 class="tapi-customer__heading">{{ section.settings.heading }}</h1>
+    <p class="tapi-customer__lede">{{ section.settings.lede }}</p>
+
+    {%- form 'activate_customer_password', novalidate: 'novalidate', class: 'tapi-customer__form' -%}
+      {%- if form.errors -%}
+        <div class="tapi-customer__errors" role="alert">
+          <ul>
+            {%- for error in form.errors -%}
+              <li>{{ form.errors.messages[error] }}</li>
+            {%- endfor -%}
+          </ul>
+        </div>
+      {%- endif -%}
+
+      <label class="tapi-customer__label" for="ActivatePassword">Password</label>
+      <input type="password" name="customer[password]" id="ActivatePassword" autocomplete="new-password" required placeholder="At least 8 characters" class="tapi-customer__input">
+
+      <label class="tapi-customer__label" for="ActivatePasswordConfirm">Confirm password</label>
+      <input type="password" name="customer[password_confirmation]" id="ActivatePasswordConfirm" autocomplete="new-password" required placeholder="Repeat password" class="tapi-customer__input">
+
+      <div class="tapi-customer__row tapi-customer__row--split">
+        <button type="submit" class="button button--primary tapi-customer__submit">Activate</button>
+        <button type="submit" name="decline" class="button button--outline tapi-customer__submit">Decline invitation</button>
+      </div>
+    {%- endform -%}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Tapi activate account",
+  "tag": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "— Welcome" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Activate your account." },
+    { "type": "textarea", "id": "lede", "label": "Description", "default": "Pick a password to finish setting up your account. You can change it anytime from your dashboard." }
+  ],
+  "enabled_on": { "templates": ["customers/activate_account"] }
+}
+{% endschema %}
