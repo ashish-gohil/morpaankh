@@ -97,6 +97,78 @@
     });
   }
 
+  // ---------- PDP gallery navigation ----------
+  // Wires thumbs / dots / prev-next buttons / keyboard arrows / touch swipe
+  // for the Tapi PDP. Lives here (not in the section's {% javascript %})
+  // because some Shopify deploys mis-cache section-bundled JS, and we'd
+  // rather rely on a script tag we control from layout/theme.liquid.
+  function setupPdpGallery(root) {
+    var sec = (root && root.classList && root.classList.contains('tapi-pdp'))
+      ? root
+      : (root || document).querySelector('.tapi-pdp');
+    if (!sec) return;
+    if (sec.__tapiGalleryWired) return; // idempotent on editor re-render
+    sec.__tapiGalleryWired = true;
+
+    var thumbs = sec.querySelectorAll('.tapi-pdp__thumb');
+    var mains  = sec.querySelectorAll('.tapi-pdp__main-img');
+    var dots   = sec.querySelectorAll('[data-gallery-dots] .tapi-pdp__dot');
+    var total  = mains.length || 1;
+    if (total <= 1) return; // nothing to navigate
+
+    function setActiveImage(idx) {
+      var next = ((idx % total) + total) % total; // wrap both directions
+      thumbs.forEach(function (x) { x.classList.remove('is-active'); });
+      mains.forEach(function (x) { x.classList.remove('is-active'); });
+      dots.forEach(function (x) { x.classList.remove('is-active'); });
+      var t = sec.querySelector('.tapi-pdp__thumb[data-thumb-index="' + next + '"]');
+      var m = sec.querySelector('.tapi-pdp__main-img[data-main-index="' + next + '"]');
+      var d = sec.querySelector('.tapi-pdp__dot[data-dot-index="' + next + '"]');
+      if (t) t.classList.add('is-active');
+      if (m) m.classList.add('is-active');
+      if (d) d.classList.add('is-active');
+    }
+    function currentIndex() {
+      var cur = sec.querySelector('.tapi-pdp__main-img.is-active');
+      return cur ? parseInt(cur.getAttribute('data-main-index'), 10) || 0 : 0;
+    }
+
+    thumbs.forEach(function (t) {
+      t.addEventListener('click', function () {
+        setActiveImage(parseInt(t.getAttribute('data-thumb-index'), 10) || 0);
+      });
+    });
+    dots.forEach(function (d) {
+      d.addEventListener('click', function () {
+        setActiveImage(parseInt(d.getAttribute('data-dot-index'), 10) || 0);
+      });
+    });
+
+    var prevBtn = sec.querySelector('[data-gallery-prev]');
+    var nextBtn = sec.querySelector('[data-gallery-next]');
+    if (prevBtn) prevBtn.addEventListener('click', function () { setActiveImage(currentIndex() - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { setActiveImage(currentIndex() + 1); });
+
+    var stage = sec.querySelector('[data-gallery-stage]');
+    if (stage) {
+      stage.setAttribute('tabindex', '-1');
+      stage.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); setActiveImage(currentIndex() - 1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); setActiveImage(currentIndex() + 1); }
+      });
+
+      var touchX = null;
+      stage.addEventListener('touchstart', function (e) { touchX = e.changedTouches[0].clientX; }, { passive: true });
+      stage.addEventListener('touchend', function (e) {
+        if (touchX == null) return;
+        var dx = e.changedTouches[0].clientX - touchX;
+        touchX = null;
+        if (Math.abs(dx) < 40) return;
+        setActiveImage(currentIndex() + (dx < 0 ? 1 : -1));
+      }, { passive: true });
+    }
+  }
+
   // ---------- Header scroll-shadow ----------
   // Toggle .is-scrolled on .header-wrapper when the page has scrolled past 8px.
   // rAF-throttled + passive listener so it stays cheap on long pages.
@@ -122,6 +194,7 @@
     setupCountUp(document);
     setupMagnetic(document);
     setupHeaderScroll();
+    setupPdpGallery(document);
   }
 
   if (document.readyState === 'loading') {
@@ -131,5 +204,10 @@
   }
 
   // Re-init on Shopify section editor re-render
-  document.addEventListener('shopify:section:load', function (e) { setupReveal(e.target); setupCountUp(e.target); setupMagnetic(e.target); });
+  document.addEventListener('shopify:section:load', function (e) {
+    setupReveal(e.target);
+    setupCountUp(e.target);
+    setupMagnetic(e.target);
+    setupPdpGallery(e.target);
+  });
 })();

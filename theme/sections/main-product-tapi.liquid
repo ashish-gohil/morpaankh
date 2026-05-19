@@ -515,62 +515,10 @@
       if (mobileAdd) mobileAdd.textContent = currentVariantText ? `Add — ${currentVariantText}` : 'Add to bag';
     };
 
-    // Gallery state — single source of truth for active image index
-    const dots = sec.querySelectorAll('[data-gallery-dots] .tapi-pdp__dot');
-    const total = mains.length || 1;
-    const setActiveImage = (idx) => {
-      const next = ((idx % total) + total) % total; // wrap both directions
-      thumbs.forEach(x => x.classList.remove('is-active'));
-      mains.forEach(x => x.classList.remove('is-active'));
-      dots.forEach(x => x.classList.remove('is-active'));
-      const t = sec.querySelector(`.tapi-pdp__thumb[data-thumb-index="${next}"]`);
-      const m = sec.querySelector(`.tapi-pdp__main-img[data-main-index="${next}"]`);
-      const d = sec.querySelector(`.tapi-pdp__dot[data-dot-index="${next}"]`);
-      if (t) t.classList.add('is-active');
-      if (m) m.classList.add('is-active');
-      if (d) d.classList.add('is-active');
-    };
-    const currentIndex = () => {
-      const cur = sec.querySelector('.tapi-pdp__main-img.is-active');
-      return cur ? parseInt(cur.getAttribute('data-main-index'), 10) : 0;
-    };
-
-    // Thumbnail click → set active
-    thumbs.forEach(t => t.addEventListener('click', function () {
-      setActiveImage(parseInt(t.getAttribute('data-thumb-index'), 10));
-    }));
-
-    // Dot click → set active
-    dots.forEach(d => d.addEventListener('click', function () {
-      setActiveImage(parseInt(d.getAttribute('data-dot-index'), 10));
-    }));
-
-    // Prev / next arrow buttons
-    const prevBtn = sec.querySelector('[data-gallery-prev]');
-    const nextBtn = sec.querySelector('[data-gallery-next]');
-    if (prevBtn) prevBtn.addEventListener('click', () => setActiveImage(currentIndex() - 1));
-    if (nextBtn) nextBtn.addEventListener('click', () => setActiveImage(currentIndex() + 1));
-
-    // Keyboard arrows when stage has focus (or any descendant)
-    const stage = sec.querySelector('[data-gallery-stage]');
-    if (stage) {
-      stage.setAttribute('tabindex', '-1');
-      stage.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); setActiveImage(currentIndex() - 1); }
-        if (e.key === 'ArrowRight') { e.preventDefault(); setActiveImage(currentIndex() + 1); }
-      });
-
-      // Touch swipe — left/right swipes > 40px change image
-      let touchX = null;
-      stage.addEventListener('touchstart', (e) => { touchX = e.changedTouches[0].clientX; }, { passive: true });
-      stage.addEventListener('touchend', (e) => {
-        if (touchX == null) return;
-        const dx = e.changedTouches[0].clientX - touchX;
-        touchX = null;
-        if (Math.abs(dx) < 40) return;
-        setActiveImage(currentIndex() + (dx < 0 ? 1 : -1));
-      }, { passive: true });
-    }
+    // Gallery navigation (thumbs, dots, prev/next, keyboard, swipe) is wired
+    // up by tapi-motion.js so it loads from a known-cached script tag and
+    // works even if section JS bundling is mis-cached. See setupPdpGallery
+    // in assets/tapi-motion.js.
 
     // Color swatch toggle — also refades the main image (design parity)
     sec.querySelectorAll('.tapi-pdp__color').forEach(c => {
