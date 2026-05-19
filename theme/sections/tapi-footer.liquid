@@ -1,0 +1,171 @@
+<footer class="tapi-footer">
+  <div class="page-width">
+    <div class="tapi-footer__news" data-tapi-reveal>
+      <div>
+        <span class="tapi-eyebrow tapi-footer__news-eyebrow">— {{ section.settings.news_eyebrow }}</span>
+        <h2 class="tapi-footer__news-title">{{ section.settings.news_title }}</h2>
+        <p class="tapi-footer__news-body">{{ section.settings.news_body }}</p>
+      </div>
+      <div class="tapi-footer__form-wrap">
+        {%- form 'customer', class: 'tapi-footer__form' -%}
+          <input type="hidden" name="contact[tags]" value="newsletter">
+          <div class="tapi-footer__field">
+            <input type="email" name="contact[email]" required placeholder="your.email@example.com" aria-label="Email" autocomplete="email">
+            <button type="submit" class="tapi-footer__submit">Subscribe →</button>
+          </div>
+          {%- if form.posted_successfully? -%}
+            <p class="tapi-footer__form-msg">Thank you. We'll write soon.</p>
+          {%- endif -%}
+          <span class="tapi-footer__form-hint">No spam. Unsubscribe anytime.</span>
+        {%- endform -%}
+      </div>
+    </div>
+
+    <div class="tapi-footer__cols" data-tapi-stagger="80">
+      <div data-tapi-reveal>
+        {%- render 'tapi-logo', size: 22 -%}
+        <p class="tapi-footer__about">{{ section.settings.about_blurb }}</p>
+        <div class="tapi-footer__social">
+          {%- if settings.social_instagram_link != blank -%}
+            <a href="{{ settings.social_instagram_link }}" aria-label="Instagram">Instagram</a>
+          {%- else -%}<a aria-label="Instagram">Instagram</a>{%- endif -%}
+          <span class="tapi-footer__sep">·</span>
+          <a aria-label="WhatsApp">WhatsApp</a>
+        </div>
+      </div>
+
+      {%- for block in section.blocks -%}
+        <div data-tapi-reveal {{ block.shopify_attributes }}>
+          <div class="tapi-footer__col-title">{{ block.settings.title }}</div>
+          {%- if block.type == 'links' -%}
+            <ul class="tapi-footer__links">
+              {%- assign menu = block.settings.menu -%}
+              {%- if menu != blank -%}
+                {%- for link in linklists[menu].links -%}
+                  <li><a href="{{ link.url }}">{{ link.title }}</a></li>
+                {%- endfor -%}
+              {%- else -%}
+                {%- assign items = block.settings.items | newline_to_br | split: '<br />' -%}
+                {%- for it in items -%}
+                  {%- assign parts = it | split: '|' -%}
+                  {%- assign label = parts[0] | strip -%}
+                  {%- assign url   = parts[1] | default: '#' | strip -%}
+                  {%- if label != blank -%}<li><a href="{{ url }}">{{ label }}</a></li>{%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+            </ul>
+          {%- elsif block.type == 'address' -%}
+            <p class="tapi-footer__address">{{ block.settings.address }}</p>
+            {%- if block.settings.cta_text != blank -%}
+              <a href="{{ block.settings.cta_link | default: '#' }}" class="tapi-footer__cta">{{ block.settings.cta_text }}</a>
+            {%- endif -%}
+          {%- endif -%}
+        </div>
+      {%- endfor -%}
+    </div>
+
+    <div class="tapi-footer__mark" data-tapi-reveal aria-hidden="true">
+      Tapi <em>&amp;</em> Co.
+    </div>
+
+    <div class="tapi-footer__bottom">
+      <div class="tapi-footer__copy">© {{ 'now' | date: '%Y' }} {{ shop.name }}. Made in Surat, with care.</div>
+      <div class="tapi-footer__legal">
+        <a href="{{ shop.privacy_policy.url | default: '/policies/privacy-policy' }}">Privacy</a>
+        <a href="{{ shop.terms_of_service.url | default: '/policies/terms-of-service' }}">Terms</a>
+        <a href="{{ shop.refund_policy.url | default: '/policies/refund-policy' }}">Refunds</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+{% stylesheet %}
+  .tapi-footer { background: var(--tapi-charcoal); color: var(--tapi-cream); margin-top: 8rem; overflow: hidden; }
+  .tapi-footer .page-width { padding-top: 9.6rem; padding-bottom: 2.4rem; }
+  .tapi-footer a { color: var(--tapi-cream); text-decoration: none; opacity: 0.72; transition: opacity 240ms, padding-left 320ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-footer a:hover { opacity: 1; padding-left: 6px; }
+
+  .tapi-footer__news { display: grid; grid-template-columns: 1.1fr 1fr; gap: 6.4rem; padding-bottom: 8rem; border-bottom: 1px solid rgba(248,244,237,0.10); align-items: end; }
+  .tapi-footer__news-eyebrow { color: var(--tapi-terracotta-soft) !important; margin-bottom: 1.6rem; display: block; }
+  .tapi-footer__news-title { font-family: var(--font-heading-family); font-size: clamp(3.2rem, 4.4vw, 5.2rem); line-height: 1.04; margin: 0 0 1.2rem; font-weight: 500; letter-spacing: -0.012em; color: var(--tapi-cream); }
+  .tapi-footer__news-body { color: var(--tapi-cream); opacity: 0.62; max-width: 46rem; font-size: 1.4rem; line-height: 1.65; margin: 0; }
+  .tapi-footer__form { display: flex; flex-direction: column; gap: 0.8rem; }
+  .tapi-footer__field { display: flex; align-items: center; border-bottom: 1px solid rgba(248,244,237,0.35); padding-bottom: 0.6rem; transition: border-color 240ms; }
+  .tapi-footer__field:focus-within { border-color: var(--tapi-cream); }
+  .tapi-footer__field input { flex: 1; background: transparent; color: var(--tapi-cream); border: none; font-family: inherit; font-size: 1.6rem; padding: 0.8rem 0; outline: none; }
+  .tapi-footer__field input::placeholder { color: rgba(248,244,237,0.45); }
+  .tapi-footer__submit { background: none; border: none; color: var(--tapi-cream); font-size: 1.1rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; padding: 0.4rem 0; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-footer__submit:hover { transform: translateX(6px); }
+  .tapi-footer__form-hint { font-size: 1.1rem; color: var(--tapi-cream); opacity: 0.4; }
+  .tapi-footer__form-msg  { font-size: 1.2rem; color: var(--tapi-terracotta-soft); margin: 0; }
+
+  .tapi-footer__cols { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 5.6rem; padding: 7.2rem 0; }
+  .tapi-footer__about { color: var(--tapi-cream); opacity: 0.55; font-size: 1.3rem; max-width: 28rem; line-height: 1.7; margin: 2rem 0 2.4rem; }
+  .tapi-footer__social { display: flex; gap: 1.4rem; font-size: 1.4rem; align-items: center; }
+  .tapi-footer__social a { display: inline-block; padding-bottom: 0.6rem; }
+  .tapi-footer__sep { opacity: 0.25; }
+  .tapi-footer__col-title { font-size: 1rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--tapi-terracotta-soft); margin-bottom: 2rem; font-weight: 500; }
+  .tapi-footer__links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; font-size: 1.4rem; }
+  .tapi-footer__address { font-family: var(--font-heading-family); font-style: italic; color: var(--tapi-cream); opacity: 0.72; font-size: 1.5rem; line-height: 1.7; margin: 0; }
+  .tapi-footer__cta { margin-top: 1.2rem; display: inline-block; font-size: 1.3rem; }
+
+  .tapi-footer__mark { font-family: var(--font-heading-family); font-weight: 500; font-size: clamp(5.6rem, 18vw, 22rem); line-height: 0.95; letter-spacing: -0.028em; color: rgba(248,244,237,0.08); text-align: center; user-select: none; white-space: nowrap; padding: 0; border-top: 1px solid rgba(248,244,237,0.10); padding-top: 2rem; overflow: hidden; }
+  .tapi-footer__mark em { font-style: italic; color: rgba(217,122,95,0.30); }
+
+  .tapi-footer__bottom { padding-top: 2rem; display: flex; justify-content: space-between; align-items: center; gap: 1.6rem; flex-wrap: wrap; font-size: 1.1rem; color: var(--tapi-cream); opacity: 0.45; letter-spacing: 0.04em; border-top: 1px solid rgba(248,244,237,0.08); }
+  .tapi-footer__legal { display: flex; gap: 2.4rem; }
+
+  @media (max-width: 989px) {
+    .tapi-footer__news { grid-template-columns: 1fr; gap: 2.8rem; padding-bottom: 4.8rem; }
+    .tapi-footer__cols { grid-template-columns: 1fr 1fr; gap: 2.8rem; padding: 4.8rem 0; }
+  }
+  @media (max-width: 540px) {
+    .tapi-footer__cols { grid-template-columns: 1fr; }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Tapi footer",
+  "tag": "footer",
+  "class": "section",
+  "settings": [
+    { "type": "text",     "id": "news_eyebrow", "label": "Newsletter eyebrow", "default": "Stay in the loop" },
+    { "type": "text",     "id": "news_title",   "label": "Newsletter title",   "default": "Letters from the loom." },
+    { "type": "textarea", "id": "news_body",    "label": "Newsletter body",    "default": "Once a fortnight — new arrivals, the story behind the fabric, and a small thing we made by hand." },
+    { "type": "textarea", "id": "about_blurb",  "label": "About blurb",        "default": "A small family in Surat making mid-premium ethnic wear. Honest fabric, honest fit, honest photography." }
+  ],
+  "blocks": [
+    {
+      "type": "links",
+      "name": "Link column",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Shop" },
+        { "type": "link_list", "id": "menu", "label": "Use menu (optional)" },
+        { "type": "textarea", "id": "items", "label": "Or paste links (label | URL per line)", "default": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" }
+      ]
+    },
+    {
+      "type": "address",
+      "name": "Visit / address",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Visit" },
+        { "type": "textarea", "id": "address", "label": "Address", "default": "Rampura, Surat\nGujarat 395003\nMon–Sat · 10am–7pm" },
+        { "type": "text", "id": "cta_text", "label": "CTA text", "default": "Message us" },
+        { "type": "url",  "id": "cta_link", "label": "CTA link" }
+      ]
+    }
+  ],
+  "max_blocks": 3,
+  "presets": [
+    {
+      "name": "Tapi footer",
+      "blocks": [
+        { "type": "links", "settings": { "title": "Shop", "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
+        { "type": "links", "settings": { "title": "Help", "items": "Size guide | /pages/fabric-guide\nExchange & returns | /policies/refund-policy\nFAQ | /pages/contact" } },
+        { "type": "address", "settings": { "title": "Visit", "address": "Rampura, Surat\nGujarat 395003\nMon–Sat · 10am–7pm", "cta_text": "Message us" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

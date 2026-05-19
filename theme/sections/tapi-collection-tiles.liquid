@@ -1,16 +1,16 @@
 <section class="tapi-collection-tiles">
   <div class="page-width">
-    <div class="tapi-collection-tiles__head">
+    <div class="tapi-collection-tiles__head" data-tapi-reveal>
       <div>
         <span class="tapi-eyebrow">{{ section.settings.eyebrow }}</span>
         <h2 class="tapi-collection-tiles__heading">{{ section.settings.heading }}</h2>
       </div>
       <p class="tapi-collection-tiles__intro">{{ section.settings.intro }}</p>
     </div>
-    <div class="tapi-collection-tiles__grid">
+    <div class="tapi-collection-tiles__grid" data-tapi-stagger="140">
       {%- for b in section.blocks -%}
         {%- assign coll = b.settings.collection -%}
-        <a href="{%- if coll != blank -%}{{ coll.url }}{%- else -%}/collections/all{%- endif -%}" class="tapi-tile" {{ b.shopify_attributes }}>
+        <a href="{%- if coll != blank -%}{{ coll.url }}{%- else -%}/collections/all{%- endif -%}" class="tapi-tile" data-tapi-reveal {{ b.shopify_attributes }}>
           <div class="tapi-tile__media">
             {%- if b.settings.image != blank -%}
               {{ b.settings.image | image_url: width: 800 | image_tag: loading: 'lazy', alt: b.settings.heading }}

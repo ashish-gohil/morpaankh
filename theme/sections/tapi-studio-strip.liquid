@@ -6,10 +6,10 @@
         <h2 class="tapi-studio-strip__heading">{{ section.settings.heading }}</h2>
       </div>
     {%- endif -%}
-    <div class="tapi-studio-strip__grid">
+    <div class="tapi-studio-strip__grid" data-tapi-stagger="120">
       {%- for s in section.blocks -%}
-        <div {{ s.shopify_attributes }}>
-          <div class="tapi-studio-strip__value">{{ s.settings.value }}</div>
+        <div data-tapi-reveal {{ s.shopify_attributes }}>
+          <div class="tapi-studio-strip__value" data-tapi-count-up="{{ s.settings.value }}">{{ s.settings.value }}</div>
           <div class="tapi-studio-strip__label">{{ s.settings.label }}</div>
         </div>
       {%- endfor -%}

@@ -3,51 +3,14 @@
   "type": "footer",
   "sections": {
     "footer": {
-      "type": "footer",
+      "type": "tapi-footer",
       "blocks": {
-        "footer-0": {
-          "type": "link_list",
-          "settings": {
-            "heading": "Quick links",
-            "menu": "footer"
-          }
-        },
-        "footer-1": {
-          "type": "link_list",
-          "settings": {
-            "heading": "Info",
-            "menu": "footer"
-          }
-        },
-        "footer-2": {
-          "type": "text",
-          "settings": {
-            "heading": "Our mission",
-            "subtext": "<p>Share contact information, store details, and brand content with your customers.<\/p>"
-          }
-        }
+        "shop":   { "type": "links",   "settings": { "title": "Shop",   "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
+        "help":   { "type": "links",   "settings": { "title": "Help",   "items": "Size guide | /pages/fabric-guide\nExchange & returns | /policies/refund-policy\nFAQ | /pages/about" } },
+        "visit":  { "type": "address", "settings": { "title": "Visit",  "address": "Rampura, Surat\nGujarat 395003\nMon–Sat · 10am–7pm", "cta_text": "Message us" } }
       },
-      "block_order": [
-        "footer-0",
-        "footer-1",
-        "footer-2"
-      ],
-      "settings": {
-        "color_scheme": "scheme-1",
-        "newsletter_enable": true,
-        "newsletter_heading": "Subscribe to our emails",
-        "show_social": true,
-        "enable_country_selector": false,
-        "enable_language_selector": false,
-        "payment_enable": true,
-        "show_policy": false,
-        "margin_top": 48,
-        "padding_top": 36,
-        "padding_bottom": 36
-      }
+      "block_order": ["shop", "help", "visit"]
     }
   },
-  "order": [
-    "footer"
-  ]
+  "order": ["footer"]
 }

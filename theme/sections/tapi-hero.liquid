@@ -1,22 +1,22 @@
 <section class="tapi-hero">
   <div class="page-width">
     <div class="tapi-hero__grid">
-      <div class="tapi-hero__copy">
-        <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
-        <h1 class="tapi-hero__title">
+      <div class="tapi-hero__copy" data-tapi-stagger="120">
+        <span class="tapi-eyebrow tapi-eyebrow--line" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
+        <h1 class="tapi-hero__title" data-tapi-reveal>
           {{ section.settings.line_1 }}<br>
           <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
         </h1>
-        <p class="tapi-hero__lede">{{ section.settings.lede }}</p>
-        <div class="tapi-hero__cta-row">
+        <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
+        <div class="tapi-hero__cta-row" data-tapi-reveal>
           {%- if section.settings.cta_primary != blank -%}
-            <a href="{{ section.settings.cta_primary_link }}" class="button button--primary">{{ section.settings.cta_primary }} →</a>
+            <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary">{{ section.settings.cta_primary }} →</a></span>
           {%- endif -%}
           {%- if section.settings.cta_secondary != blank -%}
             <a href="{{ section.settings.cta_secondary_link }}" class="button button--outline">{{ section.settings.cta_secondary }}</a>
           {%- endif -%}
         </div>
-        <div class="tapi-hero__stats">
+        <div class="tapi-hero__stats" data-tapi-reveal>
           {%- for b in section.blocks -%}
             <div {{ b.shopify_attributes }}>
               <div class="tapi-hero__stat-key">{{ b.settings.label }}</div>
