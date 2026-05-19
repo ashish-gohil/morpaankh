@@ -383,3 +383,59 @@ button.shopify-payment-button__button--unbranded {
   .tapi-lift:hover { transform: none; box-shadow: none; }
   .button--primary:hover, .button--terracotta:hover, .button--outline:hover { transform: none; box-shadow: none; }
 }
+
+/* ============================================================
+   Header / mobile alignment (Dawn header customization)
+   ============================================================ */
+.tapi-logo { white-space: nowrap; }
+.tapi-logo svg { width: 36px; height: 36px; }
+.tapi-logo span { font-size: 22px; }
+@media (max-width: 749px) {
+  /* Stop the wordmark from overflowing on small phones */
+  .tapi-logo svg { width: 26px; height: 26px; margin-right: 8px !important; }
+  .tapi-logo span { font-size: 17px !important; letter-spacing: -0.014em !important; }
+  /* Tighten Dawn's header padding on mobile so logo + icons fit cleanly */
+  .header { padding-top: 1.2rem !important; padding-bottom: 1.2rem !important; }
+  .header__heading, .header__heading-link { min-width: 0; }
+  .header__heading-link { padding: 0 !important; }
+  .header__icons { gap: 0.4rem !important; }
+  .header__icon { width: 36px !important; height: 36px !important; }
+  /* Hide the country/lang selector on mobile if Dawn left it on */
+  .header__inline-menu { display: none; }
+  /* Trust marquee — smaller text */
+  .tapi-marquee { font-size: 0.95rem; padding: 0.7rem 0; }
+}
+@media (max-width: 540px) {
+  .tapi-logo svg { width: 22px; height: 22px; }
+  .tapi-logo span { font-size: 16px !important; }
+}
+
+/* ============================================================
+   Inputs — remove dark/blue focus rings everywhere
+   ============================================================ */
+input, textarea, select, button, .field__input, .button {
+  outline: none !important;
+  box-shadow: none !important;
+}
+input:focus, textarea:focus, select:focus,
+.field__input:focus, .field__input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: var(--tapi-hairline-2) !important;
+}
+/* Footer email input — bottom-border only, very subtle */
+.tapi-footer__field { box-shadow: none !important; }
+.tapi-footer__field input,
+.tapi-footer__field input:focus,
+.tapi-footer__field input:focus-visible {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.tapi-footer__field:focus-within { border-color: rgba(248,244,237,0.6) !important; }
+/* Keep keyboard-only users accessible: visible ring only when navigating via Tab */
+:focus-visible:not(input):not(textarea):not(select) {
+  outline: 1px dashed var(--tapi-warm-grey) !important;
+  outline-offset: 3px;
+}
