@@ -941,3 +941,94 @@ search-modal .search-modal__form::before, search-modal .search-modal__form::afte
   box-shadow: none !important;
   background: transparent !important;
 }
+
+/* ============================================================
+   Search box — align the search/reset icon buttons vertically
+   centered inside the field, with consistent inset.
+   ============================================================ */
+
+/* Position the .field as a positioning context */
+.search-modal .field,
+.search-modal__form .field,
+search-modal .field,
+.predictive-search .field,
+header .search__input-wrapper {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Reserve room inside the input for the icon buttons on the right */
+.search-modal .field__input,
+.search-modal__form .field__input,
+search-modal .field__input {
+  padding-right: 7rem !important;
+  padding-left: 2rem !important;
+}
+
+/* The search submit + reset (clear) buttons sit absolutely inside the field */
+.search-modal .field__button,
+.search-modal .field__submit,
+.search-modal .reset__button,
+.search-modal__form .field__button,
+.search-modal__form .field__submit,
+.search-modal__form .reset__button,
+search-modal .field__button,
+search-modal .field__submit,
+search-modal .reset__button {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 44px !important;
+  height: 44px !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--tapi-charcoal) !important;
+  cursor: pointer;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Submit (search-icon) on the right edge; Reset (×) just inside it */
+.search-modal .field__submit,
+.search-modal__form .field__submit,
+search-modal .field__submit { right: 0.6rem !important; left: auto !important; }
+.search-modal .reset__button,
+.search-modal__form .reset__button,
+search-modal .reset__button { right: 5rem !important; left: auto !important; }
+
+/* The icons themselves */
+.search-modal .field__button svg,
+.search-modal .field__submit svg,
+.search-modal .reset__button svg,
+.search-modal__form svg,
+search-modal .field__button svg,
+search-modal .field__submit svg,
+search-modal .reset__button svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block;
+  color: inherit;
+}
+
+/* Hover state — terracotta */
+.search-modal .field__submit:hover,
+.search-modal .reset__button:hover,
+.search-modal__form .field__submit:hover,
+.search-modal__form .reset__button:hover,
+search-modal .field__submit:hover,
+search-modal .reset__button:hover { color: var(--tapi-terracotta) !important; }
+
+/* Tighten the input height so the icons match vertically */
+.search-modal .field__input,
+.search-modal__form .field__input,
+search-modal .field__input {
+  height: auto !important;
+  line-height: 1.2 !important;
+  min-height: 5.6rem !important;
+}
