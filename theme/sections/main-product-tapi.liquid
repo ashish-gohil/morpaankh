@@ -243,7 +243,18 @@
   .tapi-pdp__gallery-main { position: sticky; top: 130px; align-self: start; min-height: 600px; }
   .tapi-pdp__main-img { display: none; position: relative; overflow: hidden; }
   .tapi-pdp__main-img.is-active { display: block; animation: tapi-rise 480ms cubic-bezier(0.16,1,0.3,1); }
-  .tapi-pdp__main-img img { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; }
+  .tapi-pdp__main-img img {
+    width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover;
+    transition: transform 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  @media (hover: hover) {
+    .tapi-pdp__main-img:hover img { transform: scale(1.04); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-pdp__main-img img { transition: none; }
+    .tapi-pdp__main-img:hover img { transform: none; }
+  }
   @keyframes tapi-rise { from { opacity: 0; transform: translate3d(0,12px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
 
   .tapi-pdp__info { display: flex; flex-direction: column; gap: 2.4rem; min-width: 0; }

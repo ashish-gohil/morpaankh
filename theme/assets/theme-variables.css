@@ -546,7 +546,22 @@ sticky-header, .header-wrapper {
   transform: none !important; /* override Dawn's on-scroll-down hide */
 }
 sticky-header.shopify-section-header-hidden { transform: none !important; }
-.header-wrapper, .header-wrapper--border-bottom { border-bottom: 1px solid var(--tapi-hairline); }
+/* Hairline appears only after scrolling past 8px (set by tapi-motion.js).
+   Mirrors chrome.jsx L80 — clean header at the top of the page, subtle
+   separator once content starts to scroll under it. */
+.header-wrapper, .header-wrapper--border-bottom {
+  border-bottom: 1px solid transparent !important;
+  box-shadow: 0 0 0 rgba(44, 40, 38, 0);
+  transition: border-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.header-wrapper.is-scrolled {
+  border-bottom-color: var(--tapi-hairline) !important;
+  box-shadow: 0 4px 16px -8px rgba(44, 40, 38, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-wrapper { transition: none; }
+}
 
 /* Cart page — Dawn sometimes scopes the header to a darker scheme; force consistency */
 .template-cart .header-wrapper, .template-cart sticky-header { background: var(--tapi-cream) !important; }

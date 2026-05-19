@@ -97,10 +97,31 @@
     });
   }
 
+  // ---------- Header scroll-shadow ----------
+  // Toggle .is-scrolled on .header-wrapper when the page has scrolled past 8px.
+  // rAF-throttled + passive listener so it stays cheap on long pages.
+  function setupHeaderScroll() {
+    var header = document.querySelector('.header-wrapper');
+    if (!header) return;
+    var ticking = false;
+    var threshold = 8;
+    function update() {
+      var scrolled = (window.pageYOffset || document.documentElement.scrollTop) > threshold;
+      header.classList.toggle('is-scrolled', scrolled);
+      ticking = false;
+    }
+    function onScroll() {
+      if (!ticking) { window.requestAnimationFrame(update); ticking = true; }
+    }
+    update(); // set initial state (handles refresh-mid-page)
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
   function boot() {
     setupReveal(document);
     setupCountUp(document);
     setupMagnetic(document);
+    setupHeaderScroll();
   }
 
   if (document.readyState === 'loading') {
