@@ -830,3 +830,41 @@ search-modal .field__input {
 }
 /* Predictive search results below the input also get aligned to the same padding */
 predictive-search, .predictive-search { padding-left: 2rem !important; padding-right: 2rem !important; }
+
+/* ============================================================
+   Field wrapper — strip border/padding/bg so only the inner
+   input carries visual chrome. (Footer subscribe field unaffected.)
+   ============================================================ */
+.field:not(.tapi-footer__field),
+.product-form__input:not(.tapi-footer__field),
+.customer .field,
+.contact .field,
+.search-modal .field,
+.cart-drawer .field,
+.cart-page__form .field {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+/* Defeat Dawn's :focus-within ring on the wrapper */
+.field:not(.tapi-footer__field):focus-within,
+.product-form__input:not(.tapi-footer__field):focus-within,
+.customer .field:focus-within,
+.contact .field:focus-within {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Same for any error state wrappers */
+.field.field--error:not(.tapi-footer__field),
+.field--with-error:not(.tapi-footer__field) {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Error state lives on the input itself */
+.field.field--error .field__input,
+.field--with-error .field__input { border-color: var(--tapi-terracotta) !important; }
