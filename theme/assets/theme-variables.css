@@ -782,3 +782,51 @@ header .header > * { min-width: 0; }
   .header > .header__heading,
   .header > .header__heading-link { grid-column: 2 / 3 !important; justify-self: center !important; }
 }
+
+/* ============================================================
+   Field labels — restore, but stack ABOVE the input (no float overlap)
+   The earlier global hide broke the Contact form, login, etc.
+   ============================================================ */
+.field__label { display: block !important; }
+.field {
+  display: flex !important;
+  flex-direction: column-reverse !important;  /* input first in DOM, label sits above visually via reverse */
+  gap: 0.6rem !important;
+}
+.field__label {
+  position: static !important;
+  transform: none !important;
+  left: auto !important; top: auto !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.1rem !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  color: var(--tapi-warm-grey) !important;
+  margin: 0 0 0.4rem !important;
+  padding: 0 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  background: transparent !important;
+}
+/* Restore the placeholder text inside inputs (Dawn hides via empty placeholder=" " trick) */
+.field__input::placeholder { color: var(--tapi-muted) !important; opacity: 1 !important; }
+
+/* Quantity steppers + size pills + similar custom-styled inputs don't have field__label — unaffected */
+
+/* ============================================================
+   Search input — left padding so text doesn't sit flush
+   ============================================================ */
+search-modal .field, .search-modal__form .field { padding-left: 0; }
+search-modal .field__input, .search-modal__form .field__input,
+input[type="search"]:not(.tapi-footer__field input) {
+  padding-left: 1.6rem !important;
+  padding-right: 1.6rem !important;
+  text-indent: 0 !important;
+}
+/* The big serif overlay search keeps its larger horizontal pad */
+search-modal .search-modal__form .field__input,
+search-modal .field__input {
+  padding-left: 2rem !important;
+}
+/* Predictive search results below the input also get aligned to the same padding */
+predictive-search, .predictive-search { padding-left: 2rem !important; padding-right: 2rem !important; }
