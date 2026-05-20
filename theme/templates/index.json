@@ -1,7 +1,44 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
 {
   "sections": {
     "tapi_hero": {
       "type": "tapi-hero",
+      "blocks": {
+        "size": {
+          "type": "stat",
+          "settings": {
+            "label": "Size",
+            "value": "True to body"
+          }
+        },
+        "fabric": {
+          "type": "stat",
+          "settings": {
+            "label": "Fabric",
+            "value": "120–180 GSM listed"
+          }
+        },
+        "made": {
+          "type": "stat",
+          "settings": {
+            "label": "Made in",
+            "value": "Surat, Gujarat"
+          }
+        }
+      },
+      "block_order": [
+        "size",
+        "fabric",
+        "made"
+      ],
       "settings": {
         "eyebrow": "Drop 01 · Saanjh, the dusk edit",
         "line_1": "Woven by eleven hands.",
@@ -11,27 +48,55 @@
         "cta_primary_link": "shopify://collections/kurta-sets",
         "cta_secondary": "Our story",
         "cta_secondary_link": "shopify://pages/about"
-      },
-      "blocks": {
-        "size":   { "type": "stat", "settings": { "label": "Size",     "value": "True to body" } },
-        "fabric": { "type": "stat", "settings": { "label": "Fabric",   "value": "120–180 GSM listed" } },
-        "made":   { "type": "stat", "settings": { "label": "Made in",  "value": "Surat, Gujarat" } }
-      },
-      "block_order": ["size", "fabric", "made"]
+      }
     },
     "tapi_collection_tiles": {
       "type": "tapi-collection-tiles",
+      "blocks": {
+        "kurta": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "heading": "Kurta Sets",
+            "tagline": "Three pieces, every day",
+            "blurb": "Kurta, pants, and dupatta. Cut for movement, finished by hand at the hem.",
+            "placeholder_name": "Saanjh",
+            "tint": "#b7472a"
+          }
+        },
+        "coord": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "heading": "Co-ord Sets",
+            "tagline": "Two pieces, one story",
+            "blurb": "Cropped jackets, wide pants, matching tops and bottoms made to be worn together, or apart.",
+            "placeholder_name": "Amba",
+            "tint": "#7a8761"
+          }
+        },
+        "festive": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "heading": "Festive Edit",
+            "tagline": "For the days that ask to be remembered",
+            "blurb": "Silk-cotton dobby, hand-finished tassel work, gold thread. Made to be photographed in.",
+            "placeholder_name": "Mehfil",
+            "tint": "#b08947"
+          }
+        }
+      },
+      "block_order": [
+        "kurta",
+        "coord",
+        "festive"
+      ],
       "settings": {
         "eyebrow": "The wardrobe",
         "heading": "Built around three ideas.",
         "intro": "Kurta sets for the everyday. Co-ords for the in-between. Festive pieces for the days that ask to be remembered."
-      },
-      "blocks": {
-        "kurta":   { "type": "tile", "settings": { "heading": "Kurta Sets", "tagline": "Three pieces, every day", "blurb": "Kurta, pants, and dupatta. Cut for movement, finished by hand at the hem.", "placeholder_name": "Saanjh", "tint": "#B7472A" } },
-        "coord":   { "type": "tile", "settings": { "heading": "Co-ord Sets", "tagline": "Two pieces, one story", "blurb": "Cropped jackets, wide pants, matching tops and bottoms made to be worn together, or apart.", "placeholder_name": "Amba", "tint": "#7A8761" } },
-        "festive": { "type": "tile", "settings": { "heading": "Festive Edit", "tagline": "For the days that ask to be remembered", "blurb": "Silk-cotton dobby, hand-finished tassel work, gold thread. Made to be photographed in.", "placeholder_name": "Mehfil", "tint": "#B08947" } }
-      },
-      "block_order": ["kurta", "coord", "festive"]
+      }
     },
     "tapi_featured": {
       "type": "tapi-featured-products",
@@ -45,40 +110,93 @@
     },
     "studio_strip": {
       "type": "tapi-studio-strip",
+      "blocks": {
+        "s1": {
+          "type": "stat",
+          "settings": {
+            "value": "11",
+            "label": "Weavers within walking distance"
+          }
+        },
+        "s2": {
+          "type": "stat",
+          "settings": {
+            "value": "5",
+            "label": "Family + cousin operations"
+          }
+        },
+        "s3": {
+          "type": "stat",
+          "settings": {
+            "value": "120–180",
+            "label": "GSM range, listed per piece"
+          }
+        },
+        "s4": {
+          "type": "stat",
+          "settings": {
+            "value": "48 hrs",
+            "label": "Pickup-ready in Surat"
+          }
+        }
+      },
+      "block_order": [
+        "s1",
+        "s2",
+        "s3",
+        "s4"
+      ],
       "settings": {
         "eyebrow": "— Our making",
         "heading": "Five hands, twelve looms away."
-      },
-      "blocks": {
-        "s1": { "type": "stat", "settings": { "value": "11",      "label": "Weavers within walking distance" } },
-        "s2": { "type": "stat", "settings": { "value": "5",       "label": "Family + cousin operations" } },
-        "s3": { "type": "stat", "settings": { "value": "120–180", "label": "GSM range, listed per piece" } },
-        "s4": { "type": "stat", "settings": { "value": "48 hrs",  "label": "Pickup-ready in Surat" } }
-      },
-      "block_order": ["s1", "s2", "s3", "s4"]
-    },
-    "editorial_break": {
-      "type": "tapi-editorial-break",
-      "settings": {
-        "quote": "If it isn't in the fabric, it isn't worth the price.",
-        "body": "Every kurta set lists its GSM, the weight of the fabric per square metre. Higher isn't always better; it depends on the season and the silhouette.",
-        "cta_text": "Read our fabric guide",
-        "link": "shopify://pages/fabric-guide"
       }
     },
     "tapi_press": {
       "type": "tapi-press",
+      "blocks": {
+        "q1": {
+          "type": "quote",
+          "settings": {
+            "quote": "The fabric is honest and the fit is honest. That is rare.",
+            "author": "@ananyam_",
+            "location": "Bengaluru"
+          }
+        },
+        "q2": {
+          "type": "quote",
+          "settings": {
+            "quote": "Finally, a label that tells me the GSM.",
+            "author": "@priyareads",
+            "location": "Mumbai"
+          }
+        },
+        "q3": {
+          "type": "quote",
+          "settings": {
+            "quote": "Best exchange experience I have had in Indian ethnic wear.",
+            "author": "@snehakurien",
+            "location": "Pune"
+          }
+        },
+        "q4": {
+          "type": "quote",
+          "settings": {
+            "quote": "The hem stitching is impeccable. Worth every rupee.",
+            "author": "@aartisays",
+            "location": "Delhi"
+          }
+        }
+      },
+      "block_order": [
+        "q1",
+        "q2",
+        "q3",
+        "q4"
+      ],
       "settings": {
         "eyebrow": "— What people say",
         "heading": "Notes from the people wearing them."
-      },
-      "blocks": {
-        "q1": { "type": "quote", "settings": { "quote": "The fabric is honest and the fit is honest. That is rare.", "author": "@ananyam_", "location": "Bengaluru" } },
-        "q2": { "type": "quote", "settings": { "quote": "Finally, a label that tells me the GSM.", "author": "@priyareads", "location": "Mumbai" } },
-        "q3": { "type": "quote", "settings": { "quote": "Best exchange experience I have had in Indian ethnic wear.", "author": "@snehakurien", "location": "Pune" } },
-        "q4": { "type": "quote", "settings": { "quote": "The hem stitching is impeccable. Worth every rupee.", "author": "@aartisays", "location": "Delhi" } }
-      },
-      "block_order": ["q1", "q2", "q3", "q4"]
+      }
     }
   },
   "order": [
@@ -86,7 +204,6 @@
     "tapi_collection_tiles",
     "tapi_featured",
     "studio_strip",
-    "tapi_press",
-    "editorial_break"
+    "tapi_press"
   ]
 }

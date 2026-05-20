@@ -1,5 +1,5 @@
 {%- assign coll = section.settings.collection -%}
-{%- assign max = section.settings.products_to_show | default: 4 -%}
+{%- assign max = section.settings.products_to_show | default: 8 -%}
 <section class="tapi-featured">
   <div class="tapi-featured__inner">
     <header class="tapi-featured__head" data-tapi-reveal>
@@ -8,7 +8,10 @@
         <h2 class="tapi-featured__heading">{{ section.settings.heading }}</h2>
       </div>
       {%- if coll != blank -%}
-        <a class="tapi-featured__viewall tapi-arrow-slide" href="{{ coll.url }}">{{ section.settings.view_all_text | default: 'View all' }} <em>→</em></a>
+        <a class="tapi-featured__viewall tapi-arrow-slide" href="{{ coll.url }}">
+          {{- section.settings.view_all_text | default: 'View all' }}
+          <em>→</em></a
+        >
       {%- endif -%}
     </header>
 
@@ -46,7 +49,7 @@
   .tapi-featured__viewall:hover { color: var(--tapi-terracotta); }
   .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tapi-card-gap, 24px); }
   @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
-  @media (max-width: 540px)  { .tapi-featured__grid { grid-template-columns: 1fr; } }
+  @media (max-width: 540px)  { .tapi-featured__grid { grid-template-columns: 1fr; row-gap: 3rem;} }
 {% endstylesheet %}
 
 {% schema %}
@@ -58,7 +61,15 @@
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Just arrived" },
     { "type": "text", "id": "heading", "label": "Heading", "default": "This week, from our table to yours." },
     { "type": "collection", "id": "collection", "label": "Collection" },
-    { "type": "range", "id": "products_to_show", "min": 2, "max": 8, "step": 1, "label": "Products to show", "default": 4 },
+    {
+      "type": "range",
+      "id": "products_to_show",
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "label": "Products to show",
+      "default": 4
+    },
     { "type": "text", "id": "view_all_text", "label": "View all label", "default": "View all" }
   ],
   "presets": [{ "name": "Tapi featured products" }]

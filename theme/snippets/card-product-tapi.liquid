@@ -80,7 +80,7 @@
 
     <div class="tapi-card__metaline">
       {%- if m.rating -%}<span>★ {{ m.rating }}</span><span class="tapi-card__sep"></span>{%- endif -%}
-      {%- if m.review_count -%}<span>{{ m.review_count }} reviews</span><span class="tapi-card__sep"></span>{%- endif -%}
+      {% comment %} {%- if m.review_count -%}<span>{{ m.review_count }} reviews</span><span class="tapi-card__sep"></span>{%- endif -%} {% endcomment %}
       {%- if m.gsm -%}<span class="tnum">{{ m.gsm }} GSM</span>{%- endif -%}
       {%- if low_stock -%}<span class="tapi-card__sep"></span><span class="tapi-card__low"><span class="tapi-card__pulse"></span>Low stock</span>{%- endif -%}
       {%- if product.available == false -%}<span class="tapi-card__sep"></span><span style="color: var(--tapi-terracotta);">Sold out</span>{%- endif -%}
@@ -134,7 +134,7 @@
     transform: translateY(120%); opacity: 0;
     transition: transform 480ms cubic-bezier(0.22,1,0.36,1), opacity 360ms;
   }
-  .tapi-card__quick-btn em { font-style: normal; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-card__quick-btn em { font-style: normal; transition: transform 1000ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-card:hover .tapi-card__quick-btn { transform: translateY(0); opacity: 1; }
   .tapi-card:hover .tapi-card__quick-btn em { transform: translateX(6px); }
 
@@ -151,7 +151,7 @@
   .tapi-card__dots { display: flex; gap: 5px; align-items: center; }
   .tapi-card__dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--tapi-hairline-2); transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
   .tapi-card__dot:hover { transform: scale(1.2); }
-  .tapi-card__metaline { display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; }
+  .tapi-card__metaline { justify-content: space-between; display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; }
   .tapi-card__sep { width: 2px; height: 2px; background: var(--tapi-muted); border-radius: 50%; }
   .tapi-card__low { color: var(--tapi-terracotta); display: inline-flex; align-items: center; gap: 4px; }
   .tapi-card__pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta); animation: tapi-pulse 2.2s ease-in-out infinite; }
