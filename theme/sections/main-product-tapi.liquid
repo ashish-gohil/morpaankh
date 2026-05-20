@@ -554,7 +554,13 @@
     const qUp   = sec.querySelector('[data-qty-up]');
     if (qDown) qDown.addEventListener('click', () => setQty(parseInt(qtyInput.value || '1', 10) - 1));
     if (qUp)   qUp.addEventListener('click',   () => setQty(parseInt(qtyInput.value || '1', 10) + 1));
-    if (qtyInput) qtyInput.addEventListener('input', () => setQty(parseInt(qtyInput.value || '1', 10)));
+    if (qtyInput) {
+      let qtyDebounce = null;
+      qtyInput.addEventListener('input', () => {
+        if (qtyDebounce) clearTimeout(qtyDebounce);
+        qtyDebounce = setTimeout(() => setQty(parseInt(qtyInput.value || '1', 10)), 80);
+      });
+    }
 
     // Fit-feedback bar reveal — flips the .in class to trigger width transitions
     const bar = sec.querySelector('.tapi-fit-feedback__bar');

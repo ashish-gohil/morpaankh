@@ -10,6 +10,21 @@
   var revealCss = '[data-tapi-reveal]{opacity:0;transform:translate3d(0,24px,0);transition:opacity 720ms cubic-bezier(0.16,1,0.3,1),transform 720ms cubic-bezier(0.16,1,0.3,1);will-change:opacity,transform}[data-tapi-reveal].in{opacity:1;transform:translate3d(0,0,0)}';
   var st = document.createElement('style'); st.textContent = revealCss; document.head.appendChild(st);
 
+  // Track section-scoped observers so we can disconnect on shopify:section:load
+  // (avoids leaking IOs in the theme editor across reloads).
+  var sectionObservers = new WeakMap();
+  function registerObserver(root, io) {
+    var list = sectionObservers.get(root) || [];
+    list.push(io);
+    sectionObservers.set(root, list);
+  }
+  function disconnectObservers(root) {
+    var list = sectionObservers.get(root);
+    if (!list) return;
+    list.forEach(function (io) { try { io.disconnect(); } catch (_) {} });
+    sectionObservers.delete(root);
+  }
+
   function setupReveal(root) {
     if (reduce) {
       root.querySelectorAll('[data-tapi-reveal]').forEach(function (el) { el.classList.add('in'); });
@@ -25,6 +40,7 @@
         io.unobserve(el);
       });
     }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    registerObserver(root, io);
 
     // Apply stagger: any parent [data-tapi-stagger="100"] cascades delays to its direct children with [data-tapi-reveal]
     root.querySelectorAll('[data-tapi-stagger]').forEach(function (parent) {
@@ -71,6 +87,7 @@
         io.unobserve(el);
       });
     }, { threshold: 0.4 });
+    registerObserver(root, io);
     root.querySelectorAll('[data-tapi-count-up]').forEach(function (el) {
       el.textContent = '0';
       io.observe(el);
@@ -78,21 +95,31 @@
   }
 
   // ---------- Magnetic CTA ----------
+  // rAF-throttled: mousemove fires per-pixel; we coalesce updates into one
+  // transform write per frame so the GPU isn't asked to repaint 120×/sec.
   function setupMagnetic(root) {
     if (reduce) return;
     root.querySelectorAll('[data-tapi-magnetic]').forEach(function (el) {
+      if (el.__tapiMagnetic) return; el.__tapiMagnetic = true;
       var strength = parseFloat(el.getAttribute('data-tapi-magnetic')) || 0.18;
       var inner = el;
       inner.style.transition = 'transform 360ms cubic-bezier(0.22,1,0.36,1)';
       inner.style.willChange = 'transform';
+      var pending = false;
+      var lastX = 0, lastY = 0;
+      function apply() {
+        pending = false;
+        inner.style.transform = 'translate3d(' + lastX + 'px,' + lastY + 'px,0)';
+      }
       el.parentElement.addEventListener('mousemove', function (e) {
         var r = el.getBoundingClientRect();
-        var x = (e.clientX - (r.left + r.width / 2)) * strength;
-        var y = (e.clientY - (r.top + r.height / 2)) * strength;
-        inner.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
-      });
+        lastX = (e.clientX - (r.left + r.width / 2)) * strength;
+        lastY = (e.clientY - (r.top + r.height / 2)) * strength;
+        if (!pending) { pending = true; requestAnimationFrame(apply); }
+      }, { passive: true });
       el.parentElement.addEventListener('mouseleave', function () {
-        inner.style.transform = 'translate3d(0,0,0)';
+        lastX = 0; lastY = 0;
+        if (!pending) { pending = true; requestAnimationFrame(apply); }
       });
     });
   }
@@ -294,10 +321,7 @@
       });
     });
 
-    // Outside click closes
-    document.addEventListener('click', function (e) {
-      if (!wrap.contains(e.target)) close();
-    });
+    // Outside click — handled by one delegated listener (installed once below)
     // ESC closes; arrow keys move focus across options when open
     trigger.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { close(); return; }
@@ -339,6 +363,22 @@
     window.addEventListener('scroll', onScroll, { passive: true });
   }
 
+  // One delegated outside-click listener for all custom selects on the page
+  // (avoids attaching a fresh document listener per wrapSelect call).
+  function setupSelectOutsideClose() {
+    if (window.__tapiSelectOutsideClose) return;
+    window.__tapiSelectOutsideClose = true;
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('.tapi-select-wrap.is-open').forEach(function (w) {
+        if (!w.contains(e.target)) {
+          w.classList.remove('is-open');
+          var t = w.querySelector('.tapi-select__trigger');
+          if (t) t.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
+  }
+
   function boot() {
     setupReveal(document);
     setupCountUp(document);
@@ -346,6 +386,7 @@
     setupHeaderScroll();
     setupPdpGallery(document);
     setupCustomSelect(document);
+    setupSelectOutsideClose();
   }
 
   if (document.readyState === 'loading') {
@@ -356,10 +397,16 @@
 
   // Re-init on Shopify section editor re-render
   document.addEventListener('shopify:section:load', function (e) {
+    disconnectObservers(e.target);
     setupReveal(e.target);
     setupCountUp(e.target);
     setupMagnetic(e.target);
     setupPdpGallery(e.target);
     setupCustomSelect(e.target);
+  });
+
+  // Tear down observers when a section is removed in the editor
+  document.addEventListener('shopify:section:unload', function (e) {
+    disconnectObservers(e.target);
   });
 })();
