@@ -184,7 +184,7 @@
             <span data-add-label>Add to bag — {{ current_variant.price | money }}</span>
           </button>
         </div>
-        <button type="button" class="button button--terracotta tapi-pdp__buynow" data-pdp-desktop-cta>Buy it now</button>
+        <button type="submit" name="add" formaction="{{ routes.cart_add_url }}?return_to=/checkout" class="button button--terracotta tapi-pdp__buynow" data-buy-now>Buy it now</button>
 
         {%- if product.selling_plan_groups.size > 0 -%}{% comment %}reserved{% endcomment %}{%- endif -%}
       </form>
@@ -561,35 +561,51 @@
       });
     });
 
-    // Size selection — delegated on the parent so it survives any
-    // re-render of the buttons (section refresh, etc).
-    // Sold-out variants are still selectable so users can read the
-    // price/stock for that size; the CTA below disables ADD TO BAG.
-    const sizesEl = sec.querySelector('.tapi-pdp__sizes');
-    if (sizesEl) {
-      sizesEl.addEventListener('click', function (e) {
-        const b = e.target.closest('.tapi-pdp__size');
-        if (!b || !sizesEl.contains(b)) return;
+    // Size selection — document-level delegation, scoped to this section.
+    // Available variants are selectable; sold-out variants do nothing
+    // (so the user can't add an out-of-stock variant to the cart).
+    // Updates: visual active state + hidden input[name="id"] + ?variant
+    // URL param + CTA enable/label.
+    const onSizeClick = function (e) {
+      const b = e.target.closest('.tapi-pdp__size');
+      if (!b) return;
+      // Make sure this click belongs to OUR section instance
+      if (!sec.contains(b)) return;
+      // Sold-out sizes are intentionally no-op
+      if (b.getAttribute('data-variant-available') !== 'true') {
         e.preventDefault();
-        e.stopPropagation();
-        const allBtns = sizesEl.querySelectorAll('.tapi-pdp__size');
-        allBtns.forEach(x => {
-          x.classList.remove('is-active');
-          x.setAttribute('aria-pressed', 'false');
-        });
-        b.classList.add('is-active');
-        b.setAttribute('aria-pressed', 'true');
-        const vid = b.getAttribute('data-variant-id');
-        const price = b.getAttribute('data-variant-price');
-        const available = b.getAttribute('data-variant-available') === 'true';
-        if (variantInput) variantInput.value = vid;
-        if (price) currentUnitPriceText = price;
-        currentVariantText = b.textContent.trim();
-        currentVariantAvailable = available;
-        rerenderCta();
-        refadeActiveMain();
+        return;
+      }
+      e.preventDefault();
+      const all = sec.querySelectorAll('.tapi-pdp__size');
+      all.forEach(x => {
+        x.classList.remove('is-active');
+        x.setAttribute('aria-pressed', 'false');
       });
-    }
+      b.classList.add('is-active');
+      b.setAttribute('aria-pressed', 'true');
+
+      const vid = b.getAttribute('data-variant-id');
+      const price = b.getAttribute('data-variant-price');
+      // 1) Single source of truth for the cart form
+      if (variantInput) variantInput.value = vid;
+      // 2) Keep the URL in sync so reload / share preserves the size
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('variant', vid);
+        window.history.replaceState({}, '', url.toString());
+      } catch (_) { /* ignore */ }
+
+      if (price) currentUnitPriceText = price;
+      currentVariantText = b.textContent.trim();
+      currentVariantAvailable = true;
+      rerenderCta();
+      refadeActiveMain();
+    };
+    // Capture-phase listener on document — survives any descendant
+    // re-render and beats any other handler that might call
+    // stopPropagation before we see the click.
+    document.addEventListener('click', onSizeClick, true);
 
     // Qty stepper — now refreshes the CTA so the price reflects the order
     const setQty = (next) => {
