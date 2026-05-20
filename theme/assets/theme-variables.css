@@ -2301,6 +2301,51 @@ details[open] > summary .icon-caret {
   padding-inline: var(--tapi-gutter);
 }
 
+/* Cart pages — apply the same spacing tokens so item rows and the
+   footer totals stack at the same left/right edges */
+cart-items > .page-width,
+.cart__footer-wrapper > .page-width,
+.template-cart .page-width,
+.template-cart cart-items > .page-width,
+.template-cart .cart__footer-wrapper > .page-width {
+  max-width: var(--tapi-max, 144rem) !important;
+  margin-inline: auto !important;
+  padding-inline: var(--tapi-gutter, 16px) !important;
+  box-sizing: border-box;
+}
+
+/* Cart heading row breathing */
+.template-cart .title-wrapper-with-link {
+  padding-block: 0;
+  margin-bottom: clamp(2rem, 3vw, 3.2rem);
+}
+
+/* Cart qty input — strip Dawn's thick box border, match the brand */
+.template-cart .quantity,
+.cart__footer-wrapper .quantity {
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  background: var(--tapi-ivory, #fcfaf4);
+  border-radius: 0;
+  box-shadow: none;
+}
+.template-cart .quantity__input,
+.cart__footer-wrapper .quantity__input {
+  background: transparent;
+  border: 0;
+  font-family: var(--font-body-family, Inter, sans-serif);
+  font-size: 14px;
+  color: var(--tapi-charcoal, #2c2826);
+}
+.template-cart .quantity__button,
+.cart__footer-wrapper .quantity__button {
+  background: transparent;
+  border: 0;
+  color: var(--tapi-charcoal, #2c2826);
+  width: 40px; height: 40px;
+}
+.template-cart .quantity__button:hover,
+.cart__footer-wrapper .quantity__button:hover { color: var(--tapi-terracotta, #b7472a); }
+
 /* ====== Tapi filter + sort dropdowns (global, /search and /collections) ====== */
 .facets-container, .facets-vertical-sort, .facets-vertical, .facets, .facets-wrapper {
   font-family: var(--font-body-family, Inter, system-ui, sans-serif);
