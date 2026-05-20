@@ -86,7 +86,7 @@
     "tapi_collection_tiles",
     "tapi_featured",
     "studio_strip",
-    "editorial_break",
-    "tapi_press"
+    "tapi_press",
+    "editorial_break"
   ]
 }

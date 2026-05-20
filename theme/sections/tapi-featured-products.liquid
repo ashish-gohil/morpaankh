@@ -44,7 +44,7 @@
     text-decoration: none; transition: color 240ms;
   }
   .tapi-featured__viewall:hover { color: var(--tapi-terracotta); }
-  .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(16px, 2vw, 32px); }
+  .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tapi-card-gap, 24px); }
   @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
   @media (max-width: 540px)  { .tapi-featured__grid { grid-template-columns: 1fr; } }
 {% endstylesheet %}

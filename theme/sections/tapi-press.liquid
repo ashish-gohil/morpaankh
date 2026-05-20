@@ -70,7 +70,7 @@
   .tapi-press__grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: clamp(20px, 3vw, 28px);
+    gap: var(--tapi-card-gap, 24px);
   }
   @media (max-width: 1024px) {
     .tapi-press__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
