@@ -232,8 +232,105 @@ button.shopify-payment-button__button--unbranded {
   margin-top: 0.4rem !important;
   padding: 0 !important;
 }
-/* Badges / tags inside the image — anchor consistently */
-.product-grid .card__badge { top: 12px; left: 12px; }
+/* ----- Overlay content inside the image area -----
+   Dawn renders the product NAME and the SOLD-OUT / SALE badge as
+   absolutely-positioned children of .card__inner. By default both
+   sit bottom-left (the .badge--bottom-left class). Repositioning:
+   - product name → top-left (small ivory pill, charcoal text)
+   - badge       → bottom-right (charcoal pill, cream text)
+   ============================================================ */
+.product-grid .card__inner {
+  position: relative !important;
+}
+
+/* The first .card__content lives INSIDE .card__inner — it's the
+   overlay. Make it fill the image area without consuming clicks. */
+.product-grid .card__inner > .card__content {
+  position: absolute !important;
+  inset: 0;
+  display: block !important;
+  padding: 0 !important;
+  pointer-events: none;
+  background: transparent !important;
+}
+
+/* Name overlay — top-left */
+.product-grid .card__inner > .card__content > .card__information {
+  position: absolute !important;
+  top: 12px;
+  left: 12px;
+  right: auto;
+  bottom: auto;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: calc(100% - 24px);
+  z-index: 2;
+  pointer-events: auto;
+  display: block !important;
+  background: transparent !important;
+}
+.product-grid .card__inner > .card__content > .card__information .card__heading {
+  margin: 0 !important;
+  font-family: var(--font-heading-family) !important;
+  font-size: 1.2rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.2 !important;
+  color: var(--tapi-charcoal) !important;
+  background: rgba(252, 250, 244, 0.92); /* translucent ivory */
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 6px 10px;
+  border-radius: 2px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-grid .card__inner > .card__content > .card__information .card__heading a {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+/* Sold-out / Sale badge — bottom-right */
+.product-grid .card__inner > .card__content > .card__badge {
+  position: absolute !important;
+  bottom: 12px !important;
+  right: 12px !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: 2;
+  pointer-events: auto;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+.product-grid .card__inner > .card__content > .card__badge .badge {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  background: var(--tapi-charcoal) !important;
+  color: var(--tapi-cream) !important;
+}
+/* Sale variant — terracotta to read distinct from sold out */
+.product-grid .card__inner > .card__content > .card__badge .badge[id*="Badge"]:not(:empty) {
+  background: var(--tapi-charcoal);
+}
+.product-grid .card__inner > .card__content > .card__badge .badge.badge--bottom-left {
+  /* Strip Dawn's positional modifier; parent already controls placement */
+  position: static !important;
+  top: auto !important; left: auto !important; bottom: auto !important; right: auto !important;
+}
 
 /* ---------- Inputs ---------- */
 .field__input {
