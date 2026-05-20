@@ -4,6 +4,12 @@
   "sections": {
     "footer": {
       "type": "tapi-footer",
+      "settings": {
+        "news_eyebrow": "Letters from the loom",
+        "news_title": "Letters from the loom.",
+        "news_body": "Once a fortnight: new arrivals, the story behind the fabric, and a small thing we made by hand.",
+        "about_blurb": "A small family in Surat making considered ethnic wear. Honest fabric. Honest fit. Honest photography."
+      },
       "blocks": {
         "shop":   { "type": "links",   "settings": { "title": "Shop",   "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
         "help":   { "type": "links",   "settings": { "title": "Help",   "items": "Size guide | /pages/fabric-guide\nExchange & returns | /policies/refund-policy\nFAQ | /pages/about" } },

@@ -29,7 +29,7 @@
             </div>
             <div class="tapi-eyebrow">{{ b.settings.tagline }}</div>
             <p class="tapi-tile__blurb">{{ b.settings.blurb }}</p>
-            <span class="tapi-tile__arrow tapi-arrow-slide">Explore <em>→</em></span>
+            <span class="tapi-tile__arrow tapi-arrow-slide">Explore <em aria-hidden="true">→</em></span>
           </div>
         </a>
       {%- endfor -%}
@@ -55,19 +55,16 @@
   .tapi-tile__count { font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tapi-tile__info > .tapi-eyebrow { margin-bottom: 1rem; }
   .tapi-tile__blurb { color: var(--tapi-warm-grey); margin: 0; line-height: 1.6; font-size: 1.4rem; flex: 1; }
-  .tapi-tile__arrow { margin-top: 1.6rem; display: inline-flex; align-items: center; gap: 0.8rem; font-size: 1.2rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-charcoal); align-self: flex-start; }
-  .tapi-tile__arrow em { font-style: normal; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
-  .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(8px); }
+  .tapi-tile__arrow { margin-top: 2rem; display: inline-flex; align-items: center; gap: 1.2rem; font-size: 1.2rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tapi-charcoal); align-self: flex-start; position: relative; padding-right: 0.4rem; }
+  .tapi-tile__arrow em { font-style: normal; font-size: 2.2rem; line-height: 1; display: inline-block; transform: translateX(0); transition: transform 420ms cubic-bezier(0.22,1,0.36,1), letter-spacing 420ms cubic-bezier(0.22,1,0.36,1); will-change: transform; }
+  .tapi-tile__arrow::before { content: ""; position: absolute; left: 0; right: 100%; bottom: -0.4rem; height: 1px; background: var(--tapi-terracotta, #b7472a); transition: right 480ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(14px); }
+  .tapi-tile:hover .tapi-tile__arrow::before { right: 0; }
   .tapi-tile__placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-image:
     repeating-linear-gradient(45deg, rgba(255,255,255,0.1) 0 1px, transparent 1px 6px),
     radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), transparent 70%);
     background-color: var(--p-color); }
   .tapi-tile__placeholder span { font-family: var(--font-heading-family); font-style: italic; font-size: 6rem; color: var(--tapi-cream); }
-  .tapi-tile__title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1.2rem; }
-  .tapi-tile__title { font-family: var(--font-heading-family); font-size: 2.6rem; margin: 0; font-weight: 500; }
-  .tapi-tile__count { font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; }
-  .tapi-tile__blurb { color: var(--tapi-warm-grey); margin: 1rem 0; line-height: 1.6; flex: 1; }
-  .tapi-tile__arrow { font-size: 1.2rem; letter-spacing: 0.1em; text-transform: uppercase; }
   @media (max-width: 989px) { .tapi-collection-tiles__grid { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 640px) { .tapi-collection-tiles__grid { grid-template-columns: 1fr; } }
 {% endstylesheet %}
@@ -102,8 +99,8 @@
     {
       "name": "Collection tiles",
       "blocks": [
-        { "type": "tile", "settings": { "heading": "Kurta Sets", "tagline": "Three pieces, every day", "blurb": "Kurta, pants, and dupatta — cut for movement, finished by hand at the hem.", "placeholder_name": "Saanjh", "tint": "#B7472A" } },
-        { "type": "tile", "settings": { "heading": "Co-ord Sets", "tagline": "Two pieces, one story", "blurb": "Cropped jackets, wide pants, matching tops and bottoms made to be worn together — or apart.", "placeholder_name": "Amba", "tint": "#7A8761" } },
+        { "type": "tile", "settings": { "heading": "Kurta Sets", "tagline": "Three pieces, every day", "blurb": "Kurta, pants, and dupatta. Cut for movement, finished by hand at the hem.", "placeholder_name": "Saanjh", "tint": "#B7472A" } },
+        { "type": "tile", "settings": { "heading": "Co-ord Sets", "tagline": "Two pieces, one story", "blurb": "Cropped jackets, wide pants, matching tops and bottoms made to be worn together, or apart.", "placeholder_name": "Amba", "tint": "#7A8761" } },
         { "type": "tile", "settings": { "heading": "Festive Edit", "tagline": "For the days that ask to be remembered", "blurb": "Silk-cotton dobby, hand-finished tassel work, gold thread. Made to be photographed in.", "placeholder_name": "Mehfil", "tint": "#B08947" } }
       ]
     }

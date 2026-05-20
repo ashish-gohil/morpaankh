@@ -1,0 +1,161 @@
+{%- comment -%}
+  Tapi press / customer notes — 4 quote cards on cream-2 background.
+  Mirrors the design from clothing-business/page-home.jsx "Press / testimonials" block.
+{%- endcomment -%}
+
+<section class="tapi-press" aria-label="What people say">
+  <div class="tapi-press__inner page-width">
+    {%- if section.settings.eyebrow != blank or section.settings.heading != blank -%}
+      <header class="tapi-press__head">
+        {%- if section.settings.eyebrow != blank -%}
+          <span class="eyebrow eyebrow-line">{{ section.settings.eyebrow }}</span>
+        {%- endif -%}
+        {%- if section.settings.heading != blank -%}
+          <h2 class="serif tapi-press__heading">{{ section.settings.heading }}</h2>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    <div class="tapi-press__grid">
+      {%- for block in section.blocks -%}
+        <figure class="tapi-press__card" {{ block.shopify_attributes }}>
+          <span class="tapi-press__quote-mark serif" aria-hidden="true">&ldquo;</span>
+          <blockquote class="serif tapi-press__quote">
+            {{ block.settings.quote }}
+          </blockquote>
+          <figcaption class="tapi-press__cite">
+            {%- if block.settings.author != blank -%}
+              <span class="tapi-press__author">{{ block.settings.author }}</span>
+            {%- endif -%}
+            {%- if block.settings.author != blank and block.settings.location != blank -%}
+              <span class="tapi-press__dot" aria-hidden="true"></span>
+            {%- endif -%}
+            {%- if block.settings.location != blank -%}
+              <span class="tapi-press__loc">{{ block.settings.location }}</span>
+            {%- endif -%}
+          </figcaption>
+        </figure>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+{% stylesheet %}
+  .tapi-press {
+    background: var(--tapi-cream-2, #f1ebdd);
+    padding-block: clamp(48px, 8vw, 88px);
+  }
+  .tapi-press__inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding-inline: clamp(16px, 4vw, 40px);
+  }
+  .tapi-press__head {
+    margin-bottom: clamp(24px, 3.4vw, 40px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 720px;
+  }
+  .tapi-press__heading {
+    font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+    font-size: clamp(28px, 3.6vw, 44px);
+    line-height: 1.15;
+    letter-spacing: -0.012em;
+    color: var(--tapi-charcoal, #2c2826);
+    margin: 0;
+    font-weight: 500;
+  }
+  .tapi-press__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(20px, 3vw, 28px);
+  }
+  @media (max-width: 1024px) {
+    .tapi-press__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 600px) {
+    .tapi-press__grid { grid-template-columns: 1fr; }
+  }
+  .tapi-press__card {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .tapi-press__quote-mark {
+    font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+    font-size: 44px;
+    line-height: 0.6;
+    color: var(--tapi-terracotta, #b7472a);
+    display: block;
+  }
+  .tapi-press__quote {
+    margin: 0;
+    font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+    font-size: clamp(17px, 1.6vw, 20px);
+    line-height: 1.45;
+    font-style: italic;
+    font-weight: 500;
+    color: var(--tapi-charcoal, #2c2826);
+    letter-spacing: -0.005em;
+  }
+  .tapi-press__cite {
+    margin-top: 4px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--tapi-muted, #97887a);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tapi-press__author {
+    color: var(--tapi-charcoal, #2c2826);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .tapi-press__dot {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: var(--tapi-muted, #97887a);
+    display: inline-block;
+  }
+  .tapi-press__loc { font-style: normal; }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Customer notes",
+  "tag": "section",
+  "class": "section tapi-press-section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "— What people say" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Notes from the people wearing them." }
+  ],
+  "blocks": [
+    {
+      "type": "quote",
+      "name": "Quote",
+      "limit": 8,
+      "settings": [
+        { "type": "textarea", "id": "quote", "label": "Quote", "default": "The fabric is honest and the fit is honest. That is rare." },
+        { "type": "text", "id": "author", "label": "Author", "default": "@ananyam_" },
+        { "type": "text", "id": "location", "label": "Location", "default": "Bengaluru" }
+      ]
+    }
+  ],
+  "max_blocks": 8,
+  "presets": [
+    {
+      "name": "Customer notes",
+      "blocks": [
+        { "type": "quote", "settings": { "quote": "The fabric is honest and the fit is honest. That is rare.", "author": "@ananyam_", "location": "Bengaluru" } },
+        { "type": "quote", "settings": { "quote": "Finally, a label that tells me the GSM.", "author": "@priyareads", "location": "Mumbai" } },
+        { "type": "quote", "settings": { "quote": "Best exchange experience I have had in Indian ethnic wear.", "author": "@snehakurien", "location": "Pune" } },
+        { "type": "quote", "settings": { "quote": "The hem stitching is impeccable. Worth every rupee.", "author": "@aartisays", "location": "Delhi" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

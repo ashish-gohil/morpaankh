@@ -14,7 +14,7 @@
           Welcome back{% if customer.first_name != blank %}, {{ customer.first_name | escape }}{% endif %}.
         </h1>
         <p class="tapi-signin__lede">
-          {{ section.settings.lede_signed_in | default: 'Pick up where you left off — your orders, addresses and saved looks are all in one place.' }}
+          {{ section.settings.lede_signed_in | default: 'Pick up where you left off. Your orders, addresses and saved looks are all in one place.' }}
         </p>
         <div class="tapi-signin__actions">
           <a href="{{ account_url }}" class="btn btn-primary tapi-signin__btn" rel="nofollow">
@@ -171,7 +171,7 @@
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Your account" },
     { "type": "text", "id": "title", "label": "Title (signed out)", "default": "Welcome to Tapi & Co." },
     { "type": "textarea", "id": "lede", "label": "Lede (signed out)", "default": "Sign in to track orders, save fits, and check out faster. New here? Create an account to get started." },
-    { "type": "textarea", "id": "lede_signed_in", "label": "Lede (signed in)", "default": "Pick up where you left off — your orders, addresses and saved looks are all in one place." },
+    { "type": "textarea", "id": "lede_signed_in", "label": "Lede (signed in)", "default": "Pick up where you left off. Your orders, addresses and saved looks are all in one place." },
     { "type": "text", "id": "signin_label", "label": "Sign-in button label", "default": "Sign in" },
     { "type": "text", "id": "signup_label", "label": "Sign-up button label", "default": "Create an account" },
     { "type": "text", "id": "skip_label", "label": "Continue link label", "default": "Continue browsing" },
