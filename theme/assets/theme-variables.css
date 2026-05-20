@@ -2250,6 +2250,44 @@ details[open] > summary .icon-caret {
   .accordion__content { animation: none !important; }
 }
 
+/* ====== Tapi spacing system — one rhythm across the homepage ====== */
+:root {
+  --tapi-gutter:      16px;
+  --tapi-section-pad: 32px;
+  --tapi-max:         1440px;
+}
+@media (min-width: 641px) {
+  :root { --tapi-gutter: 32px; --tapi-section-pad: 48px; }
+}
+@media (min-width: 990px) {
+  :root { --tapi-gutter: 48px; --tapi-section-pad: 64px; }
+}
+@media (min-width: 1440px) {
+  :root { --tapi-gutter: 64px; --tapi-section-pad: 80px; }
+}
+
+/* Apply system to all home sections (selectors target the existing section roots) */
+.tapi-hero,
+.tapi-collection-tiles,
+.tapi-featured,
+.tapi-studio-strip,
+.tapi-editorial-band,
+.tapi-press {
+  padding-block: var(--tapi-section-pad) !important;
+  margin-block: 0 !important;
+  width: 100%;
+}
+.tapi-hero > .page-width,
+.tapi-collection-tiles > .page-width,
+.tapi-featured__inner,
+.tapi-studio-strip > .page-width,
+.tapi-editorial-band__inner,
+.tapi-press__inner {
+  max-width: var(--tapi-max);
+  margin-inline: auto;
+  padding-inline: var(--tapi-gutter);
+}
+
 /* ====== Tapi filter + sort dropdowns (global, /search and /collections) ====== */
 .facets-container, .facets-vertical-sort, .facets-vertical, .facets, .facets-wrapper {
   font-family: var(--font-body-family, Inter, system-ui, sans-serif);
