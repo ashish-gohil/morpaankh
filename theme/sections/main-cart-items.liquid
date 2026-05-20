@@ -555,9 +555,12 @@
     }
   }
 
-  /* On md+ the cart-footer section is redundant — hide it */
+  /* On md+ the cart-footer section is redundant — hide it. The class
+     .cart__footer-wrapper lives on the <section> wrapper itself, so
+     target both the section id and the class to cover all renders. */
   @media (min-width: 990px) {
-    #shopify-section-cart-footer .cart__footer-wrapper { display: none; }
+    #shopify-section-cart-footer,
+    .shopify-section.cart__footer-wrapper { display: none !important; }
   }
 {% endstylesheet %}
 

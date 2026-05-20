@@ -141,7 +141,7 @@
                         data-variant-id="{{ variant.id }}"
                         data-variant-price="{{ variant.price | money }}"
                         data-variant-available="{{ variant.available }}"
-                        {% if variant.available == false %}disabled{% endif %}>
+                        aria-pressed="{% if variant.id == current_variant.id %}true{% else %}false{% endif %}">
                   {{ variant.title }}
                 </button>
               {%- endfor -%}
@@ -504,6 +504,10 @@
       return initialSize ? initialSize.textContent.trim() : '';
     })();
     let currentUnitPriceText = addLabel ? addLabel.textContent.replace(/^Add to bag\s*[—-]\s*/, '').trim() : '';
+    let currentVariantAvailable = (() => {
+      const initialSize = sec.querySelector('.tapi-pdp__size.is-active');
+      return initialSize ? initialSize.getAttribute('data-variant-available') === 'true' : true;
+    })();
 
     // Re-run the rise animation by removing/adding the .is-active class.
     // Force reflow between the two so the CSS animation restarts.
@@ -517,15 +521,30 @@
 
     // Re-render the CTA labels from the current state (so qty changes
     // reflect in the same place size changes do — no hidden divergence).
+    const addBtn   = sec.querySelector('.tapi-pdp__add');
+    const buyBtn   = sec.querySelector('.tapi-pdp__buynow');
+    const stockNote = sec.querySelector('[data-stock-note]');
     const rerenderCta = () => {
       if (!currentUnitPriceText) return;
       const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10) || 1);
-      const lineLabel = qty > 1
-        ? `Add to bag (${qty}) — ${currentUnitPriceText}`
-        : `Add to bag — ${currentUnitPriceText}`;
-      if (addLabel) addLabel.textContent = lineLabel;
+
+      if (currentVariantAvailable) {
+        const lineLabel = qty > 1
+          ? `Add to bag (${qty}) — ${currentUnitPriceText}`
+          : `Add to bag — ${currentUnitPriceText}`;
+        if (addLabel) addLabel.textContent = lineLabel;
+        if (mobileAdd) mobileAdd.textContent = currentVariantText ? `Add — ${currentVariantText}` : 'Add to bag';
+        if (addBtn) { addBtn.disabled = false; addBtn.removeAttribute('aria-disabled'); }
+        if (buyBtn) { buyBtn.disabled = false; buyBtn.removeAttribute('aria-disabled'); }
+        if (stockNote) stockNote.textContent = 'In stock — ships in 1–2 days';
+      } else {
+        if (addLabel) addLabel.textContent = 'Sold out';
+        if (mobileAdd) mobileAdd.textContent = 'Sold out';
+        if (addBtn) { addBtn.disabled = true; addBtn.setAttribute('aria-disabled', 'true'); }
+        if (buyBtn) { buyBtn.disabled = true; buyBtn.setAttribute('aria-disabled', 'true'); }
+        if (stockNote) stockNote.textContent = currentVariantText ? `Sold out in size ${currentVariantText} — restocking soon` : 'Sold out — restocking soon';
+      }
       if (mobilePrice) mobilePrice.textContent = currentUnitPriceText;
-      if (mobileAdd) mobileAdd.textContent = currentVariantText ? `Add — ${currentVariantText}` : 'Add to bag';
     };
 
     // Gallery navigation (thumbs, dots, prev/next, keyboard, swipe) is wired
@@ -542,17 +561,24 @@
       });
     });
 
-    // Size selection — updates variant id + price state + refades main
+    // Size selection — updates variant id + price state + refades main.
+    // Sold-out variants are still selectable so users can read the price/stock
+    // for that size; the CTA below disables ADD TO BAG when not available.
     const sizeBtns = sec.querySelectorAll('.tapi-pdp__size');
     sizeBtns.forEach(b => b.addEventListener('click', function () {
-      if (b.disabled) return;
-      sizeBtns.forEach(x => x.classList.remove('is-active'));
+      sizeBtns.forEach(x => {
+        x.classList.remove('is-active');
+        x.setAttribute('aria-pressed', 'false');
+      });
       b.classList.add('is-active');
+      b.setAttribute('aria-pressed', 'true');
       const vid = b.getAttribute('data-variant-id');
       const price = b.getAttribute('data-variant-price');
+      const available = b.getAttribute('data-variant-available') === 'true';
       if (variantInput) variantInput.value = vid;
       if (price) currentUnitPriceText = price;
       currentVariantText = b.textContent.trim();
+      currentVariantAvailable = available;
       rerenderCta();
       refadeActiveMain();
     }));
