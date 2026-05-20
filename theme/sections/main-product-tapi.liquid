@@ -561,27 +561,35 @@
       });
     });
 
-    // Size selection — updates variant id + price state + refades main.
-    // Sold-out variants are still selectable so users can read the price/stock
-    // for that size; the CTA below disables ADD TO BAG when not available.
-    const sizeBtns = sec.querySelectorAll('.tapi-pdp__size');
-    sizeBtns.forEach(b => b.addEventListener('click', function () {
-      sizeBtns.forEach(x => {
-        x.classList.remove('is-active');
-        x.setAttribute('aria-pressed', 'false');
+    // Size selection — delegated on the parent so it survives any
+    // re-render of the buttons (section refresh, etc).
+    // Sold-out variants are still selectable so users can read the
+    // price/stock for that size; the CTA below disables ADD TO BAG.
+    const sizesEl = sec.querySelector('.tapi-pdp__sizes');
+    if (sizesEl) {
+      sizesEl.addEventListener('click', function (e) {
+        const b = e.target.closest('.tapi-pdp__size');
+        if (!b || !sizesEl.contains(b)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const allBtns = sizesEl.querySelectorAll('.tapi-pdp__size');
+        allBtns.forEach(x => {
+          x.classList.remove('is-active');
+          x.setAttribute('aria-pressed', 'false');
+        });
+        b.classList.add('is-active');
+        b.setAttribute('aria-pressed', 'true');
+        const vid = b.getAttribute('data-variant-id');
+        const price = b.getAttribute('data-variant-price');
+        const available = b.getAttribute('data-variant-available') === 'true';
+        if (variantInput) variantInput.value = vid;
+        if (price) currentUnitPriceText = price;
+        currentVariantText = b.textContent.trim();
+        currentVariantAvailable = available;
+        rerenderCta();
+        refadeActiveMain();
       });
-      b.classList.add('is-active');
-      b.setAttribute('aria-pressed', 'true');
-      const vid = b.getAttribute('data-variant-id');
-      const price = b.getAttribute('data-variant-price');
-      const available = b.getAttribute('data-variant-available') === 'true';
-      if (variantInput) variantInput.value = vid;
-      if (price) currentUnitPriceText = price;
-      currentVariantText = b.textContent.trim();
-      currentVariantAvailable = available;
-      rerenderCta();
-      refadeActiveMain();
-    }));
+    }
 
     // Qty stepper — now refreshes the CTA so the price reflects the order
     const setQty = (next) => {
