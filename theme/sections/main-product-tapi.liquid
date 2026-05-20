@@ -485,9 +485,13 @@
   }
 {% endstylesheet %}
 
-{% javascript %}
+<script>
   (function () {
-    const sec = document.currentScript ? document.currentScript.closest('[data-section-id]') : document.querySelector('.tapi-pdp');
+    // Inline script — runs in DOM order, finds OUR section reliably
+    // via the script-tag's preceding [data-section-id] ancestor.
+    var thisScript = document.currentScript;
+    var sec = (thisScript && thisScript.closest('[data-section-id]'))
+           || document.querySelector('.tapi-pdp');
     if (!sec) return;
 
     const thumbs = sec.querySelectorAll('.tapi-pdp__thumb');
@@ -637,7 +641,7 @@
     // Initial sync (in case size was preselected server-side)
     rerenderCta();
   })();
-{% endjavascript %}
+</script>
 
 {% schema %}
 {
