@@ -1,7 +1,7 @@
 {
   "sections": {
     "main": {
-      "type": "tapi-customer-login"
+      "type": "main-login"
     }
   },
   "order": [
