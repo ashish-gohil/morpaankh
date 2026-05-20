@@ -45,16 +45,8 @@
 {% stylesheet %}
   .tapi-hero { padding: 4.8rem 0 9.6rem; background: var(--tapi-cream); }
   .tapi-hero__grid { display: grid; grid-template-columns: 1.05fr 1.4fr; gap: 5.6rem; align-items: center; }
-  .tapi-eyebrow--line { display: inline-flex; align-items: center; gap: 1rem; }
-  .tapi-eyebrow--line::before {
-    content: ""; height: 1px; background: var(--tapi-terracotta);
-    width: 0; animation: tapi-eyebrow-line-draw 700ms cubic-bezier(0.22,1,0.36,1) 240ms forwards;
-    transition: width 360ms cubic-bezier(0.22,1,0.36,1);
-  }
-  .tapi-eyebrow--line:hover::before { width: 40px !important; }
-  @keyframes tapi-eyebrow-line-draw { from { width: 0; } to { width: 20px; } }
-  @media (prefers-reduced-motion: reduce) { .tapi-eyebrow--line::before { width: 20px; animation: none; } }
-  .tapi-hero__title { font-family: var(--font-heading-family); font-size: clamp(3.8rem, 8vw, 9.6rem); line-height: 1.02; letter-spacing: -0.018em; font-weight: 500; margin: 1.6rem 0; }
+  /* .tapi-eyebrow--line is defined globally in theme-variables.css */
+.tapi-hero__title { font-family: var(--font-heading-family); font-size: clamp(3.8rem, 8vw, 9.6rem); line-height: 1.02; letter-spacing: -0.018em; font-weight: 500; margin: 1.6rem 0; }
   .tapi-hero__title-accent { color: var(--tapi-terracotta); font-weight: 500; }
   .tapi-hero__lede { font-size: clamp(1.5rem, 1.4vw, 1.7rem); line-height: 1.6; color: var(--tapi-warm-grey); margin: 0 0 2.8rem; max-width: 46rem; }
   .tapi-hero__cta-row { display: flex; gap: 1.2rem; flex-wrap: wrap; margin-bottom: 4rem; }

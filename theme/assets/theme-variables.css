@@ -475,18 +475,30 @@ button.shopify-payment-button__button--unbranded {
    Global micro-interactions (added by Tapi customization)
    ============================================================ */
 
-/* Eyebrow-line — the small terracotta dash that draws in then
-   expands on hover. Apply class `tapi-eyebrow--line` next to
-   `tapi-eyebrow`. */
+/* Eyebrow-line — the small terracotta dash that draws in when the
+   parent reveals into view, then expands on hover.
+   Apply class `tapi-eyebrow--line` next to `tapi-eyebrow`. */
 .tapi-eyebrow--line { display: inline-flex; align-items: center; gap: 1rem; }
 .tapi-eyebrow--line::before {
-  content: ""; height: 1px; background: var(--tapi-terracotta);
-  width: 0;
-  animation: tapi-eyebrow-line-draw 700ms cubic-bezier(0.22,1,0.36,1) 240ms forwards;
-  transition: width 360ms cubic-bezier(0.22,1,0.36,1);
+  content: "";
+  height: 1px;
+  width: 20px;
+  background: var(--tapi-terracotta);
+  transform-origin: left;
+  transform: scaleX(1);
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1) 200ms,
+              width 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.tapi-eyebrow--line:hover::before { width: 40px !important; }
-@keyframes tapi-eyebrow-line-draw { from { width: 0; } to { width: 20px; } }
+/* Inside an un-revealed [data-tapi-reveal] ancestor, hide the line until
+   the reveal observer adds .in — then it draws in cleanly */
+[data-tapi-reveal]:not(.in) .tapi-eyebrow--line::before,
+[data-tapi-reveal]:not(.in).tapi-eyebrow--line::before { transform: scaleX(0); }
+.tapi-eyebrow--line:hover::before { width: 40px; }
+@media (prefers-reduced-motion: reduce) {
+  [data-tapi-reveal]:not(.in) .tapi-eyebrow--line::before,
+  [data-tapi-reveal]:not(.in).tapi-eyebrow--line::before { transform: scaleX(1); }
+  .tapi-eyebrow--line::before { transition: none; }
+}
 
 /* Lift card */
 .tapi-lift { transition: transform 480ms cubic-bezier(0.22,1,0.36,1), box-shadow 480ms cubic-bezier(0.22,1,0.36,1); }

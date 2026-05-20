@@ -8,7 +8,7 @@
     {%- if section.settings.eyebrow != blank or section.settings.heading != blank -%}
       <header class="tapi-press__head">
         {%- if section.settings.eyebrow != blank -%}
-          <span class="eyebrow eyebrow-line">{{ section.settings.eyebrow }}</span>
+          <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
         {%- endif -%}
         {%- if section.settings.heading != blank -%}
           <h2 class="serif tapi-press__heading">{{ section.settings.heading }}</h2>
@@ -131,7 +131,7 @@
   "tag": "section",
   "class": "section tapi-press-section",
   "settings": [
-    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "— What people say" },
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "What people say" },
     { "type": "text", "id": "heading", "label": "Heading", "default": "Notes from the people wearing them." }
   ],
   "blocks": [

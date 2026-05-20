@@ -2,7 +2,7 @@
   <div class="page-width">
     {%- if section.settings.heading != blank -%}
       <div class="tapi-studio-strip__head">
-        <span class="tapi-eyebrow" style="color: var(--tapi-terracotta-soft);">{{ section.settings.eyebrow }}</span>
+        <span class="tapi-eyebrow tapi-eyebrow--line" style="color: var(--tapi-terracotta-soft);">{{ section.settings.eyebrow }}</span>
         <h2 class="tapi-studio-strip__heading">{{ section.settings.heading }}</h2>
       </div>
     {%- endif -%}
@@ -33,7 +33,7 @@
   "tag": "section",
   "class": "section",
   "settings": [
-    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "— Our making" },
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Our making" },
     { "type": "text", "id": "heading", "label": "Heading", "default": "Five hands, twelve looms away." }
   ],
   "blocks": [
