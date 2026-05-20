@@ -1,0 +1,9 @@
+{
+  "sections": {
+    "main": {
+      "type": "tapi-sign-in-entry",
+      "settings": {}
+    }
+  },
+  "order": ["main"]
+}

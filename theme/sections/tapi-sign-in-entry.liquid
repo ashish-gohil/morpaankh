@@ -1,0 +1,183 @@
+{%- liquid
+  assign signin_url  = routes.account_login_url
+  assign signup_url  = routes.account_register_url
+  assign account_url = routes.account_url
+-%}
+
+<section class="tapi-signin section" aria-labelledby="tapi-signin-title">
+  <div class="tapi-signin__wrap">
+    <div class="tapi-signin__panel">
+      <span class="eyebrow eyebrow-line tapi-signin__eyebrow">{{ section.settings.eyebrow | default: 'Your account' }}</span>
+
+      {%- if customer -%}
+        <h1 id="tapi-signin-title" class="serif tapi-signin__title">
+          Welcome back{% if customer.first_name != blank %}, {{ customer.first_name | escape }}{% endif %}.
+        </h1>
+        <p class="tapi-signin__lede">
+          {{ section.settings.lede_signed_in | default: 'Pick up where you left off — your orders, addresses and saved looks are all in one place.' }}
+        </p>
+        <div class="tapi-signin__actions">
+          <a href="{{ account_url }}" class="btn btn-primary tapi-signin__btn" rel="nofollow">
+            {{ 'customer.account.title' | t }}
+          </a>
+          <a href="{{ routes.account_logout_url }}" class="btn btn-ghost tapi-signin__btn" rel="nofollow">
+            {{ 'customer.log_out' | t }}
+          </a>
+        </div>
+      {%- else -%}
+        <h1 id="tapi-signin-title" class="serif tapi-signin__title">
+          {{ section.settings.title | default: 'Welcome to Tapi & Co.' }}
+        </h1>
+        <p class="tapi-signin__lede">
+          {{ section.settings.lede | default: 'Sign in to track orders, save fits, and check out faster. New here? Create an account to get started.' }}
+        </p>
+
+        <div class="tapi-signin__actions">
+          <a href="{{ signin_url }}" class="btn btn-primary tapi-signin__btn" rel="nofollow">
+            {{ section.settings.signin_label | default: 'Sign in' }}
+          </a>
+          <a href="{{ signup_url }}" class="btn btn-outline tapi-signin__btn" rel="nofollow">
+            {{ section.settings.signup_label | default: 'Create an account' }}
+          </a>
+        </div>
+
+        <a href="{{ routes.root_url }}" class="tapi-signin__skip link-u">
+          {{ section.settings.skip_label | default: 'Continue browsing' }}
+          <span aria-hidden="true">→</span>
+        </a>
+      {%- endif -%}
+    </div>
+
+    {%- if section.settings.image != blank -%}
+      <aside class="tapi-signin__media" aria-hidden="true">
+        {{ section.settings.image | image_url: width: 1200 | image_tag:
+          loading: 'lazy',
+          widths: '480,720,960,1200',
+          sizes: '(max-width: 900px) 100vw, 50vw',
+          class: 'tapi-signin__media-img'
+        }}
+      </aside>
+    {%- else -%}
+      <aside class="tapi-signin__media tapi-signin__media--placeholder" aria-hidden="true"></aside>
+    {%- endif -%}
+  </div>
+</section>
+
+{% stylesheet %}
+  .tapi-signin {
+    background: var(--tapi-cream, #f8f4ed);
+    padding-block: clamp(48px, 8vw, 96px);
+  }
+  .tapi-signin__wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 clamp(16px, 4vw, 40px);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(24px, 5vw, 56px);
+    align-items: stretch;
+  }
+  @media (min-width: 901px) {
+    .tapi-signin__wrap {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+      gap: clamp(40px, 6vw, 80px);
+      min-height: 540px;
+    }
+  }
+  .tapi-signin__panel {
+    background: var(--tapi-ivory, #fcfaf4);
+    border: 1px solid var(--tapi-hairline, #e5ddc8);
+    padding: clamp(28px, 5vw, 64px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(14px, 2vw, 22px);
+  }
+  .tapi-signin__eyebrow {
+    color: var(--tapi-warm-grey, #6b5d54);
+  }
+  .tapi-signin__title {
+    font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+    font-weight: 500;
+    font-size: clamp(30px, 4.4vw, 48px);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--tapi-charcoal, #2c2826);
+    margin: 0;
+  }
+  .tapi-signin__lede {
+    color: var(--tapi-warm-grey, #6b5d54);
+    font-size: clamp(14px, 1.4vw, 16px);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 46ch;
+  }
+  .tapi-signin__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: clamp(8px, 1.4vw, 14px);
+  }
+  .tapi-signin__btn {
+    min-width: 180px;
+  }
+  @media (max-width: 600px) {
+    .tapi-signin__btn { flex: 1 1 100%; min-width: 0; }
+  }
+  .tapi-signin__skip {
+    margin-top: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--tapi-charcoal, #2c2826);
+    width: max-content;
+  }
+  .tapi-signin__skip span {
+    transition: transform 320ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-signin__skip:hover span { transform: translateX(4px); }
+
+  .tapi-signin__media {
+    background: var(--tapi-cream-2, #f1ebdd);
+    border: 1px solid var(--tapi-hairline, #e5ddc8);
+    overflow: hidden;
+    aspect-ratio: 4 / 5;
+  }
+  @media (min-width: 901px) {
+    .tapi-signin__media { aspect-ratio: auto; }
+  }
+  .tapi-signin__media--placeholder {
+    background:
+      radial-gradient(circle at 30% 20%, rgba(183,71,42,0.08), transparent 40%),
+      radial-gradient(circle at 70% 80%, rgba(122,135,97,0.10), transparent 40%),
+      var(--tapi-cream-2, #f1ebdd);
+  }
+  .tapi-signin__media-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Sign-in entry",
+  "tag": "section",
+  "class": "tapi-signin-section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Your account" },
+    { "type": "text", "id": "title", "label": "Title (signed out)", "default": "Welcome to Tapi & Co." },
+    { "type": "textarea", "id": "lede", "label": "Lede (signed out)", "default": "Sign in to track orders, save fits, and check out faster. New here? Create an account to get started." },
+    { "type": "textarea", "id": "lede_signed_in", "label": "Lede (signed in)", "default": "Pick up where you left off — your orders, addresses and saved looks are all in one place." },
+    { "type": "text", "id": "signin_label", "label": "Sign-in button label", "default": "Sign in" },
+    { "type": "text", "id": "signup_label", "label": "Sign-up button label", "default": "Create an account" },
+    { "type": "text", "id": "skip_label", "label": "Continue link label", "default": "Continue browsing" },
+    { "type": "image_picker", "id": "image", "label": "Side image (optional)" }
+  ],
+  "presets": [{ "name": "Sign-in entry" }],
+  "enabled_on": { "templates": ["page"] }
+}
+{% endschema %}
