@@ -363,6 +363,82 @@
     window.addEventListener('scroll', onScroll, { passive: true });
   }
 
+  // ---------- Tapi search modal wiring ----------
+  // Each header-search snippet renders inside a <details-modal>. We toggle
+  // a `.is-query` class on the host whenever the input has text, which
+  // CSS uses to swap the empty-state curated content for the live
+  // predictive-search results region. We also mirror any "Suggested"
+  // queries that Dawn's predictive response returns into the left rail.
+  function setupTapiSearch(root) {
+    (root || document).querySelectorAll('.tapi-search').forEach(function (host) {
+      if (host.__tapiSearchWired) return;
+      host.__tapiSearchWired = true;
+
+      var input = host.querySelector('.tapi-search-bar__input');
+      var resetBtn = host.querySelector('.tapi-search-bar__reset');
+      var closeBtn = host.querySelector('.tapi-search-bar__close');
+      var details = host.querySelector('details');
+      var live = host.querySelector('[data-predictive-search]');
+      var suggestedTarget = host.querySelector('[data-query-suggested]');
+
+      function syncQuery() {
+        if (!input) return;
+        var hasText = input.value.trim().length > 0;
+        host.classList.toggle('is-query', hasText);
+        if (resetBtn) resetBtn.classList.toggle('hidden', !hasText);
+      }
+      if (input) {
+        input.addEventListener('input', syncQuery);
+        input.addEventListener('change', syncQuery);
+      }
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+          if (input) input.value = '';
+          syncQuery();
+          if (input) input.focus();
+        });
+      }
+      if (closeBtn && details) {
+        closeBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          details.removeAttribute('open');
+        });
+      }
+      syncQuery();
+
+      // Mirror predictive-search "Suggested" entries (queries + collections)
+      // from the response into the left rail when they appear.
+      if (live && suggestedTarget) {
+        var mo = new MutationObserver(function () {
+          var src = live.querySelector('[data-suggested-source]');
+          if (!src) { suggestedTarget.innerHTML = ''; return; }
+          var items = src.querySelectorAll('[data-suggested-href]');
+          if (!items.length) { suggestedTarget.innerHTML = ''; return; }
+          var html = '';
+          items.forEach(function (a) {
+            var href = a.getAttribute('data-suggested-href') || '#';
+            var text = a.getAttribute('data-suggested-text') || a.textContent.trim();
+            html += '<li class="tapi-search-list__item">' +
+                      '<a href="' + href + '" class="tapi-search-list__link link-u">' +
+                        '<span class="tapi-search-list__bullet" aria-hidden="true"></span>' +
+                        '<span class="tapi-search-list__label serif">' + text + '</span>' +
+                      '</a>' +
+                    '</li>';
+          });
+          suggestedTarget.innerHTML = html;
+        });
+        mo.observe(live, { childList: true, subtree: true });
+      }
+
+      // ESC inside the panel closes
+      host.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && details && details.hasAttribute('open')) {
+          details.removeAttribute('open');
+        }
+      });
+    });
+  }
+
   // One delegated outside-click listener for all custom selects on the page
   // (avoids attaching a fresh document listener per wrapSelect call).
   function setupSelectOutsideClose() {
@@ -387,6 +463,7 @@
     setupPdpGallery(document);
     setupCustomSelect(document);
     setupSelectOutsideClose();
+    setupTapiSearch(document);
   }
 
   if (document.readyState === 'loading') {
@@ -403,6 +480,7 @@
     setupMagnetic(e.target);
     setupPdpGallery(e.target);
     setupCustomSelect(e.target);
+    setupTapiSearch(e.target);
   });
 
   // Tear down observers when a section is removed in the editor

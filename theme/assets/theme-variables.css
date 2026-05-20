@@ -1827,3 +1827,350 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
     transform: none !important;
   }
 }
+
+/* ============================================================
+   Tapi search modal — slide-down panel
+   Replaces Dawn's centered modal with a top-anchored sheet that
+   contains a serif input + curated empty state (Trending /
+   Collections / Bestsellers) and a live predictive-results region.
+   ============================================================ */
+.tapi-search-modal.modal__content {
+  position: fixed;
+  inset: 0;
+  display: block;
+  background: transparent;
+  pointer-events: auto;
+  z-index: 95;
+}
+.tapi-search-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 40, 38, 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: tapi-search-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tapi-search-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.tapi-search-panel {
+  position: fixed;
+  inset: 0 0 auto 0;
+  background: var(--tapi-cream, #f8f4ed);
+  border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
+  box-shadow: 0 24px 48px -28px rgba(44, 40, 38, 0.18);
+  padding: clamp(76px, 9vw, 100px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
+  max-height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: tapi-search-slide-down 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tapi-search-slide-down {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+.tapi-search-form,
+.tapi-search-form-inner {
+  display: block;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ---- Input row ---- */
+.tapi-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--tapi-charcoal, #2c2826);
+}
+.tapi-search-bar__icon {
+  color: var(--tapi-charcoal, #2c2826);
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tapi-search-bar__icon svg { width: 20px; height: 20px; }
+.tapi-search-bar__input.field__input,
+.tapi-search-bar__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: clamp(20px, 3.4vw, 32px);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--tapi-charcoal, #2c2826);
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 4px 0;
+  box-shadow: none;
+}
+.tapi-search-bar__input::placeholder {
+  color: var(--tapi-muted, #9a8d83);
+  font-style: italic;
+}
+.tapi-search-bar__reset {
+  background: transparent;
+  border: 0;
+  color: var(--tapi-warm-grey, #6b5d54);
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.tapi-search-bar__reset .svg-wrapper { width: 16px; height: 16px; }
+.tapi-search-bar__reset.hidden { display: none; }
+.tapi-search-bar__close {
+  background: transparent;
+  border: 0;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey, #6b5d54);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 6px;
+  flex: 0 0 auto;
+}
+.tapi-search-bar__close:hover { color: var(--tapi-terracotta, #b7472a); }
+.tapi-search-bar__close span[aria-hidden] {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@media (max-width: 600px) {
+  .tapi-search-bar__close-text { display: none; }
+}
+
+/* ---- Grid (two columns desktop, stack mobile) ---- */
+.tapi-search-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(24px, 4vw, 56px);
+  margin-top: clamp(20px, 4vw, 32px);
+}
+@media (min-width: 760px) {
+  .tapi-search-grid { grid-template-columns: 1fr 2fr; gap: clamp(32px, 5vw, 64px); }
+}
+.tapi-search-block + .tapi-search-block { margin-top: clamp(24px, 4vw, 32px); }
+.tapi-search-block__title {
+  margin: 0 0 14px;
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey, #6b5d54);
+}
+
+/* ---- Trending + Collections lists ---- */
+.tapi-search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tapi-search-list__item { margin: 0; }
+.tapi-search-list__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  color: var(--tapi-charcoal, #2c2826);
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 17px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  width: max-content;
+  max-width: 100%;
+}
+.tapi-search-list__link--compact {
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 13px;
+  color: var(--tapi-warm-grey, #6b5d54);
+  padding: 4px 0;
+  gap: 10px;
+}
+.tapi-search-list__bullet {
+  width: 14px;
+  height: 1px;
+  background: var(--tapi-terracotta, #b7472a);
+  flex: 0 0 auto;
+  transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-search-list__link:hover .tapi-search-list__bullet { width: 24px; }
+.tapi-search-list__count {
+  color: var(--tapi-muted, #9a8d83);
+  font-size: 11px;
+}
+
+/* ---- Bestsellers / Matches product rows ---- */
+.tapi-search-products {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tapi-search-products__item + .tapi-search-products__item {
+  border-top: 1px solid var(--tapi-hairline, #e5ddc8);
+}
+.tapi-search-product {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  color: inherit;
+  text-decoration: none;
+  transition: padding-left 320ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-search-product:hover {
+  padding-left: 8px;
+  background: var(--tapi-cream-2, #f1ebdd);
+}
+.tapi-search-product__thumb {
+  width: 64px;
+  height: 80px;
+  background: var(--tapi-cream-2, #f1ebdd);
+  overflow: hidden;
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  flex: 0 0 auto;
+}
+.tapi-search-product__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tapi-search-product__placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(183, 71, 42, 0.08), transparent 40%),
+    radial-gradient(circle at 70% 80%, rgba(122, 135, 97, 0.10), transparent 40%),
+    var(--tapi-cream-2, #f1ebdd);
+}
+.tapi-search-product__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tapi-search-product__name {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--tapi-charcoal, #2c2826);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tapi-search-product__sub {
+  font-size: 12px;
+  color: var(--tapi-muted, #9a8d83);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tapi-search-product__right {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+.tapi-search-product__price {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 16px;
+  color: var(--tapi-charcoal, #2c2826);
+}
+.tapi-search-product__cta {
+  font-size: 11px;
+  color: var(--tapi-terracotta, #b7472a);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---- Empty / no-results blurb ---- */
+.tapi-search-empty {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--tapi-warm-grey, #6b5d54);
+  margin: 0;
+}
+
+/* ---- See-all CTA below matches ---- */
+.tapi-predictive__see-all {
+  margin-top: clamp(16px, 3vw, 24px);
+  padding-top: 16px;
+  border-top: 1px solid var(--tapi-hairline, #e5ddc8);
+}
+.tapi-predictive__see-all .predictive-search__item--term {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tapi-terracotta, #b7472a);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---- Query-active toggling (driven by tapi-motion.js) ---- */
+.tapi-search.is-query [data-default-trending],
+.tapi-search.is-query [data-default-title],
+.tapi-search.is-query [data-default-products] {
+  display: none;
+}
+.tapi-search:not(.is-query) [data-query-title],
+.tapi-search:not(.is-query) [data-query-suggested],
+.tapi-search:not(.is-query) .tapi-search-live {
+  display: none !important;
+}
+.tapi-search.is-query [data-query-title],
+.tapi-search.is-query [data-query-suggested],
+.tapi-search.is-query .tapi-search-live {
+  display: block !important;
+}
+
+/* ---- Loading spinner override (subtle, in-place) ---- */
+.tapi-search-live .predictive-search__loading-state {
+  margin: 24px auto;
+  color: var(--tapi-warm-grey, #6b5d54);
+}
+
+/* ---- Reset Dawn's old modal CSS that might interfere ---- */
+.tapi-search .modal-overlay { background: transparent; }
+.tapi-search [open] > .search-modal { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-search-panel,
+  .tapi-search-backdrop {
+    animation: none !important;
+  }
+  .tapi-search-product { transition: none !important; }
+  .tapi-search-list__bullet { transition: none !important; }
+}

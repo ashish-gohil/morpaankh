@@ -1,14 +1,27 @@
 {% comment %}
-  Renders a header search modal. Should be used with 'header.liquid'
+  Tapi search modal — slide-down panel with curated empty state
+  (Trending / Collections / Bestsellers) + live predictive results.
 
   Accepts:
   - input_id: {String} Id for the search input element (required)
 
-  Usage:
-  {% render 'header-search', input_id: 'My-Id'%}
+  Uses Dawn's <predictive-search> web component for live AJAX results
+  (calls /search/suggest.json under the hood) but replaces the modal
+  shell, input row, and result template to match the Tapi design.
 {% endcomment %}
 
-<details-modal class="header__search">
+{%- liquid
+  # Resolve "Bestsellers" source collection — prefer `best-sellers`, fall back to `all`, then first.
+  assign bs_collection = collections['best-sellers']
+  if bs_collection == empty or bs_collection.products_count == 0
+    assign bs_collection = collections['all']
+  endif
+  if bs_collection == empty or bs_collection.products_count == 0
+    assign bs_collection = collections.first
+  endif
+-%}
+
+<details-modal class="header__search tapi-search">
   <details>
     <summary
       class="header__icon header__icon--search header__icon--summary link focus-inset modal__toggle"
@@ -16,39 +29,39 @@
       aria-label="{{ 'general.search.search' | t }}"
     >
       <span>
-        <span class="svg-wrapper">
-          {{- 'icon-search.svg' | inline_asset_content -}}
-        </span>
-        <span class="svg-wrapper header__icon-close">
-          {{- 'icon-close.svg' | inline_asset_content -}}
-        </span>
+        <span class="svg-wrapper">{{- 'icon-search.svg' | inline_asset_content -}}</span>
+        <span class="svg-wrapper header__icon-close">{{- 'icon-close.svg' | inline_asset_content -}}</span>
       </span>
     </summary>
+
     <div
-      class="search-modal modal__content gradient"
+      class="search-modal modal__content tapi-search-modal"
       role="dialog"
       aria-modal="true"
       aria-label="{{ 'general.search.search' | t }}"
     >
-      <div class="modal-overlay"></div>
-      <div
-        class="search-modal__content{% if settings.inputs_shadow_vertical_offset != 0 and settings.inputs_shadow_vertical_offset < 0 %} search-modal__content-top{% else %} search-modal__content-bottom{% endif %}"
-        tabindex="-1"
-      >
+      <div class="modal-overlay tapi-search-backdrop"></div>
+
+      <div class="search-modal__content tapi-search-panel" tabindex="-1">
+
         {%- if settings.predictive_search_enabled -%}
-          <predictive-search class="search-modal__form" data-loading-text="{{ 'accessibility.loading' | t }}">
+          <predictive-search class="search-modal__form tapi-search-form" data-loading-text="{{ 'accessibility.loading' | t }}">
         {%- else -%}
-          <search-form class="search-modal__form">
+          <search-form class="search-modal__form tapi-search-form">
         {%- endif -%}
-        <form action="{{ routes.search_url }}" method="get" role="search" class="search search-modal__form">
-          <div class="field">
+
+        <form action="{{ routes.search_url }}" method="get" role="search" class="search tapi-search-form-inner">
+          <div class="tapi-search-bar">
+            <span class="tapi-search-bar__icon svg-wrapper" aria-hidden="true">
+              {{- 'icon-search.svg' | inline_asset_content -}}
+            </span>
             <input
-              class="search__input field__input"
+              class="search__input field__input tapi-search-bar__input"
               id="{{ input_id }}"
               type="search"
               name="q"
               value="{{ search.terms | escape }}"
-              placeholder="{{ 'general.search.search' | t }}"
+              placeholder="{{ section.settings.search_placeholder | default: 'Search by piece, fabric, color, GSM…' }}"
               {%- if settings.predictive_search_enabled -%}
                 role="combobox"
                 aria-expanded="false"
@@ -62,46 +75,126 @@
                 spellcheck="false"
               {%- endif -%}
             >
-            <label class="field__label" for="{{ input_id }}">{{ 'general.search.search' | t }}</label>
+            <label class="visually-hidden" for="{{ input_id }}">{{ 'general.search.search' | t }}</label>
             <input type="hidden" name="options[prefix]" value="last">
+
             <button
               type="reset"
-              class="reset__button field__button{% if search.terms == blank %} hidden{% endif %}"
+              class="tapi-search-bar__reset{% if search.terms == blank %} hidden{% endif %}"
               aria-label="{{ 'general.search.reset' | t }}"
             >
-              <span class="svg-wrapper">
-                {{- 'icon-reset.svg' | inline_asset_content -}}
-              </span>
+              <span class="svg-wrapper">{{- 'icon-reset.svg' | inline_asset_content -}}</span>
             </button>
-            <button class="search__button field__button" aria-label="{{ 'general.search.search' | t }}">
-              <span class="svg-wrapper">
-                {{- 'icon-search.svg' | inline_asset_content -}}
-              </span>
+
+            <button
+              type="button"
+              class="tapi-search-bar__close search-modal__close-button modal__close-button link link--text focus-inset link-u"
+              aria-label="{{ 'accessibility.close' | t }}"
+            >
+              <span class="tapi-search-bar__close-text">{{ 'accessibility.close' | t | default: 'Close' }}</span>
+              <span aria-hidden="true">×</span>
             </button>
           </div>
 
-          {%- if settings.predictive_search_enabled -%}
-            <div class="predictive-search predictive-search--header" tabindex="-1" data-predictive-search>
-              {%- render 'loading-spinner', class: 'predictive-search__loading-state' -%}
-            </div>
+          <div class="tapi-search-grid">
+            {%- comment -%} Left rail: Trending + Collections {%- endcomment -%}
+            <aside class="tapi-search-aside">
+              <section class="tapi-search-block">
+                <h3 class="eyebrow tapi-search-block__title" data-default-title>Trending</h3>
+                <h3 class="eyebrow tapi-search-block__title" data-query-title hidden>Suggested</h3>
+                <ul class="tapi-search-list" data-default-trending>
+                  {%- assign trending_csv = section.settings.trending_terms | default: 'Saanjh kurta set, Mulmul 120 GSM, Sage co-ord, Festive dobby, Pickup from Surat' -%}
+                  {%- assign trending_arr = trending_csv | split: ',' -%}
+                  {%- for term in trending_arr limit: 6 -%}
+                    {%- assign t = term | strip -%}
+                    {%- if t == blank -%}{% continue %}{%- endif -%}
+                    <li class="tapi-search-list__item">
+                      <a href="{{ routes.search_url }}?q={{ t | url_encode }}" class="tapi-search-list__link link-u">
+                        <span class="tapi-search-list__bullet" aria-hidden="true"></span>
+                        <span class="tapi-search-list__label serif">{{ t }}</span>
+                      </a>
+                    </li>
+                  {%- endfor -%}
+                </ul>
+                {%- comment -%} Live "Suggested" queries from predictive search land here {%- endcomment -%}
+                <ul class="tapi-search-list tapi-search-list--suggested" data-query-suggested hidden></ul>
+              </section>
 
-            <span class="predictive-search-status visually-hidden" role="status" aria-hidden="true"></span>
-          {%- endif -%}
+              <section class="tapi-search-block">
+                <h3 class="eyebrow tapi-search-block__title">Collections</h3>
+                <ul class="tapi-search-list tapi-search-list--compact">
+                  {%- for c in collections limit: 6 -%}
+                    {%- if c.handle == 'all' or c.handle == 'frontpage' -%}{% continue %}{%- endif -%}
+                    <li class="tapi-search-list__item">
+                      <a href="{{ c.url }}" class="tapi-search-list__link tapi-search-list__link--compact link-u">
+                        <span class="tapi-search-list__label">{{ c.title }}</span>
+                        <span class="tapi-search-list__count tnum">{{ c.products_count }}</span>
+                      </a>
+                    </li>
+                  {%- endfor -%}
+                </ul>
+              </section>
+            </aside>
+
+            {%- comment -%} Right rail: Bestsellers (default) | Matches (query active) {%- endcomment -%}
+            <div class="tapi-search-main">
+              <section class="tapi-search-default" data-default-products>
+                <h3 class="eyebrow tapi-search-block__title">Bestsellers</h3>
+                {%- if bs_collection and bs_collection.products_count > 0 -%}
+                  <ul class="tapi-search-products">
+                    {%- for product in bs_collection.products limit: 5 -%}
+                      <li class="tapi-search-products__item">
+                        <a href="{{ product.url }}" class="tapi-search-product">
+                          <div class="tapi-search-product__thumb">
+                            {%- if product.featured_media != blank -%}
+                              {{ product.featured_media | image_url: width: 200 | image_tag:
+                                loading: 'lazy',
+                                widths: '128,200,256',
+                                sizes: '64px',
+                                class: 'tapi-search-product__img',
+                                alt: product.featured_media.alt | default: product.title
+                              }}
+                            {%- else -%}
+                              <span class="tapi-search-product__placeholder"></span>
+                            {%- endif -%}
+                          </div>
+                          <div class="tapi-search-product__meta">
+                            <span class="tapi-search-product__name serif">{{ product.title | escape }}</span>
+                            {%- if product.vendor != blank -%}
+                              <span class="tapi-search-product__sub">{{ product.vendor }}</span>
+                            {%- endif -%}
+                          </div>
+                          <div class="tapi-search-product__right">
+                            <span class="tapi-search-product__price serif tnum">{{ product.price | money }}</span>
+                            <span class="tapi-search-product__cta">View →</span>
+                          </div>
+                        </a>
+                      </li>
+                    {%- endfor -%}
+                  </ul>
+                {%- else -%}
+                  <p class="tapi-search-empty">
+                    Featured products will appear here once collections are populated.
+                  </p>
+                {%- endif -%}
+              </section>
+
+              {%- if settings.predictive_search_enabled -%}
+                <section class="tapi-search-live predictive-search predictive-search--header" tabindex="-1" data-predictive-search hidden>
+                  {%- render 'loading-spinner', class: 'predictive-search__loading-state' -%}
+                </section>
+                <span class="predictive-search-status visually-hidden" role="status" aria-hidden="true"></span>
+              {%- endif -%}
+            </div>
+          </div>
         </form>
+
         {%- if settings.predictive_search_enabled -%}
           </predictive-search>
         {%- else -%}
           </search-form>
         {%- endif -%}
-        <button
-          type="button"
-          class="search-modal__close-button modal__close-button link link--text focus-inset"
-          aria-label="{{ 'accessibility.close' | t }}"
-        >
-          <span class="svg-wrapper">
-            {{- 'icon-close.svg' | inline_asset_content -}}
-          </span>
-        </button>
+
       </div>
     </div>
   </details>
