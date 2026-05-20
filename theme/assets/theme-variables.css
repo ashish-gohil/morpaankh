@@ -1840,7 +1840,9 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   display: block;
   background: transparent;
   pointer-events: auto;
-  z-index: 95;
+  /* Above Dawn's header (z-index ~5) and the sticky announcement bar
+     (z-index ~3) so the panel fully covers the page when open. */
+  z-index: 1000;
 }
 .tapi-search-backdrop {
   position: fixed;
@@ -1849,6 +1851,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   animation: tapi-search-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 0;
 }
 @keyframes tapi-search-fade-in {
   from { opacity: 0; }
@@ -1857,10 +1860,21 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 .tapi-search-panel {
   position: fixed;
   inset: 0 0 auto 0;
+  /* Dawn's .search-modal__content (same element) sets display: flex +
+     align-items: center + justify-content: center + height: 100% which
+     vertically centers everything and breaks our top-to-bottom layout.
+     Force block flow + auto height so content flows naturally from the
+     top of the panel. */
+  display: block !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+  height: auto !important;
+  width: 100%;
+  z-index: 1;
   background: var(--tapi-cream, #f8f4ed);
   border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
   box-shadow: 0 24px 48px -28px rgba(44, 40, 38, 0.18);
-  padding: clamp(76px, 9vw, 100px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
+  padding: clamp(20px, 3vw, 40px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
   /* Cap at 90% of the viewport so the panel never overflows past the
      screen — use dvh on supporting browsers so mobile URL/toolbar chrome
      doesn't cut off the bottom. Fallback to vh for older Safari. */
@@ -1909,21 +1923,34 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 .tapi-search-bar__icon svg { width: 20px; height: 20px; }
 .tapi-search-bar__input.field__input,
-.tapi-search-bar__input {
+.tapi-search-bar__input,
+.tapi-search-bar .field__input,
+.tapi-search-bar input.search__input {
   flex: 1 1 auto;
   min-width: 0;
   width: 100%;
-  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
-  font-size: clamp(20px, 3.4vw, 32px);
+  height: auto !important;
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif) !important;
+  font-size: clamp(20px, 3.4vw, 32px) !important;
   font-weight: 400;
   line-height: 1.2;
   letter-spacing: -0.012em;
-  color: var(--tapi-charcoal, #2c2826);
-  background: transparent;
-  border: 0;
-  outline: none;
-  padding: 4px 0;
-  box-shadow: none;
+  color: var(--tapi-charcoal, #2c2826) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  padding: 4px 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.tapi-search-bar__input:focus,
+.tapi-search-bar__input:focus-visible,
+.tapi-search-bar .field__input:focus,
+.tapi-search-bar .field__input:focus-visible {
+  box-shadow: none !important;
+  outline: none !important;
 }
 .tapi-search-bar__input::placeholder {
   color: var(--tapi-muted, #9a8d83);
