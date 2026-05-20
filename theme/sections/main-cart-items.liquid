@@ -48,7 +48,8 @@
       {%- endif -%}
     </div>
 
-    <form action="{{ routes.cart_url }}" class="cart__contents critical-hidden" method="post" id="cart">
+    <div class="tapi-cart-grid">
+    <form action="{{ routes.cart_url }}" class="cart__contents critical-hidden tapi-cart-grid__items" method="post" id="cart">
       <div class="cart__items" id="main-cart-items" data-id="{{ section.id }}">
         <div class="js-contents">
           {%- if cart != empty -%}
@@ -454,8 +455,111 @@
         {{ 'accessibility.loading' | t }}
       </p>
     </form>
+
+    {%- comment -%} Tapi sticky checkout aside — visible on md+ only (desktop 2-col) {%- endcomment -%}
+    {%- if cart != empty -%}
+      <aside class="tapi-cart-aside" aria-label="Order summary">
+        <h2 class="tapi-cart-aside__title serif">Order summary</h2>
+
+        <div class="tapi-cart-aside__row">
+          <span class="tapi-cart-aside__label">Subtotal</span>
+          <span class="tapi-cart-aside__value tnum">{{ cart.total_price | money_with_currency }}</span>
+        </div>
+
+        {%- if cart.cart_level_discount_applications.size > 0 -%}
+          {%- for discount in cart.cart_level_discount_applications -%}
+            <div class="tapi-cart-aside__row tapi-cart-aside__row--discount">
+              <span class="tapi-cart-aside__label">{{ discount.title | escape }}</span>
+              <span class="tapi-cart-aside__value tnum">−{{ discount.total_allocated_amount | money }}</span>
+            </div>
+          {%- endfor -%}
+        {%- endif -%}
+
+        <p class="tapi-cart-aside__note">Taxes included. Discounts and shipping calculated at checkout.</p>
+
+        <form action="{{ routes.cart_url }}" method="post" id="tapi-cart-checkout-form">
+          <button type="submit" name="checkout" class="button button--primary tapi-cart-aside__btn">
+            {{ 'sections.cart.checkout' | t }}
+          </button>
+        </form>
+      </aside>
+    {%- endif -%}
+
+    </div>{%- comment -%} /.tapi-cart-grid {%- endcomment -%}
   </div>
 </cart-items>
+
+{% stylesheet %}
+  .tapi-cart-grid { display: block; }
+  .tapi-cart-aside { display: none; }
+
+  @media (min-width: 990px) {
+    .tapi-cart-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+      column-gap: clamp(2.4rem, 4vw, 5.6rem);
+      row-gap: 2rem;
+      align-items: start;
+    }
+    .tapi-cart-grid__items { min-width: 0; }
+
+    .tapi-cart-aside {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: sticky;
+      top: 120px;
+      background: var(--tapi-ivory, #fcfaf4);
+      border: 1px solid var(--tapi-hairline, #e5ddc8);
+      padding: clamp(24px, 2vw, 36px);
+      box-sizing: border-box;
+    }
+    .tapi-cart-aside__title {
+      font-family: var(--font-heading-family, "Cormorant Garamond", Georgia, serif);
+      font-size: clamp(22px, 1.8vw, 28px);
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      color: var(--tapi-charcoal, #2c2826);
+      margin: 0 0 4px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
+    }
+    .tapi-cart-aside__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--tapi-charcoal, #2c2826);
+    }
+    .tapi-cart-aside__row--discount .tapi-cart-aside__value { color: var(--tapi-terracotta, #b7472a); }
+    .tapi-cart-aside__label {
+      letter-spacing: 0.02em;
+      color: var(--tapi-warm-grey, #6b5d54);
+      text-transform: none;
+    }
+    .tapi-cart-aside__value {
+      font-family: var(--font-heading-family, "Cormorant Garamond", Georgia, serif);
+      font-size: clamp(18px, 1.4vw, 22px);
+      color: var(--tapi-charcoal, #2c2826);
+    }
+    .tapi-cart-aside__note {
+      margin: 4px 0 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--tapi-muted, #97887a);
+    }
+    .tapi-cart-aside__btn {
+      width: 100% !important;
+      min-height: 56px;
+    }
+  }
+
+  /* On md+ the cart-footer section is redundant — hide it */
+  @media (min-width: 990px) {
+    #shopify-section-cart-footer .cart__footer-wrapper { display: none; }
+  }
+{% endstylesheet %}
 
 {% schema %}
 {
