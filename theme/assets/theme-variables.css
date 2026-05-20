@@ -2384,5 +2384,84 @@ details[open] > summary .icon-caret {
   .facets-wrap details > summary,
   .facet-filters__sort,
   .facet-filters .select .select__select,
-  .facet-filters select.select__select { min-width: 140px !important; }
+  .facet-filters select.select__select,
+  .tapi-sort > summary { min-width: 140px !important; }
+}
+
+/* ====== Tapi custom sort dropdown (matches filter <details>) ====== */
+.tapi-sort { position: relative; display: inline-block; }
+.tapi-sort > summary { list-style: none; }
+.tapi-sort > summary::-webkit-details-marker { display: none; }
+/* The trigger styling + caret + open-state colour are inherited from the
+   .facets__summary / .facets details > summary rules earlier in this file. */
+
+/* Popup menu — aligned to trigger left edge, same width as trigger */
+.tapi-sort__menu {
+  position: absolute !important;
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  min-width: 100%;
+  width: max-content;
+  max-width: 320px;
+  background: var(--tapi-ivory, #fcfaf4);
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  box-shadow: 0 16px 32px -20px rgba(44, 40, 38, 0.28);
+  border-radius: 0;
+  padding: 6px 0;
+  margin: 0;
+  z-index: 50;
+  animation: tapi-sort-open 180ms ease-out;
+}
+@keyframes tapi-sort-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tapi-sort__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tapi-sort__item { margin: 0; padding: 0; }
+.tapi-sort__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-family: var(--font-body-family, Inter, sans-serif);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--tapi-charcoal, #2c2826);
+  cursor: pointer;
+  user-select: none;
+  transition: background 160ms ease, color 160ms ease;
+}
+.tapi-sort__option:hover { background: var(--tapi-cream-2, #f1ebdd); }
+.tapi-sort__option.is-active { background: var(--tapi-charcoal, #2c2826); color: var(--tapi-cream, #f8f4ed); font-weight: 500; }
+.tapi-sort__radio { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+.tapi-sort__option-text { flex: 1; }
+.tapi-sort__option-check {
+  width: 14px; height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.tapi-sort__option.is-active .tapi-sort__option-check { opacity: 1; }
+.tapi-sort__option-check::after {
+  content: "";
+  width: 10px; height: 6px;
+  border-left: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(-45deg) translateY(-2px);
+}
+
+/* Right-align the menu when the trigger sits on the right side of the row */
+.facet-filters .tapi-sort .tapi-sort__menu { left: auto; right: 0; }
+
+@media (max-width: 640px) {
+  .tapi-sort__menu { min-width: 200px; }
 }

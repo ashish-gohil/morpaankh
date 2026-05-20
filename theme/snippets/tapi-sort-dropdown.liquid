@@ -1,0 +1,50 @@
+{%- comment -%}
+  Tapi sort dropdown — custom <details>/<summary> dropdown with radio options.
+  Markup mirrors Dawn's filter <details> so the trigger/popup styling is shared.
+
+  Accepts:
+    - sort_options: list of {value, name} (required) — results.sort_options
+    - current_value: the active sort value (required)
+    - id_suffix: unique-ish suffix for the form/label ids (defaults to 'sort')
+    - hidden: array of {name, value} extra hidden inputs to forward (e.g. q)
+{%- endcomment -%}
+
+{%- liquid
+  assign id_suffix = id_suffix | default: 'sort'
+  assign current_label = ''
+  for option in sort_options
+    if option.value == current_value
+      assign current_label = option.name
+    endif
+  endfor
+  if current_label == blank
+    assign current_label = sort_options.first.name
+  endif
+-%}
+
+<details class="facets__disclosure-vertical tapi-sort" data-tapi-sort>
+  <summary class="facets__summary" aria-label="{{ 'products.facets.sort_by_label' | t }}">
+    <span class="tapi-sort__label" data-tapi-sort-label>{{ current_label }}</span>
+  </summary>
+
+  <div class="facets__display facets__display--sort tapi-sort__menu" role="listbox" aria-label="{{ 'products.facets.sort_by_label' | t }}">
+    <ul class="tapi-sort__list" role="none">
+      {%- for option in sort_options -%}
+        <li class="tapi-sort__item" role="none">
+          <label class="tapi-sort__option{% if option.value == current_value %} is-active{% endif %}">
+            <input
+              type="radio"
+              name="sort_by"
+              value="{{ option.value | escape }}"
+              class="tapi-sort__radio"
+              {% if option.value == current_value %}checked="checked"{% endif %}
+              aria-label="{{ option.name | escape }}"
+            >
+            <span class="tapi-sort__option-text">{{ option.name | escape }}</span>
+            <span class="tapi-sort__option-check" aria-hidden="true"></span>
+          </label>
+        </li>
+      {%- endfor -%}
+    </ul>
+  </div>
+</details>

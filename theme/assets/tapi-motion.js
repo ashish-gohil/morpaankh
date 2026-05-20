@@ -452,6 +452,16 @@
           if (t) t.setAttribute('aria-expanded', 'false');
         }
       });
+      // Close any open <details.tapi-sort> when the click lands outside it
+      document.querySelectorAll('details.tapi-sort[open]').forEach(function (d) {
+        if (!d.contains(e.target)) d.removeAttribute('open');
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('details.tapi-sort[open]').forEach(function (d) {
+        d.removeAttribute('open');
+      });
     });
   }
 

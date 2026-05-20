@@ -391,29 +391,12 @@
                 <h2 class="facet-filters__label caption-large text-body">
                   <label for="SortBy">{{ 'products.facets.sort_by_label' | t }}</label>
                 </h2>
-                <div class="select">
-                  {%- assign sort_by = results.sort_by | default: results.default_sort_by -%}
-                  <select
-                    name="sort_by"
-                    class="facet-filters__sort select__select caption-large"
-                    id="SortBy"
-                    aria-describedby="a11y-refresh-page-message"
-                  >
-                    {%- for option in results.sort_options -%}
-                      <option
-                        value="{{ option.value | escape }}"
-                        {% if option.value == sort_by %}
-                          selected="selected"
-                        {% endif %}
-                      >
-                        {{ option.name | escape }}
-                      </option>
-                    {%- endfor -%}
-                  </select>
-                  <span class="svg-wrapper">
-                    {{- 'icon-caret.svg' | inline_asset_content -}}
-                  </span>
-                </div>
+                {%- assign sort_by = results.sort_by | default: results.default_sort_by -%}
+                {%- render 'tapi-sort-dropdown',
+                  sort_options: results.sort_options,
+                  current_value: sort_by,
+                  id_suffix: 'horizontal'
+                -%}
               </div>
             </div>
           {%- endif -%}
@@ -831,29 +814,12 @@
             <h2 class="facet-filters__label caption-large text-body">
               <label for="SortBy">{{ 'products.facets.sort_by_label' | t }}</label>
             </h2>
-            <div class="select">
-              {%- assign sort_by = results.sort_by | default: results.default_sort_by -%}
-              <select
-                name="sort_by"
-                class="facet-filters__sort select__select caption-large"
-                id="SortBy"
-                aria-describedby="a11y-refresh-page-message"
-              >
-                {%- for option in results.sort_options -%}
-                  <option
-                    value="{{ option.value | escape }}"
-                    {% if option.value == sort_by %}
-                      selected="selected"
-                    {% endif %}
-                  >
-                    {{ option.name | escape }}
-                  </option>
-                {%- endfor -%}
-              </select>
-              <span class="svg-wrapper">
-                {{- 'icon-caret.svg' | inline_asset_content -}}
-              </span>
-            </div>
+            {%- assign sort_by = results.sort_by | default: results.default_sort_by -%}
+            {%- render 'tapi-sort-dropdown',
+              sort_options: results.sort_options,
+              current_value: sort_by,
+              id_suffix: 'drawer'
+            -%}
           </div>
         </div>
 
