@@ -2301,11 +2301,10 @@ details[open] > summary .icon-caret {
   padding-inline: var(--tapi-gutter);
 }
 
-/* Cart pages — apply the same spacing tokens so item rows and the
-   footer totals stack at the same left/right edges */
-cart-items > .page-width,
-.cart__footer-wrapper > .page-width,
-.template-cart .page-width,
+/* ===== Cart page: items list + sticky checkout aside (desktop) ===== */
+/* Mobile: stays single-column. Desktop ≥990: side-by-side. */
+
+/* Base: apply tapi spacing tokens to the inner page-width wrappers */
 .template-cart cart-items > .page-width,
 .template-cart .cart__footer-wrapper > .page-width {
   max-width: var(--tapi-max, 144rem) !important;
@@ -2314,13 +2313,12 @@ cart-items > .page-width,
   box-sizing: border-box;
 }
 
-/* Cart heading row breathing */
 .template-cart .title-wrapper-with-link {
   padding-block: 0;
   margin-bottom: clamp(2rem, 3vw, 3.2rem);
 }
 
-/* Cart qty input — strip Dawn's thick box border, match the brand */
+/* Cart qty stepper — branded */
 .template-cart .quantity,
 .cart__footer-wrapper .quantity {
   border: 1px solid var(--tapi-hairline, #e5ddc8);
@@ -2345,6 +2343,110 @@ cart-items > .page-width,
 }
 .template-cart .quantity__button:hover,
 .cart__footer-wrapper .quantity__button:hover { color: var(--tapi-terracotta, #b7472a); }
+
+/* === Desktop 2-column: items on left, sticky checkout on right === */
+@media (min-width: 990px) {
+  /* The cart template's main content becomes the grid container */
+  .template-cart #MainContent,
+  body.template-cart main.content-for-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+    column-gap: clamp(2rem, 4vw, 5.6rem);
+    row-gap: clamp(3rem, 4vw, 5rem);
+    max-width: var(--tapi-max, 144rem);
+    margin-inline: auto;
+    padding-inline: var(--tapi-gutter, 16px);
+    box-sizing: border-box;
+    align-items: start;
+  }
+
+  /* Cart-items section: column 1 */
+  .template-cart #shopify-section-cart-items {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  /* Cart-footer section: column 2, sticky */
+  .template-cart #shopify-section-cart-footer {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 120px;
+    align-self: start;
+    min-width: 0;
+  }
+  /* Featured-collection (and anything else): spans both columns */
+  .template-cart #MainContent > section:not(#shopify-section-cart-items):not(#shopify-section-cart-footer) {
+    grid-column: 1 / -1;
+  }
+
+  /* Strip the inner page-width since the grid parent provides the gutter */
+  .template-cart #shopify-section-cart-items cart-items > .page-width,
+  .template-cart #shopify-section-cart-footer .cart__footer-wrapper > .page-width,
+  .template-cart #shopify-section-cart-footer > .cart__footer-wrapper {
+    max-width: none !important;
+    padding-inline: 0 !important;
+  }
+  .template-cart #shopify-section-cart-items cart-items,
+  .template-cart #shopify-section-cart-footer .cart__footer {
+    padding-block: 0 !important;
+  }
+
+  /* Checkout aside framing — give it a card feel so it reads as a panel */
+  .template-cart #shopify-section-cart-footer .cart__footer {
+    background: var(--tapi-ivory, #fcfaf4);
+    border: 1px solid var(--tapi-hairline, #e5ddc8);
+    padding: clamp(20px, 2vw, 32px) !important;
+  }
+  .template-cart #shopify-section-cart-footer .cart__blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  /* CHECK OUT button fills the aside width */
+  .template-cart #shopify-section-cart-footer .cart__ctas .button,
+  .template-cart #shopify-section-cart-footer .cart__ctas button[type="submit"] {
+    width: 100%;
+    min-height: 56px;
+  }
+
+  /* Cart items table: stack qty + line-total under the product info on
+     each row so the row fits the narrower 1.7fr column without overflow */
+  .template-cart .cart-items thead { display: none; }
+  .template-cart .cart-items,
+  .template-cart .cart-items tbody { display: block; width: 100%; }
+  .template-cart .cart-items tr.cart-item {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    column-gap: clamp(16px, 2vw, 28px);
+    align-items: start;
+    padding-block: clamp(20px, 2.4vw, 32px);
+    border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
+  }
+  .template-cart .cart-items tr.cart-item > td { display: block; padding: 0; border: 0; }
+  .template-cart .cart-item__media { grid-column: 1; }
+  .template-cart .cart-item__details { grid-column: 2; }
+  /* Quantity cell + price cell collapse into a row UNDER the product info */
+  .template-cart .cart-item__quantity {
+    grid-column: 2;
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .template-cart .cart-item__totals {
+    grid-column: 2;
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-start;
+  }
+  .template-cart .cart-item__totals .price,
+  .template-cart .cart-item__totals .totals__subtotal-value {
+    font-family: var(--font-heading-family, "Cormorant Garamond", Georgia, serif);
+    font-size: 18px;
+    color: var(--tapi-charcoal, #2c2826);
+  }
+}
 
 /* ====== Tapi filter + sort dropdowns (global, /search and /collections) ====== */
 .facets-container, .facets-vertical-sort, .facets-vertical, .facets, .facets-wrapper {
