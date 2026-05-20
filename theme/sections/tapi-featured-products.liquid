@@ -1,35 +1,38 @@
 {%- assign coll = section.settings.collection -%}
 {%- assign max = section.settings.products_to_show | default: 4 -%}
-<section class="tapi-featured page-width">
-  <header class="tapi-featured__head" data-tapi-reveal>
-    <div>
-      <span class="tapi-eyebrow">{{ section.settings.eyebrow }}</span>
-      <h2 class="tapi-featured__heading">{{ section.settings.heading }}</h2>
-    </div>
-    {%- if coll != blank -%}
-      <a class="tapi-featured__viewall tapi-arrow-slide" href="{{ coll.url }}">{{ section.settings.view_all_text | default: 'View all' }} <em>→</em></a>
-    {%- endif -%}
-  </header>
+<section class="tapi-featured">
+  <div class="tapi-featured__inner">
+    <header class="tapi-featured__head" data-tapi-reveal>
+      <div>
+        <span class="tapi-eyebrow">{{ section.settings.eyebrow }}</span>
+        <h2 class="tapi-featured__heading">{{ section.settings.heading }}</h2>
+      </div>
+      {%- if coll != blank -%}
+        <a class="tapi-featured__viewall tapi-arrow-slide" href="{{ coll.url }}">{{ section.settings.view_all_text | default: 'View all' }} <em>→</em></a>
+      {%- endif -%}
+    </header>
 
-  <div class="tapi-featured__grid" data-tapi-stagger="100">
-    {%- if coll != blank -%}
-      {%- for product in coll.products limit: max -%}
-        <div data-tapi-reveal>
-          {%- render 'card-product-tapi', product: product -%}
-        </div>
-      {%- endfor -%}
-    {%- else -%}
-      {%- for i in (1..max) -%}
-        <div data-tapi-reveal>
-          {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg' }}
-        </div>
-      {%- endfor -%}
-    {%- endif -%}
+    <div class="tapi-featured__grid" data-tapi-stagger="100">
+      {%- if coll != blank -%}
+        {%- for product in coll.products limit: max -%}
+          <div data-tapi-reveal>
+            {%- render 'card-product-tapi', product: product -%}
+          </div>
+        {%- endfor -%}
+      {%- else -%}
+        {%- for i in (1..max) -%}
+          <div data-tapi-reveal>
+            {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg' }}
+          </div>
+        {%- endfor -%}
+      {%- endif -%}
+    </div>
   </div>
 </section>
 
 {% stylesheet %}
-  .tapi-featured { padding: 9.6rem 0; }
+  .tapi-featured { width: 100%; padding-block: clamp(48px, 8vw, 96px); }
+  .tapi-featured__inner { width: 100%; padding-inline: clamp(16px, 4vw, 48px); }
   .tapi-featured__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); gap: 2.4rem; flex-wrap: wrap; }
   .tapi-featured__head .tapi-eyebrow { margin-bottom: 1.2rem; display: block; }
   .tapi-featured__heading { font-family: var(--font-heading-family); font-size: clamp(2.6rem, 4.4vw, 5.2rem); line-height: 1.1; letter-spacing: -0.01em; font-weight: 500; margin: 0; }
@@ -41,7 +44,7 @@
     text-decoration: none; transition: color 240ms;
   }
   .tapi-featured__viewall:hover { color: var(--tapi-terracotta); }
-  .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.8rem; }
+  .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(16px, 2vw, 32px); }
   @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
   @media (max-width: 540px)  { .tapi-featured__grid { grid-template-columns: 1fr; } }
 {% endstylesheet %}

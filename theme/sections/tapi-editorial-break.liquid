@@ -1,23 +1,47 @@
-<section class="tapi-editorial-band page-width" data-tapi-reveal aria-label="Editorial note">
-  <div>
-    <span class="tapi-eyebrow" style="color: var(--tapi-terracotta);">— A note from the studio</span>
-    <h3 class="tapi-editorial-band__quote">"{{ section.settings.quote }}"</h3>
-    <p class="tapi-editorial-band__body">{{ section.settings.body }}</p>
+<section class="tapi-editorial-band" data-tapi-reveal aria-label="Editorial note">
+  <div class="tapi-editorial-band__inner">
+    <div class="tapi-editorial-band__copy">
+      <span class="tapi-eyebrow" style="color: var(--tapi-terracotta);">— A note from the studio</span>
+      <h3 class="tapi-editorial-band__quote">"{{ section.settings.quote }}"</h3>
+      <p class="tapi-editorial-band__body">{{ section.settings.body }}</p>
+    </div>
+    {%- if section.settings.cta_text != blank -%}
+      <a href="{{ section.settings.link | default: '/pages/fabric-guide' }}" class="button button--outline tapi-editorial-band__cta">
+        {{ section.settings.cta_text }} →
+      </a>
+    {%- endif -%}
   </div>
-  {%- if section.settings.cta_text != blank -%}
-    <a href="{{ section.settings.link | default: '/pages/fabric-guide' }}" class="button button--outline tapi-editorial-band__cta">
-      {{ section.settings.cta_text }} →
-    </a>
-  {%- endif -%}
 </section>
 
 {% stylesheet %}
-  .tapi-editorial-band { background: var(--tapi-cream-2); padding: 4.8rem; margin: 5.6rem auto; display: grid; grid-template-columns: 1fr auto; gap: 3.2rem; align-items: center; }
-  .tapi-editorial-band__quote { font-family: var(--font-heading-family); font-size: 2.4rem; font-style: italic; font-weight: 500; line-height: 1.4; margin: 1rem 0; }
-  .tapi-editorial-band__body { color: var(--tapi-warm-grey); margin: 0; line-height: 1.7; }
-  .tapi-editorial-band__cta { white-space: nowrap; align-self: start; }
+  .tapi-editorial-band {
+    background: var(--tapi-cream-2);
+    padding-block: clamp(48px, 7vw, 88px);
+    margin-block: clamp(40px, 5vw, 80px);
+    width: 100%;
+  }
+  .tapi-editorial-band__inner {
+    max-width: var(--page-width, 144rem);
+    margin: 0 auto;
+    padding-inline: clamp(16px, 4vw, 48px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: clamp(24px, 5vw, 64px);
+    align-items: center;
+  }
+  .tapi-editorial-band__copy { max-width: 64ch; }
+  .tapi-editorial-band__quote { font-family: var(--font-heading-family); font-size: clamp(2.2rem, 2.6vw, 3rem); font-style: italic; font-weight: 500; line-height: 1.35; margin: 1rem 0 1.4rem; letter-spacing: -0.008em; }
+  .tapi-editorial-band__body { color: var(--tapi-warm-grey); margin: 0; line-height: 1.7; font-size: 1.5rem; }
+  .tapi-editorial-band__cta {
+    white-space: nowrap;
+    align-self: center;
+    justify-self: end;
+    width: max-content;
+    flex: 0 0 auto;
+  }
   @media (max-width: 749px) {
-    .tapi-editorial-band { grid-template-columns: 1fr; padding: 3.2rem 2.4rem; gap: 2rem; }
+    .tapi-editorial-band__inner { grid-template-columns: 1fr; gap: 2rem; }
+    .tapi-editorial-band__cta { justify-self: start; }
   }
 {% endstylesheet %}
 
