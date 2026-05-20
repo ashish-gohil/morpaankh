@@ -257,7 +257,14 @@
   .tapi-pdp__breadcrumb a:hover { color: var(--tapi-terracotta); }
   .tapi-pdp__breadcrumb span:last-child { color: var(--tapi-charcoal); }
 
-  .tapi-pdp__layout { display: grid; grid-template-columns: 80px 1fr 1fr; gap: 3.2rem; align-items: start; }
+  .tapi-pdp__breadcrumb.page-width,
+  .tapi-pdp__layout.page-width {
+    max-width: var(--tapi-max, 144rem) !important;
+    margin-inline: auto;
+    padding-inline: var(--tapi-gutter, 16px) !important;
+    box-sizing: border-box;
+  }
+  .tapi-pdp__layout { display: grid; grid-template-columns: 80px 1fr 1fr; gap: clamp(2.4rem, 4vw, 5.6rem); align-items: start; }
   .tapi-pdp__gallery { display: contents; }
   .tapi-pdp__gallery-thumbs { display: flex; flex-direction: column; gap: 0.8rem; position: sticky; top: 130px; }
   .tapi-pdp__thumb { width: 72px; height: 90px; border: 1px solid var(--tapi-hairline-2); padding: 2px; background: transparent; cursor: pointer; transition: border-color 200ms; overflow: hidden; }
