@@ -1861,8 +1861,13 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
   box-shadow: 0 24px 48px -28px rgba(44, 40, 38, 0.18);
   padding: clamp(76px, 9vw, 100px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
-  max-height: 100vh;
+  /* Cap at 90% of the viewport so the panel never overflows past the
+     screen — use dvh on supporting browsers so mobile URL/toolbar chrome
+     doesn't cut off the bottom. Fallback to vh for older Safari. */
+  max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   animation: tapi-search-slide-down 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -1879,11 +1884,18 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 
 /* ---- Input row ---- */
+/* Sticky so the search field stays visible while scrolling long result
+   lists; sits flush at the top of the panel's scroll area. */
 .tapi-search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 12px;
+  padding-top: 4px;
   padding-bottom: 12px;
+  background: var(--tapi-cream, #f8f4ed);
   border-bottom: 1px solid var(--tapi-charcoal, #2c2826);
 }
 .tapi-search-bar__icon {
