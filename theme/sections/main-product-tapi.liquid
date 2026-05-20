@@ -158,18 +158,24 @@
           </div>
         {%- endif -%}
 
-        {%- if m.fit_pct_true -%}
+        {%- liquid
+          assign fb_total = product.metafields.custom.fit_feedback_total_buyers.value | plus: 0
+          assign fb_down  = product.metafields.custom.fit_feedback_size_down_pct.value | plus: 0
+          assign fb_true  = product.metafields.custom.fit_feedback_true_pct.value | plus: 0
+          assign fb_up    = product.metafields.custom.fit_feedback_size_up_pct.value | plus: 0
+        -%}
+        {%- if fb_total > 0 -%}
           <div class="tapi-fit-feedback" role="group" aria-label="Fit feedback">
-            <strong>Fit feedback from {{ m.review_count | default: '100+' }} buyers</strong>
+            <strong>Fit feedback from {{ fb_total }} buyers</strong>
             <div class="tapi-fit-feedback__bar" data-tapi-reveal>
-              <span style="--w: {{ m.fit_pct_down }}%; background: var(--tapi-terracotta-soft);"></span>
-              <span style="--w: {{ m.fit_pct_true }}%; background: var(--tapi-sage);"></span>
-              <span style="--w: {{ m.fit_pct_up }}%; background: var(--tapi-terracotta);"></span>
+              <span style="--w: {{ fb_down }}%; background: var(--tapi-terracotta-soft);"></span>
+              <span style="--w: {{ fb_true }}%; background: var(--tapi-sage);"></span>
+              <span style="--w: {{ fb_up }}%;   background: var(--tapi-terracotta);"></span>
             </div>
             <div class="tapi-fit-feedback__legend">
-              <span>{{ m.fit_pct_down }}% size down</span>
-              <span>{{ m.fit_pct_true }}% true</span>
-              <span>{{ m.fit_pct_up }}% size up</span>
+              <span>{{ fb_down }}% size down</span>
+              <span>{{ fb_true }}% true</span>
+              <span>{{ fb_up }}% size up</span>
             </div>
           </div>
         {%- endif -%}
@@ -403,19 +409,75 @@
   @media (prefers-reduced-motion: reduce) { .tapi-pdp__size.is-low::before { animation: none; } }
   .tapi-pdp__stock-note { margin: 0; font-size: 1.2rem; color: var(--tapi-warm-grey); }
 
-  .tapi-fit-feedback { margin-top: 0; margin-bottom: 1.6rem; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: 2px; font-size: 1.3rem; }
+  /* Stock note → fit feedback breathing room */
+  .tapi-pdp__stock-note { margin: 0 0 1.8rem; }
+  .tapi-fit-feedback { margin-top: 0; margin-bottom: 2.4rem; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: 2px; font-size: 1.3rem; max-width: 440px; }
   .tapi-fit-feedback__bar { display: flex; height: 6px; background: var(--tapi-cream); border-radius: 3px; overflow: hidden; margin: 0.8rem 0 0.6rem; }
   .tapi-fit-feedback__bar > span { display: block; height: 100%; width: 0; transition: width 1200ms cubic-bezier(0.16,1,0.3,1); }
   .tapi-fit-feedback__bar.in > span { width: var(--w); }
   .tapi-fit-feedback__legend { display: flex; justify-content: space-between; font-size: 1.1rem; color: var(--tapi-warm-grey); }
 
-  .tapi-pdp__cta-row { display: flex; gap: 1.2rem; align-items: stretch; margin-bottom: 1.2rem; }
-  .tapi-pdp__qty { display: flex; align-items: center; border: 1px solid var(--tapi-hairline-2); height: 48px; flex: 0 0 auto; }
-  .tapi-pdp__qty button { width: 40px; height: 100%; background: transparent; border: none; font-size: 1.6rem; cursor: pointer; }
-  .tapi-pdp__qty input { width: 40px; height: 100%; text-align: center; border: none; background: transparent; font-family: inherit; font-size: 1.4rem; font-variant-numeric: tabular-nums; appearance: textfield; }
-  .tapi-pdp__qty input::-webkit-outer-spin-button, .tapi-pdp__qty input::-webkit-inner-spin-button { appearance: none; }
-  .tapi-pdp__add { flex: 1; height: 48px !important; min-height: 48px !important; padding: 0 1.8rem !important; font-size: 1.3rem !important; letter-spacing: 0.08em; }
-  .tapi-pdp__buynow { width: 100%; height: 48px !important; min-height: 48px !important; padding: 0 1.8rem !important; font-size: 1.3rem !important; letter-spacing: 0.08em; }
+  .tapi-pdp__cta-row {
+    display: flex;
+    gap: 1.2rem;
+    align-items: stretch;
+    margin-bottom: 1.4rem;
+    max-width: 440px;
+  }
+  .tapi-pdp__qty {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--tapi-hairline-2);
+    height: 48px;
+    flex: 0 0 auto;
+    transition: border-color 220ms ease;
+  }
+  .tapi-pdp__qty:hover { border-color: var(--tapi-charcoal); }
+  .tapi-pdp__qty button {
+    width: 38px; height: 100%;
+    background: transparent; border: none;
+    font-size: 1.6rem; cursor: pointer;
+    color: var(--tapi-charcoal);
+    transition: color 220ms ease;
+  }
+  .tapi-pdp__qty button:hover { color: var(--tapi-terracotta); }
+  .tapi-pdp__qty input {
+    width: 36px; height: 100%;
+    text-align: center;
+    border: none; background: transparent;
+    font-family: inherit; font-size: 1.3rem;
+    font-variant-numeric: tabular-nums;
+    appearance: textfield;
+    color: var(--tapi-charcoal);
+  }
+  .tapi-pdp__qty input::-webkit-outer-spin-button,
+  .tapi-pdp__qty input::-webkit-inner-spin-button { appearance: none; }
+  .tapi-pdp__add {
+    flex: 1;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 1.8rem !important;
+    font-size: 1.2rem !important;
+    letter-spacing: 0.1em;
+    transition: background-color 220ms ease, transform 160ms ease;
+  }
+  .tapi-pdp__add:not(:disabled):hover { background-color: var(--tapi-charcoal-2, #1f1c1a); }
+  .tapi-pdp__add:not(:disabled):active { transform: translateY(1px); }
+  .tapi-pdp__buynow {
+    width: 100%;
+    max-width: 440px;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 1.8rem !important;
+    font-size: 1.2rem !important;
+    letter-spacing: 0.1em;
+    transition: background-color 220ms ease, transform 160ms ease;
+  }
+  .tapi-pdp__buynow:not(:disabled):hover { background-color: var(--tapi-terracotta-deep, #9d3c23); }
+  .tapi-pdp__buynow:not(:disabled):active { transform: translateY(1px); }
+  @media (max-width: 480px) {
+    .tapi-pdp__cta-row, .tapi-pdp__buynow, .tapi-fit-feedback { max-width: none; }
+  }
 
   .tapi-pdp__accordions { display: flex; flex-direction: column; border-top: 1px solid var(--tapi-hairline); }
   .tapi-acc { border-bottom: 1px solid var(--tapi-hairline); }
