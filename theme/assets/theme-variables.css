@@ -1922,9 +1922,21 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   display: block;
   background: transparent;
   pointer-events: auto;
-  /* Above Dawn's header (z-index ~5) and the sticky announcement bar
-     (z-index ~3) so the panel fully covers the page when open. */
-  z-index: 1000;
+  /* Sit above everything — hero overlay, trust marquee (z51), content. */
+  z-index: 9999;
+}
+/* When the search is open, lift the whole header section (the modal's
+   stacking-context parent) above the trust marquee and the hero overlay,
+   so nothing behind the panel can bleed through. The header lives in a
+   section group, so its wrapper id is sections--…__header; match by the
+   .section-header class plus the shopify-section wrapper to be safe. */
+.shopify-section.section-header:has(.tapi-search details[open]),
+.shopify-section-group-header-group:has(.tapi-search details[open]),
+.section-header:has(.tapi-search details[open]),
+[id^="shopify-section"]:has(> .tapi-search details[open]),
+[id^="shopify-section"]:has(.header__search details[open]) {
+  position: relative;
+  z-index: 10000 !important;
 }
 .tapi-search-backdrop {
   position: fixed;
@@ -1953,10 +1965,14 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   height: auto !important;
   width: 100%;
   z-index: 1;
-  background: var(--tapi-cream, #f8f4ed);
-  border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
-  box-shadow: 0 24px 48px -28px rgba(44, 40, 38, 0.18);
-  padding: clamp(20px, 3vw, 40px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
+  /* Fully opaque so nothing behind the panel shows through. Literal hex
+     (not a var) guarantees opacity even if a token is overridden. */
+  background: #F8F4ED !important;
+  background: var(--mor-cream, #F8F4ED) !important;
+  border-bottom: 1px solid var(--mor-hairline, #e5ddc8);
+  box-shadow: var(--mor-shadow-lg, 0 24px 48px -28px rgba(44, 40, 38, 0.18));
+  /* Extra top room so the input clears the screen edge and is comfortable to type in */
+  padding: clamp(32px, 4vw, 56px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
   /* Cap at 90% of the viewport so the panel never overflows past the
      screen — use dvh on supporting browsers so mobile URL/toolbar chrome
      doesn't cut off the bottom. Fallback to vh for older Safari. */
