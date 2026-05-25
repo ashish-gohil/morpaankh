@@ -38,15 +38,15 @@
   .tapi-featured__inner { width: 100%; padding-inline: clamp(16px, 4vw, 48px); }
   .tapi-featured__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); gap: 2.4rem; flex-wrap: wrap; }
   .tapi-featured__head .tapi-eyebrow { margin-bottom: 1.2rem; display: block; }
-  .tapi-featured__heading { font-family: var(--font-heading-family); font-size: clamp(2.6rem, 4.4vw, 5.2rem); line-height: 1.1; letter-spacing: -0.01em; font-weight: 500; margin: 0; }
+  .tapi-featured__heading { font-family: var(--font-heading-family); font-size: var(--mor-h2); line-height: var(--mor-leading-snug); letter-spacing: -0.01em; font-weight: 500; margin: 0; }
   .tapi-featured__viewall {
     display: inline-flex; align-items: center; gap: 10px;
     height: 48px; padding: 0;
-    font-size: 1.3rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--tapi-charcoal); background: transparent; border: none;
-    text-decoration: none; transition: color 240ms;
+    font-size: var(--mor-text-sm); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--mor-text); background: transparent; border: none;
+    text-decoration: none; transition: color var(--mor-dur-base) var(--mor-ease);
   }
-  .tapi-featured__viewall:hover { color: var(--tapi-terracotta); }
+  .tapi-featured__viewall:hover { color: var(--mor-accent); }
   .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tapi-card-gap, 24px); }
   @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
   @media (max-width: 540px)  { .tapi-featured__grid { grid-template-columns: 1fr; row-gap: 3rem;} }

@@ -38,33 +38,33 @@
 </section>
 
 {% stylesheet %}
-  .tapi-collection-tiles { background: var(--tapi-cream-2); padding: 9.6rem 0; }
+  .tapi-collection-tiles { background: var(--mor-surface-2); }
   .tapi-collection-tiles__head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 4.8rem; gap: 3.2rem; flex-wrap: wrap; }
-  .tapi-collection-tiles__heading { font-family: var(--font-heading-family); font-size: clamp(3rem, 6vw, 6rem); margin: 1.2rem 0 0; font-weight: 500; letter-spacing: -0.012em; }
-  .tapi-collection-tiles__intro { color: var(--tapi-warm-grey); font-size: 1.5rem; line-height: 1.6; max-width: 36rem; margin: 0; }
+  .tapi-collection-tiles__heading { font-family: var(--font-heading-family); font-size: var(--mor-h2); margin: 1.2rem 0 0; font-weight: 500; letter-spacing: -0.012em; }
+  .tapi-collection-tiles__intro { color: var(--mor-text-muted); font-size: var(--mor-text-base); line-height: var(--mor-leading-body); max-width: 36rem; margin: 0; }
   .tapi-collection-tiles__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--tapi-card-gap, 2.4rem); }
   .tapi-tile { display: flex; flex-direction: column; gap: 2rem; text-decoration: none; color: inherit; height: 100%; }
   .tapi-tile__media { aspect-ratio: 4 / 5; overflow: hidden; position: relative; }
-  .tapi-tile__media img, .tapi-tile__placeholder { width: 100%; height: 100%; object-fit: cover; transition: transform 1200ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-tile__media img, .tapi-tile__placeholder { width: 100%; height: 100%; object-fit: cover; transition: transform 1200ms var(--mor-ease); }
   .tapi-tile:hover .tapi-tile__media img, .tapi-tile:hover .tapi-tile__placeholder { transform: scale(1.06); }
 
   .tapi-tile__info { display: flex; flex-direction: column; flex: 1; }
   .tapi-tile__title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1.2rem; margin-bottom: 0.6rem; }
-  .tapi-tile__title { font-family: var(--font-heading-family); font-size: 2.6rem; margin: 0; font-weight: 500; letter-spacing: -0.008em; transition: color 240ms; }
-  .tapi-tile:hover .tapi-tile__title { color: var(--tapi-terracotta); }
-  .tapi-tile__count { font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tapi-tile__title { font-family: var(--font-heading-family); font-size: var(--mor-h3); margin: 0; font-weight: 500; letter-spacing: -0.008em; transition: color var(--mor-dur-base) var(--mor-ease); }
+  .tapi-tile:hover .tapi-tile__title { color: var(--mor-accent); }
+  .tapi-tile__count { font-size: var(--mor-text-xs); color: var(--mor-text-subtle); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tapi-tile__info > .tapi-eyebrow { margin-bottom: 1rem; }
-  .tapi-tile__blurb { color: var(--tapi-warm-grey); margin: 0; line-height: 1.6; font-size: 1.4rem; flex: 1; }
-  .tapi-tile__arrow { margin-top: 2rem; display: inline-flex; align-items: center; gap: 1.2rem; font-size: 1.2rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tapi-charcoal); align-self: flex-start; position: relative; padding-right: 0.4rem; }
-  .tapi-tile__arrow em { font-style: normal; font-size: 2.2rem; line-height: 1; display: inline-block; transform: translateX(0); transition: transform 420ms cubic-bezier(0.22,1,0.36,1), letter-spacing 420ms cubic-bezier(0.22,1,0.36,1); will-change: transform; }
-  .tapi-tile__arrow::before { content: ""; position: absolute; left: 0; right: 100%; bottom: -0.4rem; height: 1px; background: var(--tapi-terracotta, #b7472a); transition: right 480ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-tile__blurb { color: var(--mor-text-muted); margin: 0; line-height: var(--mor-leading-body); font-size: var(--mor-text-sm); flex: 1; }
+  .tapi-tile__arrow { margin-top: 2rem; display: inline-flex; align-items: center; gap: 1.2rem; font-size: var(--mor-text-xs); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mor-text); align-self: flex-start; position: relative; padding-right: 0.4rem; }
+  .tapi-tile__arrow em { font-style: normal; font-size: 2.2rem; line-height: 1; display: inline-block; transform: translateX(0); transition: transform 420ms var(--mor-ease), letter-spacing 420ms var(--mor-ease); will-change: transform; }
+  .tapi-tile__arrow::before { content: ""; position: absolute; left: 0; right: 100%; bottom: -0.4rem; height: 1px; background: var(--mor-accent); transition: right 480ms var(--mor-ease); }
   .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(14px); }
   .tapi-tile:hover .tapi-tile__arrow::before { right: 0; }
   .tapi-tile__placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-image:
     repeating-linear-gradient(45deg, rgba(255,255,255,0.1) 0 1px, transparent 1px 6px),
     radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), transparent 70%);
     background-color: var(--p-color); }
-  .tapi-tile__placeholder span { font-family: var(--font-heading-family); font-style: italic; font-size: 6rem; color: var(--tapi-cream); }
+  .tapi-tile__placeholder span { font-family: var(--font-heading-family); font-style: italic; font-size: 6rem; color: var(--mor-cream); }
   @media (max-width: 989px) { .tapi-collection-tiles__grid { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 640px) { .tapi-collection-tiles__grid { grid-template-columns: 1fr; } }
 {% endstylesheet %}

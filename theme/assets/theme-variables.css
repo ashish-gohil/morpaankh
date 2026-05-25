@@ -33,6 +33,54 @@
   --mor-sage-wash:       #E3E6D6;
 
   --mor-gold:            #B08947;
+  --mor-gold-deep:       #8F6E34;
+
+  /* Primary brand colour — forest green. Drives main CTAs, links, focus. */
+  --mor-primary:         #2E4B3C;
+  --mor-primary-deep:    #233A2E;
+  --mor-primary-soft:    #5C7A66;
+  --mor-primary-wash:    #DDE5DD;
+
+  /* Semantic aliases (prefer these in new component code) */
+  --mor-surface:         var(--mor-cream);
+  --mor-surface-2:       var(--mor-cream-2);
+  --mor-surface-raised:  var(--mor-ivory);
+  --mor-text:            var(--mor-charcoal);
+  --mor-text-muted:      var(--mor-warm-grey);
+  --mor-text-subtle:     var(--mor-muted);
+  --mor-border:          var(--mor-hairline);
+  /* --mor-accent (terracotta) is declared in the brand-tokens block above */
+
+  /* ---------- Type scale (4 heading roles + body steps) ---------- */
+  --mor-h1:        clamp(3.4rem, 6.5vw, 7.6rem);  /* hero only */
+  --mor-h2:        clamp(2.8rem, 4.5vw, 5.2rem);  /* every section heading */
+  --mor-h3:        clamp(2rem, 3vw, 2.8rem);      /* card / sub headings */
+  --mor-h4:        clamp(1.6rem, 2vw, 2rem);
+  --mor-text-lg:   1.7rem;
+  --mor-text-base: 1.5rem;
+  --mor-text-sm:   1.3rem;
+  --mor-text-xs:   1.1rem;   /* eyebrows, labels, meta */
+  --mor-leading-tight: 1.04;
+  --mor-leading-snug:  1.3;
+  --mor-leading-body:  1.65;
+
+  /* ---------- Radius scale ---------- */
+  --mor-radius-sm:   2px;
+  --mor-radius-md:   4px;
+  --mor-radius-lg:   8px;
+  --mor-radius-pill: 9999px;
+
+  /* ---------- Elevation (3 tiers) ---------- */
+  --mor-shadow-sm: 0 1px 2px rgba(44, 40, 38, 0.05);
+  --mor-shadow-md: 0 12px 24px -16px rgba(44, 40, 38, 0.22);
+  --mor-shadow-lg: 0 24px 48px -28px rgba(44, 40, 38, 0.26);
+
+  /* ---------- Motion ---------- */
+  --mor-dur-fast: 150ms;
+  --mor-dur-base: 250ms;
+  --mor-dur-slow: 400ms;
+  --mor-ease:     cubic-bezier(0.22, 1, 0.36, 1);
+  --mor-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* ---------- Back-compat aliases ----------
      Existing CSS still references --tapi-*. These aliases route
@@ -66,15 +114,15 @@
   --color-foreground:        44, 40, 38;      /* charcoal */
   --color-foreground-secondary: 107, 93, 84;  /* warm-grey */
 
-  --color-button:            44, 40, 38;      /* primary CTA = charcoal */
+  --color-button:            46, 75, 60;      /* primary CTA = forest green #2E4B3C */
   --color-button-text:       248, 244, 237;
   --color-secondary-button:  248, 244, 237;
-  --color-secondary-button-text: 44, 40, 38;
+  --color-secondary-button-text: 46, 75, 60;
 
-  --color-accent-1:          183, 71, 42;     /* terracotta */
-  --color-accent-2:          122, 135, 97;    /* sage */
+  --color-accent-1:          183, 71, 42;     /* terracotta (accent) */
+  --color-accent-2:          46, 75, 60;      /* forest green (primary) */
 
-  --color-link:              44, 40, 38;
+  --color-link:              46, 75, 60;      /* forest green */
   --color-shadow:            44, 40, 38;
 
   /* ---------- Type ---------- */
@@ -129,7 +177,7 @@ h1, h2, h3, h4, h5, h6,
 /* ---------- Buttons — small radius, uppercase, tracked ---------- */
 .button,
 button.shopify-payment-button__button--unbranded {
-  border-radius: 2px;
+  border-radius: var(--mor-radius-sm);
   font-family: var(--font-body-family);
   font-size: 1.3rem;
   font-weight: 500;
@@ -137,31 +185,35 @@ button.shopify-payment-button__button--unbranded {
   text-transform: uppercase;
   height: 4.8rem;
   padding: 0 2.2rem;
+  transition: background-color var(--mor-dur-base) var(--mor-ease),
+              color var(--mor-dur-base) var(--mor-ease),
+              transform var(--mor-dur-fast) var(--mor-ease);
 }
+.button:not(:disabled):active { transform: translateY(1px); }
 .button--primary {
-  background: var(--tapi-charcoal);
-  color: var(--tapi-cream);
+  background: var(--mor-primary);
+  color: var(--mor-cream);
   border: none;
 }
 .button--primary:hover {
-  background: var(--tapi-terracotta);
+  background: var(--mor-primary-deep);
 }
 .button--terracotta {
-  background: var(--tapi-terracotta);
-  color: var(--tapi-cream);
+  background: var(--mor-accent);
+  color: var(--mor-cream);
   border: none;
 }
 .button--terracotta:hover {
-  background: var(--tapi-terracotta-deep);
+  background: var(--mor-accent-deep);
 }
 .button--outline {
   background: transparent;
-  color: var(--tapi-charcoal);
-  border: 1px solid var(--tapi-charcoal);
+  color: var(--mor-primary);
+  border: 1px solid var(--mor-primary);
 }
 .button--outline:hover {
-  background: var(--tapi-charcoal);
-  color: var(--tapi-cream);
+  background: var(--mor-primary);
+  color: var(--mor-cream);
 }
 
 /* ---------- Product card ---------- */
