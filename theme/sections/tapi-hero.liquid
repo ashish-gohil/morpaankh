@@ -282,12 +282,22 @@
   }
 
   /* ===== Copy: DESKTOP (>=990) — overlays the image, cream text ===== */
+  /* Kill the gap above the hero: the mobile catalog strip's section wrapper
+     stays in flow on desktop (only its <nav> is hidden), and the hero's
+     .section wrapper can pick up section margin. Collapse both. */
   @media (min-width: 990px) {
+    .shopify-section--catalog-strip { display: none !important; }
+    .shopify-section.section:has(> .tapi-hero) { margin-top: 0 !important; }
+  }
+
+  @media (min-width: 990px) {
+    /* Stronger left-weighted scrim so cream copy + gold accent stay readable
+       on ANY photograph, not just this sage placeholder. */
     .tapi-hero__scrim {
       display: block;
       background:
-        linear-gradient(90deg, rgba(20,18,16,0.64) 0%, rgba(20,18,16,0.36) 38%, rgba(20,18,16,0) 70%),
-        linear-gradient(0deg, rgba(20,18,16,0.42) 0%, rgba(20,18,16,0) 42%);
+        linear-gradient(90deg, rgba(18,16,14,0.80) 0%, rgba(18,16,14,0.55) 34%, rgba(18,16,14,0.12) 64%, rgba(18,16,14,0) 82%),
+        linear-gradient(0deg, rgba(18,16,14,0.40) 0%, rgba(18,16,14,0) 38%);
     }
     .tapi-hero__overlay {
       position: absolute;
@@ -302,8 +312,13 @@
       background: transparent;
       padding: 0;
     }
-    .tapi-hero__copy { text-align: left; pointer-events: auto; }
-    .tapi-hero__copy > * { max-width: 58rem; }
+    /* Defined left inset + capped text column for a clean editorial block */
+    .tapi-hero__copy {
+      text-align: left;
+      pointer-events: auto;
+      padding-inline: clamp(48px, 6vw, 104px);
+    }
+    .tapi-hero__copy > * { max-width: 54rem; }
     .tapi-hero__eyebrow { color: rgba(248, 244, 237, 0.88); }
     .tapi-hero__title {
       color: var(--mor-cream);
