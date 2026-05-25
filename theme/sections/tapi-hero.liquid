@@ -322,9 +322,14 @@
     .tapi-hero__eyebrow { color: rgba(248, 244, 237, 0.88); }
     .tapi-hero__title {
       color: var(--mor-cream);
-      text-shadow: 0 1px 24px rgba(20,18,16,0.32);
+      text-shadow: 0 2px 28px rgba(18,16,14,0.55), 0 1px 3px rgba(18,16,14,0.4);
     }
-    .tapi-hero__title-accent { color: var(--mor-gold); }
+    /* Brighter gold + its own shadow so the accent reads on ANY slide,
+       including the light gold "Mehfil" image (worst-case contrast). */
+    .tapi-hero__title-accent {
+      color: #E2BE78;
+      text-shadow: 0 2px 28px rgba(18,16,14,0.6), 0 1px 3px rgba(18,16,14,0.45);
+    }
     .tapi-hero__lede {
       color: rgba(248, 244, 237, 0.92);
       margin: 0 0 3rem;
