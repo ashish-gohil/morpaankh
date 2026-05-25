@@ -37,7 +37,9 @@
   .tapi-featured { width: 100%; padding-block: clamp(48px, 8vw, 96px); }
   .tapi-featured__inner { width: 100%; padding-inline: clamp(16px, 4vw, 48px); }
   .tapi-featured__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); gap: 2.4rem; flex-wrap: wrap; }
-  .tapi-featured__head .tapi-eyebrow { margin-bottom: 1.2rem; display: block; }
+  /* inline-flex (not block) so the .tapi-eyebrow--line ::before bar keeps its
+     width/height and animates on hover, matching every other section's eyebrow */
+  .tapi-featured__head .tapi-eyebrow { margin-bottom: 1.2rem; display: inline-flex; }
   .tapi-featured__heading { font-family: var(--font-heading-family); font-size: var(--mor-h2); line-height: var(--mor-leading-snug); letter-spacing: -0.01em; font-weight: 500; margin: 0; }
   .tapi-featured__viewall {
     display: inline-flex; align-items: center; gap: 10px;
