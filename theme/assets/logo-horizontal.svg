@@ -1,9 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 44" width="220" height="44">
-  
-  <circle cx="22" cy="22" r="21" stroke="#2C2826" stroke-width="1" fill="none"></circle>
-  <path d="M9 18 C 14 14, 18 22, 22 18 S 30 14, 35 18" stroke="#2C2826" stroke-width="1.1" fill="none" stroke-linecap="round"></path>
-  <path d="M9 23 C 14 19, 18 27, 22 23 S 30 19, 35 23" stroke="#2C2826" stroke-width="1.1" fill="none" stroke-linecap="round"></path>
-  <path d="M9 28 C 14 24, 18 32, 22 28 S 30 24, 35 28" stroke="#2C2826" stroke-width="1.1" fill="none" stroke-linecap="round"></path>
-  
-  <text x="58" y="29" fill="#2C2826" font-family="Cormorant Garamond, Georgia, serif" font-size="28" font-weight="500" letter-spacing="-0.012em">Tapi <tspan font-style="italic" font-weight="400">&amp;</tspan> Co.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 44" width="260" height="44">
+  <path d="M22 4 C 30 12, 36 20, 32 30 C 30 36, 26 40, 22 40 C 18 40, 14 36, 12 30 C 8 20, 14 12, 22 4 Z" stroke="#2C2826" stroke-width="1.1" fill="none" stroke-linejoin="round"/>
+  <ellipse cx="22" cy="22" rx="7" ry="9" stroke="#2C2826" stroke-width="1" fill="none"/>
+  <ellipse cx="22" cy="22" rx="3" ry="4" fill="#2C2826"/>
+  <text x="58" y="29" fill="#2C2826" font-family="Cormorant Garamond, Georgia, serif" font-size="28" font-weight="500" letter-spacing="-0.012em">Mor <tspan font-style="italic" font-weight="500">Paankh</tspan></text>
 </svg>

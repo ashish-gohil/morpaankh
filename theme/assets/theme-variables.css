@@ -1,44 +1,62 @@
 /* ============================================================
-   theme-variables.css — Tapi & Co. theme overrides for Dawn
-   Drop into your Dawn theme's /assets/ folder.
-   Link from layout/theme.liquid BELOW Dawn's base.css:
-
-   {{ 'theme-variables.css' | asset_url | stylesheet_tag }}
-
-   This file:
-     1. Defines our brand tokens as CSS custom properties
-     2. Overrides Dawn's --color-* variables so its built-in
-        components (cards, buttons, headers) reskin automatically
-     3. Loads Cormorant Garamond + Inter (Dawn also lets you
-        do this via theme settings — either works)
+   theme-variables.css — Mor Paankh theme overrides for Dawn
+   Single source of truth for brand tokens. When the logo is
+   final and we shift to a peacock palette, only the --mor-*
+   values below change; the --tapi-* aliases beneath route the
+   rest of the theme automatically.
    ============================================================ */
 
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap");
 
 :root {
-  /* ---------- Tapi brand tokens ---------- */
-  --tapi-cream:           #F8F4ED;
-  --tapi-cream-2:         #F1EBDD;
-  --tapi-ivory:           #FCFAF4;
-  --tapi-paper:           #FFFFFF;
+  /* ---------- Mor Paankh brand tokens (canonical) ---------- */
+  --mor-cream:           #F8F4ED;
+  --mor-cream-2:         #F1EBDD;
+  --mor-ivory:           #FCFAF4;
+  --mor-paper:           #FFFFFF;
 
-  --tapi-charcoal:        #2C2826;
-  --tapi-charcoal-2:      #3A3431;
-  --tapi-warm-grey:       #6B5D54;
-  --tapi-muted:           #9A8D83;
-  --tapi-hairline:        #E5DDC8;
-  --tapi-hairline-2:      #D6CDB8;
+  --mor-charcoal:        #2C2826;
+  --mor-charcoal-2:      #3A3431;
+  --mor-warm-grey:       #6B5D54;
+  --mor-muted:           #9A8D83;
+  --mor-hairline:        #E5DDC8;
+  --mor-hairline-2:      #D6CDB8;
 
-  --tapi-terracotta:      #B7472A;
-  --tapi-terracotta-deep: #8F3621;
-  --tapi-terracotta-soft: #D97A5F;
-  --tapi-terracotta-wash: #F3D9CD;
+  /* Accent (will shift to peacock teal/emerald when logo arrives) */
+  --mor-accent:          #B7472A;
+  --mor-accent-deep:     #8F3621;
+  --mor-accent-soft:     #D97A5F;
+  --mor-accent-wash:     #F3D9CD;
 
-  --tapi-sage:            #7A8761;
-  --tapi-sage-deep:       #5A6748;
-  --tapi-sage-wash:       #E3E6D6;
+  --mor-sage:            #7A8761;
+  --mor-sage-deep:       #5A6748;
+  --mor-sage-wash:       #E3E6D6;
 
-  --tapi-gold:            #B08947;
+  --mor-gold:            #B08947;
+
+  /* ---------- Back-compat aliases ----------
+     Existing CSS still references --tapi-*. These aliases route
+     to the canonical --mor-* tokens above so a future palette
+     change is a single-file edit. Do NOT add new --tapi-* refs;
+     prefer --mor-* in new code. */
+  --tapi-cream:           var(--mor-cream);
+  --tapi-cream-2:         var(--mor-cream-2);
+  --tapi-ivory:           var(--mor-ivory);
+  --tapi-paper:           var(--mor-paper);
+  --tapi-charcoal:        var(--mor-charcoal);
+  --tapi-charcoal-2:      var(--mor-charcoal-2);
+  --tapi-warm-grey:       var(--mor-warm-grey);
+  --tapi-muted:           var(--mor-muted);
+  --tapi-hairline:        var(--mor-hairline);
+  --tapi-hairline-2:      var(--mor-hairline-2);
+  --tapi-terracotta:      var(--mor-accent);
+  --tapi-terracotta-deep: var(--mor-accent-deep);
+  --tapi-terracotta-soft: var(--mor-accent-soft);
+  --tapi-terracotta-wash: var(--mor-accent-wash);
+  --tapi-sage:            var(--mor-sage);
+  --tapi-sage-deep:       var(--mor-sage-deep);
+  --tapi-sage-wash:       var(--mor-sage-wash);
+  --tapi-gold:            var(--mor-gold);
 
   /* ---------- Dawn variable overrides ----------
      Dawn uses these natively; overriding them re-skins

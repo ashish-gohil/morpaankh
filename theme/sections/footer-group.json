@@ -5,10 +5,10 @@
     "footer": {
       "type": "tapi-footer",
       "settings": {
-        "news_eyebrow": "Letters from the loom",
-        "news_title": "Letters from the loom.",
-        "news_body": "Once a fortnight: new arrivals, the story behind the fabric, and a small thing we made by hand.",
-        "about_blurb": "A small family in Surat making considered ethnic wear. Honest fabric. Honest fit. Honest photography."
+        "news_eyebrow": "Letters from the studio",
+        "news_title": "Letters from the studio.",
+        "news_body": "Once a fortnight: new arrivals, the story behind the fabric, and notes from our workshop in Surat.",
+        "about_blurb": "Mor Paankh is a small studio in Surat, handcrafting Indian ethnic wear for everyday and occasion. Honest fabric. Honest fit. Photographs that match what arrives."
       },
       "blocks": {
         "shop":   { "type": "links",   "settings": { "title": "Shop",   "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
