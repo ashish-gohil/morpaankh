@@ -50,6 +50,71 @@
         "cta_secondary_link": "shopify://pages/about"
       }
     },
+    "tapi_catalog_strip": {
+      "type": "tapi-catalog-strip",
+      "blocks": {
+        "kurta": {
+          "type": "tile",
+          "settings": {
+            "label": "Kurta Sets",
+            "placeholder_name": "Saanjh",
+            "tint": "#b7472a"
+          }
+        },
+        "coord": {
+          "type": "tile",
+          "settings": {
+            "label": "Co-ords",
+            "placeholder_name": "Amba",
+            "tint": "#7a8761"
+          }
+        },
+        "festive": {
+          "type": "tile",
+          "settings": {
+            "label": "Festive",
+            "placeholder_name": "Mehfil",
+            "tint": "#b08947"
+          }
+        },
+        "dupatta": {
+          "type": "tile",
+          "settings": {
+            "label": "Dupattas",
+            "placeholder_name": "Dhoop",
+            "tint": "#9d3c23"
+          }
+        },
+        "newin": {
+          "type": "tile",
+          "settings": {
+            "label": "New In",
+            "placeholder_name": "New",
+            "tint": "#3a3633"
+          }
+        },
+        "all": {
+          "type": "tile",
+          "settings": {
+            "label": "All",
+            "link": "/collections/all",
+            "placeholder_name": "All",
+            "tint": "#7a766f"
+          }
+        }
+      },
+      "block_order": [
+        "kurta",
+        "coord",
+        "festive",
+        "dupatta",
+        "newin",
+        "all"
+      ],
+      "settings": {
+        "aria_label": "Shop by category"
+      }
+    },
     "tapi_collection_tiles": {
       "type": "tapi-collection-tiles",
       "blocks": {
@@ -200,6 +265,7 @@
     }
   },
   "order": [
+    "tapi_catalog_strip",
     "tapi_hero",
     "tapi_collection_tiles",
     "tapi_featured",

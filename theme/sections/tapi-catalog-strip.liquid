@@ -1,0 +1,153 @@
+<nav class="tapi-catalog-strip" aria-label="{{ section.settings.aria_label | default: 'Shop by category' }}">
+  <ul class="tapi-catalog-strip__row" data-tapi-stagger="80">
+    {%- for b in section.blocks -%}
+      {%- assign coll = b.settings.collection -%}
+      {%- assign href = '/collections/all' -%}
+      {%- if b.settings.link != blank -%}
+        {%- assign href = b.settings.link -%}
+      {%- elsif coll != blank -%}
+        {%- assign href = coll.url -%}
+      {%- endif -%}
+      {%- assign label = b.settings.label | default: coll.title -%}
+      {%- assign mono = b.settings.placeholder_name | default: label -%}
+      <li class="tapi-catalog-strip__item" {{ b.shopify_attributes }}>
+        <a href="{{ href }}" class="tapi-catalog-strip__link" aria-label="{{ label }}">
+          <span class="tapi-catalog-strip__avatar" style="--p-color: {{ b.settings.tint | default: '#B7472A' }};">
+            {%- if b.settings.image != blank -%}
+              {{ b.settings.image | image_url: width: 220 | image_tag: loading: 'lazy', alt: label, widths: '110,220,330' }}
+            {%- elsif coll != blank and coll.featured_image -%}
+              {{ coll.featured_image | image_url: width: 220 | image_tag: loading: 'lazy', alt: label, widths: '110,220,330' }}
+            {%- else -%}
+              <span class="tapi-catalog-strip__mono" aria-hidden="true">{{ mono | slice: 0, 1 }}</span>
+            {%- endif -%}
+          </span>
+          <span class="tapi-catalog-strip__label">{{ label }}</span>
+        </a>
+      </li>
+    {%- endfor -%}
+  </ul>
+</nav>
+
+{% stylesheet %}
+  .tapi-catalog-strip {
+    display: none;
+    background: var(--tapi-cream, #f8f3eb);
+    border-bottom: 1px solid rgba(31, 28, 26, 0.06);
+    position: relative;
+    z-index: 5;
+  }
+  .tapi-catalog-strip__row {
+    list-style: none;
+    margin: 0;
+    padding: 1.4rem var(--tapi-gutter, 16px) 1.6rem;
+    display: flex;
+    gap: 1.6rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .tapi-catalog-strip__row::-webkit-scrollbar { display: none; }
+  .tapi-catalog-strip__item {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    min-width: 7.2rem;
+  }
+  .tapi-catalog-strip__link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: var(--tapi-charcoal, #1f1c1a);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tapi-catalog-strip__avatar {
+    width: 6.4rem;
+    height: 6.4rem;
+    border-radius: 50%;
+    overflow: hidden;
+    display: block;
+    background: var(--p-color, #b7472a);
+    border: 1px solid rgba(31, 28, 26, 0.08);
+    box-shadow: 0 1px 2px rgba(31, 28, 26, 0.04);
+    position: relative;
+    transition: transform 220ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-catalog-strip__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .tapi-catalog-strip__mono {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading-family);
+    font-style: italic;
+    font-size: 2.6rem;
+    color: var(--tapi-cream, #f8f3eb);
+    line-height: 1;
+  }
+  .tapi-catalog-strip__link:active .tapi-catalog-strip__avatar { transform: scale(0.96); }
+  .tapi-catalog-strip__label {
+    font-size: 1.15rem;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    text-align: center;
+    max-width: 8rem;
+    color: var(--tapi-charcoal, #1f1c1a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 7.6rem;
+  }
+  /* Mobile + small tablet only — desktop already has the full tiles section. */
+  @media (max-width: 989px) {
+    .tapi-catalog-strip { display: block; }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Catalog strip (mobile)",
+  "tag": "section",
+  "class": "shopify-section--catalog-strip",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "Aria label", "default": "Shop by category" },
+    { "type": "paragraph", "content": "Shows below the header on mobile and small tablets only. Hidden on desktop." }
+  ],
+  "blocks": [
+    {
+      "type": "tile",
+      "name": "Category",
+      "settings": [
+        { "type": "collection", "id": "collection", "label": "Collection" },
+        { "type": "url", "id": "link", "label": "Link override (optional)" },
+        { "type": "text", "id": "label", "label": "Label" },
+        { "type": "image_picker", "id": "image", "label": "Image override" },
+        { "type": "text", "id": "placeholder_name", "label": "Monogram letter source" },
+        { "type": "color", "id": "tint", "label": "Placeholder tint", "default": "#B7472A" }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [
+    {
+      "name": "Catalog strip (mobile)",
+      "blocks": [
+        { "type": "tile", "settings": { "label": "Kurta Sets", "placeholder_name": "Saanjh", "tint": "#B7472A" } },
+        { "type": "tile", "settings": { "label": "Co-ords", "placeholder_name": "Amba", "tint": "#7A8761" } },
+        { "type": "tile", "settings": { "label": "Festive", "placeholder_name": "Mehfil", "tint": "#B08947" } },
+        { "type": "tile", "settings": { "label": "Dupattas", "placeholder_name": "Dhoop", "tint": "#9D3C23" } },
+        { "type": "tile", "settings": { "label": "New In", "placeholder_name": "New", "tint": "#3a3633" } },
+        { "type": "tile", "settings": { "label": "All", "placeholder_name": "All", "tint": "#7a766f" } }
+      ]
+    }
+  ]
+}
+{% endschema %}
