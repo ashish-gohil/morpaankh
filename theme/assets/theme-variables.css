@@ -1681,7 +1681,10 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
    ============================================================ */
 :root { --tapi-section-y: clamp(6.4rem, 9vw, 11rem); }
 
-.tapi-hero,
+/* NOTE: .tapi-hero is intentionally excluded — it is full-bleed and owns its
+   own spacing (padding-top:0 so it sits flush under the header/catalog strip,
+   custom padding-bottom for the trust strip). Adding it here forced an
+   unwanted top band of cream above the carousel at every viewport. */
 .tapi-collection-tiles,
 .tapi-featured,
 .tapi-studio-strip,
