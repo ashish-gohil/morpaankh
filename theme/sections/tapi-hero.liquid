@@ -52,6 +52,27 @@
       {%- endif -%}
     </div>
 
+    <div class="tapi-hero__scrim" aria-hidden="true"></div>
+
+    <div class="tapi-hero__overlay">
+      <div class="tapi-hero__copy page-width" data-tapi-stagger="120">
+        <span class="tapi-eyebrow tapi-eyebrow--line tapi-hero__eyebrow" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
+        <h1 class="tapi-hero__title" data-tapi-reveal>
+          {{ section.settings.line_1 }}<br>
+          <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
+        </h1>
+        <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
+        <div class="tapi-hero__cta-row" data-tapi-reveal>
+          {%- if section.settings.cta_primary != blank -%}
+            <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary tapi-hero__cta-primary">{{ section.settings.cta_primary }} →</a></span>
+          {%- endif -%}
+          {%- if section.settings.cta_secondary != blank -%}
+            <a href="{{ section.settings.cta_secondary_link }}" class="tapi-hero__cta-secondary">{{ section.settings.cta_secondary }}</a>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+
     {%- if slide_count > 1 -%}
       <div class="tapi-hero__nav" role="tablist" aria-label="Slide navigation">
         {%- for b in slide_blocks -%}
@@ -69,50 +90,33 @@
     {%- endif -%}
   </div>
 
-  <div class="tapi-hero__body page-width">
-    <div class="tapi-hero__copy" data-tapi-stagger="120">
-      <span class="tapi-eyebrow tapi-eyebrow--line" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
-      <h1 class="tapi-hero__title" data-tapi-reveal>
-        {{ section.settings.line_1 }}<br>
-        <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
-      </h1>
-      <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
-      <div class="tapi-hero__cta-row" data-tapi-reveal>
-        {%- if section.settings.cta_primary != blank -%}
-          <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary">{{ section.settings.cta_primary }} →</a></span>
-        {%- endif -%}
-        {%- if section.settings.cta_secondary != blank -%}
-          <a href="{{ section.settings.cta_secondary_link }}" class="button button--outline">{{ section.settings.cta_secondary }}</a>
-        {%- endif -%}
-      </div>
-      {%- if stat_blocks.size > 0 -%}
-        <div class="tapi-hero__stats" data-tapi-reveal>
-          {%- for b in stat_blocks -%}
-            <div {{ b.shopify_attributes }}>
-              <div class="tapi-hero__stat-key">{{ b.settings.label }}</div>
-              <div class="tapi-hero__stat-val">{{ b.settings.value }}</div>
-            </div>
-          {%- endfor -%}
+  {%- if stat_blocks.size > 0 -%}
+    <div class="tapi-hero__trust page-width">
+      {%- for b in stat_blocks -%}
+        <div class="tapi-hero__trust-item" {{ b.shopify_attributes }}>
+          <span class="tapi-hero__stat-key">{{ b.settings.label }}</span>
+          <span class="tapi-hero__stat-val">{{ b.settings.value }}</span>
         </div>
-      {%- endif -%}
+      {%- endfor -%}
     </div>
-  </div>
+  {%- endif -%}
 </section>
 
 {% stylesheet %}
-  .tapi-hero { background: var(--tapi-cream); padding-bottom: clamp(4.8rem, 6vw, 8rem); }
+  /* Full-bleed hero: flush under header, own bottom spacing for trust strip */
+  .tapi-hero { background: var(--mor-cream); padding-top: 0 !important; padding-bottom: clamp(3.2rem, 5vw, 6.4rem) !important; }
 
   /* Carousel */
   .tapi-hero__carousel {
     position: relative;
     width: 100%;
-    height: clamp(54vh, 62vh, 78vh);
-    min-height: 420px;
+    height: clamp(58vh, 66vh, 80vh);
+    min-height: 440px;
     overflow: hidden;
-    background: var(--tapi-cream-2, #efe9de);
+    background: var(--mor-cream-2, #efe9de);
   }
   @media (min-width: 990px) {
-    .tapi-hero__carousel { height: 72vh; min-height: 560px; max-height: 820px; }
+    .tapi-hero__carousel { height: 78vh; min-height: 600px; max-height: 860px; }
   }
   .tapi-hero__slides {
     position: relative;
@@ -172,27 +176,167 @@
     opacity: 0.92;
   }
 
-  /* Caption — soft chip bottom-left */
+  /* Caption — soft chip bottom-right (out of the way of overlay copy) */
   .tapi-hero__caption {
     position: absolute;
-    left: var(--tapi-gutter, 24px);
-    bottom: 6.4rem;
+    right: var(--mor-gutter, 24px);
+    bottom: 5.6rem;
     z-index: 3;
     padding: 0.6rem 1.2rem;
-    background: rgba(31, 28, 26, 0.6);
-    color: var(--tapi-cream, #f8f3eb);
-    font-size: 1.1rem;
+    background: rgba(31, 28, 26, 0.5);
+    color: var(--mor-cream, #F8F4ED);
+    font-size: var(--mor-text-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
+    border-radius: var(--mor-radius-sm);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     opacity: 0;
     transform: translateY(8px);
-    transition: opacity 800ms ease 300ms, transform 800ms cubic-bezier(0.22,1,0.36,1) 300ms;
+    transition: opacity 800ms ease 300ms, transform 800ms var(--mor-ease) 300ms;
   }
   .tapi-hero__slide.is-active .tapi-hero__caption {
     opacity: 1;
     transform: translateY(0);
+  }
+
+  /* Scrim — keeps overlay copy legible on any image */
+  .tapi-hero__scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, rgba(20,18,16,0.62) 0%, rgba(20,18,16,0.34) 38%, rgba(20,18,16,0) 68%),
+      linear-gradient(0deg, rgba(20,18,16,0.45) 0%, rgba(20,18,16,0) 40%);
+  }
+
+  /* Overlay copy — vertically centred, left-aligned on the image */
+  .tapi-hero__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+  }
+  .tapi-hero__copy {
+    width: 100%;
+    max-width: var(--mor-max, 1440px);
+    margin-inline: auto;
+    padding-inline: var(--mor-gutter, 16px);
+    text-align: left;
+    pointer-events: auto;
+  }
+  .tapi-hero__copy > * { max-width: 58rem; }
+  .tapi-hero__eyebrow { color: rgba(248, 244, 237, 0.88); }
+  .tapi-hero__title {
+    font-family: var(--font-heading-family);
+    font-size: var(--mor-h1);
+    line-height: var(--mor-leading-tight);
+    letter-spacing: -0.018em;
+    font-weight: 500;
+    color: var(--mor-cream);
+    margin: 1.4rem 0 1.8rem;
+    text-shadow: 0 1px 24px rgba(20,18,16,0.28);
+  }
+  .tapi-hero__title-accent { color: var(--mor-gold); font-weight: 500; font-style: italic; }
+  .tapi-hero__lede {
+    font-size: var(--mor-text-lg);
+    line-height: var(--mor-leading-body);
+    color: rgba(248, 244, 237, 0.92);
+    margin: 0 0 3rem;
+    max-width: 46rem;
+  }
+  .tapi-hero__cta-row {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tapi-hero__cta-primary { box-shadow: var(--mor-shadow-md); }
+  /* Secondary CTA — cream outline for legibility on the image */
+  .tapi-hero__cta-secondary {
+    display: inline-flex;
+    align-items: center;
+    height: 4.8rem;
+    padding: 0 2.2rem;
+    font-family: var(--font-body-family);
+    font-size: var(--mor-text-sm);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mor-cream);
+    background: transparent;
+    border: 1px solid rgba(248, 244, 237, 0.6);
+    border-radius: var(--mor-radius-sm);
+    text-decoration: none;
+    transition: background-color var(--mor-dur-base) var(--mor-ease),
+                color var(--mor-dur-base) var(--mor-ease),
+                border-color var(--mor-dur-base) var(--mor-ease);
+  }
+  .tapi-hero__cta-secondary:hover {
+    background: var(--mor-cream);
+    color: var(--mor-charcoal);
+    border-color: var(--mor-cream);
+  }
+
+  /* Trust strip — dense single row below the image */
+  .tapi-hero__trust {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2.4rem 4rem;
+    align-items: baseline;
+    padding-top: 2rem;
+    padding-bottom: 0;
+    margin-top: 2rem;
+  }
+  .tapi-hero__trust-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.8rem;
+  }
+  .tapi-hero__stat-key {
+    font-size: var(--mor-text-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--mor-text-subtle);
+  }
+  .tapi-hero__stat-val {
+    font-family: var(--font-heading-family);
+    font-size: var(--mor-h4);
+    color: var(--mor-text);
+  }
+
+  /* Tablet + mobile: overlay anchors to the bottom; copy centres */
+  @media (max-width: 989px) {
+    .tapi-hero__carousel { height: clamp(56vh, 64vh, 72vh); min-height: 440px; }
+    .tapi-hero__scrim {
+      background:
+        linear-gradient(0deg, rgba(20,18,16,0.66) 4%, rgba(20,18,16,0.18) 46%, rgba(20,18,16,0) 72%);
+    }
+    .tapi-hero__overlay { align-items: flex-end; padding-bottom: 6.4rem; }
+    .tapi-hero__copy { text-align: center; }
+    .tapi-hero__copy > * { max-width: none; }
+    .tapi-hero__lede { margin-inline: auto; max-width: 42rem; }
+    .tapi-hero__cta-row { justify-content: center; }
+    .tapi-hero__caption { display: none; }
+    .tapi-hero__trust { justify-content: center; gap: 1.6rem 2.8rem; }
+  }
+  @media (max-width: 480px) {
+    .tapi-hero__cta-row { flex-direction: column; align-items: stretch; width: 100%; }
+    .tapi-hero__cta-row > span { display: block; }
+    .tapi-hero__cta-row .button,
+    .tapi-hero__cta-secondary { width: 100%; justify-content: center; }
+  }
+
+  /* Reduced motion: no zoom, instant crossfade */
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-hero__slide,
+    .tapi-hero__media img,
+    .tapi-hero__placeholder,
+    .tapi-hero__caption,
+    .tapi-hero__progress-fill { transition: none !important; transform: none !important; }
   }
 
   /* Dot navigation */
@@ -246,76 +390,6 @@
     background: var(--tapi-terracotta, #b7472a);
     transition: width linear;
     transform-origin: left;
-  }
-
-  /* Editorial body — copy below the image */
-  .tapi-hero__body {
-    padding-top: clamp(4rem, 6vw, 7.2rem);
-  }
-  .tapi-hero__copy {
-    text-align: center;
-    max-width: 76rem;
-    margin: 0 auto;
-  }
-  .tapi-hero__title {
-    font-family: var(--font-heading-family);
-    font-size: clamp(3.4rem, 7vw, 7.8rem);
-    line-height: 1.04;
-    letter-spacing: -0.018em;
-    font-weight: 500;
-    margin: 1.4rem 0 1.8rem;
-  }
-  .tapi-hero__title-accent { color: var(--tapi-terracotta); font-weight: 500; }
-  .tapi-hero__lede {
-    font-size: clamp(1.5rem, 1.4vw, 1.7rem);
-    line-height: 1.65;
-    color: var(--tapi-warm-grey);
-    margin: 0 auto 3.2rem;
-    max-width: 56rem;
-  }
-  .tapi-hero__cta-row {
-    display: flex;
-    gap: 1.2rem;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 4.4rem;
-  }
-  .tapi-hero__stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 1.6rem;
-    padding-top: 2.8rem;
-    border-top: 1px solid var(--tapi-hairline);
-    text-align: left;
-  }
-  .tapi-hero__stat-key {
-    font-size: 1rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--tapi-muted);
-    margin-bottom: 0.4rem;
-  }
-  .tapi-hero__stat-val {
-    font-family: var(--font-heading-family);
-    font-size: 1.7rem;
-    color: var(--tapi-charcoal);
-  }
-
-  /* Mobile: tighter copy, dots higher */
-  @media (max-width: 749px) {
-    .tapi-hero__carousel { height: clamp(58vh, 64vh, 72vh); min-height: 460px; }
-    .tapi-hero__nav { bottom: 1.6rem; }
-    .tapi-hero__caption { bottom: 4.8rem; font-size: 1rem; }
-    .tapi-hero__stats { grid-template-columns: repeat(3, 1fr); text-align: center; }
-  }
-
-  /* Reduced motion: no zoom, instant crossfade */
-  @media (prefers-reduced-motion: reduce) {
-    .tapi-hero__slide,
-    .tapi-hero__media img,
-    .tapi-hero__placeholder,
-    .tapi-hero__caption,
-    .tapi-hero__progress-fill { transition: none !important; transform: none !important; }
   }
 {% endstylesheet %}
 

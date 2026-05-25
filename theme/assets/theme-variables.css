@@ -2332,12 +2332,18 @@ details[open] > summary .icon-caret {
   .accordion__content { animation: none !important; }
 }
 
-/* ====== Tapi spacing system — one rhythm across the homepage ====== */
+/* ====== Spacing system — one rhythm across the homepage ====== */
 :root {
   --tapi-gutter:      16px;
   --tapi-section-pad: 32px;
   --tapi-card-gap:    16px;
   --tapi-max:         1440px;
+  /* --mor-* spacing aliases (resolve responsively via the --tapi-* values
+     redefined at each breakpoint below). Prefer --mor-* in new code. */
+  --mor-gutter:      var(--tapi-gutter);
+  --mor-section-pad: var(--tapi-section-pad);
+  --mor-card-gap:    var(--tapi-card-gap);
+  --mor-max:         var(--tapi-max);
 }
 @media (min-width: 641px) {
   :root { --tapi-gutter: 32px; --tapi-section-pad: 48px; --tapi-card-gap: 20px; }
@@ -2350,7 +2356,8 @@ details[open] > summary .icon-caret {
 }
 
 /* Apply system to all home sections (selectors target the existing section roots) */
-.tapi-hero,
+/* .tapi-hero is intentionally excluded — it is a full-bleed overlay hero that
+   manages its own spacing (flush under header, own bottom gap for trust strip). */
 .tapi-collection-tiles,
 .tapi-featured,
 .tapi-studio-strip,
@@ -2360,7 +2367,7 @@ details[open] > summary .icon-caret {
   margin-block: 0 !important;
   width: 100%;
 }
-.tapi-hero > .page-width,
+.tapi-hero__trust,
 .tapi-collection-tiles > .page-width,
 .tapi-featured__inner,
 .tapi-studio-strip > .page-width,
