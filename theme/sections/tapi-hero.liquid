@@ -1,65 +1,464 @@
+{%- liquid
+  assign slide_blocks = section.blocks | where: 'type', 'slide'
+  assign stat_blocks  = section.blocks | where: 'type', 'stat'
+  assign slide_count  = slide_blocks.size
+-%}
 <section class="tapi-hero">
-  <div class="page-width">
-    <div class="tapi-hero__grid">
-      <div class="tapi-hero__copy" data-tapi-stagger="120">
-        <span class="tapi-eyebrow tapi-eyebrow--line" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
-        <h1 class="tapi-hero__title" data-tapi-reveal>
-          {{ section.settings.line_1 }}<br>
-          <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
-        </h1>
-        <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
-        <div class="tapi-hero__cta-row" data-tapi-reveal>
-          {%- if section.settings.cta_primary != blank -%}
-            <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary">{{ section.settings.cta_primary }} →</a></span>
-          {%- endif -%}
-          {%- if section.settings.cta_secondary != blank -%}
-            <a href="{{ section.settings.cta_secondary_link }}" class="button button--outline">{{ section.settings.cta_secondary }}</a>
-          {%- endif -%}
-        </div>
+  <div
+    class="tapi-hero__carousel"
+    data-tapi-carousel
+    data-interval="{{ section.settings.interval_ms | default: 5000 }}"
+    data-autoplay="{% if section.settings.autoplay %}1{% else %}0{% endif %}"
+  >
+    <div class="tapi-hero__slides" aria-roledescription="carousel">
+      {%- if slide_count > 0 -%}
+        {%- for b in slide_blocks -%}
+          {%- assign tint = b.settings.tint | default: '#B7472A' -%}
+          {%- assign mono = b.settings.mono | default: 'Saanjh' -%}
+          {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- endif -%}
+          <figure
+            class="tapi-hero__slide{% if forloop.first %} is-active{% endif %}"
+            role="group"
+            aria-roledescription="slide"
+            aria-label="{{ forloop.index }} of {{ slide_count }}"
+            {{ b.shopify_attributes }}
+          >
+            <div class="tapi-hero__media">
+              {%- if b.settings.image != blank -%}
+                {{ b.settings.image | image_url: width: 2000 | image_tag:
+                   loading: loading_attr,
+                   widths: '600, 900, 1200, 1600, 2000',
+                   sizes: '100vw',
+                   alt: b.settings.image.alt | default: b.settings.caption | default: shop.name }}
+              {%- else -%}
+                <div class="tapi-hero__placeholder" style="--p-color: {{ tint }};">
+                  <span class="tapi-hero__placeholder-mono">{{ mono }}</span>
+                </div>
+              {%- endif -%}
+            </div>
+            {%- if b.settings.caption != blank -%}
+              <figcaption class="tapi-hero__caption">{{ b.settings.caption }}</figcaption>
+            {%- endif -%}
+          </figure>
+        {%- endfor -%}
+      {%- else -%}
+        <figure class="tapi-hero__slide is-active">
+          <div class="tapi-hero__media">
+            <div class="tapi-hero__placeholder" style="--p-color: #B7472A;">
+              <span class="tapi-hero__placeholder-mono">Saanjh</span>
+            </div>
+          </div>
+        </figure>
+      {%- endif -%}
+    </div>
+
+    {%- if slide_count > 1 -%}
+      <div class="tapi-hero__nav" role="tablist" aria-label="Slide navigation">
+        {%- for b in slide_blocks -%}
+          <button
+            type="button"
+            class="tapi-hero__dot{% if forloop.first %} is-active{% endif %}"
+            data-idx="{{ forloop.index0 }}"
+            role="tab"
+            aria-label="Go to slide {{ forloop.index }}"
+            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+          ><span></span></button>
+        {%- endfor -%}
+      </div>
+      <div class="tapi-hero__progress" aria-hidden="true"><div class="tapi-hero__progress-fill"></div></div>
+    {%- endif -%}
+  </div>
+
+  <div class="tapi-hero__body page-width">
+    <div class="tapi-hero__copy" data-tapi-stagger="120">
+      <span class="tapi-eyebrow tapi-eyebrow--line" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
+      <h1 class="tapi-hero__title" data-tapi-reveal>
+        {{ section.settings.line_1 }}<br>
+        <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
+      </h1>
+      <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
+      <div class="tapi-hero__cta-row" data-tapi-reveal>
+        {%- if section.settings.cta_primary != blank -%}
+          <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary">{{ section.settings.cta_primary }} →</a></span>
+        {%- endif -%}
+        {%- if section.settings.cta_secondary != blank -%}
+          <a href="{{ section.settings.cta_secondary_link }}" class="button button--outline">{{ section.settings.cta_secondary }}</a>
+        {%- endif -%}
+      </div>
+      {%- if stat_blocks.size > 0 -%}
         <div class="tapi-hero__stats" data-tapi-reveal>
-          {%- for b in section.blocks -%}
+          {%- for b in stat_blocks -%}
             <div {{ b.shopify_attributes }}>
               <div class="tapi-hero__stat-key">{{ b.settings.label }}</div>
               <div class="tapi-hero__stat-val">{{ b.settings.value }}</div>
             </div>
           {%- endfor -%}
         </div>
-      </div>
-      <div class="tapi-hero__visual">
-        {%- if section.settings.image != blank -%}
-          {{ section.settings.image | image_url: width: 1200 | image_tag:
-             loading: 'eager', widths: '600, 900, 1200, 1600',
-             sizes: '(min-width: 750px) 60vw, 90vw',
-             alt: section.settings.image.alt | default: shop.name }}
-        {%- else -%}
-          <div class="tapi-hero__placeholder">
-            <span style="font-family: var(--font-heading-family); font-style: italic; font-size: 6.4rem; color: var(--tapi-cream);">Saanjh</span>
-            <span style="font-size: 1.1rem; letter-spacing: 0.2em; color: var(--tapi-terracotta-soft); text-transform: uppercase; margin-top: 1.2rem;">Drop 01 · The dusk edit</span>
-          </div>
-        {%- endif -%}
-      </div>
+      {%- endif -%}
     </div>
   </div>
 </section>
 
 {% stylesheet %}
-  .tapi-hero { padding: 4.8rem 0 9.6rem; background: var(--tapi-cream); }
-  .tapi-hero__grid { display: grid; grid-template-columns: 1.05fr 1.4fr; gap: 5.6rem; align-items: center; }
-  /* .tapi-eyebrow--line is defined globally in theme-variables.css */
-.tapi-hero__title { font-family: var(--font-heading-family); font-size: clamp(3.8rem, 8vw, 9.6rem); line-height: 1.02; letter-spacing: -0.018em; font-weight: 500; margin: 1.6rem 0; }
+  .tapi-hero { background: var(--tapi-cream); padding-bottom: clamp(4.8rem, 6vw, 8rem); }
+
+  /* Carousel */
+  .tapi-hero__carousel {
+    position: relative;
+    width: 100%;
+    height: clamp(54vh, 62vh, 78vh);
+    min-height: 420px;
+    overflow: hidden;
+    background: var(--tapi-cream-2, #efe9de);
+  }
+  @media (min-width: 990px) {
+    .tapi-hero__carousel { height: 72vh; min-height: 560px; max-height: 820px; }
+  }
+  .tapi-hero__slides {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .tapi-hero__slide {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1100ms cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 1100ms;
+    will-change: opacity;
+  }
+  .tapi-hero__slide.is-active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 1100ms cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
+    z-index: 1;
+  }
+  .tapi-hero__media {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .tapi-hero__media img,
+  .tapi-hero__placeholder {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scale(1.02);
+    transition: transform 9000ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  .tapi-hero__slide.is-active .tapi-hero__media img,
+  .tapi-hero__slide.is-active .tapi-hero__placeholder {
+    transform: scale(1.08);
+  }
+  .tapi-hero__placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,0.18), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 8px),
+      linear-gradient(135deg, var(--p-color, var(--tapi-terracotta)), color-mix(in srgb, var(--p-color, var(--tapi-terracotta)) 65%, #1f1c1a));
+  }
+  .tapi-hero__placeholder-mono {
+    font-family: var(--font-heading-family);
+    font-style: italic;
+    font-size: clamp(6rem, 14vw, 14rem);
+    color: var(--tapi-cream, #f8f3eb);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    opacity: 0.92;
+  }
+
+  /* Caption — soft chip bottom-left */
+  .tapi-hero__caption {
+    position: absolute;
+    left: var(--tapi-gutter, 24px);
+    bottom: 6.4rem;
+    z-index: 3;
+    padding: 0.6rem 1.2rem;
+    background: rgba(31, 28, 26, 0.6);
+    color: var(--tapi-cream, #f8f3eb);
+    font-size: 1.1rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 800ms ease 300ms, transform 800ms cubic-bezier(0.22,1,0.36,1) 300ms;
+  }
+  .tapi-hero__slide.is-active .tapi-hero__caption {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Dot navigation */
+  .tapi-hero__nav {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2.4rem;
+    z-index: 4;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    padding: 0 var(--tapi-gutter, 16px);
+  }
+  .tapi-hero__dot {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    padding: 1rem 0;
+    cursor: pointer;
+    width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tapi-hero__dot span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: rgba(248, 243, 235, 0.4);
+    transition: background-color 360ms ease, height 240ms ease;
+  }
+  .tapi-hero__dot.is-active span { background: var(--tapi-cream, #f8f3eb); height: 3px; }
+  .tapi-hero__dot:hover span { background: rgba(248, 243, 235, 0.75); }
+  .tapi-hero__dot:focus-visible { outline: 2px solid var(--tapi-cream, #f8f3eb); outline-offset: 4px; }
+
+  /* Auto-play progress hairline (under dots) */
+  .tapi-hero__progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: rgba(31, 28, 26, 0.08);
+    z-index: 4;
+  }
+  .tapi-hero__progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--tapi-terracotta, #b7472a);
+    transition: width linear;
+    transform-origin: left;
+  }
+
+  /* Editorial body — copy below the image */
+  .tapi-hero__body {
+    padding-top: clamp(4rem, 6vw, 7.2rem);
+  }
+  .tapi-hero__copy {
+    text-align: center;
+    max-width: 76rem;
+    margin: 0 auto;
+  }
+  .tapi-hero__title {
+    font-family: var(--font-heading-family);
+    font-size: clamp(3.4rem, 7vw, 7.8rem);
+    line-height: 1.04;
+    letter-spacing: -0.018em;
+    font-weight: 500;
+    margin: 1.4rem 0 1.8rem;
+  }
   .tapi-hero__title-accent { color: var(--tapi-terracotta); font-weight: 500; }
-  .tapi-hero__lede { font-size: clamp(1.5rem, 1.4vw, 1.7rem); line-height: 1.6; color: var(--tapi-warm-grey); margin: 0 0 2.8rem; max-width: 46rem; }
-  .tapi-hero__cta-row { display: flex; gap: 1.2rem; flex-wrap: wrap; margin-bottom: 4rem; }
-  .tapi-hero__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; padding-top: 2.8rem; border-top: 1px solid var(--tapi-hairline); }
-  .tapi-hero__stat-key { font-size: 1rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--tapi-muted); margin-bottom: 0.4rem; }
-  .tapi-hero__stat-val { font-family: var(--font-heading-family); font-size: 1.7rem; color: var(--tapi-charcoal); }
-  .tapi-hero__visual { aspect-ratio: 4 / 5; overflow: hidden; background: var(--tapi-cream-2); position: relative; }
-  .tapi-hero__visual img { width: 100%; height: 100%; object-fit: cover; }
-  .tapi-hero__placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background:
-    repeating-linear-gradient(45deg, rgba(248,244,237,0.06) 0 1px, transparent 1px 6px),
-    linear-gradient(135deg, var(--tapi-terracotta), var(--tapi-terracotta-deep)); }
-  @media (max-width: 989px) { .tapi-hero__grid { grid-template-columns: 1fr; gap: 3.2rem; } }
+  .tapi-hero__lede {
+    font-size: clamp(1.5rem, 1.4vw, 1.7rem);
+    line-height: 1.65;
+    color: var(--tapi-warm-grey);
+    margin: 0 auto 3.2rem;
+    max-width: 56rem;
+  }
+  .tapi-hero__cta-row {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 4.4rem;
+  }
+  .tapi-hero__stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1.6rem;
+    padding-top: 2.8rem;
+    border-top: 1px solid var(--tapi-hairline);
+    text-align: left;
+  }
+  .tapi-hero__stat-key {
+    font-size: 1rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tapi-muted);
+    margin-bottom: 0.4rem;
+  }
+  .tapi-hero__stat-val {
+    font-family: var(--font-heading-family);
+    font-size: 1.7rem;
+    color: var(--tapi-charcoal);
+  }
+
+  /* Mobile: tighter copy, dots higher */
+  @media (max-width: 749px) {
+    .tapi-hero__carousel { height: clamp(58vh, 64vh, 72vh); min-height: 460px; }
+    .tapi-hero__nav { bottom: 1.6rem; }
+    .tapi-hero__caption { bottom: 4.8rem; font-size: 1rem; }
+    .tapi-hero__stats { grid-template-columns: repeat(3, 1fr); text-align: center; }
+  }
+
+  /* Reduced motion: no zoom, instant crossfade */
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-hero__slide,
+    .tapi-hero__media img,
+    .tapi-hero__placeholder,
+    .tapi-hero__caption,
+    .tapi-hero__progress-fill { transition: none !important; transform: none !important; }
+  }
 {% endstylesheet %}
+
+{% javascript %}
+  (function () {
+    'use strict';
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function initCarousel(root) {
+      if (root.__tapiCarouselWired) return;
+      root.__tapiCarouselWired = true;
+
+      var slides = root.querySelectorAll('.tapi-hero__slide');
+      var dots = root.querySelectorAll('.tapi-hero__dot');
+      var fill = root.querySelector('.tapi-hero__progress-fill');
+      if (slides.length <= 1) return;
+
+      var interval = Math.max(2500, parseInt(root.getAttribute('data-interval'), 10) || 5000);
+      var autoplay = root.getAttribute('data-autoplay') === '1' && !reduceMotion;
+      var current = 0;
+      var timer = null;
+      var rafId = null;
+      var paused = false;
+      var startTime = 0;
+
+      function setActive(idx) {
+        var next = ((idx % slides.length) + slides.length) % slides.length;
+        if (next === current) return;
+        slides[current].classList.remove('is-active');
+        if (dots[current]) {
+          dots[current].classList.remove('is-active');
+          dots[current].setAttribute('aria-selected', 'false');
+        }
+        current = next;
+        slides[current].classList.add('is-active');
+        if (dots[current]) {
+          dots[current].classList.add('is-active');
+          dots[current].setAttribute('aria-selected', 'true');
+        }
+        resetProgress();
+      }
+
+      function resetProgress() {
+        if (!fill) return;
+        fill.style.transition = 'none';
+        fill.style.width = '0%';
+        // Force reflow so the next transition takes effect
+        // eslint-disable-next-line no-unused-expressions
+        fill.offsetWidth;
+        if (autoplay && !paused) {
+          fill.style.transition = 'width ' + interval + 'ms linear';
+          fill.style.width = '100%';
+        }
+      }
+
+      function start() {
+        if (!autoplay || timer) return;
+        startTime = Date.now();
+        resetProgress();
+        timer = setInterval(function () {
+          if (paused || document.hidden) return;
+          setActive(current + 1);
+        }, interval);
+      }
+      function stop() {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
+      }
+      function restart() { stop(); start(); }
+
+      // Dot clicks
+      Array.prototype.forEach.call(dots, function (d) {
+        d.addEventListener('click', function () {
+          setActive(parseInt(d.getAttribute('data-idx'), 10) || 0);
+          restart();
+        });
+      });
+
+      // Pause on hover (desktop) — uses matchMedia so we don't bind on touch
+      if (window.matchMedia('(hover: hover)').matches) {
+        root.addEventListener('mouseenter', function () { paused = true; if (fill) fill.style.animationPlayState = 'paused'; });
+        root.addEventListener('mouseleave', function () { paused = false; });
+      }
+
+      // Pause on tab hidden
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stop();
+        else if (autoplay) start();
+      });
+
+      // Keyboard navigation when dots are focused
+      Array.prototype.forEach.call(dots, function (d) {
+        d.addEventListener('keydown', function (e) {
+          if (e.key === 'ArrowRight') { setActive(current + 1); restart(); }
+          else if (e.key === 'ArrowLeft') { setActive(current - 1); restart(); }
+        });
+      });
+
+      // Touch swipe (mobile)
+      var touchStartX = null;
+      root.addEventListener('touchstart', function (e) {
+        if (e.touches && e.touches.length === 1) touchStartX = e.touches[0].clientX;
+      }, { passive: true });
+      root.addEventListener('touchend', function (e) {
+        if (touchStartX === null || !e.changedTouches || !e.changedTouches.length) return;
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 40) {
+          setActive(current + (dx < 0 ? 1 : -1));
+          restart();
+        }
+        touchStartX = null;
+      }, { passive: true });
+
+      // Lazy-start when scrolled into view
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) start();
+            else stop();
+          });
+        }, { threshold: 0.15 });
+        io.observe(root);
+      } else {
+        start();
+      }
+    }
+
+    function boot() {
+      document.querySelectorAll('[data-tapi-carousel]').forEach(initCarousel);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
+    }
+
+    document.addEventListener('shopify:section:load', function (e) {
+      var c = e.target.querySelector('[data-tapi-carousel]');
+      if (c) { c.__tapiCarouselWired = false; initCarousel(c); }
+    });
+  })();
+{% endjavascript %}
 
 {% schema %}
 {
@@ -67,6 +466,10 @@
   "tag": "section",
   "class": "section",
   "settings": [
+    { "type": "header", "content": "Carousel" },
+    { "type": "checkbox", "id": "autoplay", "label": "Auto-play slides", "default": true },
+    { "type": "range", "id": "interval_ms", "label": "Slide interval", "min": 3000, "max": 9500, "step": 500, "unit": "ms", "default": 5500 },
+    { "type": "header", "content": "Copy" },
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Drop 01 · Saanjh, the dusk edit" },
     { "type": "text", "id": "line_1", "label": "Headline line 1", "default": "Woven by eleven hands." },
     { "type": "text", "id": "line_2", "label": "Headline line 2 (accent)", "default": "Worn by yours." },
@@ -74,10 +477,19 @@
     { "type": "text", "id": "cta_primary", "label": "Primary CTA", "default": "Shop kurta sets" },
     { "type": "url", "id": "cta_primary_link", "label": "Primary CTA link" },
     { "type": "text", "id": "cta_secondary", "label": "Secondary CTA", "default": "Our story" },
-    { "type": "url", "id": "cta_secondary_link", "label": "Secondary CTA link" },
-    { "type": "image_picker", "id": "image", "label": "Hero image" }
+    { "type": "url", "id": "cta_secondary_link", "label": "Secondary CTA link" }
   ],
   "blocks": [
+    {
+      "type": "slide",
+      "name": "Slide",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "caption", "label": "Caption (overlay chip)" },
+        { "type": "text", "id": "mono", "label": "Placeholder monogram", "default": "Saanjh" },
+        { "type": "color", "id": "tint", "label": "Placeholder tint", "default": "#B7472A" }
+      ]
+    },
     {
       "type": "stat",
       "name": "Stat",
@@ -87,11 +499,14 @@
       ]
     }
   ],
-  "max_blocks": 4,
+  "max_blocks": 12,
   "presets": [
     {
       "name": "Tapi hero",
       "blocks": [
+        { "type": "slide", "settings": { "mono": "Saanjh", "tint": "#B7472A", "caption": "Saanjh · Kurta sets" } },
+        { "type": "slide", "settings": { "mono": "Amba",   "tint": "#7A8761", "caption": "Amba · Co-ord sets" } },
+        { "type": "slide", "settings": { "mono": "Mehfil", "tint": "#B08947", "caption": "Mehfil · Festive edit" } },
         { "type": "stat", "settings": { "label": "Size", "value": "True to body" } },
         { "type": "stat", "settings": { "label": "Fabric", "value": "120–180 GSM listed" } },
         { "type": "stat", "settings": { "label": "Made in", "value": "Surat, Gujarat" } }

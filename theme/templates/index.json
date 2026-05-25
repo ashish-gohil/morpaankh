@@ -12,6 +12,38 @@
     "tapi_hero": {
       "type": "tapi-hero",
       "blocks": {
+        "slide_saanjh": {
+          "type": "slide",
+          "settings": {
+            "mono": "Saanjh",
+            "tint": "#B7472A",
+            "caption": "Saanjh · Kurta sets"
+          }
+        },
+        "slide_amba": {
+          "type": "slide",
+          "settings": {
+            "mono": "Amba",
+            "tint": "#7A8761",
+            "caption": "Amba · Co-ord sets"
+          }
+        },
+        "slide_mehfil": {
+          "type": "slide",
+          "settings": {
+            "mono": "Mehfil",
+            "tint": "#B08947",
+            "caption": "Mehfil · Festive edit"
+          }
+        },
+        "slide_dhoop": {
+          "type": "slide",
+          "settings": {
+            "mono": "Dhoop",
+            "tint": "#9D3C23",
+            "caption": "Dhoop · New arrivals"
+          }
+        },
         "size": {
           "type": "stat",
           "settings": {
@@ -35,11 +67,17 @@
         }
       },
       "block_order": [
+        "slide_saanjh",
+        "slide_amba",
+        "slide_mehfil",
+        "slide_dhoop",
         "size",
         "fabric",
         "made"
       ],
       "settings": {
+        "autoplay": true,
+        "interval_ms": 5500,
         "eyebrow": "Drop 01 · Saanjh, the dusk edit",
         "line_1": "Woven by eleven hands.",
         "line_2": "Worn by yours.",
