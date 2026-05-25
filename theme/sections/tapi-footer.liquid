@@ -2,7 +2,7 @@
   <div class="page-width">
     <div class="tapi-footer__news" data-tapi-reveal>
       <div>
-        <span class="tapi-eyebrow tapi-footer__news-eyebrow">— {{ section.settings.news_eyebrow }}</span>
+        <span class="tapi-eyebrow tapi-eyebrow--line tapi-footer__news-eyebrow" data-tapi-reveal>{{ section.settings.news_eyebrow }}</span>
         <h2 class="tapi-footer__news-title">{{ section.settings.news_title }}</h2>
         <p class="tapi-footer__news-body">{{ section.settings.news_body }}</p>
       </div>
@@ -80,7 +80,9 @@
 </footer>
 
 {% stylesheet %}
-  .tapi-footer { background: var(--mor-charcoal); color: var(--mor-cream); margin-top: 0; overflow: hidden; }
+  .tapi-footer { background: var(--mor-charcoal); color: var(--mor-cream); margin-top: 0; overflow: hidden; border-top: 1px solid rgba(248, 244, 237, 0.09); }
+  /* Footer newsletter eyebrow: animated line in gold, matching other sections */
+  .tapi-footer__news-eyebrow.tapi-eyebrow--line::before { background: var(--mor-gold); }
   .tapi-footer .page-width { padding-top: 9.6rem; padding-bottom: 2.4rem; }
   .tapi-footer a { color: var(--mor-cream); text-decoration: none; opacity: 0.72; transition: opacity var(--mor-dur-base) var(--mor-ease), padding-left 320ms var(--mor-ease); }
   .tapi-footer a:hover { opacity: 1; padding-left: 6px; }
