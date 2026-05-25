@@ -54,25 +54,6 @@
 
     <div class="tapi-hero__scrim" aria-hidden="true"></div>
 
-    <div class="tapi-hero__overlay">
-      <div class="tapi-hero__copy page-width" data-tapi-stagger="120">
-        <span class="tapi-eyebrow tapi-eyebrow--line tapi-hero__eyebrow" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
-        <h1 class="tapi-hero__title" data-tapi-reveal>
-          {{ section.settings.line_1 }}<br>
-          <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
-        </h1>
-        <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
-        <div class="tapi-hero__cta-row" data-tapi-reveal>
-          {%- if section.settings.cta_primary != blank -%}
-            <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary tapi-hero__cta-primary">{{ section.settings.cta_primary }} →</a></span>
-          {%- endif -%}
-          {%- if section.settings.cta_secondary != blank -%}
-            <a href="{{ section.settings.cta_secondary_link }}" class="tapi-hero__cta-secondary">{{ section.settings.cta_secondary }}</a>
-          {%- endif -%}
-        </div>
-      </div>
-    </div>
-
     {%- if slide_count > 1 -%}
       <div class="tapi-hero__nav" role="tablist" aria-label="Slide navigation">
         {%- for b in slide_blocks -%}
@@ -90,6 +71,26 @@
     {%- endif -%}
   </div>
 
+  {%- comment -%} Copy: overlays the image on desktop, stacks below it on mobile {%- endcomment -%}
+  <div class="tapi-hero__overlay">
+    <div class="tapi-hero__copy page-width" data-tapi-stagger="120">
+      <span class="tapi-eyebrow tapi-eyebrow--line tapi-hero__eyebrow" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
+      <h1 class="tapi-hero__title" data-tapi-reveal>
+        {{ section.settings.line_1 }}<br>
+        <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
+      </h1>
+      <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
+      <div class="tapi-hero__cta-row" data-tapi-reveal>
+        {%- if section.settings.cta_primary != blank -%}
+          <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary tapi-hero__cta-primary">{{ section.settings.cta_primary }} →</a></span>
+        {%- endif -%}
+        {%- if section.settings.cta_secondary != blank -%}
+          <a href="{{ section.settings.cta_secondary_link }}" class="tapi-hero__cta-secondary">{{ section.settings.cta_secondary }}</a>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
   {%- if stat_blocks.size > 0 -%}
     <div class="tapi-hero__trust page-width">
       {%- for b in stat_blocks -%}
@@ -104,19 +105,26 @@
 
 {% stylesheet %}
   /* Full-bleed hero: flush under header, own bottom spacing for trust strip */
-  .tapi-hero { background: var(--mor-cream); padding-top: 0 !important; padding-bottom: clamp(3.2rem, 5vw, 6.4rem) !important; }
+  .tapi-hero {
+    position: relative;
+    background: var(--mor-cream);
+    padding-top: 0 !important;
+    padding-bottom: clamp(3.2rem, 5vw, 6.4rem) !important;
+    --hero-h: clamp(44vh, 50vh, 58vh); /* image height on mobile — short so products are a quick scroll away */
+  }
+  @media (min-width: 990px) { .tapi-hero { --hero-h: 78vh; } }
 
   /* Carousel */
   .tapi-hero__carousel {
     position: relative;
     width: 100%;
-    height: clamp(58vh, 66vh, 80vh);
-    min-height: 440px;
+    height: var(--hero-h);
+    min-height: 360px;
     overflow: hidden;
     background: var(--mor-cream-2, #efe9de);
   }
   @media (min-width: 990px) {
-    .tapi-hero__carousel { height: 78vh; min-height: 600px; max-height: 860px; }
+    .tapi-hero__carousel { min-height: 600px; max-height: 860px; }
   }
   .tapi-hero__slides {
     position: relative;
@@ -200,62 +208,54 @@
     transform: translateY(0);
   }
 
-  /* Scrim — keeps overlay copy legible on any image */
+  /* Scrim — only on desktop, where copy overlays the image */
   .tapi-hero__scrim {
     position: absolute;
     inset: 0;
     z-index: 2;
     pointer-events: none;
-    background:
-      linear-gradient(90deg, rgba(20,18,16,0.62) 0%, rgba(20,18,16,0.34) 38%, rgba(20,18,16,0) 68%),
-      linear-gradient(0deg, rgba(20,18,16,0.45) 0%, rgba(20,18,16,0) 40%);
+    display: none;
   }
 
-  /* Overlay copy — vertically centred, left-aligned on the image */
+  /* ===== Copy: MOBILE-FIRST — stacks below the image, dark text on cream ===== */
   .tapi-hero__overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    pointer-events: none;
+    position: static;
+    background: var(--mor-cream);
+    padding: clamp(2.8rem, 7vw, 4rem) 0 0;
   }
   .tapi-hero__copy {
     width: 100%;
     max-width: var(--mor-max, 1440px);
     margin-inline: auto;
     padding-inline: var(--mor-gutter, 16px);
-    text-align: left;
-    pointer-events: auto;
+    text-align: center;
   }
-  .tapi-hero__copy > * { max-width: 58rem; }
-  .tapi-hero__eyebrow { color: rgba(248, 244, 237, 0.88); }
+  .tapi-hero__eyebrow { color: var(--mor-text-muted); }
   .tapi-hero__title {
     font-family: var(--font-heading-family);
     font-size: var(--mor-h1);
     line-height: var(--mor-leading-tight);
     letter-spacing: -0.018em;
     font-weight: 500;
-    color: var(--mor-cream);
+    color: var(--mor-charcoal);
     margin: 1.4rem 0 1.8rem;
-    text-shadow: 0 1px 24px rgba(20,18,16,0.28);
   }
-  .tapi-hero__title-accent { color: var(--mor-gold); font-weight: 500; font-style: italic; }
+  .tapi-hero__title-accent { color: var(--mor-accent); font-weight: 500; font-style: italic; }
   .tapi-hero__lede {
     font-size: var(--mor-text-lg);
     line-height: var(--mor-leading-body);
-    color: rgba(248, 244, 237, 0.92);
-    margin: 0 0 3rem;
-    max-width: 46rem;
+    color: var(--mor-text-muted);
+    margin: 0 auto 3rem;
+    max-width: 48rem;
   }
   .tapi-hero__cta-row {
     display: flex;
     gap: 1.2rem;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
   }
   .tapi-hero__cta-primary { box-shadow: var(--mor-shadow-md); }
-  /* Secondary CTA — cream outline for legibility on the image */
   .tapi-hero__cta-secondary {
     display: inline-flex;
     align-items: center;
@@ -266,9 +266,9 @@
     font-weight: 500;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--mor-cream);
+    color: var(--mor-primary);
     background: transparent;
-    border: 1px solid rgba(248, 244, 237, 0.6);
+    border: 1px solid var(--mor-primary);
     border-radius: var(--mor-radius-sm);
     text-decoration: none;
     transition: background-color var(--mor-dur-base) var(--mor-ease),
@@ -276,26 +276,63 @@
                 border-color var(--mor-dur-base) var(--mor-ease);
   }
   .tapi-hero__cta-secondary:hover {
-    background: var(--mor-cream);
-    color: var(--mor-charcoal);
-    border-color: var(--mor-cream);
+    background: var(--mor-primary);
+    color: var(--mor-cream);
+    border-color: var(--mor-primary);
   }
 
-  /* Trust strip — dense single row below the image */
+  /* ===== Copy: DESKTOP (>=990) — overlays the image, cream text ===== */
+  @media (min-width: 990px) {
+    .tapi-hero__scrim {
+      display: block;
+      background:
+        linear-gradient(90deg, rgba(20,18,16,0.64) 0%, rgba(20,18,16,0.36) 38%, rgba(20,18,16,0) 70%),
+        linear-gradient(0deg, rgba(20,18,16,0.42) 0%, rgba(20,18,16,0) 42%);
+    }
+    .tapi-hero__overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: var(--hero-h, 78vh);
+      min-height: 600px;
+      max-height: 860px;
+      display: flex;
+      align-items: center;
+      z-index: 3;
+      pointer-events: none;
+      background: transparent;
+      padding: 0;
+    }
+    .tapi-hero__copy { text-align: left; pointer-events: auto; }
+    .tapi-hero__copy > * { max-width: 58rem; }
+    .tapi-hero__eyebrow { color: rgba(248, 244, 237, 0.88); }
+    .tapi-hero__title {
+      color: var(--mor-cream);
+      text-shadow: 0 1px 24px rgba(20,18,16,0.32);
+    }
+    .tapi-hero__title-accent { color: var(--mor-gold); }
+    .tapi-hero__lede {
+      color: rgba(248, 244, 237, 0.92);
+      margin: 0 0 3rem;
+      max-width: 46rem;
+    }
+    .tapi-hero__cta-row { justify-content: flex-start; }
+    .tapi-hero__cta-secondary { color: var(--mor-cream); border-color: rgba(248, 244, 237, 0.6); }
+    .tapi-hero__cta-secondary:hover { background: var(--mor-cream); color: var(--mor-charcoal); border-color: var(--mor-cream); }
+  }
+
+  /* ===== Trust strip ===== */
   .tapi-hero__trust {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 2.4rem 4rem;
     align-items: baseline;
-    padding-top: 2rem;
-    padding-bottom: 0;
-    margin-top: 2rem;
+    padding-top: 2.4rem;
+    margin-top: 2.8rem;
+    border-top: 1px solid var(--mor-hairline);
   }
-  .tapi-hero__trust-item {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.8rem;
-  }
+  @media (min-width: 750px) { .tapi-hero__trust { justify-content: flex-start; } }
+  .tapi-hero__trust-item { display: inline-flex; align-items: baseline; gap: 0.8rem; }
   .tapi-hero__stat-key {
     font-size: var(--mor-text-xs);
     letter-spacing: 0.16em;
@@ -308,21 +345,21 @@
     color: var(--mor-text);
   }
 
-  /* Tablet + mobile: overlay anchors to the bottom; copy centres */
-  @media (max-width: 989px) {
-    .tapi-hero__carousel { height: clamp(56vh, 64vh, 72vh); min-height: 440px; }
-    .tapi-hero__scrim {
-      background:
-        linear-gradient(0deg, rgba(20,18,16,0.66) 4%, rgba(20,18,16,0.18) 46%, rgba(20,18,16,0) 72%);
+  /* Mobile trust: 2-column label/value grid, centred and perfectly aligned */
+  @media (max-width: 749px) {
+    .tapi-hero__trust {
+      display: grid;
+      grid-template-columns: auto auto;
+      justify-content: center;
+      column-gap: 1.4rem;
+      row-gap: 1rem;
     }
-    .tapi-hero__overlay { align-items: flex-end; padding-bottom: 6.4rem; }
-    .tapi-hero__copy { text-align: center; }
-    .tapi-hero__copy > * { max-width: none; }
-    .tapi-hero__lede { margin-inline: auto; max-width: 42rem; }
-    .tapi-hero__cta-row { justify-content: center; }
-    .tapi-hero__caption { display: none; }
-    .tapi-hero__trust { justify-content: center; gap: 1.6rem 2.8rem; }
+    .tapi-hero__trust-item { display: contents; }
+    .tapi-hero__stat-key { text-align: right; align-self: baseline; }
+    .tapi-hero__stat-val { text-align: left; }
   }
+
+  /* <480: stack CTAs full-width for thumb reach */
   @media (max-width: 480px) {
     .tapi-hero__cta-row { flex-direction: column; align-items: stretch; width: 100%; }
     .tapi-hero__cta-row > span { display: block; }
