@@ -1,16 +1,11 @@
 {{ 'section-main-page.css' | asset_url | stylesheet_tag }}
 
 {%- style -%}
+  /* Vertical rhythm shares the site-wide spacing token so content pages
+     (About, policies, fabric guide) match the homepage cadence. */
   .section-{{ section.id }}-padding {
-    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
-    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
-  }
-
-  @media screen and (min-width: 750px) {
-    .section-{{ section.id }}-padding {
-      padding-top: {{ section.settings.padding_top }}px;
-      padding-bottom: {{ section.settings.padding_bottom }}px;
-    }
+    padding-top: var(--mor-section-pad, 56px);
+    padding-bottom: var(--mor-section-pad, 56px);
   }
 {%- endstyle -%}
 

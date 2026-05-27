@@ -66,7 +66,29 @@
     background-color: var(--p-color); }
   .tapi-tile__placeholder span { font-family: var(--font-heading-family); font-style: italic; font-size: 6rem; color: var(--mor-cream); }
   @media (max-width: 989px) { .tapi-collection-tiles__grid { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 640px) { .tapi-collection-tiles__grid { grid-template-columns: 1fr; } }
+  /* Mobile: swap the grid for a horizontal snap-scroll carousel with peeking
+     cards (mirrors the hero scroll affordance) so cards breathe instead of
+     crowding edge-to-edge. Reverts to the grid at ≥750. */
+  @media (max-width: 749px) {
+    .tapi-collection-tiles__grid {
+      display: flex;
+      grid-template-columns: none;
+      gap: 1.6rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      scroll-padding-left: var(--mor-gutter, 16px);
+    }
+    .tapi-collection-tiles__grid::-webkit-scrollbar { display: none; }
+    .tapi-collection-tiles__grid > .tapi-tile {
+      flex: 0 0 78%;
+      max-width: 30rem;
+      min-width: 0;
+      scroll-snap-align: start;
+    }
+  }
 {% endstylesheet %}
 
 {% schema %}

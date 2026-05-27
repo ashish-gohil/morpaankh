@@ -7,7 +7,7 @@
 {%- liquid
   assign items = shop.metafields.tapi.trust_items.value
   if items == blank
-    assign items = 'Handcrafted in Surat, Gujarat|Free exchange on your first order|Indian-sourced fabric|What you see is what arrives|Pickup available in Surat — save ₹50|Secure checkout · all India shipping' | split: '|'
+    assign items = 'Rooted in tradition|Free shipping over ₹2000|Indian-sourced fabric|What you see is what arrives|Local pickup — save ₹40|Secure checkout · all India shipping' | split: '|'
   endif
 -%}
 <aside class="tapi-marquee" aria-label="Brand promises">

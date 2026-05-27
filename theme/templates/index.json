@@ -61,8 +61,8 @@
         "made": {
           "type": "stat",
           "settings": {
-            "label": "Made in",
-            "value": "Surat, Gujarat"
+            "label": "From",
+            "value": "India"
           }
         }
       },
@@ -77,11 +77,11 @@
       ],
       "settings": {
         "autoplay": true,
-        "interval_ms": 5000,
-        "eyebrow": "Indian ethnic wear · Handcrafted in Surat",
-        "line_1": "Made by hand,",
-        "line_2": "worn with care.",
-        "lede": "Mor Paankh is a small studio in Surat making kurta sets, co-ords, and festive pieces the way Indian clothing has always been made: by hand, with honest fabric, and with the details you can feel when you put them on.",
+        "interval_ms": 5500,
+        "eyebrow": "Indian ethnic wear · Rooted in tradition",
+        "line_1": "Cloth we know",
+        "line_2": "by heart.",
+        "lede": "Mor Paankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives.",
         "cta_primary": "Shop kurta sets",
         "cta_primary_link": "shopify://collections/kurta-sets",
         "cta_secondary": "Our story",
@@ -103,7 +103,7 @@
         "three_piece": {
           "type": "tile",
           "settings": {
-            "label": "3 Pieces",
+            "label": "Kurta Sets",
             "link": "shopify://collections/kurta-sets",
             "placeholder_name": "3",
             "tint": "#b7472a"
@@ -112,7 +112,7 @@
         "festive": {
           "type": "tile",
           "settings": {
-            "label": "Festival",
+            "label": "Festive",
             "link": "shopify://collections/festive",
             "placeholder_name": "F",
             "tint": "#b08947"
@@ -121,7 +121,7 @@
         "newin": {
           "type": "tile",
           "settings": {
-            "label": "New Arrival",
+            "label": "New Arrivals",
             "link": "shopify://collections/new-arrivals",
             "placeholder_name": "N",
             "tint": "#3a3633"
@@ -147,7 +147,7 @@
             "collection": "kurta-sets",
             "heading": "Kurta Sets",
             "tagline": "Three pieces, every day",
-            "blurb": "Kurta, pants, and dupatta. Cut for ease of wear, hand-finished at the hem.",
+            "blurb": "Kurta, pants, and dupatta. Easy to wear, with a clean finish at the hem.",
             "placeholder_name": "Saanjh",
             "tint": "#b7472a"
           }
@@ -169,7 +169,7 @@
             "collection": "festive",
             "heading": "Festive Edit",
             "tagline": "For the days you'll remember",
-            "blurb": "Silk-cotton dobby, hand-finished tassel work, considered gold thread. Pieces meant for the occasion.",
+            "blurb": "Silk-cotton dobby, fine tassel detail, considered gold thread. Pieces meant for the occasion.",
             "placeholder_name": "Mehfil",
             "tint": "#b08947"
           }
@@ -190,10 +190,10 @@
       "type": "tapi-featured-products",
       "settings": {
         "eyebrow": "New in",
-        "heading": "Fresh from the workshop.",
+        "heading": "New this season.",
         "collection": "new-arrivals",
         "products_to_show": 4,
-        "view_all_text": "View all"
+        "view_all_text": "View all new arrivals"
       }
     },
     "studio_strip": {
@@ -202,15 +202,15 @@
         "s1": {
           "type": "stat",
           "settings": {
-            "value": "Surat",
-            "label": "Our home and our workshop"
+            "value": "Heritage",
+            "label": "Generations in cloth"
           }
         },
         "s2": {
           "type": "stat",
           "settings": {
-            "value": "By hand",
-            "label": "Hand-finished, edge to edge"
+            "value": "Honest",
+            "label": "True to the photo, always"
           }
         },
         "s3": {
@@ -223,8 +223,8 @@
         "s4": {
           "type": "stat",
           "settings": {
-            "value": "48 hrs",
-            "label": "Pickup-ready in Surat"
+            "value": "Pickup",
+            "label": "Available locally"
           }
         }
       },
@@ -235,8 +235,8 @@
         "s4"
       ],
       "settings": {
-        "eyebrow": "The making",
-        "heading": "Handcrafted in Surat, the way it has always been done."
+        "eyebrow": "Our promise",
+        "heading": "Rooted in tradition. Honest in what we send."
       }
     },
   },

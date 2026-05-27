@@ -102,22 +102,29 @@
     root.querySelectorAll('[data-tapi-magnetic]').forEach(function (el) {
       if (el.__tapiMagnetic) return; el.__tapiMagnetic = true;
       var strength = parseFloat(el.getAttribute('data-tapi-magnetic')) || 0.18;
+      // Hard cap on travel so the button gives a subtle nudge toward the cursor
+      // but can never drift past its own bounds (the "hover bleed" bug).
+      var MAX_SHIFT = 6;
       var inner = el;
       inner.style.transition = 'transform 360ms cubic-bezier(0.22,1,0.36,1)';
       inner.style.willChange = 'transform';
       var pending = false;
       var lastX = 0, lastY = 0;
+      function clamp(v) { return v < -MAX_SHIFT ? -MAX_SHIFT : (v > MAX_SHIFT ? MAX_SHIFT : v); }
       function apply() {
         pending = false;
         inner.style.transform = 'translate3d(' + lastX + 'px,' + lastY + 'px,0)';
       }
-      el.parentElement.addEventListener('mousemove', function (e) {
+      // Listen on the element itself — not the parent container — so the pull
+      // only engages while the pointer is over the button. Reacting to the
+      // whole row is what let the cursor yank it far off-centre.
+      el.addEventListener('mousemove', function (e) {
         var r = el.getBoundingClientRect();
-        lastX = (e.clientX - (r.left + r.width / 2)) * strength;
-        lastY = (e.clientY - (r.top + r.height / 2)) * strength;
+        lastX = clamp((e.clientX - (r.left + r.width / 2)) * strength);
+        lastY = clamp((e.clientY - (r.top + r.height / 2)) * strength);
         if (!pending) { pending = true; requestAnimationFrame(apply); }
       }, { passive: true });
-      el.parentElement.addEventListener('mouseleave', function () {
+      el.addEventListener('mouseleave', function () {
         lastX = 0; lastY = 0;
         if (!pending) { pending = true; requestAnimationFrame(apply); }
       });

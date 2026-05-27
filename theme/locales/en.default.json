@@ -218,7 +218,7 @@
   },
   "templates": {
     "search": {
-      "no_results": "No results found for “{{ terms }}”. Check the spelling or use a different word or phrase.",
+      "no_results": "We couldn't find anything for “{{ terms }}”. Try another word, or a simpler one.",
       "page": "Page",
       "products": "Products",
       "results_pages_with_count": {
@@ -291,7 +291,7 @@
       "new_estimated_total": "New estimated total",
       "note": "Order special instructions",
       "checkout": "Check out",
-      "empty": "Your cart is empty",
+      "empty": "Nothing in your cart yet",
       "cart_error": "There was an error while updating your cart. Please try again.",
       "cart_quantity_error_html": "You can only add {{ quantity }} of this item to your cart.",
       "duties_and_taxes_included_shipping_at_checkout_with_policy_html": "Duties and taxes included. Discounts and <a href=\"{{ link }}\">shipping</a> calculated at checkout.",

@@ -6,7 +6,7 @@
    rest of the theme automatically.
    ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap");
 
 :root {
   /* ---------- Mor Paankh brand tokens (canonical) ---------- */
@@ -79,6 +79,7 @@
   --mor-dur-fast: 150ms;
   --mor-dur-base: 250ms;
   --mor-dur-slow: 400ms;
+  --mor-dur-slower: 700ms;  /* luxurious image zoom / settle */
   --mor-ease:     cubic-bezier(0.22, 1, 0.36, 1);
   --mor-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -607,9 +608,15 @@ button.shopify-payment-button__button--unbranded {
   opacity: 0; transform: translateY(100%); z-index: -1; pointer-events: none;
   transition: transform 360ms cubic-bezier(0.22,1,0.36,1), opacity 240ms;
 }
-.button--primary:hover    { transform: translateY(-2px); box-shadow: 0 16px 32px -16px rgba(183,71,42,0.5); }
-.button--terracotta:hover { transform: translateY(-2px); box-shadow: 0 16px 32px -16px rgba(143,54,33,0.45); }
-.button--outline:hover    { background: var(--tapi-charcoal); color: var(--tapi-cream); transform: translateY(-2px); box-shadow: 0 12px 24px -16px rgba(44,40,38,0.35); }
+/* Soft, tonal lift shadows. !important is required because the input-reset
+   block above sets `box-shadow: none !important` on every .button, which was
+   silently killing these hover shadows (dead code). Each shadow is tinted to
+   its own button colour and kept soft (large negative spread, low alpha) —
+   premium depth, not a harsh drop. Reduced-motion / touch blocks below still
+   override these back to none. */
+.button--primary:hover    { transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(46,75,60,0.45) !important; }
+.button--terracotta:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(143,54,33,0.42) !important; }
+.button--outline:hover    { background: var(--tapi-charcoal); color: var(--tapi-cream); transform: translateY(-2px); box-shadow: 0 12px 24px -18px rgba(44,40,38,0.32) !important; }
 .button--primary:hover::before, .button--terracotta:hover::before, .button--outline:hover::before { transform: translateY(0); opacity: 0.06; }
 .button--primary:active, .button--terracotta:active, .button--outline:active { transform: translateY(0); }
 
@@ -673,10 +680,13 @@ input:focus, textarea:focus, select:focus,
   box-shadow: none !important;
 }
 .tapi-footer__field:focus-within { border-color: rgba(248,244,237,0.6) !important; }
-/* Keep keyboard-only users accessible: visible ring only when navigating via Tab */
+/* Keep keyboard-only users accessible: visible ring only when navigating via Tab.
+   2px solid terracotta reads against both cream and charcoal surfaces and clears
+   the WCAG 2.2 focus-appearance / 3:1 non-text-contrast bar — stronger than the
+   old 1px dashed warm-grey. */
 :focus-visible:not(input):not(textarea):not(select) {
-  outline: 1px dashed var(--tapi-warm-grey) !important;
-  outline-offset: 3px;
+  outline: 2px solid var(--mor-accent) !important;
+  outline-offset: 2px;
 }
 
 /* ============================================================
@@ -2039,12 +2049,23 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   color: var(--tapi-charcoal, #2c2826) !important;
   background: transparent !important;
   background-color: transparent !important;
+  /* Kill native field chrome so the .tapi-search-bar bottom border is the
+     ONLY line. (Input is type="text"; this is belt-and-suspenders in case a
+     browser/extension still applies search-field rendering.) */
+  -webkit-appearance: none !important;
+  appearance: none !important;
   border: 0 !important;
   outline: none !important;
   padding: 4px 0 !important;
   margin: 0 !important;
   box-shadow: none !important;
   border-radius: 0 !important;
+}
+.tapi-search-bar__input::-webkit-search-cancel-button,
+.tapi-search-bar__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
 }
 .tapi-search-bar__input:focus,
 .tapi-search-bar__input:focus-visible,
@@ -2354,7 +2375,7 @@ details[open] > summary .icon-caret {
 /* ====== Spacing system — one rhythm across the homepage ====== */
 :root {
   --tapi-gutter:      16px;
-  --tapi-section-pad: 32px;
+  --tapi-section-pad: 56px;
   --tapi-card-gap:    16px;
   --tapi-max:         1440px;
   /* --mor-* spacing aliases (resolve responsively via the --tapi-* values
@@ -2365,13 +2386,13 @@ details[open] > summary .icon-caret {
   --mor-max:         var(--tapi-max);
 }
 @media (min-width: 641px) {
-  :root { --tapi-gutter: 32px; --tapi-section-pad: 48px; --tapi-card-gap: 20px; }
+  :root { --tapi-gutter: 32px; --tapi-section-pad: 72px; --tapi-card-gap: 20px; }
 }
 @media (min-width: 990px) {
-  :root { --tapi-gutter: 48px; --tapi-section-pad: 64px; --tapi-card-gap: 28px; }
+  :root { --tapi-gutter: 48px; --tapi-section-pad: 96px; --tapi-card-gap: 28px; }
 }
 @media (min-width: 1440px) {
-  :root { --tapi-gutter: 64px; --tapi-section-pad: 80px; --tapi-card-gap: 32px; }
+  :root { --tapi-gutter: 64px; --tapi-section-pad: 112px; --tapi-card-gap: 32px; }
 }
 
 /* Apply system to all home sections (selectors target the existing section roots) */

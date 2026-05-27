@@ -1,9 +1,12 @@
 {% doc %}
-  Renders the Mor Paankh peacock-feather mark + wordmark as inline SVG.
-  Color inherits from the surrounding container so the same snippet
-  works on cream and on charcoal backgrounds. Placeholder until the
-  final logo asset is provided.
-  @param {number} [size] - Font-size for the wordmark in px (default 24)
+  Renders the Mor Paankh logo: the illustrated peacock-feather mark
+  (mor-paankh-mark.png — gold chandrak + flowing barbs, transparent bg,
+  reads clean on cream / charcoal / terracotta) followed by the
+  "Mor Paankh" wordmark. The wordmark colour inherits from the
+  surrounding container; the mark artwork is full-colour and fixed.
+  @param {number} [size] - Nominal lockup size in px (default 24). The mark
+    height ≈ size × 1.8 (artwork is pre-trimmed, ratio 362:440); the uppercase
+    wordmark renders at ≈ size × 0.88 to optically match the caps height.
   @param {boolean} [as_link] - Render as <a href="/"> instead of <span>.
     Default false because callers (e.g. header.liquid) already wrap this
     in their own <a class="header__heading-link">. Nested <a> tags break
@@ -14,6 +17,10 @@
   {% render 'tapi-logo', size: 22, as_link: true %}
 {% enddoc %}
 {%- assign sz = size | default: 24 -%}
+{%- assign mark_h = sz | times: 1.8 | round -%}
+{%- assign mark_w = mark_h | times: 362 | divided_by: 440 -%}
+{%- assign gap = sz | times: 0.34 | round -%}
+{%- assign word_size = sz | times: 0.88 | round -%}
 {%- if as_link -%}
 <a href="{{ routes.root_url }}" class="tapi-logo" aria-label="{{ shop.name }}"
    style="display:inline-flex; align-items:center; color: inherit; text-decoration: none; line-height: 1;">
@@ -21,16 +28,12 @@
 <span class="tapi-logo" aria-label="{{ shop.name }}"
       style="display:inline-flex; align-items:center; color: inherit; line-height: 1;">
 {%- endif -%}
-  <svg viewBox="0 0 44 44" width="{{ sz | times: 1.5 }}" height="{{ sz | times: 1.5 }}" role="img" aria-hidden="true" style="margin-right: 12px; flex: 0 0 auto;">
-    {%- comment -%} Peacock-feather "eye": teardrop with concentric inner pupil {%- endcomment -%}
-    <path d="M22 4 C 30 12, 36 20, 32 30 C 30 36, 26 40, 22 40 C 18 40, 14 36, 12 30 C 8 20, 14 12, 22 4 Z"
-          stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/>
-    <ellipse cx="22" cy="22" rx="7" ry="9" stroke="currentColor" stroke-width="1" fill="none"/>
-    <ellipse cx="22" cy="22" rx="3" ry="4" fill="currentColor"/>
-  </svg>
-  <span style="font-family: var(--font-heading-family); font-size: {{ sz }}px; font-weight: 500; letter-spacing: -0.012em; color: inherit; white-space: nowrap;">
-    Mor <em style="font-weight: 500; font-style: italic;">Paankh</em>
-  </span>
+  <img src="{{ 'mor-paankh-mark.png' | asset_url }}"
+       width="{{ mark_w }}" height="{{ mark_h }}" alt="" aria-hidden="true"
+       loading="eager" decoding="async" fetchpriority="high"
+       class="tapi-logo__mark"
+       style="height: {{ mark_h }}px; width: {{ mark_w }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block; object-fit: contain;" />
+  <span class="tapi-logo__word" style="font-family: 'Marcellus', var(--font-heading-family), serif; font-size: {{ word_size }}px; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: inherit; white-space: nowrap;">Mor Paankh</span>
 {%- if as_link -%}
 </a>
 {%- else -%}

@@ -61,12 +61,24 @@
     justify-content: center;
   }
   .tapi-tsearch__icon svg { width: 18px; height: 18px; }
-  .tapi-tsearch__input {
+  .tapi-tsearch__input,
+  .tapi-tsearch__input:hover,
+  .tapi-tsearch__input:focus,
+  .tapi-tsearch__input:focus-visible,
+  .tapi-tsearch__input:active {
     flex: 1 1 auto;
     background: transparent;
-    border: 0;
-    outline: none;
-    box-shadow: none;
+    /* The form (.tapi-tsearch__form) is the ONE bordered container, with the
+       only hover/focus state. The input must stay visually inert in every
+       state: Edge/Chrome draw their own inset border, box-shadow and rounded
+       chrome for type="search" that `border:0` alone doesn't remove, which
+       read as a second nested container. Reset all of it, hard. */
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
     padding: 0;
     height: 54px;
     font-family: var(--font-heading-family, "Cormorant Garamond", Georgia, serif);
@@ -114,15 +126,8 @@
 
 {%- style -%}
   .section-{{ section.id }}-padding {
-    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
-    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
-  }
-
-  @media screen and (min-width: 750px) {
-    .section-{{ section.id }}-padding {
-      padding-top: {{ section.settings.padding_top }}px;
-      padding-bottom: {{ section.settings.padding_bottom }}px;
-    }
+    padding-top: var(--mor-section-pad, 56px);
+    padding-bottom: var(--mor-section-pad, 56px);
   }
 {%- endstyle -%}
 
@@ -139,11 +144,24 @@
       <div class="template-search__search tapi-tsearch">
         <label class="tapi-tsearch__label" for="Search-In-Template">{{ 'general.search.search' | t }}</label>
         <form action="{{ routes.search_url }}" method="get" role="search" class="tapi-tsearch__form">
-          <span class="tapi-tsearch__icon" aria-hidden="true">{{- 'icon-search.svg' | inline_asset_content -}}</span>
+          {%- comment -%}
+            One magnifier only. The decorative left icon was removed because the
+            submit button (right) is itself a magnifier — two search glyphs in one
+            field read as a duplicate. Submit stays clickable + Enter-to-search.
+          {%- endcomment -%}
+          {%- comment -%}
+            type="text" (not "search") on purpose: a search input renders the
+            browser's native field chrome (an inner border + focus box) that
+            `appearance:none` doesn't reliably remove across Edge/Chrome/Safari,
+            which showed as a second container nested inside the form border.
+            A text input has no native chrome — the form is the only box.
+            inputmode="search" keeps the search-style mobile keyboard.
+          {%- endcomment -%}
           <input
             class="tapi-tsearch__input"
             id="Search-In-Template"
-            type="search"
+            type="text"
+            inputmode="search"
             name="q"
             value="{{ search.terms | escape }}"
             placeholder="{{ 'general.search.search' | t }}"

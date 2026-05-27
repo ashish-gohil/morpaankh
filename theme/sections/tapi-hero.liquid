@@ -295,9 +295,12 @@
        on ANY photograph, not just this sage placeholder. */
     .tapi-hero__scrim {
       display: block;
+      /* Dark band extended to ~50% so the whole capped text column (title +
+         lede sit within the left half) clears WCAG AA on ANY photo, while the
+         right side of the image stays clear. */
       background:
-        linear-gradient(90deg, rgba(18,16,14,0.80) 0%, rgba(18,16,14,0.55) 34%, rgba(18,16,14,0.12) 64%, rgba(18,16,14,0) 82%),
-        linear-gradient(0deg, rgba(18,16,14,0.40) 0%, rgba(18,16,14,0) 38%);
+        linear-gradient(90deg, rgba(18,16,14,0.82) 0%, rgba(18,16,14,0.62) 30%, rgba(18,16,14,0.38) 50%, rgba(18,16,14,0.10) 72%, rgba(18,16,14,0) 88%),
+        linear-gradient(0deg, rgba(18,16,14,0.42) 0%, rgba(18,16,14,0) 40%);
     }
     .tapi-hero__overlay {
       position: absolute;
@@ -351,7 +354,31 @@
     margin-top: 2.8rem;
     border-top: 1px solid var(--mor-hairline);
   }
-  @media (min-width: 750px) { .tapi-hero__trust { justify-content: flex-start; } }
+  /* ≥750: clean equal-width columns, each stacking label over value, with
+     hairline dividers between — centred under a capped width. */
+  @media (min-width: 750px) {
+    .tapi-hero__trust {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      justify-content: center;
+      align-items: stretch;
+      gap: 0;
+      max-width: 68rem;
+      margin-inline: auto;
+    }
+    .tapi-hero__trust-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      text-align: center;
+      padding: 0.2rem 2.4rem;
+    }
+    .tapi-hero__trust-item + .tapi-hero__trust-item { border-left: 1px solid var(--mor-hairline); }
+    .tapi-hero__trust .tapi-hero__stat-key { text-align: center; }
+  }
   .tapi-hero__trust-item { display: inline-flex; align-items: baseline; gap: 0.8rem; }
   .tapi-hero__stat-key {
     font-size: var(--mor-text-xs);
@@ -601,10 +628,10 @@
     { "type": "checkbox", "id": "autoplay", "label": "Auto-play slides", "default": true },
     { "type": "range", "id": "interval_ms", "label": "Slide interval", "min": 3000, "max": 9500, "step": 500, "unit": "ms", "default": 5500 },
     { "type": "header", "content": "Copy" },
-    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Indian ethnic wear · Handcrafted in Surat" },
-    { "type": "text", "id": "line_1", "label": "Headline line 1", "default": "Made by hand," },
-    { "type": "text", "id": "line_2", "label": "Headline line 2 (accent)", "default": "worn with care." },
-    { "type": "textarea", "id": "lede", "label": "Lede", "default": "Mor Paankh is a small studio in Surat making kurta sets, co-ords, and festive pieces the way Indian clothing has always been made: by hand, with honest fabric, and with the details you can feel when you put them on." },
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Indian ethnic wear · Rooted in tradition" },
+    { "type": "text", "id": "line_1", "label": "Headline line 1", "default": "Cloth we know" },
+    { "type": "text", "id": "line_2", "label": "Headline line 2 (accent)", "default": "by heart." },
+    { "type": "textarea", "id": "lede", "label": "Lede", "default": "Mor Paankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives." },
     { "type": "text", "id": "cta_primary", "label": "Primary CTA", "default": "Shop kurta sets" },
     { "type": "url", "id": "cta_primary_link", "label": "Primary CTA link" },
     { "type": "text", "id": "cta_secondary", "label": "Secondary CTA", "default": "Our story" },
@@ -640,7 +667,7 @@
         { "type": "slide", "settings": { "mono": "Mehfil", "tint": "#B08947", "caption": "Mehfil · Festive edit" } },
         { "type": "stat", "settings": { "label": "Fit", "value": "True to body" } },
         { "type": "stat", "settings": { "label": "Fabric", "value": "Indian-sourced" } },
-        { "type": "stat", "settings": { "label": "Made in", "value": "Surat, Gujarat" } }
+        { "type": "stat", "settings": { "label": "From", "value": "India" } }
       ]
     }
   ]
