@@ -46,20 +46,32 @@
   .tapi-tile { display: flex; flex-direction: column; gap: 2rem; text-decoration: none; color: inherit; height: 100%; }
   .tapi-tile__media { aspect-ratio: 4 / 5; overflow: hidden; position: relative; }
   .tapi-tile__media img, .tapi-tile__placeholder { width: 100%; height: 100%; object-fit: cover; transition: transform 1200ms var(--mor-ease); }
-  .tapi-tile:hover .tapi-tile__media img, .tapi-tile:hover .tapi-tile__placeholder { transform: scale(1.06); }
 
   .tapi-tile__info { display: flex; flex-direction: column; flex: 1; }
   .tapi-tile__title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1.2rem; margin-bottom: 0.6rem; }
   .tapi-tile__title { font-family: var(--font-heading-family); font-size: var(--mor-h3); margin: 0; font-weight: 500; letter-spacing: -0.008em; transition: color var(--mor-dur-base) var(--mor-ease); }
-  .tapi-tile:hover .tapi-tile__title { color: var(--mor-accent); }
   .tapi-tile__count { font-size: var(--mor-text-xs); color: var(--mor-text-subtle); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tapi-tile__info > .tapi-eyebrow { margin-bottom: 1rem; }
-  .tapi-tile__blurb { color: var(--mor-text-muted); margin: 0; line-height: var(--mor-leading-body); font-size: var(--mor-text-sm); flex: 1; }
-  .tapi-tile__arrow { margin-top: 2rem; display: inline-flex; align-items: center; gap: 1.2rem; font-size: var(--mor-text-xs); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mor-text); align-self: flex-start; position: relative; padding-right: 0.4rem; }
+  .tapi-tile__blurb { color: var(--mor-text-muted); margin: 0 0 2rem; line-height: var(--mor-leading-body); font-size: var(--mor-text-sm); }
+  /* EXPLORE pinned to the card bottom so every card's link sits on one line,
+     regardless of blurb length. */
+  .tapi-tile__arrow { margin-top: auto; display: inline-flex; align-items: center; gap: 1.2rem; font-size: var(--mor-text-xs); letter-spacing: 0.16em; text-transform: uppercase; color: var(--mor-text); align-self: flex-start; position: relative; padding-right: 0.4rem; }
   .tapi-tile__arrow em { font-style: normal; font-size: 2.2rem; line-height: 1; display: inline-block; transform: translateX(0); transition: transform 420ms var(--mor-ease), letter-spacing 420ms var(--mor-ease); will-change: transform; }
   .tapi-tile__arrow::before { content: ""; position: absolute; left: 0; right: 100%; bottom: -0.4rem; height: 1px; background: var(--mor-accent); transition: right 480ms var(--mor-ease); }
-  .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(14px); }
-  .tapi-tile:hover .tapi-tile__arrow::before { right: 0; }
+  /* Hover affordances apply only where a real pointer hovers — stops one card
+     from freezing in a "stuck hover" (terracotta title + shown underline) after
+     a tap on touch screens. */
+  @media (hover: hover) {
+    .tapi-tile:hover .tapi-tile__media img, .tapi-tile:hover .tapi-tile__placeholder { transform: scale(1.06); }
+    .tapi-tile:hover .tapi-tile__title { color: var(--mor-accent); }
+    .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(14px); }
+    .tapi-tile:hover .tapi-tile__arrow::before { right: 0; }
+  }
+  /* Touch screens: show the EXPLORE underline statically on every card so all
+     tiles read identically (there is no hover to reveal it). */
+  @media (hover: none) {
+    .tapi-tile__arrow::before { right: 0; }
+  }
   .tapi-tile__placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-image:
     repeating-linear-gradient(45deg, rgba(255,255,255,0.1) 0 1px, transparent 1px 6px),
     radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), transparent 70%);
@@ -72,6 +84,7 @@
   @media (max-width: 749px) {
     .tapi-collection-tiles__grid {
       display: flex;
+      align-items: stretch;
       grid-template-columns: none;
       gap: 1.6rem;
       overflow-x: auto;
