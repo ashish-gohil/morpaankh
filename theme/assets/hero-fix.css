@@ -1,0 +1,46 @@
+/* ------------------------------------------------------------------
+   Hero text legibility over the photographs.
+
+   Shipped as a fresh standalone asset (new, uncached URL) to bypass the
+   stale compiled_assets/styles.css bundle — the same caching issue that
+   kept the wardrobe fix from loading. !important + later source order so
+   these win over whatever stale hero rules the bundle still serves.
+
+   Desktop only (>=990px): the copy overlays the image, so the text must be
+   LIGHT and sit on a scrim strong enough to hold on ANY slide — including
+   the light gold "Mehfil" photo (worst-case contrast). On mobile the copy
+   stacks BELOW the image on cream, so it stays dark there (untouched).
+   ------------------------------------------------------------------ */
+@media (min-width: 990px) {
+  .tapi-hero__scrim {
+    display: block !important;
+    background:
+      linear-gradient(90deg,
+        rgba(14,11,9,0.90) 0%,
+        rgba(14,11,9,0.74) 28%,
+        rgba(14,11,9,0.50) 50%,
+        rgba(14,11,9,0.20) 72%,
+        rgba(14,11,9,0) 90%),
+      linear-gradient(0deg, rgba(14,11,9,0.52) 0%, rgba(14,11,9,0) 44%) !important;
+  }
+  .tapi-hero__eyebrow {
+    color: rgba(249,245,238,0.92) !important;
+    text-shadow: 0 1px 10px rgba(12,10,8,0.45) !important;
+  }
+  .tapi-hero__title {
+    color: #FBF7EF !important;
+    text-shadow: 0 2px 30px rgba(10,8,6,0.72), 0 1px 4px rgba(10,8,6,0.55) !important;
+  }
+  .tapi-hero__title-accent {
+    color: #EBCB88 !important;
+    text-shadow: 0 2px 30px rgba(10,8,6,0.74), 0 1px 4px rgba(10,8,6,0.55) !important;
+  }
+  .tapi-hero__lede {
+    color: rgba(250,246,239,0.95) !important;
+    text-shadow: 0 1px 14px rgba(10,8,6,0.55) !important;
+  }
+  .tapi-hero__cta-secondary {
+    color: #FBF7EF !important;
+    border-color: rgba(249,245,238,0.65) !important;
+  }
+}
