@@ -17,9 +17,8 @@
   {% render 'tapi-logo', size: 22, as_link: true %}
 {% enddoc %}
 {%- assign sz = size | default: 24 -%}
-{%- assign mark_h = sz | times: 1.8 | round -%}
-{%- assign mark_w = mark_h | times: 362 | divided_by: 440 -%}
-{%- assign gap = sz | times: 0.34 | round -%}
+{%- assign mark_h = sz | times: 1.7 | round -%}
+{%- assign gap = sz | times: 0.4 | round -%}
 {%- assign word_size = sz | times: 0.88 | round -%}
 {%- if as_link -%}
 <a href="{{ routes.root_url }}" class="tapi-logo" aria-label="{{ shop.name }}"
@@ -28,11 +27,20 @@
 <span class="tapi-logo" aria-label="{{ shop.name }}"
       style="display:inline-flex; align-items:center; color: inherit; line-height: 1;">
 {%- endif -%}
-  <img src="{{ 'mor-paankh-mark.png' | asset_url }}"
-       width="{{ mark_w }}" height="{{ mark_h }}" alt="" aria-hidden="true"
-       loading="eager" decoding="async" fetchpriority="high"
-       class="tapi-logo__mark"
-       style="height: {{ mark_h }}px; width: {{ mark_w }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block; object-fit: contain;" />
+  <svg class="tapi-logo__mark" width="{{ mark_h }}" height="{{ mark_h }}" viewBox="0 0 100 100"
+       aria-hidden="true" focusable="false"
+       style="height: {{ mark_h }}px; width: {{ mark_h }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block;">
+    <circle cx="50" cy="50" r="46.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.55"/>
+    <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M50 21 C 59.5 29 59.5 45 50 53 C 40.5 45 40.5 29 50 21 Z"/>
+      <path d="M50 27 C 55 32 55 41.5 50 46.5 C 45 41.5 45 32 50 27 Z"/>
+      <path d="M50 53 L 50 85"/>
+      <path d="M50 57 L 37.5 51.5"/><path d="M50 64 L 39.5 59.5"/><path d="M50 71 L 41.8 67"/><path d="M50 78 L 44 74.5"/>
+      <path d="M50 57 L 62.5 51.5"/><path d="M50 64 L 60.5 59.5"/><path d="M50 71 L 58.2 67"/><path d="M50 78 L 56 74.5"/>
+    </g>
+    <path d="M50 33 C 52.8 36 52.8 40 50 43 C 47.2 40 47.2 36 50 33 Z" fill="#B7472A"/>
+  </svg>
   <span class="tapi-logo__word" style="font-family: 'Marcellus', var(--font-heading-family), serif; font-size: {{ word_size }}px; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: inherit; white-space: nowrap;">Mor Paankh</span>
 {%- if as_link -%}
 </a>

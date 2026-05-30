@@ -1,14 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  
-  <rect width="64" height="64" rx="10" fill="#F8F4ED"></rect>
-  <g transform="translate(32, 32)">
-    
-    <ellipse cx="0" cy="0" rx="20" ry="24" fill="#B08947"></ellipse>
-    
-    <ellipse cx="1" cy="1" rx="13" ry="17" fill="#3A2A20"></ellipse>
-    
-    <ellipse cx="-2" cy="-1" rx="9" ry="12" fill="#2C2826"></ellipse>
-    
-    <ellipse cx="-2" cy="-2" rx="2.6" ry="3" fill="#B7472A"></ellipse>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Mor Paankh">
+  <!-- Filled charcoal disc — strongest silhouette at 16–64px -->
+  <circle cx="50" cy="50" r="50" fill="#2C2826"/>
+  <!-- Feather, enlarged + boldened to fill the disc and survive 16px -->
+  <g fill="none" stroke="#F8F4ED" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M50 13 C 65 25 65 49 50 61 C 35 49 35 25 50 13 Z"/>
+    <path d="M50 61 L 50 87"/>
+    <path d="M50 68 L 35 60"/><path d="M50 78 L 39 72"/>
+    <path d="M50 68 L 65 60"/><path d="M50 78 L 61 72"/>
   </g>
+  <!-- Gold core -->
+  <path d="M50 28 C 56 34 56 44 50 50 C 44 44 44 34 50 28 Z" fill="#C79A52"/>
 </svg>
