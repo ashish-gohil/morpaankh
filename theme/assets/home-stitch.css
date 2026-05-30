@@ -1,0 +1,20 @@
+/* ------------------------------------------------------------------
+   Home sections — flush vertical rhythm.
+
+   Removes the white/cream gaps between adjacent homepage sections.
+   Strategy: every home section keeps its own padding-top for content
+   breathing, and we strip the trailing padding-bottom so the next
+   section sits flush. Result: one consistent top-spacing per section
+   instead of stacked bottom+top padding showing as a visible gap.
+
+   Shipped standalone (fresh URL) to bypass the stale compiled bundle
+   that has plagued styles.css edits this project.
+   ------------------------------------------------------------------ */
+
+.tapi-hero { padding-bottom: 0 !important; }
+
+.tapi-collection-tiles { padding-block: clamp(40px, 6vw, 72px) 0; }
+
+.tapi-featured { padding-block: clamp(40px, 6vw, 72px) 0 !important; }
+
+.tapi-studio-strip { padding-block: clamp(40px, 6vw, 72px) clamp(40px, 6vw, 72px); }

@@ -18,7 +18,7 @@
             "collection": "",
             "link": "shopify://collections/co-ord-sets",
             "label": "Co-ord Sets",
-            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.24.08_PM.jpg",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM_1.jpg",
             "placeholder_name": "Co",
             "tint": "#7a8761"
           }
@@ -29,7 +29,7 @@
             "collection": "",
             "link": "shopify://collections/kurta-sets",
             "label": "Kurta Sets",
-            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.18.48_PM_1.jpg",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM.jpg",
             "placeholder_name": "3",
             "tint": "#b7472a"
           }
@@ -40,7 +40,7 @@
             "collection": "",
             "link": "shopify://collections/festive",
             "label": "Festive",
-            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.18.48_PM_2.jpg",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM.jpg",
             "placeholder_name": "F",
             "tint": "#b08947"
           }
@@ -51,7 +51,7 @@
             "collection": "",
             "link": "shopify://collections/new-arrivals",
             "label": "New Arrivals",
-            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.18.47_PM.jpg",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM_1.jpg",
             "placeholder_name": "N",
             "tint": "#3a3633"
           }
@@ -105,7 +105,7 @@
             "mono": "Dhoop",
             "tint": "#9d3c23"
           }
-        },
+        }
       },
       "block_order": [
         "slide_saanjh",
