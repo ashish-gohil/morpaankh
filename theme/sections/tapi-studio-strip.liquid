@@ -9,7 +9,7 @@
     <div class="tapi-studio-strip__grid" data-tapi-stagger="120">
       {%- for s in section.blocks -%}
         <div data-tapi-reveal {{ s.shopify_attributes }}>
-          <div class="tapi-studio-strip__value" data-tapi-count-up="{{ s.settings.value }}">{{ s.settings.value }}</div>
+          <div class="tapi-studio-strip__value">{{ s.settings.value }}</div>
           <div class="tapi-studio-strip__label">{{ s.settings.label }}</div>
         </div>
       {%- endfor -%}

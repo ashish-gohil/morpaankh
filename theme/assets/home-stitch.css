@@ -22,3 +22,78 @@
 /* Hide the per-slide caption chip ("Saanjh · Kurta sets", etc.) — removed from
    Liquid too, but this kills it instantly while the home page-cache catches up. */
 .tapi-hero__caption { display: none !important; }
+
+/* ------------------------------------------------------------------
+   "Our promise" stat values — editorial text-reveal.
+
+   These values are words (Heritage / Honest / All India / Pickup),
+   not numbers, so the old count-up animation (which ticks 0→N) was
+   showing "0" then snapping to the word. Replaced with a premium
+   word-level reveal that fires when the grid scroll-stagger lands:
+
+     · tight letter-spacing eases out as the value settles (-0.02em → 0)
+     · a single gold→cream shimmer sweeps across the gold text
+     · a 24px gold ink-stroke draws under each value
+
+   The grid's existing data-tapi-stagger="120" cascades these in
+   sequence (left→right) so the four values pulse in like a typeset
+   line being composed, not a counter racing to a number.
+   ------------------------------------------------------------------ */
+.tapi-studio-strip__value {
+  position: relative;
+  display: inline-block;
+  letter-spacing: -0.02em;
+  background-image: linear-gradient(100deg,
+    var(--mor-gold) 0%, var(--mor-gold) 38%,
+    rgba(248, 244, 237, 0.92) 50%,
+    var(--mor-gold) 62%, var(--mor-gold) 100%);
+  background-size: 220% 100%;
+  background-position: -120% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  transition: letter-spacing 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tapi-studio-strip__value::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.7rem;
+  height: 1px;
+  width: 0;
+  background: var(--mor-gold);
+  opacity: 0.7;
+  transition: width 1100ms cubic-bezier(0.22, 1, 0.36, 1) 260ms;
+}
+[data-tapi-reveal].in .tapi-studio-strip__value {
+  letter-spacing: 0;
+  animation: tapiStudioShimmer 1700ms cubic-bezier(0.22, 1, 0.36, 1) 450ms 1 forwards;
+}
+[data-tapi-reveal].in .tapi-studio-strip__value::after { width: 2.4rem; }
+@keyframes tapiStudioShimmer {
+  0%   { background-position: -120% 0; }
+  100% { background-position: 220% 0; }
+}
+
+/* Hover: gentle gold underline extend, signals that these are intentional
+   wordmarks, not interactive controls — but still reactive. */
+@media (hover: hover) {
+  .tapi-studio-strip__grid > [data-tapi-reveal]:hover .tapi-studio-strip__value::after {
+    width: 4rem;
+    transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* Reduced-motion: no shimmer, no tracking shift; show the gold text and a
+   static rule so the section reads as designed without movement. */
+@media (prefers-reduced-motion: reduce) {
+  .tapi-studio-strip__value {
+    background-image: none;
+    -webkit-text-fill-color: var(--mor-gold);
+    color: var(--mor-gold);
+    letter-spacing: 0;
+    animation: none;
+  }
+  .tapi-studio-strip__value::after { width: 2.4rem; transition: none; }
+}
