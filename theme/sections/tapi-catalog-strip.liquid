@@ -34,12 +34,11 @@
     background: var(--mor-cream, #F8F4ED);
     border-bottom: 1px solid var(--mor-hairline, #E5DDC8);
   }
-  /* Ensure the header (and its mobile drawer) paint above the strip */
+  /* Keep the strip below the header. The header keeps its own (higher)
+     z-index from Dawn + header-fix.css; do NOT set position on the header
+     section here — forcing position:relative out-specifies Dawn's
+     .shopify-section-header-sticky and breaks the sticky header. */
   #shopify-section-tapi_catalog_strip { position: relative; z-index: 1; }
-  .section-header,
-  .shopify-section-header,
-  .shopify-section.section-header,
-  #shopify-section-header { position: relative; z-index: 50; }
   .tapi-catalog-strip__row {
     list-style: none;
     margin: 0;
