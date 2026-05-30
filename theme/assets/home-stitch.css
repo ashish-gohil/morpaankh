@@ -13,17 +13,9 @@
 
 .tapi-hero { padding-bottom: 0 !important; }
 
-.tapi-collection-tiles { padding-block: clamp(40px, 6vw, 72px) 0 !important; }
+.tapi-collection-tiles { padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important; }
 
 .tapi-featured { padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important; }
-
-/* Web only: shrink the gap below the wardrobe section. Wardrobe's own bottom
-   is 0, so the visible gap is actually .tapi-featured's top padding. Cut it
-   roughly in half on desktop so the two cream-background sections sit
-   tighter while mobile keeps its current rhythm. */
-@media (min-width: 750px) {
-  .tapi-featured { padding-top: clamp(20px, 2.2vw, 32px) !important; }
-}
 
 .tapi-studio-strip { padding-block: clamp(40px, 6vw, 72px) clamp(40px, 6vw, 72px); }
 
