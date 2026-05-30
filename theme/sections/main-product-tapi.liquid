@@ -105,18 +105,44 @@
       </div>
       <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping above ₹2,499.</p>
 
-      {%- if m.color_options != blank -%}
+      {%- liquid
+        assign color_option = nil
+        assign size_option = nil
+        for opt in product.options_with_values
+          if opt.name == 'Color'
+            assign color_option = opt
+          elsif opt.name == 'Size'
+            assign size_option = opt
+          endif
+        endfor
+      -%}
+
+      {%- comment -%} Colors — real variant option. Each swatch carries data-color
+        and drives variant resolution (see the matrix + script below). Hex dots
+        come from the tapi.color_options metafield, matched by name. {%- endcomment -%}
+      {%- if color_option and color_option.values.size > 0 -%}
         <div class="tapi-pdp__group">
           <div class="tapi-pdp__group-head">
-            <span class="tapi-eyebrow">Colors</span>
-            <span class="tapi-pdp__group-meta">{{ m.color_options.value.size }} options</span>
+            <span class="tapi-eyebrow">Color</span>
+            <span class="tapi-pdp__group-meta" data-color-label>{{ color_option.selected_value }}</span>
           </div>
-          <div class="tapi-pdp__colors">
-            {%- for c in m.color_options.value -%}
-              <div class="tapi-pdp__color {% if forloop.first %}is-active{% endif %}">
-                <span class="tapi-pdp__color-dot" style="background: {{ c.hex }};"></span>
-                <span class="tapi-pdp__color-name">{{ c.name }}</span>
-              </div>
+          <div class="tapi-pdp__colors" role="radiogroup" aria-label="Color">
+            {%- for val in color_option.values -%}
+              {%- assign hex = '#CFC6B8' -%}
+              {%- if m.color_options != blank -%}
+                {%- for c in m.color_options.value -%}
+                  {%- if c.name == val -%}{%- assign hex = c.hex -%}{%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+              <button type="button"
+                      class="tapi-pdp__color{% if val == color_option.selected_value %} is-active{% endif %}"
+                      data-color="{{ val | escape }}"
+                      role="radio"
+                      aria-checked="{% if val == color_option.selected_value %}true{% else %}false{% endif %}"
+                      aria-label="{{ val | escape }}">
+                <span class="tapi-pdp__color-dot" style="background: {{ hex }};"></span>
+                <span class="tapi-pdp__color-name">{{ val }}</span>
+              </button>
             {%- endfor -%}
           </div>
         </div>
@@ -127,37 +153,42 @@
         <input type="hidden" name="utf8" value="✓">
         <input type="hidden" name="id" value="{{ current_variant.id }}" id="variant-id-{{ section.id }}">
 
-        {%- if product.has_only_default_variant == false -%}
+        {%- if size_option -%}
           <div class="tapi-pdp__group">
             <div class="tapi-pdp__group-head">
               <span class="tapi-eyebrow">Size</span>
               <a href="/pages/fabric-guide" class="tapi-pdp__guide-link">Size guide</a>
             </div>
-            <div class="tapi-pdp__sizes">
-              {%- for variant in product.variants -%}
-                {%- assign low = false -%}
-                {%- if variant.inventory_quantity > 0 and variant.inventory_quantity <= low_stock_threshold -%}{%- assign low = true -%}{%- endif -%}
+            <div class="tapi-pdp__sizes" role="radiogroup" aria-label="Size">
+              {%- for val in size_option.values -%}
                 <button type="button"
-                        class="tapi-pdp__size {% if variant.id == current_variant.id %}is-active{% endif %} {% if variant.available == false %}is-out{% endif %} {% if low %}is-low{% endif %}"
-                        data-variant-id="{{ variant.id }}"
-                        data-variant-price="{{ variant.price | money }}"
-                        data-variant-available="{{ variant.available }}"
-                        aria-pressed="{% if variant.id == current_variant.id %}true{% else %}false{% endif %}">
-                  {{ variant.title }}
+                        class="tapi-pdp__size{% if val == size_option.selected_value %} is-active{% endif %}"
+                        data-size="{{ val | escape }}"
+                        role="radio"
+                        aria-checked="{% if val == size_option.selected_value %}true{% else %}false{% endif %}">
+                  {{ val }}
                 </button>
               {%- endfor -%}
             </div>
-            <p class="tapi-pdp__stock-note" data-stock-note>
-              {%- if current_stock > 0 and current_stock <= low_stock_threshold -%}
-                Only {{ current_stock }} left in size {{ current_variant.title }}
-              {%- elsif current_variant.available -%}
-                In stock — ships in 1–2 days
-              {%- else -%}
-                Sold out — restocking soon
-              {%- endif -%}
-            </p>
+            <p class="tapi-pdp__stock-note" data-stock-note></p>
           </div>
         {%- endif -%}
+
+        {%- comment -%} Full Size×Color variant matrix — the single source of truth
+          the selection script uses to resolve a chosen (size, color) to a real
+          variant id, its price, availability, stock count, and (future) image. {%- endcomment -%}
+        <script type="application/json" data-variant-matrix>
+          [
+            {%- for v in product.variants -%}
+              {%- comment -%} img: variant image src when one is assigned, else null.
+                guarded so a variant with no image never calls image_url on nil. {%- endcomment -%}
+              {%- assign vimg = '' -%}
+              {%- if v.image != blank -%}{%- capture vimg -%}{{ v.image | image_url: width: 1400 }}{%- endcapture -%}{%- endif -%}
+              {"id": {{ v.id }}, "size": {{ v.option1 | json }}, "color": {{ v.option2 | json }}, "available": {{ v.available }}, "priceText": {{ v.price | money | json }}, "compareText": {{ v.compare_at_price | money | json }}, "inv": {{ v.inventory_quantity | default: 0 }}, "img": {{ vimg | json }}}{%- unless forloop.last -%},{%- endunless -%}
+            {%- endfor -%}
+          ]
+        </script>
+        <span hidden data-low-stock="{{ low_stock_threshold }}"></span>
 
         {%- comment -%}
           Fit feedback tile — disabled on request. Un-wrap this comment block
@@ -399,6 +430,15 @@
   .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.06); }
   .tapi-pdp__color-name { font-size: 1rem; letter-spacing: 0.06em; color: var(--tapi-muted); text-transform: uppercase; }
   .tapi-pdp__color.is-active .tapi-pdp__color-name { color: var(--tapi-charcoal); }
+  /* Colour unavailable in the chosen size — dimmed with a hairline strike on
+     the dot. Still clickable (selecting it re-paints sizes for that colour). */
+  .tapi-pdp__color.is-out { opacity: 0.42; }
+  .tapi-pdp__color.is-out .tapi-pdp__color-dot { position: relative; }
+  .tapi-pdp__color.is-out .tapi-pdp__color-dot::after {
+    content: ""; position: absolute; inset: 0; margin: auto;
+    width: 132%; height: 1px; left: -16%;
+    background: var(--tapi-charcoal); transform: rotate(-45deg); opacity: 0.5;
+  }
 
   .tapi-pdp__sizes { display: flex; gap: 0.8rem; flex-wrap: wrap; }
   .tapi-pdp__size {
@@ -519,113 +559,121 @@
     const mobilePrice = sec.querySelector('[data-mobile-price]');
     const qtyInput  = sec.querySelector('[data-qty-input]');
 
-    // Internal state — single source of truth for current variant + qty
-    let currentVariantText = (() => {
-      const initialSize = sec.querySelector('.tapi-pdp__size.is-active');
-      return initialSize ? initialSize.textContent.trim() : '';
-    })();
-    let currentUnitPriceText = addLabel ? addLabel.textContent.replace(/^Add to bag\s*[—-]\s*/, '').trim() : '';
-    let currentVariantAvailable = (() => {
-      const initialSize = sec.querySelector('.tapi-pdp__size.is-active');
-      return initialSize ? initialSize.getAttribute('data-variant-available') === 'true' : true;
-    })();
+    // ---- Variant matrix (Size × Color) — single source of truth ----
+    const addBtn   = sec.querySelector('.tapi-pdp__add');
+    const buyBtn   = sec.querySelector('.tapi-pdp__buynow');
+    const stockNote = sec.querySelector('[data-stock-note]');
+    const colorLabel = sec.querySelector('[data-color-label]');
+    const matrixEl = sec.querySelector('[data-variant-matrix]');
+    let VARIANTS = [];
+    try { VARIANTS = JSON.parse(matrixEl ? matrixEl.textContent : '[]'); } catch (_) { VARIANTS = []; }
+    const lowEl = sec.querySelector('[data-low-stock]');
+    const lowStock = (lowEl && parseInt(lowEl.getAttribute('data-low-stock'), 10)) || 3;
+    const hasColor = VARIANTS.some(v => v.color);
 
-    // Re-run the rise animation by removing/adding the .is-active class.
-    // Force reflow between the two so the CSS animation restarts.
+    // Seed selection from the server-active buttons, else first variant.
+    const activeSizeBtn = sec.querySelector('.tapi-pdp__size.is-active');
+    const activeColorBtn = sec.querySelector('.tapi-pdp__color.is-active');
+    let selSize = activeSizeBtn ? activeSizeBtn.getAttribute('data-size') : (VARIANTS[0] ? VARIANTS[0].size : null);
+    let selColor = activeColorBtn ? activeColorBtn.getAttribute('data-color') : (hasColor && VARIANTS[0] ? VARIANTS[0].color : null);
+
+    const findVariant = (size, color) =>
+      VARIANTS.find(v => v.size === size && (!hasColor || v.color === color)) || null;
+
+    // Re-run the rise animation by toggling .is-active (forces reflow).
     const refadeActiveMain = () => {
       const active = sec.querySelector('.tapi-pdp__main-img.is-active');
       if (!active) return;
       active.classList.remove('is-active');
-      void active.offsetWidth; // reflow
+      void active.offsetWidth;
       active.classList.add('is-active');
     };
 
-    // Re-render the CTA labels from the current state (so qty changes
-    // reflect in the same place size changes do — no hidden divergence).
-    const addBtn   = sec.querySelector('.tapi-pdp__add');
-    const buyBtn   = sec.querySelector('.tapi-pdp__buynow');
-    const stockNote = sec.querySelector('[data-stock-note]');
-    const rerenderCta = () => {
-      if (!currentUnitPriceText) return;
-      const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10) || 1);
+    // Cross-availability: a size greys out if it has no available variant in the
+    // chosen color, and a colour greys out if unavailable in the chosen size —
+    // the behaviour customers expect from COS / Aritzia / Zara PDPs.
+    const paintAvailability = () => {
+      sec.querySelectorAll('.tapi-pdp__size').forEach(btn => {
+        const size = btn.getAttribute('data-size');
+        const v = findVariant(size, selColor);
+        btn.classList.toggle('is-out', !v || !v.available);
+        btn.classList.toggle('is-low', !!(v && v.available && v.inv > 0 && v.inv <= lowStock));
+        const on = size === selSize;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      sec.querySelectorAll('.tapi-pdp__color').forEach(btn => {
+        const color = btn.getAttribute('data-color');
+        const v = findVariant(selSize, color);
+        btn.classList.toggle('is-out', !v || !v.available);
+        const on = color === selColor;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+    };
 
-      if (currentVariantAvailable) {
-        const lineLabel = qty > 1
-          ? `Add to bag (${qty}) — ${currentUnitPriceText}`
-          : `Add to bag — ${currentUnitPriceText}`;
-        if (addLabel) addLabel.textContent = lineLabel;
-        if (mobileAdd) mobileAdd.textContent = currentVariantText ? `Add — ${currentVariantText}` : 'Add to bag';
+    // Resolve the (size, color) selection to a real variant and reflect it
+    // everywhere: hidden cart id, ?variant URL, price, CTA, stock note, image.
+    const render = () => {
+      const v = findVariant(selSize, selColor);
+      if (v && variantInput) variantInput.value = v.id;
+      if (v) {
+        try { const u = new URL(window.location.href); u.searchParams.set('variant', v.id); window.history.replaceState({}, '', u.toString()); } catch (_) {}
+      }
+      if (colorLabel && selColor) colorLabel.textContent = selColor;
+
+      const qty = Math.max(1, parseInt((qtyInput && qtyInput.value) || '1', 10) || 1);
+      const priceText = v ? v.priceText : '';
+      const available = !!(v && v.available);
+      const label = hasColor ? [selSize, selColor].filter(Boolean).join(' · ') : selSize;
+
+      if (available) {
+        if (addLabel) addLabel.textContent = qty > 1 ? `Add to bag (${qty}) — ${priceText}` : `Add to bag — ${priceText}`;
+        if (mobileAdd) mobileAdd.textContent = label ? `Add — ${label}` : 'Add to bag';
         if (addBtn) { addBtn.disabled = false; addBtn.removeAttribute('aria-disabled'); }
         if (buyBtn) { buyBtn.disabled = false; buyBtn.removeAttribute('aria-disabled'); }
-        if (stockNote) stockNote.textContent = 'In stock — ships in 1–2 days';
+        if (stockNote) stockNote.textContent = (v.inv > 0 && v.inv <= lowStock)
+          ? `Only ${v.inv} left${label ? ' — ' + label : ''}`
+          : 'In stock — ships in 1–2 days';
       } else {
         if (addLabel) addLabel.textContent = 'Sold out';
         if (mobileAdd) mobileAdd.textContent = 'Sold out';
         if (addBtn) { addBtn.disabled = true; addBtn.setAttribute('aria-disabled', 'true'); }
         if (buyBtn) { buyBtn.disabled = true; buyBtn.setAttribute('aria-disabled', 'true'); }
-        if (stockNote) stockNote.textContent = currentVariantText ? `Sold out in size ${currentVariantText} — restocking soon` : 'Sold out — restocking soon';
+        if (stockNote) stockNote.textContent = label ? `Sold out — ${label}` : 'Sold out — restocking soon';
       }
-      if (mobilePrice) mobilePrice.textContent = currentUnitPriceText;
+      if (mobilePrice && priceText) mobilePrice.textContent = priceText;
+
+      // Per-colour image swap (no-op until variants carry their own image).
+      if (v && v.img) {
+        const img = (sec.querySelector('.tapi-pdp__main-img.is-active img') || sec.querySelector('.tapi-pdp__main-img img'));
+        if (img && img.getAttribute('src') !== v.img) { img.setAttribute('src', v.img); img.removeAttribute('srcset'); }
+      }
+      paintAvailability();
+      refadeActiveMain();
     };
+    // Back-compat alias for the qty stepper + initial sync below.
+    const rerenderCta = render;
 
     // Gallery navigation (thumbs, dots, prev/next, keyboard, swipe) is wired
-    // up by tapi-motion.js so it loads from a known-cached script tag and
-    // works even if section JS bundling is mis-cached. See setupPdpGallery
-    // in assets/tapi-motion.js.
+    // up by tapi-motion.js so it loads from a known-cached script tag.
 
-    // Color swatch toggle — also refades the main image (design parity)
-    sec.querySelectorAll('.tapi-pdp__color').forEach(c => {
-      c.addEventListener('click', function () {
-        sec.querySelectorAll('.tapi-pdp__color').forEach(x => x.classList.remove('is-active'));
-        c.classList.add('is-active');
-        refadeActiveMain();
+    // Colour select — pick any colour; availability/CTA reflect the result.
+    sec.querySelectorAll('.tapi-pdp__color').forEach(btn => {
+      btn.addEventListener('click', function () {
+        selColor = btn.getAttribute('data-color');
+        render();
       });
     });
 
-    // Size selection — document-level delegation, scoped to this section.
-    // Available variants are selectable; sold-out variants do nothing
-    // (so the user can't add an out-of-stock variant to the cart).
-    // Updates: visual active state + hidden input[name="id"] + ?variant
-    // URL param + CTA enable/label.
+    // Size select — document-level capture delegation, scoped to this section.
     const onSizeClick = function (e) {
       const b = e.target.closest('.tapi-pdp__size');
-      if (!b) return;
-      // Make sure this click belongs to OUR section instance
-      if (!sec.contains(b)) return;
-      // Sold-out sizes are intentionally no-op
-      if (b.getAttribute('data-variant-available') !== 'true') {
-        e.preventDefault();
-        return;
-      }
+      if (!b || !sec.contains(b)) return;
       e.preventDefault();
-      const all = sec.querySelectorAll('.tapi-pdp__size');
-      all.forEach(x => {
-        x.classList.remove('is-active');
-        x.setAttribute('aria-pressed', 'false');
-      });
-      b.classList.add('is-active');
-      b.setAttribute('aria-pressed', 'true');
-
-      const vid = b.getAttribute('data-variant-id');
-      const price = b.getAttribute('data-variant-price');
-      // 1) Single source of truth for the cart form
-      if (variantInput) variantInput.value = vid;
-      // 2) Keep the URL in sync so reload / share preserves the size
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('variant', vid);
-        window.history.replaceState({}, '', url.toString());
-      } catch (_) { /* ignore */ }
-
-      if (price) currentUnitPriceText = price;
-      currentVariantText = b.textContent.trim();
-      currentVariantAvailable = true;
-      rerenderCta();
-      refadeActiveMain();
+      selSize = b.getAttribute('data-size');
+      render();
     };
-    // Capture-phase listener on document — survives any descendant
-    // re-render and beats any other handler that might call
-    // stopPropagation before we see the click.
     document.addEventListener('click', onSizeClick, true);
 
     // Qty stepper — now refreshes the CTA so the price reflects the order
