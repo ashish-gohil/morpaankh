@@ -158,6 +158,14 @@
           </div>
         {%- endif -%}
 
+        {%- comment -%}
+          Fit feedback tile — disabled on request. Un-wrap this comment block
+          (remove the {%- comment -%} / {%- endcomment -%} lines) to restore
+          the size-down / true-to-size / size-up bar. CSS for .tapi-fit-feedback*
+          is still present below in this section's {% stylesheet %} so re-enabling
+          is a one-line revert.
+        {%- endcomment -%}
+        {%- comment -%}
         {%- if m.fit_pct_true -%}
           <div class="tapi-fit-feedback" role="group" aria-label="Fit feedback">
             <strong>Fit feedback from {{ m.review_count | default: '100+' }} buyers</strong>
@@ -173,6 +181,7 @@
             </div>
           </div>
         {%- endif -%}
+        {%- endcomment -%}
 
         <div class="tapi-pdp__cta-row" data-pdp-desktop-cta>
           <div class="tapi-pdp__qty">
