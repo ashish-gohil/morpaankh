@@ -18,3 +18,7 @@
 .tapi-featured { padding-block: clamp(40px, 6vw, 72px) 0 !important; }
 
 .tapi-studio-strip { padding-block: clamp(40px, 6vw, 72px) clamp(40px, 6vw, 72px); }
+
+/* Hide the per-slide caption chip ("Saanjh · Kurta sets", etc.) — removed from
+   Liquid too, but this kills it instantly while the home page-cache catches up. */
+.tapi-hero__caption { display: none !important; }

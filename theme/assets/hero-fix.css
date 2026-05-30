@@ -45,6 +45,11 @@
   }
 }
 
+/* Per-slide caption chip ("Saanjh · Kurta sets", etc.) — Liquid no longer
+   renders this, but hide it here too so it's gone instantly while the home
+   page-cache catches up. */
+.tapi-hero__caption { display: none !important; }
+
 /* Mobile-only crop bias: hero photos have the subject in the right two-thirds,
    so the default 50% 50% crop slices the subject's edge. Shift the crop window
    right so the figure sits closer to the viewport's centre on phones. */
