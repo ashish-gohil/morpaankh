@@ -15,7 +15,7 @@
 
 .tapi-collection-tiles { padding-block: clamp(40px, 6vw, 72px) 0; }
 
-.tapi-featured { padding-block: clamp(40px, 6vw, 72px) 0 !important; }
+.tapi-featured { padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important; }
 
 .tapi-studio-strip { padding-block: clamp(40px, 6vw, 72px) clamp(40px, 6vw, 72px); }
 
