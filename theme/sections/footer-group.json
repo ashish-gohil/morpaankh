@@ -1,22 +1,59 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
 {
   "name": "t:sections.footer.name",
   "type": "footer",
   "sections": {
     "footer": {
       "type": "tapi-footer",
+      "blocks": {
+        "shop": {
+          "type": "links",
+          "settings": {
+            "title": "Shop",
+            "menu": "",
+            "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive"
+          }
+        },
+        "help": {
+          "type": "links",
+          "settings": {
+            "title": "Help",
+            "menu": "",
+            "items": "Size guide | /pages/fabric-guide\nShipping | /pages/shipping\nExchange & returns | /policies/refund-policy\nFAQ | /pages/about"
+          }
+        },
+        "visit": {
+          "type": "address",
+          "settings": {
+            "title": "Visit",
+            "address": "B-36 Dangigev society, near Nalanda school, Punagam, Surat",
+            "cta_text": "Message us",
+            "cta_link": ""
+          }
+        }
+      },
+      "block_order": [
+        "shop",
+        "help",
+        "visit"
+      ],
       "settings": {
         "news_eyebrow": "Keep in touch",
         "news_title": "Letters from the studio.",
         "news_body": "Once a fortnight: new arrivals, the story behind the fabric, and notes from our studio.",
         "about_blurb": "Mor Paankh comes from a family raised in India's textile trade, with cloth in its hands for generations. We bring that eye to Indian ethnic wear for every day and occasion — honest fabric, a true fit, and photographs that match what arrives."
-      },
-      "blocks": {
-        "shop":   { "type": "links",   "settings": { "title": "Shop",   "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
-        "help":   { "type": "links",   "settings": { "title": "Help",   "items": "Size guide | /pages/fabric-guide\nShipping | /pages/shipping\nExchange & returns | /policies/refund-policy\nFAQ | /pages/about" } },
-        "visit":  { "type": "address", "settings": { "title": "Visit",  "address": "Rampura, Surat\nGujarat 395003\nMon–Sat · 10am–7pm", "cta_text": "Message us" } }
-      },
-      "block_order": ["shop", "help", "visit"]
+      }
     }
   },
-  "order": ["footer"]
+  "order": [
+    "footer"
+  ]
 }

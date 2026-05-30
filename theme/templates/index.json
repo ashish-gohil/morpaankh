@@ -9,93 +9,16 @@
  */
 {
   "sections": {
-    "tapi_hero": {
-      "type": "tapi-hero",
-      "blocks": {
-        "slide_saanjh": {
-          "type": "slide",
-          "settings": {
-            "mono": "Saanjh",
-            "tint": "#B7472A",
-            "caption": "Saanjh · Kurta sets"
-          }
-        },
-        "slide_amba": {
-          "type": "slide",
-          "settings": {
-            "mono": "Amba",
-            "tint": "#7A8761",
-            "caption": "Amba · Co-ord sets"
-          }
-        },
-        "slide_mehfil": {
-          "type": "slide",
-          "settings": {
-            "mono": "Mehfil",
-            "tint": "#B08947",
-            "caption": "Mehfil · Festive edit"
-          }
-        },
-        "slide_dhoop": {
-          "type": "slide",
-          "settings": {
-            "mono": "Dhoop",
-            "tint": "#9D3C23",
-            "caption": "Dhoop · New arrivals"
-          }
-        },
-        "size": {
-          "type": "stat",
-          "settings": {
-            "label": "Fit",
-            "value": "True to body"
-          }
-        },
-        "fabric": {
-          "type": "stat",
-          "settings": {
-            "label": "Fabric",
-            "value": "Indian-sourced"
-          }
-        },
-        "made": {
-          "type": "stat",
-          "settings": {
-            "label": "From",
-            "value": "India"
-          }
-        }
-      },
-      "block_order": [
-        "slide_saanjh",
-        "slide_amba",
-        "slide_mehfil",
-        "slide_dhoop",
-        "size",
-        "fabric",
-        "made"
-      ],
-      "settings": {
-        "autoplay": true,
-        "interval_ms": 5500,
-        "eyebrow": "Indian ethnic wear · Rooted in tradition",
-        "line_1": "Cloth we know",
-        "line_2": "by heart.",
-        "lede": "Mor Paankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives.",
-        "cta_primary": "Shop kurta sets",
-        "cta_primary_link": "shopify://collections/kurta-sets",
-        "cta_secondary": "Our story",
-        "cta_secondary_link": "shopify://pages/about"
-      }
-    },
     "tapi_catalog_strip": {
       "type": "tapi-catalog-strip",
       "blocks": {
         "coord": {
           "type": "tile",
           "settings": {
-            "label": "Co-ord Sets",
+            "collection": "",
             "link": "shopify://collections/co-ord-sets",
+            "label": "Co-ord Sets",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.24.08_PM.jpg",
             "placeholder_name": "Co",
             "tint": "#7a8761"
           }
@@ -103,8 +26,10 @@
         "three_piece": {
           "type": "tile",
           "settings": {
-            "label": "Kurta Sets",
+            "collection": "",
             "link": "shopify://collections/kurta-sets",
+            "label": "Kurta Sets",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.18.48_PM_1.jpg",
             "placeholder_name": "3",
             "tint": "#b7472a"
           }
@@ -112,8 +37,10 @@
         "festive": {
           "type": "tile",
           "settings": {
-            "label": "Festive",
+            "collection": "",
             "link": "shopify://collections/festive",
+            "label": "Festive",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.18.48_PM_2.jpg",
             "placeholder_name": "F",
             "tint": "#b08947"
           }
@@ -121,8 +48,10 @@
         "newin": {
           "type": "tile",
           "settings": {
-            "label": "New Arrivals",
+            "collection": "",
             "link": "shopify://collections/new-arrivals",
+            "label": "New Arrivals",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-29_at_6.18.47_PM.jpg",
             "placeholder_name": "N",
             "tint": "#3a3633"
           }
@@ -136,6 +65,65 @@
       ],
       "settings": {
         "aria_label": "Shop by category"
+      }
+    },
+    "tapi_hero": {
+      "type": "tapi-hero",
+      "blocks": {
+        "slide_saanjh": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/PART_1___ROLE_202605291741.jpg",
+            "caption": "Saanjh · Kurta sets",
+            "mono": "Saanjh",
+            "tint": "#b7472a"
+          }
+        },
+        "slide_amba": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/green-sage.png",
+            "caption": "Amba · Co-ord sets",
+            "mono": "Amba",
+            "tint": "#7a8761"
+          }
+        },
+        "slide_mehfil": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/PART_4___IMAGE_202605291746.jpg",
+            "caption": "Mehfil · Festive edit",
+            "mono": "Mehfil",
+            "tint": "#b08947"
+          }
+        },
+        "slide_dhoop": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/Image_Generation_Prompt___202605291851.jpg",
+            "caption": "Dhoop · New arrivals",
+            "mono": "Dhoop",
+            "tint": "#9d3c23"
+          }
+        },
+      },
+      "block_order": [
+        "slide_saanjh",
+        "slide_amba",
+        "slide_mehfil",
+        "slide_dhoop"
+      ],
+      "settings": {
+        "autoplay": true,
+        "interval_ms": 5000,
+        "eyebrow": "Indian ethnic wear · Rooted in tradition",
+        "line_1": "Cloth we know",
+        "line_2": "by heart.",
+        "lede": "Mor Paankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives.",
+        "cta_primary": "See catalog",
+        "cta_primary_link": "shopify://collections/all",
+        "cta_secondary": "Our story",
+        "cta_secondary_link": "shopify://pages/about"
       }
     },
     "tapi_collection_tiles": {
@@ -238,7 +226,7 @@
         "eyebrow": "Our promise",
         "heading": "Rooted in tradition. Honest in what we send."
       }
-    },
+    }
   },
   "order": [
     "tapi_catalog_strip",

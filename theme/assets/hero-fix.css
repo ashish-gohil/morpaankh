@@ -44,3 +44,13 @@
     border-color: rgba(249,245,238,0.65) !important;
   }
 }
+
+/* Mobile-only crop bias: hero photos have the subject in the right two-thirds,
+   so the default 50% 50% crop slices the subject's edge. Shift the crop window
+   right so the figure sits closer to the viewport's centre on phones. */
+@media (max-width: 989px) {
+  .tapi-hero__media img,
+  .tapi-hero__placeholder {
+    object-position: 72% center !important;
+  }
+}
