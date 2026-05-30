@@ -27,7 +27,7 @@
           "settings": {
             "title": "Help",
             "menu": "",
-            "items": "Size guide | /pages/fabric-guide\nShipping | /pages/shipping\nExchange & returns | /policies/refund-policy\nFAQ | /pages/about"
+            "items": "Size guide | /pages/fabric-guide\nShipping | /pages/shipping\nExchange & returns | /pages/refund-policy\nFAQ | /pages/about"
           }
         },
         "visit": {

@@ -72,8 +72,8 @@
       <div class="tapi-footer__copy">© {{ 'now' | date: '%Y' }} {{ shop.name }}. Sent with care, across India.</div>
       <div class="tapi-footer__legal">
         <a href="{{ shop.privacy_policy.url | default: '/policies/privacy-policy' }}">Privacy</a>
-        <a href="{{ shop.terms_of_service.url | default: '/policies/terms-of-service' }}">Terms</a>
-        <a href="{{ shop.refund_policy.url | default: '/policies/refund-policy' }}">Refunds</a>
+        <a href="{{ shop.terms_of_service.url | default: '/pages/terms-of-service' }}">Terms</a>
+        <a href="{{ shop.refund_policy.url | default: '/pages/refund-policy' }}">Refunds</a>
       </div>
     </div>
   </div>
@@ -164,7 +164,7 @@
       "name": "Tapi footer",
       "blocks": [
         { "type": "links", "settings": { "title": "Shop", "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
-        { "type": "links", "settings": { "title": "Help", "items": "Size guide | /pages/fabric-guide\nExchange & returns | /policies/refund-policy\nFAQ | /pages/contact" } },
+        { "type": "links", "settings": { "title": "Help", "items": "Size guide | /pages/fabric-guide\nExchange & returns | /pages/refund-policy\nFAQ | /pages/contact" } },
         { "type": "address", "settings": { "title": "Visit", "address": "Rampura, Surat\nGujarat 395003\nMon–Sat · 10am–7pm", "cta_text": "Message us" } }
       ]
     }
