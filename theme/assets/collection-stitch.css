@@ -1,0 +1,38 @@
+/* ------------------------------------------------------------------
+   Collection page — tighter top rhythm.
+
+   Before: H1 collection title (margin 2.5rem 0) → blank → grid section
+   (padding-top 56px) → toolbar. That stacks to roughly 96px of cream
+   void between the title and the filter/sort row, which makes the
+   page read as three loose bands instead of one composition.
+
+   After: the toolbar sits visually attached to the title that
+   introduces it. Title margins trimmed, grid top padding cut to a
+   hair, bottom padding kept generous so pagination still breathes.
+
+   Loaded as its own asset (fresh URL) to bypass the stale styles.css
+   bundle that has plagued this project.
+   ------------------------------------------------------------------ */
+
+.collection-hero__title { margin: 1.4rem 0 0.6rem !important; }
+
+.collection-hero__title + .collection-hero__description {
+  margin-top: 0.4rem !important;
+  margin-bottom: 1.2rem !important;
+}
+
+@media (min-width: 750px) {
+  .collection-hero__title { margin: 1.8rem 0 0.8rem !important; }
+  .collection-hero__title + .collection-hero__description {
+    margin-top: 0.6rem !important;
+    margin-bottom: 1.4rem !important;
+  }
+}
+
+/* Shopify's section wrapper class is .section-{{ section.id }}-padding;
+   in collection.json the grid section id is "product-grid", so this
+   selector targets only the grid wrapper and nothing else on the page. */
+[class*="product-grid-padding"] {
+  padding-top: 1.2rem !important;
+  padding-bottom: clamp(24px, 4vw, 48px) !important;
+}
