@@ -23,6 +23,20 @@
    Liquid too, but this kills it instantly while the home page-cache catches up. */
 .tapi-hero__caption { display: none !important; }
 
+/* Catalog strip (mobile category row under the header) — even, generous
+   spacing so the tiles breathe the same amount around the edges as between
+   each other. Already horizontally scrollable, so future categories
+   (couple sets, men's kurtas, etc.) just extend the scroll. Loaded here so
+   it surfaces on the homepage without waiting on the stale CSS bundle. */
+@media (max-width: 989px) {
+  .tapi-catalog-strip__row {
+    padding: 2rem 2rem 2.2rem !important;
+    gap: 2.8rem !important;
+    scroll-padding-inline: 2rem !important;
+  }
+  .tapi-catalog-strip__item { min-width: 6.8rem; }
+}
+
 /* ------------------------------------------------------------------
    "Our promise" stat values — editorial text-reveal.
 
