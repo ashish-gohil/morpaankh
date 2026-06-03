@@ -264,7 +264,11 @@
     {{ 'base.css' | asset_url | stylesheet_tag }}
     {{ 'theme-variables.css' | asset_url | stylesheet_tag }}
     <script src="{{ 'tapi-motion.js' | asset_url }}" defer></script>
-    <script src="{{ 'tapi-pdp.js' | asset_url }}" defer></script>
+    {%- comment -%} tapi-pdp.js removed: it was a legacy size-only variant script that
+      expected data-variant-available attributes the current Size×Color matrix markup
+      no longer renders, so it forced "Sold out" on initial PDP load and only corrected
+      after a size/color toggle. The inline script in sections/main-product-tapi.liquid
+      is the single source of truth for variant selection now. {%- endcomment -%}
     <link rel="stylesheet" href="{{ 'component-cart-items.css' | asset_url }}" media="print" onload="this.media='all'">
     <link rel="icon" type="image/svg+xml" href="{{ 'favicon.svg' | asset_url }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ 'mor-paankh-apple-touch.png' | asset_url }}">
