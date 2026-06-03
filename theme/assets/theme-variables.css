@@ -281,6 +281,20 @@ button.shopify-payment-button__button--unbranded {
   object-position: center;
 }
 
+/* ----- Clickable product image -----
+   Dawn makes the whole card clickable via the title link's ::after
+   overlay, but in this customised grid the image area wasn't reliably
+   catching that click. card-product.liquid now renders an explicit link
+   over the media; it fills .card__media (already position:absolute) and
+   sits above the image but BELOW the name pill and the sold-out / sale
+   badge (both z-index 2), so those stay independently clickable. */
+.card__media-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+}
+
 /* Info row — title and price hug each other tightly. No flex column
    tricks, no auto margins; let the natural baseline gap (0.2rem) be
    the only spacing between heading and price. */
