@@ -1,0 +1,38 @@
+{% comment %}
+  Custom robots.txt — renders Shopify's default rules first (keeps cart/checkout/
+  account protected and the sitemap reference), then explicitly allows the AI
+  search/answer crawlers so Mor Paankh can be retrieved and cited by them.
+{% endcomment %}
+{% for group in robots.default_groups %}
+{{ group.user_agent }}
+{% for rule in group.rules %}{{ rule }}
+{% endfor %}{% if group.sitemap %}{{ group.sitemap }}
+{% endif %}
+{% endfor %}
+# --- AI search / answer engines (explicitly allowed) ---
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
