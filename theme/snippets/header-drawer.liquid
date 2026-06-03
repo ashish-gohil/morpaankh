@@ -119,6 +119,58 @@
                         </div>
                       </div>
                     </details>
+                  {%- elsif link.title == 'Catalog' or link.handle == 'catalog' -%}
+                    {%- comment -%} Catalog: expandable accordion of all collections (data source =
+                      the `collections` global, the same catalogs used elsewhere). Reuses Dawn's
+                      drawer submenu markup + classes so styling and toggle/collapse behaviour match
+                      the rest of the menu exactly (native <details>). Active collection is
+                      highlighted via the standard menu-drawer__menu-item--active class. {%- endcomment -%}
+                    <details id="Details-menu-drawer-menu-item-{{ forloop.index }}">
+                      <summary
+                        id="HeaderDrawer-{{ link.handle }}"
+                        class="menu-drawer__menu-item list-menu__item link link--text focus-inset{% if request.page_type == 'collection' %} menu-drawer__menu-item--active{% endif %}"
+                      >
+                        {{ link.title | escape }}
+                        <span class="svg-wrapper">
+                          {{- 'icon-arrow.svg' | inline_asset_content -}}
+                        </span>
+                        <span class="svg-wrapper">
+                          {{- 'icon-caret.svg' | inline_asset_content -}}
+                        </span>
+                      </summary>
+                      <div
+                        id="link-{{ link.handle | escape }}"
+                        class="menu-drawer__submenu has-submenu gradient motion-reduce"
+                        tabindex="-1"
+                      >
+                        <div class="menu-drawer__inner-submenu">
+                          <button class="menu-drawer__close-button link link--text focus-inset" aria-expanded="true">
+                            <span class="svg-wrapper">
+                              {{- 'icon-arrow.svg' | inline_asset_content -}}
+                            </span>
+                            {{ link.title | escape }}
+                          </button>
+                          <ul class="menu-drawer__menu list-menu" role="list" tabindex="-1">
+                            {%- for c in collections -%}
+                              {%- unless c.handle == 'frontpage' -%}
+                                <li>
+                                  <a
+                                    id="HeaderDrawer-{{ link.handle }}-{{ c.handle }}"
+                                    href="{{ c.url }}"
+                                    class="menu-drawer__menu-item link link--text list-menu__item focus-inset{% if collection.id == c.id %} menu-drawer__menu-item--active{% endif %}"
+                                    {% if collection.id == c.id %}
+                                      aria-current="page"
+                                    {% endif %}
+                                  >
+                                    {{ c.title | escape }}
+                                  </a>
+                                </li>
+                              {%- endunless -%}
+                            {%- endfor -%}
+                          </ul>
+                        </div>
+                      </div>
+                    </details>
                   {%- else -%}
                     <a
                       id="HeaderDrawer-{{ link.handle }}"
