@@ -14,9 +14,9 @@
         <a href="{{ href }}" class="tapi-catalog-strip__link" aria-label="{{ label }}">
           <span class="tapi-catalog-strip__avatar" style="--p-color: {{ b.settings.tint | default: '#B7472A' }};">
             {%- if b.settings.image != blank -%}
-              {{ b.settings.image | image_url: width: 220 | image_tag: loading: 'lazy', alt: label, widths: '110,220,330' }}
+              {{ b.settings.image | image_url: width: 220 | image_tag: loading: 'lazy', alt: '', widths: '110,220,330' }}
             {%- elsif coll != blank and coll.featured_image -%}
-              {{ coll.featured_image | image_url: width: 220 | image_tag: loading: 'lazy', alt: label, widths: '110,220,330' }}
+              {{ coll.featured_image | image_url: width: 220 | image_tag: loading: 'lazy', alt: '', widths: '110,220,330' }}
             {%- else -%}
               <span class="tapi-catalog-strip__mono" aria-hidden="true">{{ mono | slice: 0, 1 }}</span>
             {%- endif -%}

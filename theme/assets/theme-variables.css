@@ -486,7 +486,7 @@ button.shopify-payment-button__button--unbranded {
   padding: 1.2rem 0;
 }
 .tapi-fabric-table td:first-child {
-  color: var(--tapi-muted);
+  color: var(--mor-text-muted);
   letter-spacing: 0.04em;
   width: 40%;
 }

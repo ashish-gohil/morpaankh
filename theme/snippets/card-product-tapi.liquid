@@ -42,19 +42,19 @@
       </div>
     {%- endif -%}
 
-    <div class="tapi-card__badges">
-      {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
-      {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
-      {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
-    </div>
-    {%- if saving_pct > 0 -%}
-      <span class="tapi-card__savings">–{{ saving_pct }}%</span>
-    {%- endif -%}
-
-    <div class="tapi-card__quick">
+    <div class="tapi-card__quick" aria-hidden="true">
       <span class="tapi-card__quick-btn">Quick view <em>→</em></span>
     </div>
   </a>
+
+  <div class="tapi-card__badges">
+    {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+    {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
+    {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+  </div>
+  {%- if saving_pct > 0 -%}
+    <span class="tapi-card__savings">–{{ saving_pct }}%</span>
+  {%- endif -%}
 
   <div class="tapi-card__info">
     <div class="tapi-card__row">
@@ -109,9 +109,9 @@
   .tapi-card:hover .tapi-card__img--front img { transform: scale(1.03); }
   .tapi-card:hover .tapi-card__img--back  { opacity: 1; transform: scale(1); }
 
-  .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+  .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; pointer-events: none; }
   .tapi-card__savings {
-    position: absolute; top: 12px; right: 12px; z-index: 2;
+    position: absolute; top: 12px; right: 12px; z-index: 2; pointer-events: none;
     display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
     font-size: 1.1rem; letter-spacing: 0.06em; font-weight: 500; border-radius: var(--mor-radius-pill);
     background: var(--mor-accent); color: var(--mor-cream); font-variant-numeric: tabular-nums;
@@ -152,7 +152,7 @@
   .tapi-card__dots { display: flex; gap: 5px; align-items: center; }
   .tapi-card__dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--tapi-hairline-2); transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
   .tapi-card__dot:hover { transform: scale(1.2); }
-  .tapi-card__metaline { justify-content: space-between; display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; font-size: 1.1rem; color: var(--tapi-muted); font-variant-numeric: tabular-nums; }
+  .tapi-card__metaline { justify-content: space-between; display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; font-size: 1.1rem; color: var(--mor-text-muted); font-variant-numeric: tabular-nums; }
   .tapi-card__sep { width: 2px; height: 2px; background: var(--tapi-muted); border-radius: 50%; }
   .tapi-card__low { color: var(--tapi-terracotta); display: inline-flex; align-items: center; gap: 4px; }
   .tapi-card__pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta); animation: tapi-pulse 2.2s ease-in-out infinite; }

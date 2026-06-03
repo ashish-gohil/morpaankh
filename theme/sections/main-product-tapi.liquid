@@ -98,7 +98,7 @@
         {%- if product.media.size > 1 -%}
           <div class="tapi-pdp__dots" data-gallery-dots aria-hidden="true">
             {%- for media in product.media limit: 6 -%}
-              <button type="button" class="tapi-pdp__dot {% if forloop.first %}is-active{% endif %}" data-dot-index="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}"></button>
+              <button type="button" tabindex="-1" class="tapi-pdp__dot {% if forloop.first %}is-active{% endif %}" data-dot-index="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}"></button>
             {%- endfor -%}
           </div>
         {%- endif -%}
@@ -327,7 +327,7 @@
         <div class="tapi-pdp__mobile-was">{{ current_variant.compare_at_price | money }}</div>
       {%- endif -%}
     </div>
-    <button type="submit" form="product-form-{{ section.id }}" name="add" class="button button--primary tapi-pdp__mobile-add" data-mobile-add>
+    <button type="submit" tabindex="-1" form="product-form-{{ section.id }}" name="add" class="button button--primary tapi-pdp__mobile-add" data-mobile-add>
       Add — {{ current_variant.title }}
     </button>
   </div>
@@ -385,8 +385,8 @@
 
 {% stylesheet %}
   .tapi-pdp { padding-top: 2.4rem; padding-bottom: 4.8rem; }
-  .tapi-pdp__breadcrumb { font-size: 1.2rem; color: var(--tapi-muted); margin-bottom: 2.4rem; }
-  .tapi-pdp__breadcrumb a { color: var(--tapi-muted); text-decoration: none; transition: color 200ms; }
+  .tapi-pdp__breadcrumb { font-size: 1.2rem; color: var(--mor-text-muted); margin-bottom: 2.4rem; }
+  .tapi-pdp__breadcrumb a { color: var(--mor-text-muted); text-decoration: none; transition: color 200ms; }
   .tapi-pdp__breadcrumb a:hover { color: var(--tapi-terracotta); }
   .tapi-pdp__breadcrumb span:last-child { color: var(--tapi-charcoal); }
 
@@ -484,8 +484,8 @@
 
   .tapi-pdp__price { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
   .tapi-pdp__price-now { font-family: var(--font-heading-family); font-size: 3.2rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .tapi-pdp__price-was { font-size: 1.8rem; color: var(--tapi-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
-  .tapi-pdp__price-note { font-size: 1.2rem; color: var(--tapi-muted); margin: -1.2rem 0 0; }
+  .tapi-pdp__price-was { font-size: 1.8rem; color: var(--mor-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__price-note { font-size: 1.2rem; color: var(--mor-text-muted); margin: -1.2rem 0 0; }
 
   .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; }
   .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }
@@ -494,7 +494,7 @@
 
   .tapi-pdp__group { display: flex; flex-direction: column; gap: 1.2rem; }
   .tapi-pdp__group-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .tapi-pdp__group-meta { font-size: 1.1rem; color: var(--tapi-muted); }
+  .tapi-pdp__group-meta { font-size: 1.1rem; color: var(--mor-text-muted); }
   .tapi-pdp__guide-link { font-size: 1.2rem; color: var(--tapi-charcoal); position: relative; padding-bottom: 2px; text-decoration: none; transition: color 200ms; }
   .tapi-pdp__guide-link::after { content:""; position: absolute; left:0; bottom:0; height:1px; width:100%; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-pdp__guide-link:hover::after { transform: scaleX(1); transform-origin: left; }
@@ -513,7 +513,7 @@
     outline-offset: -5px;
   }
   .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.06); }
-  .tapi-pdp__color-name { font-size: 1rem; letter-spacing: 0.06em; color: var(--tapi-muted); text-transform: uppercase; }
+  .tapi-pdp__color-name { font-size: 1rem; letter-spacing: 0.06em; color: var(--mor-text-muted); text-transform: uppercase; }
   .tapi-pdp__color.is-active .tapi-pdp__color-name { color: var(--tapi-charcoal); }
   /* Colour unavailable in the chosen size — dimmed with a hairline strike on
      the dot. Still clickable (selecting it re-paints sizes for that colour). */
@@ -534,7 +534,7 @@
   }
   .tapi-pdp__size:hover { border-color: var(--tapi-charcoal); }
   .tapi-pdp__size.is-active { background: var(--tapi-charcoal); color: var(--tapi-cream); border-color: var(--tapi-charcoal); }
-  .tapi-pdp__size.is-out { color: var(--tapi-muted); cursor: not-allowed; opacity: 0.5; }
+  .tapi-pdp__size.is-out { color: var(--mor-text-muted); cursor: not-allowed; }
   .tapi-pdp__size.is-out::after { content:""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--tapi-muted); transform: rotate(-12deg); }
   .tapi-pdp__size.is-low:not(.is-active)::before {
     content:""; position: absolute; top: -6px; right: -6px;
@@ -577,11 +577,11 @@
   .tapi-fabric-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; }
   .tapi-fabric-table tr { border-bottom: 1px dashed var(--tapi-hairline); }
   .tapi-fabric-table td { padding: 1.2rem 0; }
-  .tapi-fabric-table td:first-child { color: var(--tapi-muted); width: 40%; letter-spacing: 0.04em; }
+  .tapi-fabric-table td:first-child { color: var(--mor-text-muted); width: 40%; letter-spacing: 0.04em; }
 
   .tapi-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem; padding-bottom: 1.6rem; }
   .tapi-model-grid > div { padding-bottom: 1.2rem; border-bottom: 1px dashed var(--tapi-hairline); }
-  .tapi-model-grid > div span { display: block; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin-bottom: 0.4rem; }
+  .tapi-model-grid > div span { display: block; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mor-text-muted); margin-bottom: 0.4rem; }
   .tapi-model-grid > div strong { font-weight: 500; color: var(--tapi-charcoal); }
   .tapi-model-grid__full { grid-column: 1 / -1; }
 
@@ -604,7 +604,7 @@
     gap: 1rem; align-items: center;
   }
   .tapi-pdp__mobile-price { font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; line-height: 1; }
-  .tapi-pdp__mobile-was { font-size: 1rem; color: var(--tapi-muted); text-decoration: line-through; margin-top: 2px; }
+  .tapi-pdp__mobile-was { font-size: 1rem; color: var(--mor-text-muted); text-decoration: line-through; margin-top: 2px; }
   .tapi-pdp__mobile-add { flex: 1; height: 5.2rem; min-height: 5.2rem !important; font-size: 1.2rem; }
 
   /* Tablet / mobile responsive */
@@ -681,7 +681,9 @@
       sec.querySelectorAll('.tapi-pdp__size').forEach(btn => {
         const size = btn.getAttribute('data-size');
         const v = findVariant(size, selColor);
-        btn.classList.toggle('is-out', !v || !v.available);
+        const out = !v || !v.available;
+        btn.classList.toggle('is-out', out);
+        btn.setAttribute('aria-disabled', out ? 'true' : 'false');
         btn.classList.toggle('is-low', !!(v && v.available && v.inv > 0 && v.inv <= lowStock));
         const on = size === selSize;
         btn.classList.toggle('is-active', on);
@@ -690,6 +692,7 @@
       sec.querySelectorAll('.tapi-pdp__color').forEach(btn => {
         const color = btn.getAttribute('data-color');
         const v = findVariant(selSize, color);
+        btn.setAttribute('aria-disabled', (!v || !v.available) ? 'true' : 'false');
         btn.classList.toggle('is-out', !v || !v.available);
         const on = color === selColor;
         btn.classList.toggle('is-active', on);

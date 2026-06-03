@@ -100,8 +100,8 @@
             {%- comment -%} Left rail: Trending + Collections {%- endcomment -%}
             <aside class="tapi-search-aside">
               <section class="tapi-search-block">
-                <h3 class="eyebrow tapi-search-block__title" data-default-title>Trending</h3>
-                <h3 class="eyebrow tapi-search-block__title" data-query-title hidden>Suggested</h3>
+                <h2 class="eyebrow tapi-search-block__title" data-default-title>Trending</h2>
+                <h2 class="eyebrow tapi-search-block__title" data-query-title hidden>Suggested</h2>
                 <ul class="tapi-search-list" data-default-trending>
                   {%- assign trending_csv = section.settings.trending_terms | default: 'Saanjh kurta set, Mulmul 120 GSM, Sage co-ord, Festive dobby, Pickup from Surat' -%}
                   {%- assign trending_arr = trending_csv | split: ',' -%}
@@ -121,7 +121,7 @@
               </section>
 
               <section class="tapi-search-block">
-                <h3 class="eyebrow tapi-search-block__title">Collections</h3>
+                <h2 class="eyebrow tapi-search-block__title">Collections</h2>
                 <ul class="tapi-search-list tapi-search-list--compact">
                   {%- for c in collections limit: 6 -%}
                     {%- if c.handle == 'all' or c.handle == 'frontpage' -%}{% continue %}{%- endif -%}
@@ -139,7 +139,7 @@
             {%- comment -%} Right rail: Bestsellers (default) | Matches (query active) {%- endcomment -%}
             <div class="tapi-search-main">
               <section class="tapi-search-default" data-default-products>
-                <h3 class="eyebrow tapi-search-block__title">Bestsellers</h3>
+                <h2 class="eyebrow tapi-search-block__title">Bestsellers</h2>
                 {%- if bs_collection and bs_collection.products_count > 0 -%}
                   <ul class="tapi-search-products">
                     {%- for product in bs_collection.products limit: 5 -%}

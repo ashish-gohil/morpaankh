@@ -17,8 +17,9 @@
         {%- for b in slide_blocks -%}
           {%- assign tint = b.settings.tint | default: '#B7472A' -%}
           {%- assign mono = b.settings.mono | default: 'Saanjh' -%}
+          {%- assign slide_alt = b.settings.image.alt | default: b.settings.caption | default: shop.name -%}
           {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- endif -%}
-          <figure
+          <div
             class="tapi-hero__slide{% if forloop.first %} is-active{% endif %}"
             role="group"
             aria-roledescription="slide"
@@ -31,23 +32,23 @@
                    loading: loading_attr,
                    widths: '600, 900, 1200, 1600, 2000',
                    sizes: '100vw',
-                   alt: b.settings.image.alt | default: b.settings.caption | default: shop.name }}
+                   alt: slide_alt }}
               {%- else -%}
                 <div class="tapi-hero__placeholder" style="--p-color: {{ tint }};">
                   <span class="tapi-hero__placeholder-mono">{{ mono }}</span>
                 </div>
               {%- endif -%}
             </div>
-          </figure>
+          </div>
         {%- endfor -%}
       {%- else -%}
-        <figure class="tapi-hero__slide is-active">
+        <div class="tapi-hero__slide is-active">
           <div class="tapi-hero__media">
             <div class="tapi-hero__placeholder" style="--p-color: #B7472A;">
               <span class="tapi-hero__placeholder-mono">Saanjh</span>
             </div>
           </div>
-        </figure>
+        </div>
       {%- endif -%}
     </div>
 

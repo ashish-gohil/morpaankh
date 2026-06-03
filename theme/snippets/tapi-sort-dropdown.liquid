@@ -27,7 +27,7 @@
     <span class="tapi-sort__label" data-tapi-sort-label>{{ current_label }}</span>
   </summary>
 
-  <div class="facets__display facets__display--sort tapi-sort__menu" role="listbox" aria-label="{{ 'products.facets.sort_by_label' | t }}">
+  <div class="facets__display facets__display--sort tapi-sort__menu" role="group" aria-label="{{ 'products.facets.sort_by_label' | t }}">
     <ul class="tapi-sort__list" role="none">
       {%- for option in sort_options -%}
         <li class="tapi-sort__item" role="none">
