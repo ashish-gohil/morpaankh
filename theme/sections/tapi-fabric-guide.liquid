@@ -1,0 +1,401 @@
+{%- comment -%}
+  Tapi — Fabric & Fit guide.
+  A standalone, fully-designed page section (rendered via templates/page.fabric-guide.json).
+  Reuses the brand system: --tapi-* tokens, Cormorant/Marcellus headings, Inter body,
+  .page-width, .tapi-eyebrow, and the [data-tapi-reveal] scroll-in from tapi-motion.js.
+
+  Voice rules baked in: no "handcrafted / made by hand" claims (fabric facts are general
+  textile education, not claims about how our pieces are made); no em/en dashes in copy.
+{%- endcomment -%}
+
+<section class="tapi-fg" id="MainFabricGuide-{{ section.id }}" data-section-id="{{ section.id }}"
+         style="padding-top: {{ section.settings.padding_top }}px; padding-bottom: {{ section.settings.padding_bottom }}px;">
+  <div class="page-width tapi-fg__wrap">
+
+    {%- comment -%} ---------- HERO ---------- {%- endcomment -%}
+    <header class="tapi-fg__hero" data-tapi-reveal>
+      <span class="tapi-eyebrow">{{ section.settings.eyebrow | default: 'Fabric & Fit' }}</span>
+      <h1 class="tapi-fg__title">{{ section.settings.heading | default: 'Know your fabric' }}</h1>
+      <p class="tapi-fg__intro">{{ section.settings.intro | default: 'We list the weight, the weave and the blend on every piece. Here is what those words mean, how each cloth feels to wear, and how to land on your size.' }}</p>
+      <nav class="tapi-fg__jump" aria-label="On this page">
+        <a href="#weight">Weight</a>
+        <a href="#fabrics">Fabrics</a>
+        <a href="#weave">Weave</a>
+        <a href="#size-guide">Size guide</a>
+      </nav>
+    </header>
+
+    {%- comment -%} ---------- GSM / WEIGHT ---------- {%- endcomment -%}
+    <div class="tapi-fg__block" id="weight" data-tapi-reveal>
+      <div class="tapi-fg__block-head">
+        <span class="tapi-eyebrow">Weight, in GSM</span>
+        <h2 class="tapi-fg__h2">Read the weight before the price</h2>
+        <p class="tapi-fg__lead">GSM is grams per square metre, the honest measure of a cloth. We print it on every piece. Lighter cottons float in the heat. Heavier weaves hold their shape for festive and the camera.</p>
+      </div>
+      <div class="tapi-fg__scale" aria-hidden="true"><span></span></div>
+      <div class="tapi-fg__gsm">
+        <article class="tapi-fg__weight">
+          <span class="tapi-fg__weight-num">110<i>to</i>130</span>
+          <h3 class="tapi-fg__weight-name">Featherweight</h3>
+          <p class="tapi-fg__weight-eg">Mulmul, voile</p>
+          <p class="tapi-fg__weight-for">Light, airy, breathable. Best for summer and easy layering.</p>
+        </article>
+        <article class="tapi-fg__weight">
+          <span class="tapi-fg__weight-num">140<i>to</i>160</span>
+          <h3 class="tapi-fg__weight-name">Mid-weight</h3>
+          <p class="tapi-fg__weight-eg">Cotton-modal, twill</p>
+          <p class="tapi-fg__weight-for">Holds shape and drapes well. Your everyday and office pieces.</p>
+        </article>
+        <article class="tapi-fg__weight">
+          <span class="tapi-fg__weight-num">170<i>to</i>200</span>
+          <h3 class="tapi-fg__weight-name">Structured</h3>
+          <p class="tapi-fg__weight-eg">Dobby, silk-cotton</p>
+          <p class="tapi-fg__weight-for">Holds its form. Best for festive, photographs, the camera.</p>
+        </article>
+      </div>
+    </div>
+
+    {%- comment -%} ---------- FABRIC LIBRARY ---------- {%- endcomment -%}
+    <div class="tapi-fg__block" id="fabrics" data-tapi-reveal>
+      <div class="tapi-fg__block-head">
+        <span class="tapi-eyebrow">The fabrics we work with</span>
+        <h2 class="tapi-fg__h2">A short library</h2>
+        <p class="tapi-fg__lead">Cotton in many forms, and a pair of plant-based drapes. What each one is, how it feels, and how to keep it well.</p>
+      </div>
+
+      <div class="tapi-fg__fabrics">
+
+        <article class="tapi-fg__fabric" style="--sw: #EFE7D6;">
+          <span class="tapi-fg__fabric-tag">Cotton, everyday</span>
+          <h3 class="tapi-fg__fabric-name">Pure Cotton</h3>
+          <p class="tapi-fg__fabric-essence">The everyday hero. A natural plant fibre that breathes, absorbs and grows softer with every wear.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Soft, breathable, matte</dd></div>
+            <div><dt>Best for</dt><dd>Daily wear in the heat</dd></div>
+            <div><dt>Care</dt><dd>Machine wash cold, line dry</dd></div>
+          </dl>
+        </article>
+
+        <article class="tapi-fg__fabric" style="--sw: #E7DDC8;">
+          <span class="tapi-fg__fabric-tag">Cotton, featherweight</span>
+          <h3 class="tapi-fg__fabric-name">Mul Cotton</h3>
+          <p class="tapi-fg__fabric-essence">The finest, lightest cotton. Thin yarns spun tight into an airy, almost sheer cloth that sits like a second skin.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Silky, featherlight, cool</dd></div>
+            <div><dt>Best for</dt><dd>Peak summer, layering</dd></div>
+            <div><dt>Care</dt><dd>Gentle wash, softens each time</dd></div>
+          </dl>
+        </article>
+
+        <article class="tapi-fg__fabric" style="--sw: #D8CCB1;">
+          <span class="tapi-fg__fabric-tag">Cotton, handloom</span>
+          <h3 class="tapi-fg__fabric-name">Khadi Cotton</h3>
+          <p class="tapi-fg__fabric-essence">Handspun and handwoven cotton with a gentle slubbed texture. Cool in summer, warm in winter, and softer with every wash.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Textured, characterful, matte</dd></div>
+            <div><dt>Best for</dt><dd>All seasons, texture lovers</dd></div>
+            <div><dt>Care</dt><dd>Gentle wash, iron lightly damp</dd></div>
+          </dl>
+        </article>
+
+        <article class="tapi-fg__fabric tapi-fg__fabric--dark" style="--sw: #34507A;">
+          <span class="tapi-fg__fabric-tag">Cotton, mud-resist print</span>
+          <h3 class="tapi-fg__fabric-name">Dabu Cotton</h3>
+          <p class="tapi-fg__fabric-essence">Cotton printed with Dabu, a Rajasthani clay-resist craft. The paste resists the dye and leaves fine, vein-like patterns. Natural dyes, no two pieces alike.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Soft cotton, organic prints</dd></div>
+            <div><dt>Best for</dt><dd>Indigo lovers, real character</dd></div>
+            <div><dt>Care</dt><dd>Wash separately first, cold, dry in shade</dd></div>
+          </dl>
+        </article>
+
+        <article class="tapi-fg__fabric" style="--sw: #B5862F;">
+          <span class="tapi-fg__fabric-tag">Cotton, Kanchipuram handloom</span>
+          <h3 class="tapi-fg__fabric-name">Kanchi Cotton</h3>
+          <p class="tapi-fg__fabric-essence">The cotton cousin of Kanjivaram. Tightly woven from fine, long-staple yarn, with a crisp body, clean pleats and traditional temple borders.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Crisp yet soft, structured, light</dd></div>
+            <div><dt>Best for</dt><dd>Festive, a structured drape</dd></div>
+            <div><dt>Care</dt><dd>Gentle wash, light starch to hold shape</dd></div>
+          </dl>
+        </article>
+
+        <article class="tapi-fg__fabric" style="--sw: #8A9A74;">
+          <span class="tapi-fg__fabric-tag">Plant-based, fluid drape</span>
+          <h3 class="tapi-fg__fabric-name">Viscose</h3>
+          <p class="tapi-fg__fabric-essence">Made from wood-pulp cellulose. Silky and smooth with a soft sheen and a liquid drape that moves beautifully.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Smooth, fluid, soft sheen</dd></div>
+            <div><dt>Best for</dt><dd>Flowy silhouettes, occasion wear</dd></div>
+            <div><dt>Care</dt><dd>Delicate. Hand wash cold, dry flat in shade</dd></div>
+          </dl>
+        </article>
+
+        <article class="tapi-fg__fabric" style="--sw: #C46A4E;">
+          <span class="tapi-fg__fabric-tag">Plant-based, soft drape</span>
+          <h3 class="tapi-fg__fabric-name">Rayon</h3>
+          <p class="tapi-fg__fabric-essence">A soft, breathable cellulose cloth that takes colour vividly and falls in easy folds. Light and cool for everyday flow.</p>
+          <dl class="tapi-fg__spec">
+            <div><dt>Feel</dt><dd>Soft, airy, fluid</dd></div>
+            <div><dt>Best for</dt><dd>Printed everyday wear, summer</dd></div>
+            <div><dt>Care</dt><dd>Gentle. Hand wash cold, dry in shade</dd></div>
+          </dl>
+        </article>
+
+      </div>
+    </div>
+
+    {%- comment -%} ---------- WEAVE TYPES ---------- {%- endcomment -%}
+    <div class="tapi-fg__block" id="weave" data-tapi-reveal>
+      <div class="tapi-fg__block-head">
+        <span class="tapi-eyebrow">Weave types</span>
+        <h2 class="tapi-fg__h2">How the threads are set</h2>
+      </div>
+      <div class="tapi-fg__weaves">
+        <div class="tapi-fg__weave"><strong>Plain</strong><span>The everyday workhorse. Even threads, soft drape.</span></div>
+        <div class="tapi-fg__weave"><strong>Voile</strong><span>A loose plain weave. Light and almost translucent.</span></div>
+        <div class="tapi-fg__weave"><strong>Satin</strong><span>Smooth on one side, with a soft sheen.</span></div>
+        <div class="tapi-fg__weave"><strong>Twill</strong><span>Fine diagonal lines. Strong, with a structured drape.</span></div>
+        <div class="tapi-fg__weave"><strong>Dobby</strong><span>Small woven geometry. Catches the light differently.</span></div>
+        <div class="tapi-fg__weave"><strong>Block-print</strong><span>Carved wooden blocks, printed by hand. No two alike.</span></div>
+      </div>
+    </div>
+
+    {%- comment -%} ---------- SIZE GUIDE ---------- {%- endcomment -%}
+    <div class="tapi-fg__block tapi-fg__sizes" id="size-guide" data-tapi-reveal>
+      <div class="tapi-fg__block-head">
+        <span class="tapi-eyebrow">Size & Fit</span>
+        <h2 class="tapi-fg__h2">Find your size</h2>
+      </div>
+
+      <p class="tapi-fg__trust">
+        A guide, not a rulebook. Our pieces are made by a small group of trusted ateliers, so the exact fit can shift by about 2 to 3 inches between styles. Pick the size you usually wear and you will be in the right place. Measurements are in inches.
+      </p>
+
+      {%- comment -%} Primary chooser: the two numbers people actually pick by {%- endcomment -%}
+      <p class="tapi-fg__hint">Most people choose by bust and hip.</p>
+      <div class="tapi-fg__table-scroll">
+        <table class="tapi-fg__table tapi-fg__table--key">
+          <thead>
+            <tr><th scope="col">Size</th><th scope="col">Bust</th><th scope="col">Hip</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">XS</th><td>34</td><td>36</td></tr>
+            <tr><th scope="row">S</th><td>36</td><td>38</td></tr>
+            <tr><th scope="row">M</th><td>38</td><td>40</td></tr>
+            <tr><th scope="row">L</th><td>40</td><td>42</td></tr>
+            <tr><th scope="row">XL</th><td>42</td><td>44</td></tr>
+            <tr><th scope="row">XXL</th><td>44</td><td>46</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      {%- comment -%} How to measure {%- endcomment -%}
+      <div class="tapi-fg__measure">
+        <h3 class="tapi-fg__measure-title">How to measure</h3>
+        <ol>
+          <li><strong>Bust.</strong> Around the fullest part of your chest, tape level.</li>
+          <li><strong>Waist.</strong> Around the narrowest part, kept relaxed.</li>
+          <li><strong>Hip.</strong> Around the fullest part, feet together.</li>
+        </ol>
+        <p class="tapi-fg__measure-tip">Keep the tape snug, not tight. Easiest of all: lay a kurta you already love flat and match it to the full measurements below.</p>
+      </div>
+
+      {%- comment -%} Full measurements, tucked away so it never overwhelms {%- endcomment -%}
+      <details class="tapi-fg__full">
+        <summary>
+          <span>Full measurements</span>
+          <span class="tapi-fg__full-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="tapi-fg__full-body">
+          <p class="tapi-fg__full-note">Finished garment measurements, in inches.</p>
+          <div class="tapi-fg__toggle" role="tablist" aria-label="Top or bottom measurements">
+            <button type="button" class="tapi-fg__toggle-btn is-active" data-fg-tab="top" role="tab" aria-selected="true">Top</button>
+            <button type="button" class="tapi-fg__toggle-btn" data-fg-tab="bottom" role="tab" aria-selected="false">Bottom</button>
+          </div>
+
+          <div class="tapi-fg__table-scroll" data-fg-panel="top">
+            <table class="tapi-fg__table">
+              <thead>
+                <tr><th scope="col">Measure</th><th scope="col">XS</th><th scope="col">S</th><th scope="col">M</th><th scope="col">L</th><th scope="col">XL</th><th scope="col">XXL</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Bust</th><td>34</td><td>36</td><td>38</td><td>40</td><td>42</td><td>44</td></tr>
+                <tr><th scope="row">Shoulder</th><td>14</td><td>14.5</td><td>15</td><td>15.5</td><td>16</td><td>16.5</td></tr>
+                <tr><th scope="row">Armhole</th><td>14</td><td>15</td><td>16</td><td>17</td><td>18</td><td>19</td></tr>
+                <tr><th scope="row">Sleeve</th><td>16</td><td>16</td><td>16</td><td>16</td><td>16</td><td>16</td></tr>
+                <tr><th scope="row">Length</th><td>46</td><td>46</td><td>46</td><td>46</td><td>46</td><td>46</td></tr>
+                <tr><th scope="row">Waist</th><td>30</td><td>32</td><td>34</td><td>36</td><td>38</td><td>40</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="tapi-fg__table-scroll" data-fg-panel="bottom" hidden>
+            <table class="tapi-fg__table">
+              <thead>
+                <tr><th scope="col">Measure</th><th scope="col">XS</th><th scope="col">S</th><th scope="col">M</th><th scope="col">L</th><th scope="col">XL</th><th scope="col">XXL</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Waist</th><td>26</td><td>28</td><td>30</td><td>32</td><td>34</td><td>36</td></tr>
+                <tr><th scope="row">Hip</th><td>36</td><td>38</td><td>40</td><td>42</td><td>44</td><td>46</td></tr>
+                <tr><th scope="row">Thigh</th><td>21</td><td>23</td><td>25</td><td>27</td><td>29</td><td>31</td></tr>
+                <tr><th scope="row">Rise</th><td>12</td><td>12</td><td>12</td><td>12</td><td>12</td><td>12</td></tr>
+                <tr><th scope="row">Inseam</th><td>26</td><td>26</td><td>26</td><td>26</td><td>26</td><td>26</td></tr>
+                <tr><th scope="row">Flare</th><td>13</td><td>13</td><td>14</td><td>14</td><td>15</td><td>15</td></tr>
+                <tr><th scope="row">Length</th><td>38</td><td>38</td><td>38</td><td>38</td><td>38</td><td>38</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </div>
+
+  </div>
+</section>
+
+{% stylesheet %}
+  .tapi-fg { background: var(--tapi-cream); color: var(--tapi-charcoal); }
+  .tapi-fg__wrap { max-width: 112rem; }
+  .tapi-fg__block { padding-top: clamp(4rem, 7vw, 8rem); }
+  .tapi-fg__block:first-of-type { padding-top: clamp(3.2rem, 5vw, 5.6rem); }
+
+  /* Hero */
+  .tapi-fg__hero { max-width: 64rem; }
+  .tapi-fg__title { font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.012em; line-height: 1.04; font-size: clamp(3.6rem, 6.5vw, 6.4rem); margin: 1.2rem 0 0; }
+  .tapi-fg__intro { font-size: clamp(1.5rem, 1.7vw, 1.8rem); line-height: 1.65; color: var(--tapi-warm-grey); margin: 1.6rem 0 0; }
+  .tapi-fg__jump { display: flex; flex-wrap: wrap; gap: 1.6rem; margin-top: 2.4rem; }
+  .tapi-fg__jump a { font-size: 1.15rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-charcoal); text-decoration: none; padding-bottom: 4px; border-bottom: 1px solid var(--tapi-hairline-2); transition: border-color 240ms, color 240ms; }
+  .tapi-fg__jump a:hover { color: var(--tapi-terracotta); border-color: var(--tapi-terracotta); }
+
+  /* Section heads */
+  .tapi-fg__block-head { max-width: 60rem; margin-bottom: 3.2rem; }
+  .tapi-fg__h2 { font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.008em; line-height: 1.1; font-size: clamp(2.6rem, 3.8vw, 4rem); margin: 1rem 0 0; }
+  .tapi-fg__lead { font-size: clamp(1.4rem, 1.5vw, 1.6rem); line-height: 1.7; color: var(--tapi-warm-grey); margin: 1.4rem 0 0; }
+
+  /* GSM weight scale */
+  .tapi-fg__scale { height: 6px; border-radius: 9999px; background: linear-gradient(90deg, var(--tapi-cream-2), #D8CCB1 45%, var(--tapi-charcoal)); margin-bottom: 2.4rem; opacity: 0.85; }
+  .tapi-fg__gsm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
+  .tapi-fg__weight { background: var(--tapi-ivory); border: 1px solid var(--tapi-hairline); border-top: 2px solid var(--tapi-charcoal); padding: 2.4rem; }
+  .tapi-fg__weight:nth-child(2) { border-top-color: var(--tapi-gold); }
+  .tapi-fg__weight:nth-child(3) { border-top-color: var(--tapi-terracotta); }
+  .tapi-fg__weight-num { font-family: var(--font-heading-family); font-size: 2.8rem; font-weight: 500; font-variant-numeric: tabular-nums; display: inline-flex; align-items: baseline; gap: 0.5rem; }
+  .tapi-fg__weight-num i { font-style: normal; font-size: 1.2rem; font-family: var(--font-body-family); color: var(--tapi-muted); text-transform: lowercase; letter-spacing: 0.04em; }
+  .tapi-fg__weight-name { font-family: var(--font-heading-family); font-size: 1.9rem; font-weight: 500; margin: 0.6rem 0 0; }
+  .tapi-fg__weight-eg { font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tapi-muted); margin: 0.4rem 0 1rem; }
+  .tapi-fg__weight-for { font-size: 1.35rem; line-height: 1.6; color: var(--tapi-warm-grey); margin: 0; }
+
+  /* Fabric library */
+  .tapi-fg__fabrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
+  .tapi-fg__fabric {
+    position: relative; background: var(--tapi-ivory); border: 1px solid var(--tapi-hairline);
+    padding: 2.4rem 2.4rem 2.4rem 3.4rem; display: flex; flex-direction: column;
+    transition: transform 480ms cubic-bezier(0.22,1,0.36,1), box-shadow 480ms cubic-bezier(0.22,1,0.36,1), border-color 480ms;
+  }
+  .tapi-fg__fabric::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--sw, var(--tapi-hairline-2)); }
+  .tapi-fg__fabric:hover { transform: translateY(-4px); box-shadow: 0 24px 48px -30px rgba(44,40,38,0.4); border-color: var(--tapi-hairline-2); }
+  .tapi-fg__fabric-tag { font-size: 1.05rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-muted); }
+  .tapi-fg__fabric-name { font-family: var(--font-heading-family); font-size: 2.2rem; font-weight: 500; margin: 0.6rem 0 0; letter-spacing: -0.004em; }
+  .tapi-fg__fabric-essence { font-size: 1.35rem; line-height: 1.65; color: var(--tapi-warm-grey); margin: 1rem 0 1.6rem; }
+  .tapi-fg__spec { margin: auto 0 0; display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--tapi-hairline); }
+  .tapi-fg__spec > div { display: grid; grid-template-columns: 7rem 1fr; gap: 1.2rem; padding: 0.9rem 0; border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-fg__spec > div:last-child { border-bottom: 0; }
+  .tapi-fg__spec dt { font-size: 1.05rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin: 0; }
+  .tapi-fg__spec dd { font-size: 1.3rem; line-height: 1.5; color: var(--tapi-charcoal); margin: 0; }
+
+  /* Weave grid */
+  .tapi-fg__weaves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--tapi-hairline); border: 1px solid var(--tapi-hairline); }
+  .tapi-fg__weave { background: var(--tapi-cream); padding: 2rem; }
+  .tapi-fg__weave strong { display: block; font-family: var(--font-heading-family); font-size: 1.7rem; font-weight: 500; margin-bottom: 0.4rem; }
+  .tapi-fg__weave span { font-size: 1.3rem; line-height: 1.55; color: var(--tapi-warm-grey); }
+
+  /* Size guide */
+  .tapi-fg__sizes { scroll-margin-top: 120px; }
+  .tapi-fg__trust { max-width: 64rem; background: var(--tapi-terracotta-wash); border-left: 3px solid var(--tapi-terracotta); padding: 1.8rem 2rem; font-size: 1.4rem; line-height: 1.7; color: var(--tapi-terracotta-deep); margin: 0 0 2.8rem; }
+  .tapi-fg__hint { font-size: 1.2rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin: 0 0 1rem; }
+  .tapi-fg__table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tapi-fg__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 36rem; }
+  .tapi-fg__table th, .tapi-fg__table td { padding: 1.2rem 1.4rem; text-align: center; font-size: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-fg__table thead th { font-family: var(--font-body-family); font-size: 1.1rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tapi-muted); border-bottom: 1px solid var(--tapi-hairline-2); }
+  .tapi-fg__table tbody th[scope="row"] { text-align: left; font-weight: 500; color: var(--tapi-charcoal); }
+  .tapi-fg__table tbody tr:nth-child(even) { background: var(--tapi-ivory); }
+  .tapi-fg__table--key { max-width: 44rem; border: 1px solid var(--tapi-hairline); }
+  .tapi-fg__table--key thead th { background: var(--tapi-charcoal); color: var(--tapi-cream); border-bottom: 0; }
+  .tapi-fg__table--key tbody th[scope="row"] { padding-left: 1.8rem; }
+
+  .tapi-fg__measure { margin-top: 3.2rem; background: var(--tapi-cream-2); padding: 2.4rem; border-radius: 2px; max-width: 64rem; }
+  .tapi-fg__measure-title { font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; margin: 0 0 1.2rem; }
+  .tapi-fg__measure ol { margin: 0; padding-left: 1.8rem; display: flex; flex-direction: column; gap: 0.7rem; }
+  .tapi-fg__measure li { font-size: 1.35rem; line-height: 1.6; color: var(--tapi-warm-grey); }
+  .tapi-fg__measure li strong { color: var(--tapi-charcoal); font-weight: 500; }
+  .tapi-fg__measure-tip { font-size: 1.3rem; line-height: 1.6; color: var(--tapi-warm-grey); margin: 1.4rem 0 0; padding-top: 1.4rem; border-top: 1px dashed var(--tapi-hairline-2); }
+
+  .tapi-fg__full { margin-top: 2.4rem; border-top: 1px solid var(--tapi-hairline); }
+  .tapi-fg__full summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; padding: 2rem 0; font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; }
+  .tapi-fg__full summary::-webkit-details-marker { display: none; }
+  .tapi-fg__full-icon { font-size: 2.4rem; line-height: 1; color: var(--tapi-terracotta); transition: transform 280ms cubic-bezier(0.4,0,0.2,1); }
+  .tapi-fg__full[open] .tapi-fg__full-icon { transform: rotate(45deg); }
+  .tapi-fg__full-note { font-size: 1.2rem; color: var(--tapi-muted); margin: 0 0 1.6rem; }
+  .tapi-fg__toggle { display: inline-flex; border: 1px solid var(--tapi-hairline-2); border-radius: 9999px; padding: 4px; margin-bottom: 1.6rem; }
+  .tapi-fg__toggle-btn { border: 0; background: transparent; cursor: pointer; padding: 0.7rem 1.8rem; font-family: var(--font-body-family); font-size: 1.25rem; letter-spacing: 0.04em; color: var(--tapi-warm-grey); border-radius: 9999px; transition: background 240ms, color 240ms; }
+  .tapi-fg__toggle-btn.is-active { background: var(--tapi-charcoal); color: var(--tapi-cream); }
+
+  @media (max-width: 990px) {
+    .tapi-fg__gsm { grid-template-columns: 1fr; }
+    .tapi-fg__fabrics { grid-template-columns: repeat(2, 1fr); }
+    .tapi-fg__weaves { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .tapi-fg__fabrics { grid-template-columns: 1fr; }
+    .tapi-fg__weaves { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-fg__fabric, .tapi-fg__full-icon { transition: none; }
+    .tapi-fg__fabric:hover { transform: none; }
+  }
+{% endstylesheet %}
+
+<script>
+  (function () {
+    var sec = document.getElementById('MainFabricGuide-{{ section.id }}');
+    if (!sec) return;
+    // Top / Bottom toggle inside the Full measurements panel.
+    var btns = sec.querySelectorAll('[data-fg-tab]');
+    var panels = sec.querySelectorAll('[data-fg-panel]');
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tab = btn.getAttribute('data-fg-tab');
+        btns.forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        panels.forEach(function (p) {
+          p.hidden = p.getAttribute('data-fg-panel') !== tab;
+        });
+      });
+    });
+    // If the page is opened on #size-guide, make sure the section is revealed
+    // even before it scrolls into view (tapi-motion handles the rest).
+    if (window.location.hash === '#size-guide') {
+      var sg = document.getElementById('size-guide');
+      if (sg) sg.classList.add('in');
+    }
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Fabric & fit guide",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Fabric & Fit" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Know your fabric" },
+    { "type": "textarea", "id": "intro", "label": "Intro", "default": "We list the weight, the weave and the blend on every piece. Here is what those words mean, how each cloth feels to wear, and how to land on your size." },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 40 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 64 }
+  ],
+  "presets": [{ "name": "Fabric & fit guide" }],
+  "enabled_on": { "templates": ["page"] }
+}
+{% endschema %}

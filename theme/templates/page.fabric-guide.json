@@ -1,0 +1,15 @@
+{
+  "sections": {
+    "main": {
+      "type": "tapi-fabric-guide",
+      "settings": {
+        "eyebrow": "Fabric & Fit",
+        "heading": "Know your fabric",
+        "intro": "We list the weight, the weave and the blend on every piece. Here is what those words mean, how each cloth feels to wear, and how to land on your size.",
+        "padding_top": 40,
+        "padding_bottom": 64
+      }
+    }
+  },
+  "order": ["main"]
+}
