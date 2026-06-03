@@ -44,12 +44,14 @@
             <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-type="{{ media.media_type }}">
               {%- case media.media_type -%}
                 {%- when 'video' -%}
-                  {%- comment -%} Shopify-hosted video: native <video> guarantees playback + a
-                    play button even if our JS mis-caches; the branded overlay is the premium
-                    layer on top. mp4 sources first so Chrome/Firefox always have a playable
-                    format (they can't decode the m3u8/HLS source Safari prefers). {%- endcomment -%}
+                  {%- comment -%} Shopify-hosted video: lazy facade. We render ONLY the poster +
+                    our branded play button (no `controls`) so the browser's native centre play
+                    button can't stack on top of ours (the mobile "two play buttons" bug). On the
+                    first tap, tapi-motion.js turns on native controls and starts playback. mp4
+                    sources first so Chrome/Firefox always have a playable format (they can't
+                    decode the m3u8/HLS source Safari prefers). {%- endcomment -%}
                   <div class="tapi-pdp__media-video" data-pdp-video-wrap>
-                    <video class="tapi-pdp__video" data-pdp-video controls playsinline preload="none"
+                    <video class="tapi-pdp__video" data-pdp-video playsinline preload="none"
                            poster="{{ media.preview_image | image_url: width: 1400 }}">
                       {%- for s in media.sources -%}{%- if s.format == 'mp4' -%}<source src="{{ s.url }}" type="{{ s.mime_type }}">{%- endif -%}{%- endfor -%}
                       {%- for s in media.sources -%}{%- unless s.format == 'mp4' -%}<source src="{{ s.url }}" type="{{ s.mime_type }}">{%- endunless -%}{%- endfor -%}

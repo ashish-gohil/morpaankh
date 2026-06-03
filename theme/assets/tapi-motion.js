@@ -157,9 +157,12 @@
 
     function setActiveImage(idx) {
       var next = ((idx % total) + total) % total; // wrap both directions
-      // Pause any clip that's playing before we hide its slide.
+      // Pause any clip that's playing before we hide its slide, and reset it
+      // to the facade state (no native controls) so returning to the slide
+      // shows only our branded button, never the native one stacked on top.
       sec.querySelectorAll('video[data-pdp-video]').forEach(function (v) {
         try { v.pause(); } catch (e) {}
+        v.controls = false;
         var w = v.closest('[data-pdp-video-wrap]');
         if (w) w.classList.remove('is-playing');
       });
@@ -223,21 +226,37 @@
     sec.querySelectorAll('[data-pdp-video-wrap]').forEach(function (wrap) {
       var video = wrap.querySelector('video[data-pdp-video]');
       if (!video) return;
+      // Facade default: strip native controls so only our branded button shows
+      // until tapped. Also normalises any page-cached markup that still carries
+      // the old `controls` attribute, so the two buttons never stack.
+      video.controls = false;
       var btn = wrap.querySelector('[data-pdp-play]');
       function startPlay() {
+        // Reset every other clip to the facade state so only one plays at once.
         sec.querySelectorAll('video[data-pdp-video]').forEach(function (other) {
           if (other === video) return;
           try { other.pause(); } catch (e) {}
+          other.controls = false;
           var w = other.closest('[data-pdp-video-wrap]');
           if (w) w.classList.remove('is-playing');
         });
+        // Hide our branded button and hand off to the browser's native controls
+        // (bottom bar + its own play/pause). They never coexist now.
+        wrap.classList.add('is-playing');
+        video.controls = true;
         var p = video.play();
         if (p && typeof p.catch === 'function') p.catch(function () {});
       }
       if (btn) btn.addEventListener('click', startPlay);
-      video.addEventListener('play',  function () { wrap.classList.add('is-playing'); });
-      video.addEventListener('pause', function () { wrap.classList.remove('is-playing'); });
-      video.addEventListener('ended', function () { wrap.classList.remove('is-playing'); });
+      // While the clip is active our button stays hidden — a native pause must
+      // NOT bring it back (that's what stacked two buttons on mobile). Only a
+      // finished clip drops back to the facade: poster + branded button, no
+      // native chrome.
+      video.addEventListener('play', function () { wrap.classList.add('is-playing'); });
+      video.addEventListener('ended', function () {
+        wrap.classList.remove('is-playing');
+        video.controls = false;
+      });
     });
 
     sec.querySelectorAll('[data-pdp-external]').forEach(function (wrap) {
