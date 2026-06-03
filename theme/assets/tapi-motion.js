@@ -144,6 +144,11 @@
     if (sec.__tapiGalleryWired) return; // idempotent on editor re-render
     sec.__tapiGalleryWired = true;
 
+    // Video playback (hosted + YouTube/Vimeo facade) is wired first, before the
+    // single-media early-return below, so a product whose only media is a video
+    // still gets a working play button.
+    setupPdpVideo(sec);
+
     var thumbs = sec.querySelectorAll('.tapi-pdp__thumb');
     var mains  = sec.querySelectorAll('.tapi-pdp__main-img');
     var dots   = sec.querySelectorAll('[data-gallery-dots] .tapi-pdp__dot');
@@ -152,6 +157,12 @@
 
     function setActiveImage(idx) {
       var next = ((idx % total) + total) % total; // wrap both directions
+      // Pause any clip that's playing before we hide its slide.
+      sec.querySelectorAll('video[data-pdp-video]').forEach(function (v) {
+        try { v.pause(); } catch (e) {}
+        var w = v.closest('[data-pdp-video-wrap]');
+        if (w) w.classList.remove('is-playing');
+      });
       thumbs.forEach(function (x) { x.classList.remove('is-active'); });
       mains.forEach(function (x) { x.classList.remove('is-active'); });
       dots.forEach(function (x) { x.classList.remove('is-active'); });
@@ -201,6 +212,56 @@
         setActiveImage(currentIndex() + (dx < 0 ? 1 : -1));
       }, { passive: true });
     }
+  }
+
+  // ---------- PDP video playback ----------
+  // Hosted video: the native <video controls> already plays on its own; this
+  // just drives the branded play overlay and keeps only one clip playing.
+  // External video (YouTube / Vimeo): inject the iframe on first click so we
+  // don't load a third-party player until the shopper actually wants it.
+  function setupPdpVideo(sec) {
+    sec.querySelectorAll('[data-pdp-video-wrap]').forEach(function (wrap) {
+      var video = wrap.querySelector('video[data-pdp-video]');
+      if (!video) return;
+      var btn = wrap.querySelector('[data-pdp-play]');
+      function startPlay() {
+        sec.querySelectorAll('video[data-pdp-video]').forEach(function (other) {
+          if (other === video) return;
+          try { other.pause(); } catch (e) {}
+          var w = other.closest('[data-pdp-video-wrap]');
+          if (w) w.classList.remove('is-playing');
+        });
+        var p = video.play();
+        if (p && typeof p.catch === 'function') p.catch(function () {});
+      }
+      if (btn) btn.addEventListener('click', startPlay);
+      video.addEventListener('play',  function () { wrap.classList.add('is-playing'); });
+      video.addEventListener('pause', function () { wrap.classList.remove('is-playing'); });
+      video.addEventListener('ended', function () { wrap.classList.remove('is-playing'); });
+    });
+
+    sec.querySelectorAll('[data-pdp-external]').forEach(function (wrap) {
+      var btn = wrap.querySelector('[data-pdp-external-play]');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        if (wrap.__loaded) return;
+        var id = wrap.getAttribute('data-video-id');
+        if (!id) return;
+        var host = (wrap.getAttribute('data-video-host') || '').toLowerCase();
+        var src = host === 'vimeo'
+          ? 'https://player.vimeo.com/video/' + id + '?autoplay=1&title=0&byline=0&portrait=0'
+          : 'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1';
+        var iframe = document.createElement('iframe');
+        iframe.className = 'tapi-pdp__iframe';
+        iframe.setAttribute('src', src);
+        iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('title', 'Product video');
+        wrap.appendChild(iframe);
+        wrap.classList.add('is-playing', 'is-loaded');
+        wrap.__loaded = true;
+      });
+    });
   }
 
   // ---------- Custom dropdown widget ----------

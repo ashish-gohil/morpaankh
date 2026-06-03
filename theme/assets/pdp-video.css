@@ -1,0 +1,97 @@
+/* ============================================================
+   Mor Paankh — PDP gallery video support
+   Loaded as a standalone asset (not via the section's {% stylesheet %})
+   so it can't be held back by a stale compiled bundle.
+   Styles the hosted <video>, the YouTube/Vimeo facade, the branded
+   play button, and the small play badge on video thumbnails.
+   ============================================================ */
+
+/* --- Media frame: video sits in the same 3:4 footprint as the image
+   tiles so the gallery height never jumps when switching slides.
+   contain (not cover) keeps the whole video visible whatever its
+   aspect ratio; the charcoal mat reads as an intentional cinema frame. */
+.tapi-pdp__media-video {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--tapi-charcoal, #2C2826);
+  display: block;
+}
+.tapi-pdp__video,
+.tapi-pdp__external-poster,
+.tapi-pdp__iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+.tapi-pdp__video { object-fit: contain; background: var(--tapi-charcoal, #2C2826); }
+.tapi-pdp__external-poster { object-fit: cover; }
+.tapi-pdp__iframe { z-index: 2; }
+
+/* --- Branded play button: cream disc + charcoal glyph, centered.
+   Always visible over the poster; fades out once playback starts. */
+.tapi-pdp__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 1px solid rgba(248, 244, 237, 0.55);
+  background: rgba(248, 244, 237, 0.92);
+  color: var(--tapi-charcoal, #2C2826);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  padding-left: 4px; /* optically center the triangle */
+  box-shadow: 0 8px 28px rgba(44, 40, 38, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+              background 200ms ease, opacity 240ms ease;
+}
+.tapi-pdp__play:hover { background: var(--tapi-cream, #F8F4ED); transform: translate(-50%, -50%) scale(1.06); }
+.tapi-pdp__play:active { transform: translate(-50%, -50%) scale(0.96); }
+.tapi-pdp__play:focus-visible { outline: 2px solid var(--tapi-cream, #F8F4ED); outline-offset: 3px; }
+
+/* Hide the overlay once the clip is playing (native controls take over). */
+.tapi-pdp__media-video.is-playing .tapi-pdp__play { opacity: 0; pointer-events: none; }
+/* Once the external iframe is injected, drop the poster underneath it. */
+.tapi-pdp__media-external.is-loaded .tapi-pdp__external-poster { opacity: 0; }
+
+/* --- Thumbnail play badge: small disc, bottom-right of a video thumb. */
+.tapi-pdp__thumb { position: relative; }
+.tapi-pdp__thumb-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(44, 40, 38, 0.82);
+  color: var(--tapi-cream, #F8F4ED);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 1px;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(44, 40, 38, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-pdp__play { transition: opacity 200ms ease; }
+  .tapi-pdp__play:hover,
+  .tapi-pdp__play:active { transform: translate(-50%, -50%); }
+}
+
+/* Mobile: slightly smaller play disc so it doesn't dominate the frame. */
+@media (max-width: 749px) {
+  .tapi-pdp__play { width: 58px; height: 58px; }
+}

@@ -1,4 +1,5 @@
 {{ 'pdp-cta.css' | asset_url | stylesheet_tag }}
+{{ 'pdp-video.css' | asset_url | stylesheet_tag }}
 {%- liquid
   assign m = product.metafields.tapi
   assign current_variant = product.selected_or_first_available_variant
@@ -27,19 +28,51 @@
     <div class="tapi-pdp__gallery">
       <div class="tapi-pdp__gallery-thumbs">
         {%- for media in product.media limit: 6 -%}
-          <button type="button" class="tapi-pdp__thumb {% if forloop.first %}is-active{% endif %}" data-thumb-index="{{ forloop.index0 }}" aria-label="View {{ forloop.index }}">
+          <button type="button" class="tapi-pdp__thumb {% if forloop.first %}is-active{% endif %}" data-thumb-index="{{ forloop.index0 }}" aria-label="View item {{ forloop.index }}{% unless media.media_type == 'image' %}, {{ media.media_type | replace: '_', ' ' }}{% endunless %}">
             {{ media.preview_image | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.preview_image.alt }}
+            {%- if media.media_type == 'video' or media.media_type == 'external_video' -%}
+              <span class="tapi-pdp__thumb-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            {%- endif -%}
           </button>
         {%- endfor -%}
       </div>
       <div class="tapi-pdp__gallery-main">
         <div class="tapi-pdp__gallery-stage" data-gallery-stage>
           {%- for media in product.media limit: 6 -%}
-            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}">
-              {{ media.preview_image | image_url: width: 1400 | image_tag:
-                 loading: 'eager', widths: '600, 900, 1200, 1600',
-                 sizes: '(min-width: 990px) 50vw, 100vw',
-                 alt: media.preview_image.alt | default: product.title }}
+            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-type="{{ media.media_type }}">
+              {%- case media.media_type -%}
+                {%- when 'video' -%}
+                  {%- comment -%} Shopify-hosted video: native <video> guarantees playback + a
+                    play button even if our JS mis-caches; the branded overlay is the premium
+                    layer on top. mp4 sources first so Chrome/Firefox always have a playable
+                    format (they can't decode the m3u8/HLS source Safari prefers). {%- endcomment -%}
+                  <div class="tapi-pdp__media-video" data-pdp-video-wrap>
+                    <video class="tapi-pdp__video" data-pdp-video controls playsinline preload="none"
+                           poster="{{ media.preview_image | image_url: width: 1400 }}">
+                      {%- for s in media.sources -%}{%- if s.format == 'mp4' -%}<source src="{{ s.url }}" type="{{ s.mime_type }}">{%- endif -%}{%- endfor -%}
+                      {%- for s in media.sources -%}{%- unless s.format == 'mp4' -%}<source src="{{ s.url }}" type="{{ s.mime_type }}">{%- endunless -%}{%- endfor -%}
+                    </video>
+                    <button type="button" class="tapi-pdp__play" data-pdp-play aria-label="Play video">
+                      <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                  </div>
+                {%- when 'external_video' -%}
+                  {%- comment -%} YouTube / Vimeo: lazy facade — show the poster + play button and
+                    only inject the heavy iframe on click (keeps the PDP fast). {%- endcomment -%}
+                  <div class="tapi-pdp__media-video tapi-pdp__media-external" data-pdp-external data-video-host="{{ media.host }}" data-video-id="{{ media.external_id }}">
+                    {{ media.preview_image | image_url: width: 1400 | image_tag: loading: 'lazy', alt: media.preview_image.alt | default: product.title, class: 'tapi-pdp__external-poster' }}
+                    <button type="button" class="tapi-pdp__play" data-pdp-external-play aria-label="Play video">
+                      <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                  </div>
+                {%- else -%}
+                  {{ media.preview_image | image_url: width: 1400 | image_tag:
+                     loading: 'eager', widths: '600, 900, 1200, 1600',
+                     sizes: '(min-width: 990px) 50vw, 100vw',
+                     alt: media.preview_image.alt | default: product.title }}
+              {%- endcase -%}
             </div>
           {%- endfor -%}
           {%- if product.media.size == 0 -%}
