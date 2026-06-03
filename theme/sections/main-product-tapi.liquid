@@ -29,7 +29,7 @@
       <div class="tapi-pdp__gallery-thumbs">
         {%- for media in product.media limit: 6 -%}
           <button type="button" class="tapi-pdp__thumb {% if forloop.first %}is-active{% endif %}" data-thumb-index="{{ forloop.index0 }}" aria-label="View item {{ forloop.index }}{% unless media.media_type == 'image' %}, {{ media.media_type | replace: '_', ' ' }}{% endunless %}">
-            {{ media.preview_image | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.preview_image.alt }}
+            {{ media.preview_image | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.preview_image.alt | default: product.title }}
             {%- if media.media_type == 'video' or media.media_type == 'external_video' -%}
               <span class="tapi-pdp__thumb-badge" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
