@@ -181,6 +181,18 @@
   {%- endif -%}
 </div>
 
+{%- comment -%} BreadcrumbList structured data: Home > Collection. {%- endcomment -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": {{ request.origin | append: routes.root_url | json }} },
+    { "@type": "ListItem", "position": 2, "name": {{ collection.title | json }}, "item": {{ request.origin | append: collection.url | json }} }
+  ]
+}
+</script>
+
 {% schema %}
 {
   "name": "t:sections.main-collection-product-grid.name",
