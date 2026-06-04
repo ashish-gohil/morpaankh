@@ -17,7 +17,7 @@
         {%- for b in slide_blocks -%}
           {%- assign tint = b.settings.tint | default: '#B7472A' -%}
           {%- assign mono = b.settings.mono | default: 'Saanjh' -%}
-          {%- assign slide_alt = b.settings.image.alt | default: b.settings.caption | default: shop.name -%}
+          {%- if b.settings.image.alt != blank -%}{%- assign slide_alt = b.settings.image.alt -%}{%- elsif b.settings.caption != blank -%}{%- assign slide_alt = b.settings.caption | append: ", Mor Paankh women's Indian ethnic wear" -%}{%- else -%}{%- assign slide_alt = "Mor Paankh women's Indian ethnic wear" -%}{%- endif -%}
           {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- assign fetch_attr = 'high' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- assign fetch_attr = 'auto' -%}{%- endif -%}
           <div
             class="tapi-hero__slide{% if forloop.first %} is-active{% endif %}"

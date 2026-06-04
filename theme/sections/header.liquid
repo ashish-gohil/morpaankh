@@ -429,6 +429,7 @@
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": {{ shop.name | json }},
+    "alternateName": ["Morpaankh", "Mor Paankh", "Mor Paankh ethnic wear"],
     "url": {{ request.origin | json }},
     "logo": {{ org_logo | json }},
     "description": {{ shop.description | default: 'Mor Paankh is Indian ethnic wear from a family raised in the textile trade. Honest fabric, true-to-body fit, and photographs that match what arrives.' | json }}{% if org_social.size > 0 %},
