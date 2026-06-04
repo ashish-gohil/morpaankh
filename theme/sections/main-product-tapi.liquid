@@ -41,6 +41,7 @@
       <div class="tapi-pdp__gallery-main">
         <div class="tapi-pdp__gallery-stage" data-gallery-stage>
           {%- for media in product.media limit: 6 -%}
+            {%- if forloop.first -%}{%- assign pdp_loading = 'eager' -%}{%- assign pdp_fetch = 'high' -%}{%- else -%}{%- assign pdp_loading = 'lazy' -%}{%- assign pdp_fetch = 'auto' -%}{%- endif -%}
             <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-type="{{ media.media_type }}">
               {%- case media.media_type -%}
                 {%- when 'video' -%}
@@ -71,7 +72,7 @@
                   </div>
                 {%- else -%}
                   {{ media.preview_image | image_url: width: 1400 | image_tag:
-                     loading: 'eager', widths: '600, 900, 1200, 1600',
+                     loading: pdp_loading, fetchpriority: pdp_fetch, widths: '600, 900, 1200, 1600',
                      sizes: '(min-width: 990px) 50vw, 100vw',
                      alt: media.preview_image.alt | default: product.title }}
               {%- endcase -%}

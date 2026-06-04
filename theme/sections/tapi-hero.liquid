@@ -588,17 +588,29 @@
         touchStartX = null;
       }, { passive: true });
 
-      // Lazy-start when scrolled into view
+      // Lazy-start when scrolled into view. The FIRST start is held until the
+      // page has loaded and settled (~1s) so the hero stays still through first
+      // paint — a calmer, more deliberate first impression, and it keeps the
+      // initial render visually stable (better Speed Index). Re-entry (scrolling
+      // back into view) starts immediately; manual dots/swipe are never gated.
+      var autoplayArmed = false;
+      function beginAutoplay() {
+        if (autoplayArmed) { start(); return; }
+        autoplayArmed = true;
+        var go = function () { start(); };
+        if (document.readyState === 'complete') { setTimeout(go, 1000); }
+        else { window.addEventListener('load', function () { setTimeout(go, 1000); }, { once: true }); }
+      }
       if ('IntersectionObserver' in window) {
         var io = new IntersectionObserver(function (entries) {
           entries.forEach(function (entry) {
-            if (entry.isIntersecting) start();
+            if (entry.isIntersecting) beginAutoplay();
             else stop();
           });
         }, { threshold: 0.15 });
         io.observe(root);
       } else {
-        start();
+        beginAutoplay();
       }
     }
 

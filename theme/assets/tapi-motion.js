@@ -50,7 +50,20 @@
         if (!c.hasAttribute('data-tapi-delay')) c.setAttribute('data-tapi-delay', String(i * step));
       });
     });
-    root.querySelectorAll('[data-tapi-reveal]').forEach(function (el) { io.observe(el); });
+    // Reveal anything already in the viewport synchronously — in the SAME task
+    // as the opacity:0 injection — so above-the-fold content never flashes
+    // hidden and then fades back in. It simply stays put: instant and premium,
+    // and the visual paint stays stable (a big Speed Index win). Below-the-fold
+    // elements are observed and animate in on scroll, which keeps it engaging.
+    var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    root.querySelectorAll('[data-tapi-reveal]').forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      if (vh && r.top < vh && r.bottom > 0) {
+        el.classList.add('in');
+      } else {
+        io.observe(el);
+      }
+    });
   }
 
   // ---------- CountUp ----------
