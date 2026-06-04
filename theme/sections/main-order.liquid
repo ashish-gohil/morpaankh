@@ -12,6 +12,45 @@
       padding-bottom: {{ section.settings.padding_bottom }}px;
     }
   }
+
+  .tapi-order-track {
+    margin: 1.6rem 0 2rem;
+    padding: 1.2rem 1.4rem;
+    background: var(--mor-cream-2, #F1EBDD);
+    border: 1px solid rgba(44, 40, 38, 0.1);
+    border-radius: 12px;
+  }
+
+  .tapi-order-track__eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mor-text-muted, #6B5D54);
+    margin: 0 0 0.7rem;
+  }
+
+  .tapi-order-track__item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+  }
+
+  .tapi-order-track__meta {
+    font-size: 0.98rem;
+    color: var(--mor-charcoal, #2C2826);
+  }
+
+  .tapi-order-track__btn {
+    white-space: nowrap;
+  }
+
+  .tapi-order-track__btn-link {
+    color: var(--mor-primary, #2E4B3C);
+    text-underline-offset: 4px;
+  }
 {%- endstyle -%}
 
 <div class="customer order section-{{ section.id }}-padding">
@@ -25,6 +64,25 @@
       <h2>{{ 'customer.order.title' | t: name: order.name }}</h2>
       {%- assign order_date = order.created_at | time_tag: format: 'date_at_time' -%}
       <p>{{ 'customer.order.date_html' | t: date: order_date }}</p>
+
+      {%- if order.fulfillments.size > 0 -%}
+        <div class="tapi-order-track">
+          <p class="tapi-order-track__eyebrow">Shipment tracking</p>
+          {%- for fulfillment in order.fulfillments -%}
+            <div class="tapi-order-track__item">
+              <span class="tapi-order-track__meta">
+                {%- if fulfillment.tracking_company != blank -%}{{ fulfillment.tracking_company }}{%- else -%}Courier{%- endif -%}
+                {%- if fulfillment.tracking_number != blank %} &middot; {{ fulfillment.tracking_number }}{% endif -%}
+              </span>
+              {%- if fulfillment.tracking_url != blank -%}
+                <a class="button button--primary tapi-order-track__btn" href="{{ fulfillment.tracking_url }}" target="_blank" rel="noopener">Track shipment</a>
+              {%- else -%}
+                <a class="tapi-order-track__btn-link" href="{{ pages['track-order'].url | default: '/pages/track-order' }}">Track your order</a>
+              {%- endif -%}
+            </div>
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
       {%- if order.cancelled -%}
         {%- assign cancelled_at = order.cancelled_at | time_tag: format: 'date_at_time' -%}
         <p>{{ 'customer.order.cancelled_html' | t: date: cancelled_at }}</p>

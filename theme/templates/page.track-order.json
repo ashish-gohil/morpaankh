@@ -1,0 +1,12 @@
+{
+  "sections": {
+    "track": {
+      "type": "tapi-track-order",
+      "settings": {
+        "color_scheme": "background-1",
+        "contact_link": "/pages/contact"
+      }
+    }
+  },
+  "order": ["track"]
+}

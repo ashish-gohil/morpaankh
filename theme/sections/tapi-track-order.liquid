@@ -1,0 +1,331 @@
+{%- comment -%}
+  Track order — branded, on-site shipment tracking surface.
+
+  Shipment creation, AWB assignment, courier selection, real-time status
+  sync, and delivery/RTO/NDR handling are all performed server-side by the
+  Shiprocket Shopify app (no theme code; configured in the Shopify admin).
+  The app writes each shipment's tracking number + tracking URL back onto
+  the Shopify order's fulfillment.
+
+  This page is the customer-facing DISPLAY of that data. It works for guest
+  checkouts (no account needed): the shopper enters the tracking / AWB
+  number from their shipping email / WhatsApp / SMS and is taken to the live
+  carrier tracking page. If they paste a full tracking link, it opens that
+  directly. Logged-in customers can also track from their order page.
+
+  tracking_url_base: confirm your exact branded tracking URL in
+  Shiprocket -> Settings -> Branded Tracking and paste it here. The AWB is
+  appended to it. Default is Shiprocket's common public tracker.
+{%- endcomment -%}
+
+<section class="tapi-track color-{{ section.settings.color_scheme }} gradient">
+  <div class="tapi-track__inner page-width">
+    {%- if section.settings.eyebrow != blank -%}
+      <span class="tapi-eyebrow tapi-eyebrow--line" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
+    {%- endif -%}
+    <h1 class="tapi-track__title" data-tapi-reveal>{{ section.settings.heading | default: 'Track your order' }}</h1>
+    {%- if section.settings.intro != blank -%}
+      <p class="tapi-track__intro" data-tapi-reveal>{{ section.settings.intro }}</p>
+    {%- endif -%}
+
+    <form
+      class="tapi-track__card"
+      data-tapi-track-form
+      data-track-base="{{ section.settings.tracking_url_base }}"
+      novalidate
+      data-tapi-reveal
+    >
+      <label class="tapi-track__label" for="tapi-track-awb">
+        {{ section.settings.input_label | default: 'Tracking / AWB number' }}
+      </label>
+      <div class="tapi-track__row">
+        <input
+          id="tapi-track-awb"
+          name="awb"
+          type="text"
+          inputmode="latin"
+          autocomplete="off"
+          spellcheck="false"
+          class="tapi-track__input"
+          placeholder="{{ section.settings.input_placeholder | default: 'e.g. 1234567890 or paste your tracking link' }}"
+          aria-describedby="tapi-track-help tapi-track-error"
+          required
+        >
+        <button type="submit" class="button button--primary tapi-track__btn">
+          {{ section.settings.button_label | default: 'Track' }}
+        </button>
+      </div>
+      <p class="tapi-track__error" id="tapi-track-error" data-track-error role="alert" hidden>
+        {{ section.settings.error_text | default: 'Please enter your tracking or AWB number.' }}
+      </p>
+      {%- if section.settings.help_text != blank -%}
+        <p class="tapi-track__help" id="tapi-track-help">{{ section.settings.help_text }}</p>
+      {%- endif -%}
+    </form>
+
+    <div class="tapi-track__alt" data-tapi-reveal>
+      {%- if section.settings.show_account_link -%}
+        <a class="tapi-track__alt-link" href="{{ routes.account_url }}">
+          {{ section.settings.account_link_text | default: 'View your orders' }}
+        </a>
+      {%- endif -%}
+      {%- if section.settings.contact_link != blank -%}
+        <a class="tapi-track__alt-link" href="{{ section.settings.contact_link }}">
+          {{ section.settings.contact_link_text | default: 'Need help? Contact us' }}
+        </a>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var form = document.querySelector('[data-tapi-track-form]');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = form.querySelector('[name="awb"]');
+      var err = form.querySelector('[data-track-error]');
+      var val = (input.value || '').trim();
+      if (!val) {
+        if (err) err.hidden = false;
+        input.focus();
+        return;
+      }
+      if (err) err.hidden = true;
+      var url;
+      if (/^https?:\/\//i.test(val)) {
+        url = val; /* customer pasted a full tracking link from SMS / email */
+      } else {
+        var base = form.getAttribute('data-track-base');
+        if (!base) base = 'https://shiprocket.co/tracking/';
+        var awb = encodeURIComponent(val.replace(/\s+/g, ''));
+        if (base.indexOf('=') !== -1) {
+          url = base + awb; /* base ends in a query param, e.g. ...?awb= */
+        } else {
+          if (base.charAt(base.length - 1) !== '/') base += '/';
+          url = base + awb;
+        }
+      }
+      window.open(url, '_blank', 'noopener');
+    });
+  })();
+</script>
+
+{% stylesheet %}
+  .tapi-track {
+    padding-top: var(--tapi-section-pad, 72px);
+    padding-bottom: var(--tapi-section-pad, 72px);
+  }
+
+  .tapi-track__inner {
+    max-width: 640px;
+    text-align: center;
+  }
+
+  .tapi-track .tapi-eyebrow {
+    justify-content: center;
+    margin-bottom: 1.1rem;
+  }
+
+  .tapi-track__title {
+    font-family: var(--font-heading-family, 'Cormorant Garamond', serif);
+    font-weight: 500;
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: 0.01em;
+    color: var(--mor-charcoal, #2C2826);
+    margin: 0 0 1rem;
+  }
+
+  .tapi-track__intro {
+    font-size: 1.02rem;
+    line-height: 1.7;
+    color: var(--mor-text-muted, #6B5D54);
+    margin: 0 auto 2.4rem;
+    max-width: 52ch;
+  }
+
+  .tapi-track__card {
+    background: var(--mor-cream, #F8F4ED);
+    border: 1px solid rgba(44, 40, 38, 0.1);
+    border-radius: 14px;
+    padding: clamp(1.5rem, 4vw, 2.4rem);
+    text-align: left;
+    box-shadow: 0 18px 40px -28px rgba(44, 40, 38, 0.4);
+  }
+
+  .tapi-track__label {
+    display: block;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mor-text-muted, #6B5D54);
+    margin-bottom: 0.7rem;
+  }
+
+  .tapi-track__row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .tapi-track__input {
+    flex: 1 1 220px;
+    min-width: 0;
+    font-size: 1rem;
+    padding: 0.95rem 1.1rem;
+    border: 1px solid rgba(44, 40, 38, 0.22);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--mor-charcoal, #2C2826);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .tapi-track__input:focus {
+    outline: none;
+    border-color: var(--mor-primary, #2E4B3C);
+    box-shadow: 0 0 0 3px rgba(46, 75, 60, 0.15);
+  }
+
+  .tapi-track__btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .tapi-track__error {
+    margin: 0.85rem 0 0;
+    font-size: 0.9rem;
+    color: var(--tapi-terracotta, #B7472A);
+  }
+
+  .tapi-track__help {
+    margin: 1.1rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--mor-text-muted, #6B5D54);
+  }
+
+  .tapi-track__alt {
+    display: flex;
+    gap: 1.6rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1.8rem;
+  }
+
+  .tapi-track__alt-link {
+    font-size: 0.92rem;
+    color: var(--mor-primary, #2E4B3C);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1px;
+  }
+
+  @media screen and (max-width: 540px) {
+    .tapi-track__btn {
+      flex: 1 1 100%;
+    }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Track order",
+  "tag": "section",
+  "settings": [
+    {
+      "type": "select",
+      "id": "color_scheme",
+      "label": "Color scheme",
+      "options": [
+        { "value": "background-1", "label": "Background 1" },
+        { "value": "background-2", "label": "Background 2" }
+      ],
+      "default": "background-1"
+    },
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Eyebrow",
+      "default": "Order tracking"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Track your order"
+    },
+    {
+      "type": "textarea",
+      "id": "intro",
+      "label": "Intro",
+      "default": "Enter the tracking or AWB number from your shipping confirmation (sent by email, WhatsApp, and SMS) to see your shipment's live status. You can also paste the full tracking link."
+    },
+    {
+      "type": "text",
+      "id": "input_label",
+      "label": "Input label",
+      "default": "Tracking / AWB number"
+    },
+    {
+      "type": "text",
+      "id": "input_placeholder",
+      "label": "Input placeholder",
+      "default": "e.g. 1234567890 or paste your tracking link"
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Track"
+    },
+    {
+      "type": "text",
+      "id": "tracking_url_base",
+      "label": "Tracking URL base",
+      "info": "The AWB number is appended to this. Confirm your exact branded tracking URL in Shiprocket > Settings > Branded Tracking. Leave blank to use Shiprocket's default tracker.",
+      "default": "https://shiprocket.co/tracking/"
+    },
+    {
+      "type": "text",
+      "id": "error_text",
+      "label": "Empty-input error text",
+      "default": "Please enter your tracking or AWB number."
+    },
+    {
+      "type": "textarea",
+      "id": "help_text",
+      "label": "Help text",
+      "default": "Tracking usually goes live within a few hours of dispatch. If it does not, give it a little time and try again."
+    },
+    {
+      "type": "header",
+      "content": "Secondary links"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_account_link",
+      "label": "Show 'View your orders' link",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "account_link_text",
+      "label": "Account link text",
+      "default": "View your orders"
+    },
+    {
+      "type": "url",
+      "id": "contact_link",
+      "label": "Contact link"
+    },
+    {
+      "type": "text",
+      "id": "contact_link_text",
+      "label": "Contact link text",
+      "default": "Need help? Contact us"
+    }
+  ],
+  "presets": [{ "name": "Track order" }]
+}
+{% endschema %}
