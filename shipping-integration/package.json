@@ -1,0 +1,19 @@
+{
+  "name": "morpaankh-shipping-integration",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shopify <-> Shiprocket shipping integration for Mor Paankh: shipment creation on order placement, real-time tracking status sync, and delivery/RTO webhook handling.",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "register-webhooks": "node scripts/register-webhooks.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
