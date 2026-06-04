@@ -1,0 +1,108 @@
+{%- comment -%}
+  Tapi FAQ — a single source of honest Q&A rendered BOTH as a visible accordion
+  (native <details>, so it matches the rest of the site and needs no JS) AND as
+  FAQPage JSON-LD built from the same data, so the structured data always matches
+  what's on the page (a requirement for valid FAQPage markup).
+
+  Content is delimited: each pair is `question:::answer`, pairs joined by `|||`.
+  Voice: honest, premium, plain. No em/en dashes, no handcraft claims.
+{%- endcomment -%}
+
+{%- capture faq_data -%}
+How long will delivery take?:::Orders are dispatched within 1 to 2 business days and usually arrive in 3 to 7 business days, depending on where you are. You will get a tracking link as soon as your order ships.|||
+How much does shipping cost?:::Shipping is free on orders above ₹2,000. Below that, a flat ₹40 applies. If you are in Surat, you can choose local pickup and we will waive the fee.|||
+Can I return or exchange something?:::Yes, for a defect or a wrong item. Let us know within 7 days of delivery and we will arrange a free return and a replacement or refund. We are not able to take change-of-mind or fit-only returns at the moment, so please check the size guide before you order.|||
+How do I find my size?:::Every product page links to our size guide with bust, waist, and hip measurements. Because our pieces come from a handful of trusted ateliers, measurements can vary by about 2 to 3 inches between styles, so pick the size you usually wear and use the chart as a guide.|||
+How should I care for my pieces?:::Care depends on the fabric, and every product lists its own wash care. As a rule, a gentle cold hand wash and drying in the shade keeps colour and texture at their best. Our fabric guide explains each fabric in more detail.|||
+Will the colour and fabric match the photos?:::We photograph each piece as honestly as we can, and we list the fabric and its GSM (weight) on every product so you know what you are getting. Screens vary, so a slight difference in shade is normal.|||
+How do I reach you?:::Write to us at support@morpaankh.in and we will get back to you. You can also message us on Instagram at @morpaankh_collection.
+{%- endcapture -%}
+{%- assign faq_items = faq_data | strip | split: '|||' -%}
+
+<section class="tapi-faq" aria-label="{{ section.settings.heading | default: 'Frequently asked questions' }}">
+  <div class="page-width tapi-faq__inner">
+    <header class="tapi-faq__head">
+      <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow | default: 'Good to know' }}</span>
+      <h2 class="tapi-faq__heading">{{ section.settings.heading | default: 'Questions, answered.' }}</h2>
+    </header>
+
+    <div class="tapi-faq__list">
+      {%- for item in faq_items -%}
+        {%- assign parts = item | strip | split: ':::' -%}
+        {%- assign q = parts[0] | strip -%}
+        {%- assign a = parts[1] | strip -%}
+        {%- if q != blank and a != blank -%}
+          <details class="tapi-faq__item">
+            <summary class="tapi-faq__q">
+              <span>{{ q }}</span>
+              <span class="tapi-faq__icon" aria-hidden="true"></span>
+            </summary>
+            <div class="tapi-faq__a"><p>{{ a }}</p></div>
+          </details>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {%- assign first = true -%}
+    {%- for item in faq_items -%}
+      {%- assign parts = item | strip | split: ':::' -%}
+      {%- assign q = parts[0] | strip -%}
+      {%- assign a = parts[1] | strip -%}
+      {%- if q != blank and a != blank -%}
+        {%- unless first %},{% endunless -%}{%- assign first = false -%}
+        {
+          "@type": "Question",
+          "name": {{ q | json }},
+          "acceptedAnswer": { "@type": "Answer", "text": {{ a | json }} }
+        }
+      {%- endif -%}
+    {%- endfor -%}
+  ]
+}
+</script>
+
+{% stylesheet %}
+  .tapi-faq { background: var(--mor-cream); padding-block: var(--tapi-section-pad); }
+  .tapi-faq__inner { max-width: 76rem; }
+  .tapi-faq__head { margin-bottom: 3.2rem; }
+  .tapi-faq__heading { font-family: var(--font-heading-family); font-size: var(--mor-h2); font-weight: 500; letter-spacing: -0.012em; line-height: var(--mor-leading-snug); margin: 1.2rem 0 0; color: var(--mor-charcoal); }
+  .tapi-faq__list { border-top: 1px solid var(--tapi-hairline); }
+  .tapi-faq__item { border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-faq__q {
+    list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 2rem;
+    padding: 2.4rem 0; font-family: var(--font-heading-family); font-size: clamp(1.7rem, 2vw, 2rem); font-weight: 500;
+    color: var(--mor-charcoal); transition: color var(--mor-dur-base) var(--mor-ease);
+  }
+  .tapi-faq__q::-webkit-details-marker { display: none; }
+  .tapi-faq__q:hover { color: var(--mor-accent); }
+  .tapi-faq__icon { position: relative; flex: 0 0 auto; width: 16px; height: 16px; }
+  .tapi-faq__icon::before, .tapi-faq__icon::after { content: ""; position: absolute; background: currentColor; transition: transform var(--mor-dur-base) var(--mor-ease), opacity var(--mor-dur-base) var(--mor-ease); }
+  .tapi-faq__icon::before { top: 7px; left: 0; width: 16px; height: 1.5px; }
+  .tapi-faq__icon::after  { top: 0; left: 7px; width: 1.5px; height: 16px; }
+  .tapi-faq__item[open] .tapi-faq__icon::after { transform: scaleY(0); opacity: 0; }
+  .tapi-faq__a { padding: 0 0 2.6rem; max-width: 62ch; }
+  .tapi-faq__a p { margin: 0; color: var(--mor-text-muted); font-size: var(--mor-text-base); line-height: var(--mor-leading-body); }
+  .tapi-faq__item[open] .tapi-faq__q { color: var(--mor-accent); }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "FAQ",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Good to know" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Questions, answered." }
+  ],
+  "presets": [
+    { "name": "FAQ" }
+  ]
+}
+{% endschema %}
