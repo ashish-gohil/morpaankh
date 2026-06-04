@@ -11,6 +11,20 @@
   elsif request.page_type == 'password'
     assign og_url = request.origin
   endif
+
+  comment
+    Homepage brand defaults — single source of truth for social previews
+    (the duplicate inline block in theme.liquid was removed). Only applied
+    when no SEO title/description is set in admin, so admin overrides win.
+  endcomment
+  if request.page_type == 'index'
+    if page_title == blank or page_title == shop.name
+      assign og_title = 'Mor Paankh — Indian ethnic wear, rooted in tradition'
+    endif
+    if page_description == blank
+      assign og_description = 'Kurta sets, co-ord sets, and festive pieces, chosen with the eye of a family raised in the textile trade. Honest fabric, true-to-body fit.'
+    endif
+  endif
 %}
 
 <meta property="og:site_name" content="{{ shop.name }}">

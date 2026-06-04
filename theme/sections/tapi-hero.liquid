@@ -18,7 +18,7 @@
           {%- assign tint = b.settings.tint | default: '#B7472A' -%}
           {%- assign mono = b.settings.mono | default: 'Saanjh' -%}
           {%- assign slide_alt = b.settings.image.alt | default: b.settings.caption | default: shop.name -%}
-          {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- endif -%}
+          {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- assign fetch_attr = 'high' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- assign fetch_attr = 'auto' -%}{%- endif -%}
           <div
             class="tapi-hero__slide{% if forloop.first %} is-active{% endif %}"
             role="group"
@@ -30,6 +30,7 @@
               {%- if b.settings.image != blank -%}
                 {{ b.settings.image | image_url: width: 2000 | image_tag:
                    loading: loading_attr,
+                   fetchpriority: fetch_attr,
                    widths: '600, 900, 1200, 1600, 2000',
                    sizes: '100vw',
                    alt: slide_alt }}

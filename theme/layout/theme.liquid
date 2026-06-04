@@ -276,15 +276,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap">
     <meta name="theme-color" content="#F8F4ED">
-    {%- if request.page_type == 'index' -%}
-      <meta property="og:title" content="Mor Paankh — Indian ethnic wear, rooted in Surat">
-      <meta property="og:description" content="Kurta sets, co-ord sets, and festive pieces, chosen with the eye of a Surat textile family. Honest fabric, true-to-body fit.">
-      <meta property="og:type" content="website">
-      <meta property="og:site_name" content="Mor Paankh">
-      <meta name="twitter:card" content="summary_large_image">
-      <meta name="twitter:title" content="Mor Paankh — Indian ethnic wear, rooted in Surat">
-      <meta name="twitter:description" content="Kurta sets, co-ord sets, and festive pieces from a Surat textile family.">
-    {%- endif -%}
+    {%- comment -%} Homepage OG/Twitter copy now lives in snippets/meta-tags.liquid
+      (rendered once, line ~35) to avoid duplicate og:title/og:description tags. {%- endcomment -%}
 
     {%- if settings.cart_type == 'drawer' -%}
       {{ 'component-cart-drawer.css' | asset_url | stylesheet_tag }}

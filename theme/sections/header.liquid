@@ -407,26 +407,32 @@
   customElements.define('sticky-header', StickyHeader);
 {% endjavascript %}
 
+{%- comment -%} Organization schema: complete logo (falls back to the brand favicon
+  mark when no theme logo image is set, since the header uses an inline-SVG logo) and
+  a clean sameAs that only lists the social links that are actually set (no nulls). {%- endcomment -%}
+{%- if settings.logo != blank -%}
+  {%- assign org_logo = settings.logo | image_url: width: 512 | prepend: 'https:' -%}
+{%- else -%}
+  {%- assign org_logo = 'favicon.svg' | asset_url | prepend: 'https:' -%}
+{%- endif -%}
+{%- capture org_social_csv -%}
+  {%- if settings.social_instagram_link != blank -%}{{ settings.social_instagram_link }}|{%- endif -%}
+  {%- if settings.social_facebook_link != blank -%}{{ settings.social_facebook_link }}|{%- endif -%}
+  {%- if settings.social_youtube_link != blank -%}{{ settings.social_youtube_link }}|{%- endif -%}
+  {%- if settings.social_pinterest_link != blank -%}{{ settings.social_pinterest_link }}|{%- endif -%}
+  {%- if settings.social_tiktok_link != blank -%}{{ settings.social_tiktok_link }}|{%- endif -%}
+  {%- if settings.social_twitter_link != blank -%}{{ settings.social_twitter_link }}|{%- endif -%}
+{%- endcapture -%}
+{%- assign org_social = org_social_csv | strip | split: '|' -%}
 <script type="application/ld+json">
   {
-    "@context": "http://schema.org",
+    "@context": "https://schema.org",
     "@type": "Organization",
     "name": {{ shop.name | json }},
-    {% if settings.logo %}
-      "logo": {{ settings.logo | image_url: width: 500 | prepend: "https:" | json }},
-    {% endif %}
-    "sameAs": [
-      {{ settings.social_twitter_link | json }},
-      {{ settings.social_facebook_link | json }},
-      {{ settings.social_pinterest_link | json }},
-      {{ settings.social_instagram_link | json }},
-      {{ settings.social_tiktok_link | json }},
-      {{ settings.social_tumblr_link | json }},
-      {{ settings.social_snapchat_link | json }},
-      {{ settings.social_youtube_link | json }},
-      {{ settings.social_vimeo_link | json }}
-    ],
-    "url": {{ request.origin | append: page.url | json }}
+    "url": {{ request.origin | json }},
+    "logo": {{ org_logo | json }},
+    "description": {{ shop.description | default: 'Mor Paankh is Indian ethnic wear from a family raised in the textile trade. Honest fabric, true-to-body fit, and photographs that match what arrives.' | json }}{% if org_social.size > 0 %},
+    "sameAs": [{% for s in org_social %}{{ s | json }}{% unless forloop.last %}, {% endunless %}{% endfor %}]{% endif %}
   }
 </script>
 
