@@ -222,8 +222,16 @@ details[open].menu-opening > .menu-drawer__submenu {
 }
 
 .menu-drawer .list-social {
+  /* component-list-social.css isn't loaded on the storefront header, so make the
+     drawer's social row self-contained: a horizontal row that wraps as more
+     networks are added (instagram, whatsapp, x, ...), with consistent icon
+     size and colour across every logo. */
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
   justify-content: flex-start;
-  margin-left: -1.25rem;
+  gap: 0.4rem;
+  margin-left: -1.1rem;
 }
 
 .menu-drawer .list-social:empty {
@@ -231,7 +239,21 @@ details[open].menu-opening > .menu-drawer__submenu {
 }
 
 .menu-drawer .list-social__link {
-  padding: 1.1rem 1.1rem;
+  display: flex;
+  align-items: center;
+  padding: 1.1rem;
+  color: rgb(var(--color-foreground));
+}
+
+/* One size + colour for every social logo in the drawer. */
+.menu-drawer .list-social__item .icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  color: inherit;
+}
+
+.menu-drawer .list-social__link:hover .icon {
+  transform: scale(1.07);
 }
 
 @media screen and (max-width: 749px) {
