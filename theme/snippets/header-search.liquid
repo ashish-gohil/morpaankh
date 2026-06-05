@@ -86,14 +86,6 @@
             >
               <span class="svg-wrapper">{{- 'icon-reset.svg' | inline_asset_content -}}</span>
             </button>
-
-            <button
-              type="button"
-              class="tapi-search-bar__close search-modal__close-button modal__close-button focus-inset"
-              aria-label="{{ 'accessibility.close' | t }}"
-            >
-              <span class="svg-wrapper" aria-hidden="true">{{- 'icon-close.svg' | inline_asset_content -}}</span>
-            </button>
           </div>
 
           <div class="tapi-search-grid">
@@ -196,6 +188,20 @@
         {%- endif -%}
 
       </div>
+
+      {%- comment -%}
+        Modal close lives at the dialog level (not in the search bar) so it pins
+        to the panel's top-right corner and stays put while results scroll. It
+        must remain a button[type="button"] — details-modal.js binds close() to
+        the first such button in the modal.
+      {%- endcomment -%}
+      <button
+        type="button"
+        class="tapi-search-close"
+        aria-label="{{ 'accessibility.close' | t }}"
+      >
+        <span class="svg-wrapper" aria-hidden="true">{{- 'icon-close.svg' | inline_asset_content -}}</span>
+      </button>
     </div>
   </details>
 </details-modal>

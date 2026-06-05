@@ -476,7 +476,7 @@
 
       var input = host.querySelector('.tapi-search-bar__input');
       var resetBtn = host.querySelector('.tapi-search-bar__reset');
-      var closeBtn = host.querySelector('.tapi-search-bar__close');
+      var closeBtn = host.querySelector('.tapi-search-close');
       var details = host.querySelector('details');
       var live = host.querySelector('[data-predictive-search]');
       var suggestedTarget = host.querySelector('[data-query-suggested]');
