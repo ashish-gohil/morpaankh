@@ -59,7 +59,7 @@ function buildPayload(order) {
       .slice(0, 16)
       .replace('T', ' '),
     pickup_location: config.shiprocket.pickupLocation,
-    comment: 'Created via Mor Paankh shipping integration',
+    comment: 'Created via MorPaankh shipping integration',
     billing_customer_name: addr.first_name,
     billing_last_name: addr.last_name,
     billing_address: addr.address,

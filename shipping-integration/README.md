@@ -1,6 +1,6 @@
-# Mor Paankh — Shipping Integration (Shopify ↔ Shiprocket)
+# MorPaankh — Shipping Integration (Shopify ↔ Shiprocket)
 
-A small, stateless webhook service that connects the Mor Paankh Shopify store to
+A small, stateless webhook service that connects the MorPaankh Shopify store to
 Shiprocket. It implements the three integration flows that **cannot** live in a
 Shopify theme (a theme has no server, secrets, or webhook endpoints):
 

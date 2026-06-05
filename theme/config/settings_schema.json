@@ -1317,6 +1317,12 @@
       },
       {
         "type": "text",
+        "id": "social_whatsapp_number",
+        "label": "WhatsApp Business number",
+        "info": "Digits with country code, no + or spaces (e.g. 919876543210). Powers the footer WhatsApp click-to-chat link. Leave blank to show a clearly marked placeholder."
+      },
+      {
+        "type": "text",
         "id": "social_youtube_link",
         "label": "t:settings_schema.social-media.settings.social_youtube_link.label",
         "placeholder": "t:settings_schema.social-media.settings.social_youtube_link.info"

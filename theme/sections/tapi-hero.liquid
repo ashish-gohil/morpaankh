@@ -17,7 +17,7 @@
         {%- for b in slide_blocks -%}
           {%- assign tint = b.settings.tint | default: '#B7472A' -%}
           {%- assign mono = b.settings.mono | default: 'Saanjh' -%}
-          {%- if b.settings.image.alt != blank -%}{%- assign slide_alt = b.settings.image.alt -%}{%- elsif b.settings.caption != blank -%}{%- assign slide_alt = b.settings.caption | append: ", Mor Paankh women's Indian ethnic wear" -%}{%- else -%}{%- assign slide_alt = "Mor Paankh women's Indian ethnic wear" -%}{%- endif -%}
+          {%- if b.settings.image.alt != blank -%}{%- assign slide_alt = b.settings.image.alt -%}{%- elsif b.settings.caption != blank -%}{%- assign slide_alt = b.settings.caption | append: ", MorPaankh women's Indian ethnic wear" -%}{%- else -%}{%- assign slide_alt = "MorPaankh women's Indian ethnic wear" -%}{%- endif -%}
           {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- assign fetch_attr = 'high' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- assign fetch_attr = 'auto' -%}{%- endif -%}
           <div
             class="tapi-hero__slide{% if forloop.first %} is-active{% endif %}"
@@ -644,7 +644,7 @@
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Indian ethnic wear · Rooted in tradition" },
     { "type": "text", "id": "line_1", "label": "Headline line 1", "default": "Cloth we know" },
     { "type": "text", "id": "line_2", "label": "Headline line 2 (accent)", "default": "by heart." },
-    { "type": "textarea", "id": "lede", "label": "Lede", "default": "Mor Paankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives." },
+    { "type": "textarea", "id": "lede", "label": "Lede", "default": "MorPaankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives." },
     { "type": "text", "id": "cta_primary", "label": "Primary CTA", "default": "Shop kurta sets" },
     { "type": "url", "id": "cta_primary_link", "label": "Primary CTA link" },
     { "type": "text", "id": "cta_secondary", "label": "Secondary CTA", "default": "Our story" },

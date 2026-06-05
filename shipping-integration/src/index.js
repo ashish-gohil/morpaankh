@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Mor Paankh shipping integration service.
+ * MorPaankh shipping integration service.
  * Receives Shopify + Shiprocket webhooks and bridges them:
  *   - POST /webhooks/shopify/orders-create  -> create shipment + AWB + fulfillment
  *   - POST /webhooks/shiprocket/tracking     -> sync status + handle delivery/RTO
@@ -58,7 +58,7 @@ app.post('/webhooks/shiprocket/tracking', (req, res) => {
 
 if (require.main === module) {
   app.listen(config.port, () =>
-    console.log(`Mor Paankh shipping integration listening on :${config.port}`)
+    console.log(`MorPaankh shipping integration listening on :${config.port}`)
   );
 }
 

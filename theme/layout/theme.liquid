@@ -17,7 +17,7 @@
 
     <title>
       {%- if request.page_type == 'index' and page_title == shop.name -%}
-        Mor Paankh | Women's Indian Ethnic Wear & Kurta Sets
+        MorPaankh | Women's Indian Ethnic Wear & Kurta Sets
       {%- else -%}
         {{ page_title }}
         {%- if current_tags %} &ndash; tagged "{{ current_tags | join: ', ' }}"{% endif -%}
@@ -29,7 +29,7 @@
     {% if page_description %}
       <meta name="description" content="{{ page_description | escape }}">
     {% elsif request.page_type == 'index' %}
-      <meta name="description" content="Shop Mor Paankh for women's Indian ethnic wear: kurta sets, co-ord sets, and festive pieces from a Surat textile family. Honest fabric, true-to-body fit.">
+      <meta name="description" content="Shop MorPaankh for women's Indian ethnic wear: kurta sets, co-ord sets, and festive pieces from a Surat textile family. Honest fabric, true-to-body fit.">
     {% endif %}
 
     {% render 'meta-tags' %}
