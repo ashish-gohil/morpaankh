@@ -30,13 +30,9 @@
             <a href="{{ settings.social_instagram_link }}" aria-label="Instagram">Instagram</a>
           {%- else -%}<a aria-label="Instagram">Instagram</a>{%- endif -%}
           <span class="tapi-footer__sep">·</span>
-          {%- assign wa_number = settings.social_whatsapp_number | default: '' | strip -%}
-          {%- if wa_number != blank -%}
-            <a href="https://wa.me/{{ wa_number | remove: '+' | remove: ' ' | remove: '-' }}" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">WhatsApp</a>
-          {%- else -%}
-            {%- comment -%} PLACEHOLDER: set the WhatsApp Business number in Theme settings -> Social media. {%- endcomment -%}
-            <a href="https://wa.me/910000000000" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp (placeholder number - set it in Theme settings)">WhatsApp</a>
-          {%- endif -%}
+          {%- if settings.social_whatsapp_link != blank -%}
+            <a href="{{ settings.social_whatsapp_link }}" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">WhatsApp</a>
+          {%- else -%}<a aria-label="WhatsApp">WhatsApp</a>{%- endif -%}
         </div>
       </div>
 
