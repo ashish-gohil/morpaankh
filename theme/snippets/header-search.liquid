@@ -89,10 +89,10 @@
 
             <button
               type="button"
-              class="tapi-search-bar__close search-modal__close-button modal__close-button link link--text focus-inset link-u"
+              class="tapi-search-bar__close search-modal__close-button modal__close-button focus-inset"
               aria-label="{{ 'accessibility.close' | t }}"
             >
-              <span class="tapi-search-bar__close-text">{{ 'accessibility.close' | t | default: 'Close' }}</span>
+              <span class="svg-wrapper" aria-hidden="true">{{- 'icon-close.svg' | inline_asset_content -}}</span>
             </button>
           </div>
 

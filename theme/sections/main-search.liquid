@@ -174,7 +174,6 @@
             type="reset"
             class="tapi-tsearch__btn tapi-tsearch__reset{% if search.terms == blank %} is-hidden{% endif %}"
             aria-label="{{ 'general.search.reset' | t }}"
-            onclick="this.form.q.value='';this.form.q.focus();this.classList.add('is-hidden');return false;"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -187,6 +186,29 @@
             </svg>
           </button>
         </form>
+        <script>
+          (function () {
+            var form = document.querySelector('.tapi-tsearch__form');
+            if (!form) return;
+            var input = form.querySelector('.tapi-tsearch__input');
+            var reset = form.querySelector('.tapi-tsearch__reset');
+            if (!input || !reset) return;
+            // Single source of truth: the clear button is visible iff the field
+            // has text. Runs on every keystroke/paste and after clearing, so it
+            // reliably reappears when new text is typed (not a one-shot hide).
+            function syncReset() {
+              reset.classList.toggle('is-hidden', input.value.trim() === '');
+            }
+            input.addEventListener('input', syncReset);
+            reset.addEventListener('click', function (event) {
+              event.preventDefault();
+              input.value = '';
+              syncReset();
+              input.focus();
+            });
+            syncReset();
+          })();
+        </script>
       </div>
       {%- if search.performed -%}
         {%- unless section.settings.enable_filtering or section.settings.enable_sorting -%}
