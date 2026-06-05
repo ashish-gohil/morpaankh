@@ -1,11 +1,14 @@
 {{ 'section-main-page.css' | asset_url | stylesheet_tag }}
 
 {%- style -%}
-  /* Vertical rhythm shares the site-wide spacing token so content pages
-     (About, policies, fabric guide) match the homepage cadence. */
+  /* Page-title header spacing: a comfortable clearance below the site header
+     and a tight gap to the content/next section, consistent across every
+     content page (Contact, About, policies, fabric guide). Was the full
+     --mor-section-pad (96px desktop), which left an oversized header-to-content
+     gap on pages whose body is short or empty (e.g. Contact). */
   .section-{{ section.id }}-padding {
-    padding-top: var(--mor-section-pad, 56px);
-    padding-bottom: var(--mor-section-pad, 56px);
+    padding-top: clamp(36px, 4vw, 52px);
+    padding-bottom: clamp(12px, 1.6vw, 20px);
   }
 {%- endstyle -%}
 
