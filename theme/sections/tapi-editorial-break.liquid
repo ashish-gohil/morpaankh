@@ -1,15 +1,13 @@
 <section class="tapi-editorial-band" data-tapi-reveal aria-label="A note from the studio">
   <div class="tapi-editorial-band__inner">
-    <div class="tapi-editorial-band__quote-col">
-      <span class="tapi-eyebrow tapi-eyebrow--line tapi-editorial-band__eyebrow">A note from the studio</span>
-      <blockquote class="tapi-editorial-band__quote">"{{ section.settings.quote }}"</blockquote>
-    </div>
+    <span class="tapi-eyebrow tapi-eyebrow--line tapi-editorial-band__eyebrow">A note from the studio</span>
+    <blockquote class="tapi-editorial-band__quote">"{{ section.settings.quote }}"</blockquote>
     <div class="tapi-editorial-band__body-col">
       <p class="tapi-editorial-band__body">{{ section.settings.body }}</p>
       {%- if section.settings.cta_text != blank -%}
         <a href="{{ section.settings.link | default: '/pages/fabric-guide' }}" class="tapi-editorial-band__cta">
           <span>{{ section.settings.cta_text }}</span>
-          <span class="tapi-editorial-band__arrow" aria-hidden="true">→</span>
+          <span class="tapi-editorial-band__arrow" aria-hidden="true">&rarr;</span>
         </a>
       {%- endif -%}
     </div>
@@ -21,29 +19,21 @@
     background: var(--tapi-cream-2);
     width: 100%;
   }
+  /* Mobile-first: a single column. The eyebrow sits above a large pull-quote,
+     with the supporting note and CTA beneath it. */
   .tapi-editorial-band__inner {
     max-width: var(--tapi-max, 1440px);
     margin: 0 auto;
     padding-inline: var(--tapi-gutter, 16px);
     display: grid;
     grid-template-columns: 1fr;
-    gap: 2.4rem;
-    align-items: center;
-  }
-  @media (min-width: 900px) {
-    .tapi-editorial-band__inner {
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      gap: clamp(4rem, 7vw, 9rem);
-    }
-  }
-  .tapi-editorial-band__quote-col {
-    display: flex;
-    flex-direction: column;
     gap: 1.6rem;
+    align-items: start;
   }
   .tapi-editorial-band__eyebrow {
     color: var(--mor-accent);
     letter-spacing: 0.22em;
+    margin-bottom: 0.4rem;
   }
   .tapi-editorial-band__quote {
     font-family: var(--font-heading-family);
@@ -54,7 +44,8 @@
     letter-spacing: -0.014em;
     color: var(--mor-charcoal);
     margin: 0;
-    max-width: 16ch;
+    max-width: 20ch;
+    text-wrap: balance;
   }
   .tapi-editorial-band__body-col {
     display: flex;
@@ -105,6 +96,32 @@
     transition: transform 420ms var(--mor-ease);
   }
   .tapi-editorial-band__cta:hover .tapi-editorial-band__arrow { transform: translateX(8px); }
+
+  /* Desktop: a magazine-style spread. The eyebrow runs across the top as a
+     masthead, then the quote (left) and the note + CTA (right) sit as a tight,
+     top-aligned pair, both anchored to the page's left gutter. The quote column
+     hugs its own measure so the note groups beside it (no dead centre gap); the
+     remaining space falls to the right as intentional editorial margin. */
+  @media (min-width: 900px) {
+    .tapi-editorial-band__inner {
+      grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+      column-gap: clamp(3.2rem, 5vw, 6.4rem);
+      row-gap: clamp(2.4rem, 3vw, 3.6rem);
+      align-items: start;
+    }
+    .tapi-editorial-band__eyebrow {
+      grid-column: 1 / -1;
+      margin-bottom: 0;
+    }
+    .tapi-editorial-band__quote {
+      grid-column: 1;
+      max-width: 22ch;
+    }
+    .tapi-editorial-band__body-col {
+      grid-column: 2;
+      align-self: center;
+    }
+  }
 {% endstylesheet %}
 
 {% schema %}

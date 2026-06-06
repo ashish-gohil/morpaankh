@@ -451,27 +451,15 @@ button.shopify-payment-button__button--unbranded {
   100% { transform: translateX(-50%); }
 }
 
-/* ---------- Editorial pull-quote / break ---------- */
-.tapi-editorial-band {
-  background: var(--tapi-cream-2);
-  padding: 4.8rem;
-  margin: 5.6rem 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3.2rem;
-  align-items: center;
-}
-.tapi-editorial-band__quote {
-  font-family: var(--font-heading-family);
-  font-size: 2.4rem;
-  font-style: italic;
-  font-weight: 500;
-  line-height: 1.4;
-  margin: 0;
-}
-@media (max-width: 749px) {
-  .tapi-editorial-band { grid-template-columns: 1fr; padding: 3.2rem 2.4rem; }
-}
+/* ---------- Editorial pull-quote / break ----------
+   NOTE: the old rules that lived here made the SECTION ROOT (.tapi-editorial-band)
+   a two-column grid with its own 4.8rem padding. The section was later refactored
+   to wrap its content in .tapi-editorial-band__inner (which is the real grid).
+   With only one child, the root grid pushed that child into the first 1fr column,
+   leaving it half-width and jammed left with an empty right half. The canonical,
+   non-conflicting definitions now live in the section's own {% stylesheet %} plus
+   the spacing-system block below (.tapi-editorial-band / __inner near --tapi-max).
+   Do not re-add display:grid or padding here on the root. */
 
 /* ---------- Fabric table (PDP) ---------- */
 .tapi-fabric-table {
@@ -1695,7 +1683,8 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 
 /* The PDP needs slightly tighter spacing — keep it slim */
 .tapi-pdp { padding-top: 2.4rem !important; padding-bottom: 4.8rem !important; }
-@media (max-width: 749px) { .tapi-pdp { padding-bottom: 10rem !important; } }
+/* Clear the fixed mobile buy bar (price line + two-button row + safe-area). */
+@media (max-width: 749px) { .tapi-pdp { padding-bottom: 13rem !important; } }
 
 /* Dawn wraps each Tapi section in <div class="shopify-section ..."> ; kill any
    inherited margins/padding so our --tapi-section-y is the single source of truth */
@@ -2430,6 +2419,17 @@ details[open] > summary .icon-caret {
   max-width: var(--tapi-max);
   margin-inline: auto;
   padding-inline: var(--tapi-gutter);
+}
+
+/* PDP container parity: the product grid + editorial band use --tapi-max/--tapi-gutter,
+   but related-products is a stock Dawn section on its default .page-width (different
+   max-width + 5rem gutter). Re-point it to the same container so every row down the
+   product page shares one left/right edge. The .related-products class only renders
+   on the product template, so the class selector alone is a safe, sufficient scope
+   (and outranks Dawn's single-class .page-width padding). */
+.related-products.page-width {
+  max-width: var(--tapi-max, 144rem);
+  padding-inline: var(--tapi-gutter, 16px);
 }
 
 /* ===== Cart page: items list + sticky checkout aside (desktop) ===== */
