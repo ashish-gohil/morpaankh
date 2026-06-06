@@ -1,0 +1,35 @@
+{%- comment -%}
+  Recently viewed rail. The shell renders server-side (hidden); tapi-ux.js fills
+  it from the localStorage view history, excludes the current product (on the PDP),
+  and reveals the section only when there is something to show. Lightweight cards
+  (no per-product Liquid, no extra requests).
+{%- endcomment -%}
+<section
+  class="tapi-rv color-{{ section.settings.color_scheme }} gradient"
+  data-recently-viewed
+  data-exclude="{% if request.page_type == 'product' %}{{ product.handle }}{% endif %}"
+  data-limit="{{ section.settings.products_to_show }}"
+  aria-label="{{ section.settings.heading | escape }}"
+  hidden
+>
+  <div class="page-width">
+    <div class="tapi-rv__head">
+      <h2 class="tapi-rv__heading">{{ section.settings.heading }}</h2>
+    </div>
+    <ul class="tapi-rv__grid" data-recently-grid role="list"></ul>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Recently viewed",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Recently viewed" },
+    { "type": "range", "id": "products_to_show", "min": 2, "max": 12, "step": 1, "label": "Maximum products", "default": 8 },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" }
+  ],
+  "presets": [{ "name": "Recently viewed" }]
+}
+{% endschema %}

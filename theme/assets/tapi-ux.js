@@ -309,6 +309,19 @@
   }
 
   /* ----------------------------------------------------------------------
+   * Bottom-nav search — reuse Dawn's header search modal (fallback: /search).
+   * -------------------------------------------------------------------- */
+  function wireBottomNavSearch() {
+    var s = document.querySelector('[data-botnav-search]');
+    if (!s || s.__wired) return;
+    s.__wired = true;
+    s.addEventListener('click', function (e) {
+      var summary = document.querySelector('details-modal.header__search summary, .header__search summary');
+      if (summary) { e.preventDefault(); summary.click(); }
+    });
+  }
+
+  /* ----------------------------------------------------------------------
    * Boot.
    * -------------------------------------------------------------------- */
   function boot(root) {
@@ -317,6 +330,7 @@
     wireWishlistPage();
     renderWishlistPage();
     wireShare(root);
+    wireBottomNavSearch();
   }
 
   function start() {

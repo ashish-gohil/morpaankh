@@ -1,0 +1,64 @@
+{%- comment -%}
+  Mobile bottom navigation. Rendered in theme.liquid for every template EXCEPT
+  product (the PDP fixed buy-bar owns the bottom edge). Hidden >= 750px via CSS.
+  Cart count is server-rendered (cart.item_count) and kept live by tapi-ux.js;
+  wishlist count comes from the localStorage store. Search reuses Dawn's header
+  search modal (falls back to the /search page).
+{%- endcomment -%}
+{%- liquid
+  assign pt = request.page_type
+  assign is_home = false
+  assign is_cart = false
+  assign is_account = false
+  assign is_wishlist = false
+  if pt == 'index'
+    assign is_home = true
+  endif
+  if pt == 'cart'
+    assign is_cart = true
+  endif
+  if pt contains 'customers'
+    assign is_account = true
+  endif
+  if pt == 'page' and page.handle == 'wishlist'
+    assign is_wishlist = true
+  endif
+-%}
+<nav class="tapi-botnav" aria-label="Primary">
+  <a class="tapi-botnav__item{% if is_home %} is-active{% endif %}" href="{{ routes.root_url }}"{% if is_home %} aria-current="page"{% endif %}>
+    <span class="tapi-botnav__icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9.2V21h5v-6h4v6h5V9.2"/></svg>
+    </span>
+    <span class="tapi-botnav__label">Home</span>
+  </a>
+
+  <a class="tapi-botnav__item" href="{{ routes.search_url }}" data-botnav-search aria-label="Search">
+    <span class="tapi-botnav__icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </span>
+    <span class="tapi-botnav__label">Search</span>
+  </a>
+
+  <a class="tapi-botnav__item{% if is_cart %} is-active{% endif %}" href="{{ routes.cart_url }}"{% if is_cart %} aria-current="page"{% endif %}>
+    <span class="tapi-botnav__icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 8h11l-1 12.2a1 1 0 0 1-1 .8H8.5a1 1 0 0 1-1-.8L6.5 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
+      <span class="tapi-count-bubble" data-cart-count{% if cart.item_count == 0 %} hidden{% endif %}>{{ cart.item_count }}</span>
+    </span>
+    <span class="tapi-botnav__label">Cart</span>
+  </a>
+
+  <a class="tapi-botnav__item{% if is_account %} is-active{% endif %}" href="{% if customer %}{{ routes.account_url }}{% else %}{{ routes.account_login_url }}{% endif %}" rel="nofollow"{% if is_account %} aria-current="page"{% endif %}>
+    <span class="tapi-botnav__icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5"/></svg>
+    </span>
+    <span class="tapi-botnav__label">Account</span>
+  </a>
+
+  <a class="tapi-botnav__item{% if is_wishlist %} is-active{% endif %}" href="/pages/wishlist"{% if is_wishlist %} aria-current="page"{% endif %}>
+    <span class="tapi-botnav__icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      <span class="tapi-count-bubble" data-wishlist-count hidden>0</span>
+    </span>
+    <span class="tapi-botnav__label">Wishlist</span>
+  </a>
+</nav>

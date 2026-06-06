@@ -184,6 +184,14 @@
         "view_all_text": "View all new arrivals"
       }
     },
+    "recently_viewed": {
+      "type": "tapi-recently-viewed",
+      "settings": {
+        "heading": "Recently viewed",
+        "products_to_show": 8,
+        "color_scheme": "background-1"
+      }
+    },
     "studio_strip": {
       "type": "tapi-studio-strip",
       "blocks": {
@@ -233,6 +241,7 @@
     "tapi_hero",
     "tapi_collection_tiles",
     "tapi_featured",
+    "recently_viewed",
     "studio_strip"
   ]
 }
