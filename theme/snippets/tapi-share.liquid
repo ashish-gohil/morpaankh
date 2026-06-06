@@ -1,0 +1,59 @@
+{% comment %}
+  Native product share. Uses the Web Share API (native sheet: WhatsApp, Telegram,
+  SMS, Email, and any installed app) where available; otherwise a branded fallback
+  popover with explicit networks + copy link. Wired by tapi-ux.js.
+
+  @param product {Object} required
+
+  Usage: {% render 'tapi-share', product: product %}
+{% endcomment %}
+{%- liquid
+  assign share_url = request.origin | append: product.url
+  assign share_title = product.title
+  assign share_desc = product.description | strip_html | strip_newlines | truncate: 140
+  assign share_text = share_title
+  if share_desc != blank
+    assign share_text = share_desc
+  endif
+  assign u = share_url | url_encode
+  assign t = share_title | url_encode
+  assign wa = share_title | append: ' ' | append: share_url | url_encode
+  assign mail_body = share_title | append: ' ' | append: share_url | url_encode
+-%}
+<div class="tapi-share" data-tapi-share
+     data-url="{{ share_url }}"
+     data-title="{{ share_title | escape }}"
+     data-text="{{ share_text | escape }}">
+  <button type="button" class="tapi-share__trigger" data-share-trigger aria-haspopup="true" aria-expanded="false">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+      <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>
+    </svg>
+    <span>Share</span>
+  </button>
+
+  <div class="tapi-share__popover" data-share-popover hidden role="menu" aria-label="Share this product">
+    <div class="tapi-share__row">
+      <a class="tapi-share__link" role="menuitem" href="https://wa.me/?text={{ wa }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.06c-.24.68-1.42 1.31-1.96 1.35-.5.04-.99.27-3.4-.71-2.87-1.13-4.7-4.06-4.84-4.25-.14-.19-1.15-1.53-1.15-2.92 0-1.39.73-2.07.99-2.36.24-.27.53-.34.71-.34.18 0 .36 0 .51.01.16.01.39-.06.6.46.24.59.81 2.04.88 2.19.07.15.12.32.02.51-.09.19-.14.31-.28.48-.14.17-.3.38-.42.51-.14.14-.29.29-.12.57.17.27.74 1.22 1.59 1.98 1.1.98 2.03 1.28 2.31 1.43.28.14.45.12.62-.07.17-.19.71-.83.9-1.11.19-.28.38-.23.64-.14.26.09 1.66.78 1.94.92.28.14.47.21.54.33.07.12.07.68-.17 1.36z"/></svg>
+        <span>WhatsApp</span>
+      </a>
+      <a class="tapi-share__link" role="menuitem" href="https://t.me/share/url?url={{ u }}&text={{ t }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3L2 10.5l6 2 2 6.5 3-4 5 4z"/></svg>
+        <span>Telegram</span>
+      </a>
+      <a class="tapi-share__link" role="menuitem" href="sms:?&body={{ mail_body }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5z"/></svg>
+        <span>Messages</span>
+      </a>
+      <a class="tapi-share__link" role="menuitem" href="mailto:?subject={{ t }}&body={{ mail_body }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 6.5l9 6 9-6"/></svg>
+        <span>Email</span>
+      </a>
+    </div>
+    <div class="tapi-share__copyrow">
+      <input class="tapi-share__url" type="text" value="{{ share_url }}" readonly aria-label="Product link" onclick="this.select();">
+      <button type="button" class="tapi-share__copy" data-share-copy><span data-copy-label>Copy</span></button>
+    </div>
+  </div>
+</div>

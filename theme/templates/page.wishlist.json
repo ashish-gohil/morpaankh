@@ -1,0 +1,11 @@
+{
+  "sections": {
+    "wishlist": {
+      "type": "tapi-wishlist",
+      "settings": {
+        "heading": "Your wishlist"
+      }
+    }
+  },
+  "order": ["wishlist"]
+}

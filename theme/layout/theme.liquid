@@ -263,7 +263,9 @@
 
     {{ 'base.css' | asset_url | stylesheet_tag }}
     {{ 'theme-variables.css' | asset_url | stylesheet_tag }}
+    {{ 'tapi-ux.css' | asset_url | stylesheet_tag }}
     <script src="{{ 'tapi-motion.js' | asset_url }}" defer></script>
+    <script src="{{ 'tapi-ux.js' | asset_url }}" defer></script>
     {%- comment -%} tapi-pdp.js removed: it was a legacy size-only variant script that
       expected data-variant-available attributes the current Size×Color matrix markup
       no longer renders, so it forced "Sold out" on initial PDP load and only corrected

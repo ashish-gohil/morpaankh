@@ -1,0 +1,42 @@
+{% comment %}
+  Reusable wishlist heart. Toggles a localStorage wishlist (wired by tapi-ux.js).
+  Carries the product data the wishlist page needs so it hydrates with zero fetches.
+
+  @param product {Object} required
+  @param variant {String} 'card' (icon-only overlay) | 'pdp' (icon + label). Default 'card'.
+
+  Usage:
+    {% render 'tapi-wishlist-button', product: product, variant: 'card' %}
+{% endcomment %}
+{%- liquid
+  assign wl_variant = variant | default: 'card'
+  assign wl_v = product.selected_or_first_available_variant
+  assign wl_img = product.featured_image | image_url: width: 800
+-%}
+<button
+  type="button"
+  class="tapi-wishlist tapi-wishlist--{{ wl_variant }}"
+  data-wishlist-toggle
+  data-handle="{{ product.handle }}"
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ wl_v.id }}"
+  data-variant-count="{{ product.variants.size }}"
+  data-title="{{ product.title | escape }}"
+  data-url="{{ product.url }}"
+  data-image="{{ wl_img }}"
+  data-price="{{ product.price | money }}"
+  data-compare="{% if product.compare_at_price > product.price %}{{ product.compare_at_price | money }}{% endif %}"
+  data-label-on="Saved"
+  data-label-off="Save"
+  aria-pressed="false"
+>
+  <span class="tapi-wishlist__icon" aria-hidden="true">
+    <svg class="tapi-wishlist__heart" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke-linejoin="round"/>
+    </svg>
+  </span>
+  {%- if wl_variant == 'pdp' -%}
+    <span class="tapi-wishlist__label" data-wishlist-text>Save</span>
+  {%- endif -%}
+  <span class="visually-hidden" data-wishlist-sr>Save to wishlist</span>
+</button>

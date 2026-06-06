@@ -12,6 +12,21 @@
 -%}
 
 <section class="tapi-pdp section" id="MainProduct-{{ section.id }}" data-section-id="{{ section.id }}">
+  {%- comment -%} Recently-viewed tracking payload — read once by tapi-ux.js. {%- endcomment -%}
+  <script type="application/json" data-tapi-track-product>
+    {
+      "handle": {{ product.handle | json }},
+      "id": {{ product.id | json }},
+      "variantId": {{ current_variant.id | json }},
+      "variantCount": {{ product.variants.size }},
+      "title": {{ product.title | json }},
+      "url": {{ product.url | json }},
+      "image": {{ product.featured_image | image_url: width: 800 | json }},
+      "price": {{ product.price | money | json }},
+      "compareAt": {% if product.compare_at_price > product.price %}{{ product.compare_at_price | money | json }}{% else %}""{% endif %}
+    }
+  </script>
+
   <div class="page-width tapi-pdp__breadcrumb">
     <a href="{{ routes.root_url }}">Home</a> &nbsp;/&nbsp;
     {%- if collection -%}
@@ -150,6 +165,11 @@
         {%- endif -%}
       </div>
       <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping above ₹2,499.</p>
+
+      <div class="tapi-pdp__quickactions">
+        {% render 'tapi-wishlist-button', product: product, variant: 'pdp' %}
+        {% render 'tapi-share', product: product %}
+      </div>
 
       {%- liquid
         assign color_option = nil
@@ -581,6 +601,8 @@
   .tapi-pdp__price-now { font-family: var(--font-heading-family); font-size: 3.2rem; font-weight: 500; font-variant-numeric: tabular-nums; }
   .tapi-pdp__price-was { font-size: 1.8rem; color: var(--mor-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
   .tapi-pdp__price-note { font-size: 1.2rem; color: var(--mor-text-muted); margin: -1.2rem 0 0; }
+
+  .tapi-pdp__quickactions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 
   .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; }
   .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }

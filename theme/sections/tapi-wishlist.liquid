@@ -1,0 +1,57 @@
+{%- comment -%}
+  Wishlist page. Server renders the shell + empty state (no-JS sees a tasteful
+  empty state with a shop CTA). tapi-ux.js hydrates the grid from localStorage,
+  handles remove + add-to-bag, and keeps it live in sync with hearts elsewhere.
+{%- endcomment -%}
+<div class="tapi-wl page-width section-{{ section.id }}-padding" data-wishlist-page data-tapi-reveal>
+  <div class="tapi-wl__header">
+    <h1 class="tapi-wl__title">{{ section.settings.heading | default: 'Your wishlist' }}</h1>
+    <span class="tapi-wl__count" data-wishlist-page-count></span>
+  </div>
+
+  <ul class="tapi-wl__grid" data-wishlist-grid hidden></ul>
+
+  <div class="tapi-wl__empty" data-wishlist-empty>
+    <div class="tapi-wl__empty-icon">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke-linejoin="round"/></svg>
+    </div>
+    <h2 class="tapi-wl__empty-title">{{ section.settings.empty_title | default: 'Nothing saved yet' }}</h2>
+    <p class="tapi-wl__empty-text">{{ section.settings.empty_text | default: 'Tap the heart on any piece you love and it will wait for you here, on this device.' }}</p>
+    <a class="button button--primary" href="{{ section.settings.empty_link | default: routes.all_products_collection_url }}">
+      {{ section.settings.empty_cta | default: 'Start shopping' }}
+    </a>
+  </div>
+</div>
+
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
+    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
+  }
+  @media screen and (min-width: 750px) {
+    .section-{{ section.id }}-padding {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
+{% schema %}
+{
+  "name": "Wishlist",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Your wishlist" },
+    { "type": "header", "content": "Empty state" },
+    { "type": "text", "id": "empty_title", "label": "Empty title", "default": "Nothing saved yet" },
+    { "type": "textarea", "id": "empty_text", "label": "Empty text", "default": "Tap the heart on any piece you love and it will wait for you here, on this device." },
+    { "type": "text", "id": "empty_cta", "label": "Empty button label", "default": "Start shopping" },
+    { "type": "url", "id": "empty_link", "label": "Empty button link" },
+    { "type": "header", "content": "Padding" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 48 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 64 }
+  ],
+  "presets": [{ "name": "Wishlist" }]
+}
+{% endschema %}

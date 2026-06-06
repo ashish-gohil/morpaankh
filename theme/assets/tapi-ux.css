@@ -1,0 +1,145 @@
+/* tapi-ux.css — shared styles for wishlist, recently viewed, share, bottom nav.
+   Uses the existing Tapi design tokens; .tapi-card visuals are inherited from
+   the card-product-tapi stylesheet (bundled theme-wide). */
+
+/* ============================ Wishlist heart ============================ */
+.tapi-wishlist {
+  appearance: none; -webkit-appearance: none; border: none; background: none;
+  cursor: pointer; padding: 0; margin: 0; font-family: inherit; color: var(--tapi-charcoal);
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.7rem;
+}
+.tapi-wishlist__icon { display: inline-flex; }
+.tapi-wishlist__heart {
+  fill: none; stroke: currentColor;
+  transition: fill 220ms ease, stroke 220ms ease, transform 220ms cubic-bezier(0.22,1,0.36,1);
+}
+.tapi-wishlist.is-saved { color: var(--mor-accent); }
+.tapi-wishlist.is-saved .tapi-wishlist__heart { fill: currentColor; }
+.tapi-wishlist:focus-visible { outline: 2px solid var(--mor-accent); outline-offset: 3px; }
+
+/* Card overlay (icon only) */
+.tapi-wishlist--card {
+  position: absolute; top: 12px; right: 12px; z-index: 4;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(248, 244, 237, 0.92); border: 1px solid var(--tapi-hairline-2);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(44, 40, 38, 0.08);
+  transition: background 200ms, transform 220ms cubic-bezier(0.22,1,0.36,1), color 220ms;
+}
+.tapi-wishlist--card:hover { background: var(--tapi-cream); transform: scale(1.06); }
+.tapi-wishlist--card:active { transform: scale(0.94); }
+
+/* PDP pill (icon + label) */
+.tapi-wishlist--pdp {
+  height: 4.6rem; padding: 0 1.8rem; border: 1px solid var(--tapi-hairline-2);
+  border-radius: 9999px; background: transparent;
+  font-size: 1.2rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+  transition: border-color 200ms, color 200ms, background 200ms;
+}
+.tapi-wishlist--pdp:hover { border-color: var(--tapi-charcoal); }
+.tapi-wishlist--pdp.is-saved { border-color: var(--mor-accent); background: var(--tapi-terracotta-wash, rgba(183,71,42,0.06)); }
+
+.tapi-wishlist.tapi-pop .tapi-wishlist__heart { animation: tapi-heart-pop 440ms cubic-bezier(0.34,1.56,0.64,1); }
+@keyframes tapi-heart-pop { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .tapi-wishlist__heart { transition: none; }
+  .tapi-wishlist.tapi-pop .tapi-wishlist__heart { animation: none; }
+}
+
+/* Generic count bubble (header heart, bottom nav) */
+.tapi-count-bubble {
+  position: absolute; top: -6px; right: -8px; min-width: 16px; height: 16px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--mor-accent); color: var(--mor-cream);
+  font-size: 1rem; line-height: 1; font-weight: 600; border-radius: 9999px;
+  font-variant-numeric: tabular-nums;
+}
+.tapi-count-bubble[hidden] { display: none; }
+.header__icon--wishlist { position: relative; }
+
+/* ============================ Mini cards / actions ============================ */
+.tapi-card--mini .tapi-card__actions { margin-top: 1rem; }
+.tapi-card--mini .tapi-card__actions .button { width: 100%; height: 4.4rem; min-height: 4.4rem; font-size: 1.2rem; }
+.tapi-card--mini .tapi-card__actions .button.is-loading { opacity: 0.7; pointer-events: none; }
+.tapi-card--mini .tapi-card__img--front { position: static; }
+.tapi-card--mini .tapi-card__img--front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* ============================ Recently viewed ============================ */
+.tapi-rv { padding-block: clamp(4rem, 6vw, 7.2rem); }
+.tapi-rv__head { margin-bottom: clamp(2rem, 3vw, 3.2rem); }
+.tapi-rv__heading {
+  font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.01em;
+  font-size: clamp(2.2rem, 3vw, 3.2rem); margin: 0; color: var(--tapi-charcoal);
+}
+.tapi-rv__grid {
+  list-style: none; margin: 0; padding: 0; display: grid;
+  grid-template-columns: repeat(2, 1fr); gap: clamp(1.6rem, 3vw, 3.2rem);
+}
+@media (min-width: 750px) { .tapi-rv__grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* ============================ Wishlist page ============================ */
+.tapi-wl { padding-block: clamp(3.2rem, 5vw, 6rem); }
+.tapi-wl__header { display: flex; align-items: baseline; gap: 1.2rem; margin-bottom: clamp(2.4rem, 4vw, 4rem); }
+.tapi-wl__title { font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.01em; font-size: clamp(3rem, 5vw, 4.4rem); margin: 0; }
+.tapi-wl__count { color: var(--tapi-warm-grey); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.tapi-wl__grid {
+  list-style: none; margin: 0; padding: 0; display: grid;
+  grid-template-columns: repeat(2, 1fr); gap: clamp(1.6rem, 3vw, 3.2rem);
+}
+@media (min-width: 750px) { .tapi-wl__grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 990px) { .tapi-wl__grid { grid-template-columns: repeat(4, 1fr); } }
+.tapi-wl__item { position: relative; }
+.tapi-wl__remove {
+  position: absolute; top: 12px; right: 12px; z-index: 4;
+  width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  background: rgba(248, 244, 237, 0.92); border: 1px solid var(--tapi-hairline-2); color: var(--tapi-charcoal);
+  display: inline-flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: background 200ms, transform 200ms cubic-bezier(0.22,1,0.36,1), color 200ms;
+}
+.tapi-wl__remove:hover { background: var(--tapi-cream); color: var(--mor-accent); transform: scale(1.06); }
+.tapi-wl__empty { text-align: center; padding: clamp(4rem, 8vw, 8rem) 2rem; }
+.tapi-wl__empty-icon { color: var(--tapi-hairline-2); margin-bottom: 1.6rem; }
+.tapi-wl__empty-title { font-family: var(--font-heading-family); font-weight: 500; font-size: clamp(2.2rem, 3vw, 3rem); margin: 0 0 1rem; }
+.tapi-wl__empty-text { color: var(--tapi-warm-grey); max-width: 46ch; margin: 0 auto 2.4rem; line-height: 1.7; }
+
+/* ============================ Share ============================ */
+.tapi-share { position: relative; display: inline-flex; }
+.tapi-share__trigger {
+  appearance: none; -webkit-appearance: none; cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 0.8rem;
+  height: 4.6rem; padding: 0 1.8rem; border: 1px solid var(--tapi-hairline-2); border-radius: 9999px;
+  background: transparent; color: var(--tapi-charcoal);
+  font-size: 1.2rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+  transition: border-color 200ms, color 200ms;
+}
+.tapi-share__trigger:hover { border-color: var(--tapi-charcoal); }
+.tapi-share__trigger:focus-visible { outline: 2px solid var(--mor-accent); outline-offset: 3px; }
+.tapi-share__popover {
+  position: absolute; bottom: calc(100% + 10px); right: 0; z-index: 30;
+  width: 248px; padding: 1.2rem; background: var(--tapi-cream);
+  border: 1px solid var(--tapi-hairline-2); border-radius: var(--mor-radius-sm, 4px);
+  box-shadow: 0 18px 50px rgba(44, 40, 38, 0.16);
+}
+.tapi-share__popover[hidden] { display: none; }
+.tapi-share__row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }
+.tapi-share__link {
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  padding: 0.9rem 0.4rem; border-radius: var(--mor-radius-sm, 4px); text-decoration: none;
+  color: var(--tapi-charcoal); font-size: 0.95rem; letter-spacing: 0.02em;
+  transition: background 180ms; cursor: pointer; border: none; background: none; font-family: inherit;
+}
+.tapi-share__link:hover { background: var(--tapi-cream-2); }
+.tapi-share__link svg { width: 22px; height: 22px; }
+.tapi-share__copyrow { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--tapi-hairline); display: flex; gap: 0.8rem; align-items: center; }
+.tapi-share__url {
+  flex: 1; min-width: 0; height: 3.6rem; padding: 0 1rem; font-size: 1.2rem;
+  border: 1px solid var(--tapi-hairline-2); background: var(--tapi-cream-2); color: var(--tapi-warm-grey);
+  border-radius: var(--mor-radius-sm, 4px); overflow: hidden; text-overflow: ellipsis;
+}
+.tapi-share__copy {
+  flex: 0 0 auto; height: 3.6rem; padding: 0 1.2rem; cursor: pointer; font-family: inherit;
+  border: 1px solid var(--tapi-charcoal); background: var(--tapi-charcoal); color: var(--tapi-cream);
+  font-size: 1.1rem; letter-spacing: 0.06em; border-radius: var(--mor-radius-sm, 4px);
+}
+.tapi-share__copy.is-copied { background: var(--mor-accent); border-color: var(--mor-accent); }

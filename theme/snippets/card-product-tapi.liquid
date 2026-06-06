@@ -47,14 +47,14 @@
     </div>
   </a>
 
+  {% render 'tapi-wishlist-button', product: product, variant: 'card' %}
+
   <div class="tapi-card__badges">
     {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
     {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
     {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+    {%- if saving_pct > 0 -%}<span class="tapi-card__savings">–{{ saving_pct }}%</span>{%- endif -%}
   </div>
-  {%- if saving_pct > 0 -%}
-    <span class="tapi-card__savings">–{{ saving_pct }}%</span>
-  {%- endif -%}
 
   <div class="tapi-card__info">
     <div class="tapi-card__row">
@@ -111,7 +111,7 @@
 
   .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; pointer-events: none; }
   .tapi-card__savings {
-    position: absolute; top: 12px; right: 12px; z-index: 2; pointer-events: none;
+    align-self: flex-start;
     display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
     font-size: 1.1rem; letter-spacing: 0.06em; font-weight: 500; border-radius: var(--mor-radius-pill);
     background: var(--mor-accent); color: var(--mor-cream); font-variant-numeric: tabular-nums;
