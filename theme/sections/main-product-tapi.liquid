@@ -320,17 +320,35 @@
     </div>
   </div>
 
-  {%- comment -%} ----- MOBILE STICKY ADD-TO-BAG ----- {%- endcomment -%}
-  <div class="tapi-pdp__mobile-cta" aria-hidden="true">
-    <div>
-      <div class="tapi-pdp__mobile-price" data-mobile-price>{{ current_variant.price | money }}</div>
-      {%- if current_variant.compare_at_price > current_variant.price -%}
-        <div class="tapi-pdp__mobile-was">{{ current_variant.compare_at_price | money }}</div>
-      {%- endif -%}
+  {%- comment -%} ----- MOBILE STICKY BUY BAR -----
+    The in-page CTA row + Buy-it-now are display:none under 750px, so these are
+    the ONLY add/checkout controls on mobile. They are therefore real, focusable
+    controls (no aria-hidden / tabindex=-1): hiding them from AT would leave
+    mobile screen-reader users with no way to buy. The dynamic "Add — Size·Color"
+    label is dropped here: it overflows a half-width button, and nothing reads the
+    text (the variant is carried by #variant-id + the form). Selection is instead
+    confirmed on the muted meta line and the size/colour selectors above. {%- endcomment -%}
+  <div class="tapi-pdp__mobile-cta">
+    <div class="tapi-pdp__mobile-meta">
+      <div class="tapi-pdp__mobile-price-wrap">
+        <span class="tapi-pdp__mobile-price" data-mobile-price>{{ current_variant.price | money }}</span>
+        {%- if current_variant.compare_at_price > current_variant.price -%}
+          <span class="tapi-pdp__mobile-was">{{ current_variant.compare_at_price | money }}</span>
+        {%- endif -%}
+      </div>
+      <span class="tapi-pdp__mobile-sel" data-mobile-sel>{{ current_variant.title | replace: ' / ', ' · ' }}</span>
     </div>
-    <button type="submit" tabindex="-1" form="product-form-{{ section.id }}" name="add" class="button button--primary tapi-pdp__mobile-add" data-mobile-add>
-      Add — {{ current_variant.title }}
-    </button>
+    <div class="tapi-pdp__mobile-actions">
+      <button type="submit" form="product-form-{{ section.id }}" name="add"
+              class="button button--primary tapi-pdp__mobile-add" data-mobile-add>
+        Add to Cart
+      </button>
+      <button type="submit" form="product-form-{{ section.id }}" name="add"
+              formaction="{{ routes.cart_add_url }}?return_to=/checkout"
+              class="button button--terracotta tapi-pdp__mobile-buy" data-mobile-buy>
+        Buy Now
+      </button>
+    </div>
   </div>
 </section>
 
@@ -596,17 +614,31 @@
   .tapi-pincode__result { margin-top: 1.2rem; font-size: 1.3rem; }
   .tapi-pincode__pickup { margin-top: 0.8rem; padding: 1.2rem; background: var(--tapi-terracotta-wash); display: flex; align-items: center; gap: 1rem; }
 
-  /* Mobile sticky bar */
+  /* Mobile sticky buy bar: a compact meta line (price + selected variant) above
+     a row of two equal-width buttons (Add to Cart / Buy Now). */
   .tapi-pdp__mobile-cta {
     display: none; position: fixed; left: 0; right: 0; bottom: 0;
+    flex-direction: column; gap: 0.7rem;
     background: var(--tapi-cream); border-top: 1px solid var(--tapi-hairline-2);
-    padding: 1rem 1.6rem; padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    padding: 0.9rem 1.4rem; padding-bottom: calc(0.9rem + env(safe-area-inset-bottom));
     z-index: 80; box-shadow: 0 -8px 24px rgba(44,40,38,0.06);
-    gap: 1rem; align-items: center;
   }
-  .tapi-pdp__mobile-price { font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; line-height: 1; }
-  .tapi-pdp__mobile-was { font-size: 1rem; color: var(--mor-text-muted); text-decoration: line-through; margin-top: 2px; }
-  .tapi-pdp__mobile-add { flex: 1; height: 5.2rem; min-height: 5.2rem !important; font-size: 1.2rem; }
+  .tapi-pdp__mobile-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .tapi-pdp__mobile-price-wrap { display: flex; align-items: baseline; gap: 0.7rem; flex: 0 0 auto; }
+  .tapi-pdp__mobile-price { font-family: var(--font-heading-family); font-size: 1.9rem; font-weight: 500; line-height: 1; }
+  .tapi-pdp__mobile-was { font-size: 1.3rem; color: var(--mor-text-muted); text-decoration: line-through; }
+  .tapi-pdp__mobile-sel {
+    font-size: 1.15rem; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--tapi-warm-grey); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 55%; text-align: right;
+  }
+  .tapi-pdp__mobile-sel:empty { display: none; }
+  .tapi-pdp__mobile-actions { display: flex; gap: 0.8rem; }
+  .tapi-pdp__mobile-actions .button {
+    flex: 1 1 0; min-width: 0; height: 5rem; min-height: 5rem !important;
+    font-size: 1.35rem; padding: 0 1rem; white-space: nowrap;
+  }
+  .tapi-pdp__mobile-actions .button:disabled { opacity: 0.45; }
 
   /* Tablet / mobile responsive */
   @media (max-width: 1100px) {
@@ -617,7 +649,7 @@
     .tapi-pdp__info { order: 3; }
   }
   @media (max-width: 749px) {
-    .tapi-pdp { padding-bottom: 10rem; }
+    .tapi-pdp { padding-bottom: 13rem; }
     .tapi-pdp__breadcrumb { display: none; }
     .tapi-pdp__title { font-size: 3.2rem !important; }
     .tapi-pdp__price-now { font-size: 2.6rem; }
@@ -642,6 +674,8 @@
     const variantInput = sec.querySelector('[id^="variant-id-"]');
     const addLabel  = sec.querySelector('[data-add-label]');
     const mobileAdd = sec.querySelector('[data-mobile-add]');
+    const mobileBuy = sec.querySelector('[data-mobile-buy]');
+    const mobileSel = sec.querySelector('[data-mobile-sel]');
     const mobilePrice = sec.querySelector('[data-mobile-price]');
     const qtyInput  = sec.querySelector('[data-qty-input]');
 
@@ -716,9 +750,13 @@
       const available = !!(v && v.available);
       const label = hasColor ? [selSize, selColor].filter(Boolean).join(' · ') : selSize;
 
+      // The mobile bar mirrors the selected variant on a muted meta line, so its
+      // two buttons can keep static, non-overflowing labels (Add to Cart / Buy Now).
+      if (mobileSel) mobileSel.textContent = label || '';
       if (available) {
         if (addLabel) addLabel.textContent = qty > 1 ? `Add to bag (${qty}) — ${priceText}` : `Add to bag — ${priceText}`;
-        if (mobileAdd) mobileAdd.textContent = label ? `Add — ${label}` : 'Add to bag';
+        if (mobileAdd) { mobileAdd.textContent = 'Add to Cart'; mobileAdd.disabled = false; mobileAdd.removeAttribute('aria-disabled'); }
+        if (mobileBuy) { mobileBuy.textContent = 'Buy Now'; mobileBuy.disabled = false; mobileBuy.removeAttribute('aria-disabled'); }
         if (addBtn) { addBtn.disabled = false; addBtn.removeAttribute('aria-disabled'); }
         if (buyBtn) { buyBtn.disabled = false; buyBtn.removeAttribute('aria-disabled'); }
         if (stockNote) stockNote.textContent = (v.inv > 0 && v.inv <= lowStock)
@@ -726,7 +764,8 @@
           : 'In stock — ships in 1–2 days';
       } else {
         if (addLabel) addLabel.textContent = 'Sold out';
-        if (mobileAdd) mobileAdd.textContent = 'Sold out';
+        if (mobileAdd) { mobileAdd.textContent = 'Sold out'; mobileAdd.disabled = true; mobileAdd.setAttribute('aria-disabled', 'true'); }
+        if (mobileBuy) { mobileBuy.textContent = 'Buy Now'; mobileBuy.disabled = true; mobileBuy.setAttribute('aria-disabled', 'true'); }
         if (addBtn) { addBtn.disabled = true; addBtn.setAttribute('aria-disabled', 'true'); }
         if (buyBtn) { buyBtn.disabled = true; buyBtn.setAttribute('aria-disabled', 'true'); }
         if (stockNote) stockNote.textContent = label ? `Sold out — ${label}` : 'Sold out — restocking soon';
