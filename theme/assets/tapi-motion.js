@@ -162,6 +162,10 @@
     // still gets a working play button.
     setupPdpVideo(sec);
 
+    // Full-screen viewer (lightbox). Wired before the single-media early-return
+    // so a one-image product can still be opened full screen + zoomed.
+    setupPdpLightbox(sec);
+
     var thumbs = sec.querySelectorAll('.tapi-pdp__thumb');
     var mains  = sec.querySelectorAll('.tapi-pdp__main-img');
     var dots   = sec.querySelectorAll('[data-gallery-dots] .tapi-pdp__dot');
@@ -294,6 +298,259 @@
         wrap.__loaded = true;
       });
     });
+  }
+
+  // ---------- PDP full-screen viewer (lightbox) ----------
+  // A dark, focused gallery that mirrors the inline gallery's media set + index.
+  // Opens from the zoom button or an image tap, supports swipe / arrow-keys /
+  // thumbnails, click-to-zoom + cursor-pan (desktop) and double-tap / pinch /
+  // drag-pan (touch). Additive: the inline gallery is never touched.
+  function setupPdpLightbox(sec) {
+    var box = sec.querySelector('[data-lightbox]');
+    if (!box || box.__tapiLightbox) return;
+    box.__tapiLightbox = true;
+
+    var reduceM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    var stage   = box.querySelector('[data-lightbox-stage]');
+    var slides  = Array.prototype.slice.call(box.querySelectorAll('.tapi-lightbox__slide'));
+    var thumbs  = Array.prototype.slice.call(box.querySelectorAll('[data-lightbox-thumb]'));
+    var curEl   = box.querySelector('[data-lightbox-current]');
+    var prevBtn = box.querySelector('[data-lightbox-prev]');
+    var nextBtn = box.querySelector('[data-lightbox-next]');
+    var closeEls = box.querySelectorAll('[data-lightbox-close]');
+    var openers = sec.querySelectorAll('[data-gallery-zoom]');
+    var total = slides.length || 1;
+    var idx = 0;
+    var lastFocus = null;
+
+    // zoom / pan state for the active image
+    var scale = 1, panX = 0, panY = 0;
+
+    function activeImg() {
+      var s = slides[idx];
+      return s ? s.querySelector('.tapi-lightbox__img[data-zoomable]') : null;
+    }
+    function trans() {
+      return 'translate3d(' + panX.toFixed(1) + 'px,' + panY.toFixed(1) + 'px,0) scale(' + scale.toFixed(3) + ')';
+    }
+    function applyTransform() {
+      var img = activeImg(); if (!img) return;
+      img.style.transform = scale > 1.01 ? trans() : '';
+      img.classList.toggle('is-zoomed', scale > 1.01);
+    }
+    function resetZoom() {
+      scale = 1; panX = 0; panY = 0;
+      var img = activeImg(); if (img) { img.style.transform = ''; img.classList.remove('is-zoomed'); }
+    }
+    function clampScale(s) { return Math.max(1, Math.min(3.5, s)); }
+    function clampPan(w, h) {
+      var mx = (scale - 1) * w / 2, my = (scale - 1) * h / 2;
+      panX = Math.max(-mx, Math.min(mx, panX));
+      panY = Math.max(-my, Math.min(my, panY));
+    }
+    function panFromClient(cx, cy) {
+      var img = activeImg(); if (!img) return;
+      var r = stage.getBoundingClientRect();
+      var px = Math.min(1, Math.max(0, (cx - r.left) / r.width));
+      var py = Math.min(1, Math.max(0, (cy - r.top) / r.height));
+      panX = (0.5 - px) * (scale - 1) * img.clientWidth;
+      panY = (0.5 - py) * (scale - 1) * img.clientHeight;
+      clampPan(img.clientWidth, img.clientHeight);
+    }
+
+    function loadHi(slide) {
+      if (!slide) return;
+      var img = slide.querySelector('img[data-hi]');
+      if (!img) return;
+      var hi = img.getAttribute('data-hi');
+      if (hi && img.getAttribute('src') !== hi && !img.__hiLoading) {
+        img.__hiLoading = true;
+        var pre = new Image();
+        pre.onload = function () { img.setAttribute('src', hi); };
+        pre.src = hi;
+      }
+    }
+
+    function inlineActiveIndex() {
+      var a = sec.querySelector('.tapi-pdp__main-img.is-active');
+      return a ? (parseInt(a.getAttribute('data-main-index'), 10) || 0) : 0;
+    }
+    function syncInline(i) {
+      // Move the inline gallery to match (reuses its own thumb click handler).
+      var t = sec.querySelector('.tapi-pdp__thumb[data-thumb-index="' + i + '"]');
+      if (t) t.click();
+    }
+
+    function show(i) {
+      i = ((i % total) + total) % total;
+      resetZoom();
+      // Pause any clip when leaving its slide.
+      box.querySelectorAll('video').forEach(function (v) { try { v.pause(); } catch (e) {} });
+      idx = i;
+      slides.forEach(function (s, si) { s.classList.toggle('is-active', si === i); });
+      thumbs.forEach(function (t, ti) {
+        t.classList.toggle('is-active', ti === i);
+        t.setAttribute('aria-current', ti === i ? 'true' : 'false');
+      });
+      if (curEl) curEl.textContent = String(i + 1);
+      loadHi(slides[i]);
+      loadHi(slides[(i + 1) % total]);
+      loadHi(slides[(i - 1 + total) % total]);
+      var at = thumbs[i];
+      if (at && at.scrollIntoView) {
+        try { at.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduceM ? 'auto' : 'smooth' }); } catch (e) {}
+      }
+    }
+
+    function open() {
+      lastFocus = document.activeElement;
+      show(inlineActiveIndex());
+      box.hidden = false;
+      box.setAttribute('aria-hidden', 'false');
+      void box.offsetWidth; // reflow so the transition runs
+      box.classList.add('is-open');
+      document.documentElement.classList.add('tapi-no-scroll');
+      document.body.classList.add('tapi-no-scroll');
+      var c = box.querySelector('.tapi-lightbox__close');
+      if (c) c.focus();
+    }
+    function close() {
+      box.classList.remove('is-open');
+      document.documentElement.classList.remove('tapi-no-scroll');
+      document.body.classList.remove('tapi-no-scroll');
+      box.querySelectorAll('video').forEach(function (v) { try { v.pause(); } catch (e) {} });
+      syncInline(idx);
+      var done = function () { box.hidden = true; box.setAttribute('aria-hidden', 'true'); };
+      if (reduceM) done(); else setTimeout(done, 360);
+      if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+    }
+
+    // ----- open / close / nav triggers -----
+    openers.forEach(function (b) { b.addEventListener('click', open); });
+    sec.querySelectorAll('.tapi-pdp__main-img').forEach(function (m) {
+      if (m.getAttribute('data-media-type') === 'image') {
+        m.style.cursor = 'zoom-in';
+        m.addEventListener('click', open);
+      }
+    });
+    closeEls.forEach(function (b) { b.addEventListener('click', close); });
+    if (prevBtn) prevBtn.addEventListener('click', function () { show(idx - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { show(idx + 1); });
+    thumbs.forEach(function (t) {
+      t.addEventListener('click', function () { show(parseInt(t.getAttribute('data-lightbox-thumb'), 10) || 0); });
+    });
+
+    // ----- keyboard (nav + Esc + focus trap) -----
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); show(idx - 1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); show(idx + 1); }
+      else if (e.key === 'Tab') {
+        var f = Array.prototype.filter.call(
+          box.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'),
+          function (el) { return el.offsetParent !== null; }
+        );
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+
+    // ----- external video: inject iframe on first play -----
+    box.querySelectorAll('[data-lb-external]').forEach(function (wrap) {
+      var btn = wrap.querySelector('.tapi-lightbox__playbtn');
+      if (!btn) return;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (wrap.__loaded) return;
+        var id = wrap.getAttribute('data-video-id'); if (!id) return;
+        var host = (wrap.getAttribute('data-video-host') || '').toLowerCase();
+        var src = host === 'vimeo'
+          ? 'https://player.vimeo.com/video/' + id + '?autoplay=1&title=0&byline=0&portrait=0'
+          : 'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1';
+        var f = document.createElement('iframe');
+        f.setAttribute('src', src);
+        f.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
+        f.setAttribute('allowfullscreen', '');
+        f.setAttribute('title', 'Product video');
+        wrap.appendChild(f);
+        wrap.__loaded = true;
+        var poster = wrap.querySelector('.tapi-lightbox__img'); if (poster) poster.style.display = 'none';
+        btn.style.display = 'none';
+      });
+    });
+
+    // ----- desktop: click-to-zoom + cursor pan + empty-area close -----
+    stage.addEventListener('click', function (e) {
+      if (e.target.closest('.tapi-lightbox__playbtn') || e.target.closest('video') || e.target.closest('.tapi-lightbox__nav')) return;
+      var img = activeImg();
+      if (img && img.contains(e.target)) {
+        if (!fine) return;
+        if (scale > 1.01) { resetZoom(); }
+        else { scale = 2.2; panFromClient(e.clientX, e.clientY); applyTransform(); }
+      } else {
+        close(); // clicked the letterbox area
+      }
+    });
+    if (fine) {
+      stage.addEventListener('mousemove', function (e) {
+        if (scale <= 1.01) return;
+        panFromClient(e.clientX, e.clientY);
+        var img = activeImg(); if (img) img.style.transform = trans();
+      });
+    }
+
+    // ----- touch: pinch / double-tap zoom, drag pan, swipe nav -----
+    var tStartX = 0, tStartY = 0, tMoved = false, mode = '', pinchBase = 0, pinchScaleBase = 1, baseX = 0, baseY = 0, lastTap = 0;
+    function tDist(t) { var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY; return Math.hypot(dx, dy) || 1; }
+    stage.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2) { mode = 'pinch'; pinchBase = tDist(e.touches); pinchScaleBase = scale; }
+      else if (e.touches.length === 1) {
+        mode = scale > 1.01 ? 'pan' : 'swipe';
+        tStartX = e.touches[0].clientX; tStartY = e.touches[0].clientY; tMoved = false;
+        baseX = panX; baseY = panY;
+      }
+    }, { passive: true });
+    stage.addEventListener('touchmove', function (e) {
+      var img = activeImg();
+      if (mode === 'pinch' && e.touches.length === 2 && img) {
+        scale = clampScale(pinchScaleBase * (tDist(e.touches) / pinchBase));
+        clampPan(img.clientWidth, img.clientHeight);
+        img.style.transform = trans(); img.classList.toggle('is-zoomed', scale > 1.01);
+        tMoved = true;
+      } else if (mode === 'pan' && img) {
+        var dx = e.touches[0].clientX - tStartX, dy = e.touches[0].clientY - tStartY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) tMoved = true;
+        panX = baseX + dx; panY = baseY + dy; clampPan(img.clientWidth, img.clientHeight);
+        img.style.transform = trans();
+      } else if (mode === 'swipe') {
+        var sx = e.touches[0].clientX - tStartX, sy = e.touches[0].clientY - tStartY;
+        if (Math.abs(sx) > 6 || Math.abs(sy) > 6) tMoved = true;
+      }
+    }, { passive: true });
+    stage.addEventListener('touchend', function (e) {
+      if (e.touches.length > 0) return;
+      var img = activeImg();
+      if (mode === 'swipe' && tMoved) {
+        var dx = e.changedTouches[0].clientX - tStartX;
+        var dy = e.changedTouches[0].clientY - tStartY;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) show(idx + (dx < 0 ? 1 : -1));
+      } else if (mode === 'swipe' && !tMoved) {
+        var now = Date.now();
+        if (img) {
+          if (now - lastTap < 300) { scale = 2.4; panFromClient(tStartX, tStartY); applyTransform(); lastTap = 0; }
+          else { lastTap = now; }
+        } else {
+          var el = document.elementFromPoint(tStartX, tStartY);
+          if (el && !el.closest('.tapi-lightbox__playbtn') && !el.closest('video') && !el.closest('.tapi-lightbox__nav')) close();
+        }
+      }
+      if ((mode === 'pinch' || mode === 'pan') && scale <= 1.05) resetZoom();
+      mode = '';
+    }, { passive: true });
   }
 
   // ---------- Custom dropdown widget ----------
