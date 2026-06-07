@@ -198,17 +198,83 @@
       return cur ? parseInt(cur.getAttribute('data-main-index'), 10) || 0 : 0;
     }
 
-    // ----- variant -> media bridge -----
-    // Map each media id to its gallery index so the variant picker (the inline PDP
-    // script) can switch the gallery to a colour's image WITHOUT owning any gallery
-    // state itself. setActiveImage moves the main image, the active thumb and the
-    // dots together; the full-screen viewer reads this same active index when it
-    // opens, so a single call keeps every surface in sync (no parallel state).
+    // ----- variant -> media bridge + per-colour grouping -----
+    // Two jobs:
+    //  (1) map media id -> gallery index so the variant picker (the inline PDP script)
+    //      can jump the gallery to a colour's image;
+    //  (2) FILTER the gallery to the media a colour is assigned. Assignments come from
+    //      Shopify's native "assign media to a variant" feature, read in Liquid via
+    //      image.variants and emitted as data-variant-media-map (filename -> colours).
+    //      A file absent from that map is "shared" (assigned to no variant) and shows
+    //      for every colour, so a product that doesn't group its media behaves exactly
+    //      as before. setActiveImage moves main image + active thumb + dots together;
+    //      the lightbox mirrors the active index AND the same hidden slides, so one
+    //      call keeps every surface in sync.
     var mediaIndex = {};
     mains.forEach(function (m) {
       var id = m.getAttribute('data-media-id');
       if (id) mediaIndex[id] = parseInt(m.getAttribute('data-main-index'), 10) || 0;
     });
+
+    var vmap = {};
+    try {
+      var vmEl = sec.querySelector('[data-variant-media-map]');
+      if (vmEl) vmap = JSON.parse(vmEl.textContent || '{}');
+    } catch (e) { vmap = {}; }
+    var anyGrouped = false; for (var k in vmap) { if (vmap.hasOwnProperty(k)) { anyGrouped = true; break; } }
+    var colorsOfIndex = [];
+    mains.forEach(function (m) {
+      var i = parseInt(m.getAttribute('data-main-index'), 10) || 0;
+      var f = m.getAttribute('data-file');
+      colorsOfIndex[i] = (f && vmap[f]) ? vmap[f] : null; // null => shared / unassigned
+    });
+
+    function allIndices() { var a = []; for (var i = 0; i < total; i++) a.push(i); return a; }
+    function indicesForColor(color) {
+      if (!color || !anyGrouped) return allIndices();
+      var out = allIndices().filter(function (i) {
+        var c = colorsOfIndex[i];
+        return c == null || c.indexOf(color) >= 0; // this colour's media, or shared
+      });
+      return out.length ? out : allIndices(); // never leave an empty gallery
+    }
+
+    var visible = allIndices();
+    var FILTER = 'is-filtered-out';
+    function applyFilter(color) {
+      visible = indicesForColor(color);
+      var show = {}; visible.forEach(function (i) { show[i] = true; });
+      for (var i = 0; i < total; i++) {
+        var off = !show[i];
+        var m  = sec.querySelector('.tapi-pdp__main-img[data-main-index="' + i + '"]');
+        var t  = sec.querySelector('.tapi-pdp__thumb[data-thumb-index="' + i + '"]');
+        var d  = sec.querySelector('.tapi-pdp__dot[data-dot-index="' + i + '"]');
+        var ls = sec.querySelector('.tapi-lightbox__slide[data-lightbox-index="' + i + '"]');
+        var lt = sec.querySelector('.tapi-lightbox__thumb[data-lightbox-thumb="' + i + '"]');
+        if (m)  m.classList.toggle(FILTER, off);
+        if (t)  t.classList.toggle(FILTER, off);
+        if (d)  d.classList.toggle(FILTER, off);
+        if (ls) ls.classList.toggle(FILTER, off);
+        if (lt) lt.classList.toggle(FILTER, off);
+      }
+      if (sec.__tapiLightboxRefresh) sec.__tapiLightboxRefresh();
+    }
+    function step(dir) {
+      var pos = visible.indexOf(currentIndex());
+      if (pos < 0) pos = 0;
+      setActiveImage(visible[(pos + dir + visible.length) % visible.length]);
+    }
+
+    // Called by the variant picker on colour change (+ initial sync): filter to the
+    // colour, then land on that variant's featured image (or the first visible slide).
+    sec.__tapiApplyVariant = function (color, mediaId) {
+      applyFilter(color);
+      var i = (mediaId != null) ? mediaIndex[String(mediaId)] : null;
+      if (i == null || visible.indexOf(i) < 0) i = visible[0];
+      if (i != null) setActiveImage(i);
+      return true;
+    };
+    // Back-compat: media-only jump (no colour filter).
     sec.__tapiGotoMedia = function (id) {
       var i = mediaIndex[String(id)];
       if (i == null) return false;
@@ -229,15 +295,15 @@
 
     var prevBtn = sec.querySelector('[data-gallery-prev]');
     var nextBtn = sec.querySelector('[data-gallery-next]');
-    if (prevBtn) prevBtn.addEventListener('click', function () { setActiveImage(currentIndex() - 1); });
-    if (nextBtn) nextBtn.addEventListener('click', function () { setActiveImage(currentIndex() + 1); });
+    if (prevBtn) prevBtn.addEventListener('click', function () { step(-1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { step(1); });
 
     var stage = sec.querySelector('[data-gallery-stage]');
     if (stage) {
       stage.setAttribute('tabindex', '-1');
       stage.addEventListener('keydown', function (e) {
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); setActiveImage(currentIndex() - 1); }
-        if (e.key === 'ArrowRight') { e.preventDefault(); setActiveImage(currentIndex() + 1); }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); step(-1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
       });
 
       var touchX = null;
@@ -247,7 +313,7 @@
         var dx = e.changedTouches[0].clientX - touchX;
         touchX = null;
         if (Math.abs(dx) < 40) return;
-        setActiveImage(currentIndex() + (dx < 0 ? 1 : -1));
+        step(dx < 0 ? 1 : -1);
       }, { passive: true });
     }
   }
@@ -335,6 +401,7 @@
     var slides  = Array.prototype.slice.call(box.querySelectorAll('.tapi-lightbox__slide'));
     var thumbs  = Array.prototype.slice.call(box.querySelectorAll('[data-lightbox-thumb]'));
     var curEl   = box.querySelector('[data-lightbox-current]');
+    var totalEl = box.querySelector('[data-lightbox-total]');
     var prevBtn = box.querySelector('[data-lightbox-prev]');
     var nextBtn = box.querySelector('[data-lightbox-next]');
     var closeEls = box.querySelectorAll('[data-lightbox-close]');
@@ -401,7 +468,17 @@
       if (t) t.click();
     }
 
+    // Slides the gallery's colour filter (.is-filtered-out, set by setupPdpGallery)
+    // is currently allowing through. Falls back to all slides when nothing is hidden.
+    function lbVisible() {
+      var out = [];
+      slides.forEach(function (s, i) { if (!s.classList.contains('is-filtered-out')) out.push(i); });
+      return out.length ? out : slides.map(function (_, i) { return i; });
+    }
+
     function show(i) {
+      var vis = lbVisible();
+      if (vis.indexOf(i) < 0) i = vis[0]; // snap onto a visible slide
       i = ((i % total) + total) % total;
       resetZoom();
       // Pause any clip when leaving its slide.
@@ -412,15 +489,28 @@
         t.classList.toggle('is-active', ti === i);
         t.setAttribute('aria-current', ti === i ? 'true' : 'false');
       });
-      if (curEl) curEl.textContent = String(i + 1);
+      var pos = vis.indexOf(i);
+      if (curEl) curEl.textContent = String((pos < 0 ? 0 : pos) + 1);
+      if (totalEl) totalEl.textContent = String(vis.length);
       loadHi(slides[i]);
-      loadHi(slides[(i + 1) % total]);
-      loadHi(slides[(i - 1 + total) % total]);
+      if (pos >= 0 && vis.length > 1) {
+        loadHi(slides[vis[(pos + 1) % vis.length]]);
+        loadHi(slides[vis[(pos - 1 + vis.length) % vis.length]]);
+      }
       var at = thumbs[i];
       if (at && at.scrollIntoView) {
         try { at.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduceM ? 'auto' : 'smooth' }); } catch (e) {}
       }
     }
+    function lbStep(dir) {
+      var vis = lbVisible();
+      var pos = vis.indexOf(idx);
+      if (pos < 0) pos = 0;
+      show(vis[(pos + dir + vis.length) % vis.length]);
+    }
+    // Let the gallery re-sync the viewer after a colour filter change: if it's open,
+    // re-clamp the active slide onto the now-visible set + refresh the counter.
+    sec.__tapiLightboxRefresh = function () { if (!box.hidden) show(idx); };
 
     function open() {
       lastFocus = document.activeElement;
@@ -454,8 +544,8 @@
       }
     });
     closeEls.forEach(function (b) { b.addEventListener('click', close); });
-    if (prevBtn) prevBtn.addEventListener('click', function () { show(idx - 1); });
-    if (nextBtn) nextBtn.addEventListener('click', function () { show(idx + 1); });
+    if (prevBtn) prevBtn.addEventListener('click', function () { lbStep(-1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { lbStep(1); });
     thumbs.forEach(function (t) {
       t.addEventListener('click', function () { show(parseInt(t.getAttribute('data-lightbox-thumb'), 10) || 0); });
     });
@@ -463,8 +553,8 @@
     // ----- keyboard (nav + Esc + focus trap) -----
     box.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { e.preventDefault(); close(); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); show(idx - 1); }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); show(idx + 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); lbStep(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); lbStep(1); }
       else if (e.key === 'Tab') {
         var f = Array.prototype.filter.call(
           box.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'),
@@ -555,7 +645,7 @@
       if (mode === 'swipe' && tMoved) {
         var dx = e.changedTouches[0].clientX - tStartX;
         var dy = e.changedTouches[0].clientY - tStartY;
-        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) show(idx + (dx < 0 ? 1 : -1));
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) lbStep(dx < 0 ? 1 : -1);
       } else if (mode === 'swipe' && !tMoved) {
         var now = Date.now();
         if (img) {

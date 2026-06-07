@@ -57,7 +57,7 @@
         <div class="tapi-pdp__gallery-stage" data-gallery-stage>
           {%- for media in product.media -%}
             {%- if forloop.first -%}{%- assign pdp_loading = 'eager' -%}{%- assign pdp_fetch = 'high' -%}{%- else -%}{%- assign pdp_loading = 'lazy' -%}{%- assign pdp_fetch = 'auto' -%}{%- endif -%}
-            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-id="{{ media.id }}" data-media-type="{{ media.media_type }}">
+            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-id="{{ media.id }}" data-file="{{ media.preview_image | image_url: width: 1 | split: '?' | first | split: '/' | last }}" data-media-type="{{ media.media_type }}">
               {%- case media.media_type -%}
                 {%- when 'video' -%}
                   {%- comment -%} Shopify-hosted video: lazy facade. We render ONLY the poster +
@@ -291,6 +291,35 @@
         </script>
         <span hidden data-low-stock="{{ low_stock_threshold }}"></span>
 
+        {%- comment -%} Per-colour media grouping (native): `image.variants` exposes which
+          variants each photo is assigned to (Shopify's "assign media to a variant"
+          feature in the product Media section). We emit filename -> [colours] so the
+          gallery can show only the selected colour's photos (plus any photo assigned to
+          NO variant, which is treated as shared). Keyed by filename because the gallery
+          renders product.media (for video support) while the variant link lives on
+          product.images; the filename is the stable join. A product that doesn't group
+          its media emits an empty map and the gallery shows everything, unchanged. {%- endcomment -%}
+        <script type="application/json" data-variant-media-map>
+          {
+            {%- assign vm_first = true -%}
+            {%- if color_option != nil -%}
+              {%- for img in product.images -%}
+                {%- if img.variants.size > 0 -%}
+                  {%- assign ifile = img | image_url: width: 1 | split: '?' | first | split: '/' | last -%}
+                  {%- unless vm_first -%},{%- endunless -%}{%- assign vm_first = false -%}
+                  {{ ifile | json }}: [
+                    {%- assign vm_cf = true -%}
+                    {%- for v in img.variants -%}
+                      {%- unless vm_cf -%},{%- endunless -%}{%- assign vm_cf = false -%}
+                      {{ v.options[color_idx] | json }}
+                    {%- endfor -%}
+                  ]
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+          }
+        </script>
+
         {%- comment -%}
           Fit feedback tile — disabled on request. Un-wrap this comment block
           (remove the {%- comment -%} / {%- endcomment -%} lines) to restore
@@ -428,7 +457,7 @@
       <div class="tapi-lightbox__backdrop" data-lightbox-close></div>
       <div class="tapi-lightbox__dialog" role="dialog" aria-modal="true" aria-label="{{ product.title | escape }} gallery">
         <div class="tapi-lightbox__bar">
-          <span class="tapi-lightbox__counter" aria-hidden="true"><span data-lightbox-current>1</span> / {{ lb_total }}</span>
+          <span class="tapi-lightbox__counter" aria-hidden="true"><span data-lightbox-current>1</span> / <span data-lightbox-total>{{ lb_total }}</span></span>
           <button type="button" class="tapi-lightbox__close" data-lightbox-close aria-label="Close full screen">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
@@ -559,6 +588,13 @@
   .tapi-pdp__thumb.is-active { border-color: var(--tapi-charcoal); }
   .tapi-pdp__gallery-main { position: sticky; top: 130px; align-self: start; min-height: 600px; }
   .tapi-pdp__gallery-stage { position: relative; }
+  /* Per-colour grouping: media not assigned to the selected colour is removed from
+     every surface (main slide, thumb, dot, full-screen slide + thumb) by tapi-motion.js. */
+  .tapi-pdp__main-img.is-filtered-out,
+  .tapi-pdp__thumb.is-filtered-out,
+  .tapi-pdp__dot.is-filtered-out,
+  .tapi-lightbox__slide.is-filtered-out,
+  .tapi-lightbox__thumb.is-filtered-out { display: none !important; }
   .tapi-pdp__main-img { display: none; position: relative; overflow: hidden; }
   .tapi-pdp__main-img.is-active { display: block; animation: tapi-rise 480ms cubic-bezier(0.16,1,0.3,1); }
   .tapi-pdp__main-img img {
@@ -1025,13 +1061,13 @@
       }
       if (mobilePrice && priceText) mobilePrice.textContent = priceText;
 
-      // Per-colour media: drive the SHARED gallery (and the full-screen viewer,
-      // which mirrors its index) to the slide holding this variant's image. The
-      // controller lives in tapi-motion.js and exposes __tapiGotoMedia once booted;
-      // reusing it keeps the main image, active thumb, dots and lightbox on ONE
-      // source of truth instead of the old parallel `<img src>` swap that updated
-      // only the main image and left the thumbs / lightbox pointing elsewhere.
-      if (v && v.mediaId && sec.__tapiGotoMedia) sec.__tapiGotoMedia(v.mediaId);
+      // Per-colour media: drive the SHARED gallery (and the full-screen viewer, which
+      // mirrors it) to this colour. __tapiApplyVariant filters the gallery to the
+      // colour's assigned photos (native image.variants grouping) and lands on this
+      // variant's featured image, keeping main image, thumbs, dots and lightbox on ONE
+      // source of truth. Falls back to the media-only jump on older cached JS.
+      if (v && sec.__tapiApplyVariant) sec.__tapiApplyVariant(selColor, v.mediaId);
+      else if (v && v.mediaId && sec.__tapiGotoMedia) sec.__tapiGotoMedia(v.mediaId);
       paintAvailability();
       refadeActiveMain();
     };
@@ -1096,6 +1132,7 @@
     // right image. No-op when the default colour already maps to slide 0.
     var syncInitialMedia = function () {
       var v0 = findVariant(selSize, selColor);
+      if (v0 && sec.__tapiApplyVariant) { sec.__tapiApplyVariant(selColor, v0.mediaId); return true; }
       if (v0 && v0.mediaId && sec.__tapiGotoMedia) { sec.__tapiGotoMedia(v0.mediaId); return true; }
       return false;
     };
