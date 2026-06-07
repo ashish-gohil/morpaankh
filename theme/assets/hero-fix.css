@@ -43,6 +43,14 @@
     color: #FBF7EF !important;
     border-color: rgba(249,245,238,0.65) !important;
   }
+  /* Hover fills the button cream, so the text must flip to charcoal — the
+     default cream color above is !important, so the hover needs !important too,
+     otherwise it's cream-on-cream and the label disappears. */
+  .tapi-hero__cta-secondary:hover {
+    background: #FBF7EF !important;
+    color: #2C2826 !important;
+    border-color: #FBF7EF !important;
+  }
 }
 
 /* Per-slide caption chip ("Saanjh · Kurta sets", etc.) — Liquid no longer

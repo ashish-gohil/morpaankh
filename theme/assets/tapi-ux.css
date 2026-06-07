@@ -46,16 +46,27 @@
   .tapi-wishlist.tapi-pop .tapi-wishlist__heart { animation: none; }
 }
 
-/* Generic count bubble (header heart, bottom nav) */
+/* Generic count bubble (header heart, bottom nav).
+   Matches Dawn's .cart-count-bubble dimensions (1.7rem) so the wishlist badge
+   reads identically to the cart badge. min-width = height keeps single digits a
+   perfect circle; padding lets it expand cleanly for 2+ digit counts. */
 .tapi-count-bubble {
-  position: absolute; top: -6px; right: -8px; min-width: 16px; height: 16px; padding: 0 4px;
+  position: absolute; box-sizing: border-box;
+  min-width: 1.7rem; height: 1.7rem; padding: 0 0.4rem;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--mor-accent); color: var(--mor-cream);
-  font-size: 1rem; line-height: 1; font-weight: 600; border-radius: 9999px;
+  font-size: 0.9rem; line-height: 1; font-weight: 600; border-radius: 9999px;
   font-variant-numeric: tabular-nums;
 }
 .tapi-count-bubble[hidden] { display: none; }
+/* Pin the badge to the top-right of the heart glyph inside the 44px tap target.
+   Dawn's `.header__icon span { height: 100% }` (0,1,1) would stretch the badge to
+   the full 44px icon height, so the dimensions are re-declared here at (0,2,0). */
 .header__icon--wishlist { position: relative; }
+.header__icon--wishlist .tapi-count-bubble {
+  top: 0.4rem; right: 0.2rem;
+  height: 1.7rem; min-width: 1.7rem; width: auto; padding: 0 0.4rem;
+}
 
 /* ============================ Mini cards / actions ============================ */
 .tapi-card--mini .tapi-card__actions { margin-top: 1rem; }
@@ -63,6 +74,36 @@
 .tapi-card--mini .tapi-card__actions .button.is-loading { opacity: 0.7; pointer-events: none; }
 .tapi-card--mini .tapi-card__img--front { position: static; }
 .tapi-card--mini .tapi-card__img--front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Mini cards carry a single image (no second "back" image to cross-fade to), so
+   the catalog card's hover fade-out would reveal an empty tile. Keep the image
+   visible and apply only the subtle zoom used elsewhere — a clean, consistent
+   hover that matches the catalog cards. */
+.tapi-card.tapi-card--mini:hover .tapi-card__img--front { opacity: 1; }
+.tapi-card.tapi-card--mini:hover .tapi-card__img--front img { transform: scale(1.04); }
+@media (hover: none) and (pointer: coarse) {
+  .tapi-card.tapi-card--mini:hover .tapi-card__img--front img { transform: none; }
+}
+
+/* ===================== "You may also like" (related) =====================
+   Dawn's legacy flex .grid uses a cramped ~4px mobile gutter, which makes the
+   related cards feel tight and uneven. Re-lay it out as a clean CSS grid that
+   matches the home featured showcase (same tapi cards, same rhythm) so the two
+   product showcases are consistent. Heading is aligned to the tapi type scale. */
+.related-products .related-products__heading {
+  font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.012em;
+  font-size: clamp(2.2rem, 3vw, 3.2rem); line-height: 1.1; margin: 0 0 clamp(2rem, 3vw, 3.2rem);
+}
+.related-products .product-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--tapi-card-gap, 24px); margin: 0;
+}
+.related-products .product-grid > .grid__item { width: auto; max-width: none; margin: 0; padding: 0; }
+@media (max-width: 989px) {
+  .related-products .product-grid { grid-template-columns: 1fr 1fr; gap: 2rem; }
+}
+@media (max-width: 540px) {
+  .related-products .product-grid { grid-template-columns: 1fr; row-gap: 3rem; }
+}
 
 /* ============================ Recently viewed ============================ */
 .tapi-rv { padding-block: clamp(4rem, 6vw, 7.2rem); }

@@ -87,18 +87,32 @@
     var sr = btn.querySelector('[data-wishlist-sr]');
     if (sr) sr.textContent = saved ? (on + ', remove from wishlist') : (off + ' to wishlist');
   }
-  function wireHearts(root) {
+  // Paint initial saved-state onto any hearts in `root`. Used at boot and after
+  // async card injection (related products) — clicks are handled by delegation,
+  // so newly added hearts work without per-element wiring.
+  function paintHearts(root) {
     (root || document).querySelectorAll('[data-wishlist-toggle]').forEach(function (btn) {
-      if (btn.__tapiHeart) return;
-      btn.__tapiHeart = true;
       paintHeart(btn, Wishlist.has(btn.getAttribute('data-handle')));
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var saved = Wishlist.toggle(attrItem(btn));
-        paintHeart(btn, saved);
-        if (saved && !reduceMotion) { btn.classList.remove('tapi-pop'); void btn.offsetWidth; btn.classList.add('tapi-pop'); }
-      });
+    });
+  }
+  // One delegated click handler covers every heart on the page — including cards
+  // injected later by Dawn's <product-recommendations> ("You may also like"),
+  // which fetches its HTML after load and does NOT fire shopify:section:load.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-wishlist-toggle]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var saved = Wishlist.toggle(attrItem(btn));
+    paintHeart(btn, saved);
+    if (saved && !reduceMotion) { btn.classList.remove('tapi-pop'); void btn.offsetWidth; btn.classList.add('tapi-pop'); }
+  });
+  // Repaint hearts as soon as product-recommendations swaps in its cards.
+  function observeRecommendations() {
+    document.querySelectorAll('product-recommendations').forEach(function (pr) {
+      if (pr.__tapiObserved) return;
+      pr.__tapiObserved = true;
+      new MutationObserver(function () { paintHearts(pr); }).observe(pr, { childList: true, subtree: true });
     });
   }
   // Keep every heart + every count in sync whenever the store changes.
@@ -317,7 +331,14 @@
     s.__wired = true;
     s.addEventListener('click', function (e) {
       var summary = document.querySelector('details-modal.header__search summary, .header__search summary');
-      if (summary) { e.preventDefault(); summary.click(); }
+      if (!summary) return; // no header search on this page — let the link go to /search
+      e.preventDefault();
+      // Defer opening to the next tick: clicking the summary opens Dawn's modal,
+      // which attaches an outside-click listener on <body>. If we open synchronously,
+      // THIS in-flight click then bubbles to body and is treated as an outside click,
+      // closing the modal instantly ("does nothing"). Letting the current click
+      // finish first avoids that race.
+      setTimeout(function () { summary.click(); }, 0);
     });
   }
 
@@ -325,7 +346,8 @@
    * Boot.
    * -------------------------------------------------------------------- */
   function boot(root) {
-    wireHearts(root);
+    paintHearts(root);
+    observeRecommendations();
     renderRecentlyViewed(root);
     wireWishlistPage();
     renderWishlistPage();

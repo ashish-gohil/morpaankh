@@ -59,7 +59,22 @@
           {%- elsif block.type == 'address' -%}
             <p class="tapi-footer__address">{{ block.settings.address }}</p>
             {%- if block.settings.cta_text != blank -%}
-              <a href="{{ block.settings.cta_link | default: '#' }}" class="tapi-footer__cta">{{ block.settings.cta_text }}</a>
+              {%- comment -%} "Message us" opens the store's configured WhatsApp when no
+                explicit CTA link is set (falls back to the contact page if WhatsApp
+                isn't configured). Reuses settings.social_whatsapp_link — no new dep. {%- endcomment -%}
+              {%- liquid
+                assign cta_href = block.settings.cta_link
+                assign cta_external = false
+                if cta_href == blank
+                  if settings.social_whatsapp_link != blank
+                    assign cta_href = settings.social_whatsapp_link
+                    assign cta_external = true
+                  else
+                    assign cta_href = '/pages/contact'
+                  endif
+                endif
+              -%}
+              <a href="{{ cta_href }}" class="tapi-footer__cta"{% if cta_external %} target="_blank" rel="noopener"{% endif %}>{{ block.settings.cta_text }}</a>
             {%- endif -%}
           {%- endif -%}
         </div>
@@ -166,7 +181,7 @@
       "name": "Tapi footer",
       "blocks": [
         { "type": "links", "settings": { "title": "Shop", "items": "Kurta Sets | /collections/kurta-sets\nCo-ord Sets | /collections/co-ord-sets\nFestive Edit | /collections/festive" } },
-        { "type": "links", "settings": { "title": "Help", "items": "Size guide | /pages/fabric-guide#size-guide\nExchange & returns | /pages/refund-policy\nFAQ | /pages/contact" } },
+        { "type": "links", "settings": { "title": "Help", "items": "Size guide | /pages/fabric-guide#size-guide\nExchange & returns | /pages/refund-policy\nFAQ | /pages/contact#faq" } },
         { "type": "address", "settings": { "title": "Visit", "address": "Rampura, Surat\nGujarat 395003\nMon–Sat · 10am–7pm", "cta_text": "Message us" } }
       ]
     }

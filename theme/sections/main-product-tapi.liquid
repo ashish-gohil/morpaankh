@@ -205,9 +205,9 @@
                       data-color="{{ val | escape }}"
                       role="radio"
                       aria-checked="{% if val == color_option.selected_value %}true{% else %}false{% endif %}"
-                      aria-label="{{ val | escape }}">
+                      aria-label="{{ val | escape }}"
+                      title="{{ val | escape }}">
                 <span class="tapi-pdp__color-dot" style="background: {{ hex }};"></span>
-                <span class="tapi-pdp__color-name">{{ val }}</span>
               </button>
             {%- endfor -%}
           </div>
@@ -616,22 +616,24 @@
   .tapi-pdp__guide-link::after { content:""; position: absolute; left:0; bottom:0; height:1px; width:100%; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-pdp__guide-link:hover::after { transform: scaleX(1); transform-origin: left; }
 
-  .tapi-pdp__colors { display: flex; gap: 1rem; flex-wrap: wrap; }
-  .tapi-pdp__color { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; cursor: pointer; background: transparent; border: none; padding: 0; }
+  /* Swatches are dots only — equal-sized circles with consistent spacing,
+     regardless of colour-name length. The selected colour's NAME is shown once,
+     in the group head (data-color-label), so the row stays clean (luxury PDP
+     pattern: COS / Aritzia). aria-label + title carry the name per swatch. */
+  .tapi-pdp__colors { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: center; }
+  .tapi-pdp__color { display: inline-flex; cursor: pointer; background: transparent; border: 0; padding: 0; line-height: 0; border-radius: 50%; }
+  .tapi-pdp__color:focus-visible { outline: 2px solid var(--mor-accent); outline-offset: 3px; }
   .tapi-pdp__color-dot {
-    width: 36px; height: 36px; border-radius: 50%;
+    width: 34px; height: 34px; border-radius: 50%; display: block;
     border: 1px solid var(--tapi-hairline-2);
-    transition: outline 240ms, border-color 240ms, transform 240ms cubic-bezier(0.22,1,0.36,1);
+    transition: box-shadow 240ms, border-color 240ms, transform 240ms cubic-bezier(0.22,1,0.36,1);
   }
-  /* Active swatch — inset cream ring + charcoal border, matches page-pdp.jsx L162 */
+  /* Active swatch — a crisp ring around the dot (cream gap + charcoal ring). */
   .tapi-pdp__color.is-active .tapi-pdp__color-dot {
-    border: 1.5px solid var(--tapi-charcoal);
-    outline: 1.5px solid var(--tapi-cream);
-    outline-offset: -5px;
+    border-color: var(--tapi-charcoal);
+    box-shadow: 0 0 0 2px var(--tapi-cream), 0 0 0 3.5px var(--tapi-charcoal);
   }
-  .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.06); }
-  .tapi-pdp__color-name { font-size: 1rem; letter-spacing: 0.06em; color: var(--mor-text-muted); text-transform: uppercase; }
-  .tapi-pdp__color.is-active .tapi-pdp__color-name { color: var(--tapi-charcoal); }
+  .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.08); }
   /* Colour unavailable in the chosen size — dimmed with a hairline strike on
      the dot. Still clickable (selecting it re-paints sizes for that colour). */
   .tapi-pdp__color.is-out { opacity: 0.42; }
@@ -779,9 +781,11 @@
 
   .tapi-lightbox { position: fixed; inset: 0; z-index: 120; }
   .tapi-lightbox[hidden] { display: none; }
-  .tapi-lightbox__backdrop {
-    position: absolute; inset: 0; background: #1a1715;
-    opacity: 0; transition: opacity 360ms cubic-bezier(0.22,1,0.36,1);
+  /* Parent-scoped selector (0,2,0) so it beats Dawn's `div:empty{display:none}`
+     reset (0,1,1) — the backdrop is an intentionally empty element. */
+  .tapi-lightbox .tapi-lightbox__backdrop {
+    display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: #1a1715; opacity: 0; transition: opacity 360ms cubic-bezier(0.22,1,0.36,1);
   }
   .tapi-lightbox.is-open .tapi-lightbox__backdrop { opacity: 0.985; }
   .tapi-lightbox__dialog {
@@ -797,13 +801,16 @@
   }
   .tapi-lightbox__counter { font-size: 1.3rem; letter-spacing: 0.14em; font-variant-numeric: tabular-nums; }
   .tapi-lightbox__close {
-    width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(248, 244, 237, 0.25);
-    background: rgba(248, 244, 237, 0.06); color: var(--tapi-cream);
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(248, 244, 237, 0.55);
+    background: rgba(26, 23, 21, 0.55); color: var(--tapi-cream);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.32);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-    transition: background 200ms, transform 200ms cubic-bezier(0.22,1,0.36,1);
+    transition: background 200ms, color 200ms, border-color 200ms, transform 200ms cubic-bezier(0.22,1,0.36,1);
   }
-  .tapi-lightbox__close:hover { background: rgba(248, 244, 237, 0.16); }
+  .tapi-lightbox__close:hover { background: var(--tapi-cream); color: var(--tapi-charcoal); border-color: transparent; }
   .tapi-lightbox__close:active { transform: scale(0.92); }
+  .tapi-lightbox__close:focus-visible { outline: 2px solid var(--tapi-cream); outline-offset: 3px; }
   .tapi-lightbox__stage { position: relative; z-index: 2; flex: 1 1 auto; min-height: 0; overflow: hidden; }
   .tapi-lightbox__slide {
     position: absolute; inset: 0; margin: 0; display: none;
