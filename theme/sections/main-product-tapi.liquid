@@ -42,7 +42,7 @@
     {%- comment -%} ----- GALLERY ----- {%- endcomment -%}
     <div class="tapi-pdp__gallery">
       <div class="tapi-pdp__gallery-thumbs">
-        {%- for media in product.media limit: 6 -%}
+        {%- for media in product.media -%}
           <button type="button" class="tapi-pdp__thumb {% if forloop.first %}is-active{% endif %}" data-thumb-index="{{ forloop.index0 }}" aria-label="View item {{ forloop.index }}{% unless media.media_type == 'image' %}, {{ media.media_type | replace: '_', ' ' }}{% endunless %}">
             {{ media.preview_image | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.preview_image.alt | default: product.title }}
             {%- if media.media_type == 'video' or media.media_type == 'external_video' -%}
@@ -55,9 +55,9 @@
       </div>
       <div class="tapi-pdp__gallery-main">
         <div class="tapi-pdp__gallery-stage" data-gallery-stage>
-          {%- for media in product.media limit: 6 -%}
+          {%- for media in product.media -%}
             {%- if forloop.first -%}{%- assign pdp_loading = 'eager' -%}{%- assign pdp_fetch = 'high' -%}{%- else -%}{%- assign pdp_loading = 'lazy' -%}{%- assign pdp_fetch = 'auto' -%}{%- endif -%}
-            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-type="{{ media.media_type }}">
+            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}" data-media-id="{{ media.id }}" data-media-type="{{ media.media_type }}">
               {%- case media.media_type -%}
                 {%- when 'video' -%}
                   {%- comment -%} Shopify-hosted video: lazy facade. We render ONLY the poster +
@@ -121,9 +121,13 @@
           {%- endif -%}
         </div>
 
-        {%- if product.media.size > 1 -%}
+        {%- comment -%} Dots are a glanceable indicator for a handful of images. Past ~8
+          media (e.g. a multi-colour product whose every variant carries its own shot)
+          a dot row turns into noise, so we show dots only for small galleries and let
+          the thumbnail rail carry navigation for large ones. {%- endcomment -%}
+        {%- if product.media.size > 1 and product.media.size <= 8 -%}
           <div class="tapi-pdp__dots" data-gallery-dots aria-hidden="true">
-            {%- for media in product.media limit: 6 -%}
+            {%- for media in product.media -%}
               <button type="button" tabindex="-1" class="tapi-pdp__dot {% if forloop.first %}is-active{% endif %}" data-dot-index="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}"></button>
             {%- endfor -%}
           </div>
@@ -181,6 +185,19 @@
             assign size_option = opt
           endif
         endfor
+        # Resolve which slot (1-based option position) holds Size vs Color so the
+        # variant matrix below maps correctly REGARDLESS of the product's option
+        # ORDER. Some products are built Size-first, others Colour-first; hardcoding
+        # option1=Size silently breaks every Colour-first product (wrong variant id,
+        # dead image swap, "sold out" on in-stock variants).
+        assign size_idx = 0
+        assign color_idx = 1
+        if size_option != nil
+          assign size_idx = size_option.position | minus: 1
+        endif
+        if color_option != nil
+          assign color_idx = color_option.position | minus: 1
+        endif
       -%}
 
       {%- comment -%} Colors — real variant option. Each swatch carries data-color
@@ -194,12 +211,28 @@
           </div>
           <div class="tapi-pdp__colors" role="radiogroup" aria-label="Color">
             {%- for val in color_option.values -%}
-              {%- assign hex = '#CFC6B8' -%}
+              {%- comment -%} Swatch fill resolution (no hardcoded per-product colours):
+                1. curated tapi.color_options metafield — lets the merchant hand-tune a
+                   colour (the original catalogue uses this);
+                2. native Shopify option swatch (image or colour) — auto-populated from
+                   the colour taxonomy / variant media, so new products colour-in with
+                   zero manual setup;
+                3. neutral fallback ONLY when neither source exists. {%- endcomment -%}
+              {%- assign hex = '' -%}
+              {%- assign sw_img = '' -%}
               {%- if m.color_options != blank -%}
                 {%- for c in m.color_options.value -%}
                   {%- if c.name == val -%}{%- assign hex = c.hex -%}{%- endif -%}
                 {%- endfor -%}
               {%- endif -%}
+              {%- if hex == '' and val.swatch -%}
+                {%- if val.swatch.image -%}
+                  {%- assign sw_img = val.swatch.image | image_url: width: 80 -%}
+                {%- elsif val.swatch.color -%}
+                  {%- assign hex = val.swatch.color -%}
+                {%- endif -%}
+              {%- endif -%}
+              {%- if hex == '' and sw_img == '' -%}{%- assign hex = '#CFC6B8' -%}{%- endif -%}
               <button type="button"
                       class="tapi-pdp__color{% if val == color_option.selected_value %} is-active{% endif %}"
                       data-color="{{ val | escape }}"
@@ -207,7 +240,7 @@
                       aria-checked="{% if val == color_option.selected_value %}true{% else %}false{% endif %}"
                       aria-label="{{ val | escape }}"
                       title="{{ val | escape }}">
-                <span class="tapi-pdp__color-dot" style="background: {{ hex }};"></span>
+                <span class="tapi-pdp__color-dot" style="{% if sw_img != '' %}background: center / cover no-repeat url('{{ sw_img }}');{% else %}background: {{ hex }};{% endif %}"></span>
               </button>
             {%- endfor -%}
           </div>
@@ -250,7 +283,9 @@
                 guarded so a variant with no image never calls image_url on nil. {%- endcomment -%}
               {%- assign vimg = '' -%}
               {%- if v.image != blank -%}{%- capture vimg -%}{{ v.image | image_url: width: 1400 }}{%- endcapture -%}{%- endif -%}
-              {"id": {{ v.id }}, "size": {{ v.option1 | json }}, "color": {{ v.option2 | json }}, "available": {{ v.available }}, "priceText": {{ v.price | money | json }}, "compareText": {{ v.compare_at_price | money | json }}, "inv": {{ v.inventory_quantity | default: 0 }}, "img": {{ vimg | json }}}{%- unless forloop.last -%},{%- endunless -%}
+              {%- assign vsize = v.options[size_idx] -%}
+              {%- if color_option != nil -%}{%- assign vcolor = v.options[color_idx] -%}{%- else -%}{%- assign vcolor = nil -%}{%- endif -%}
+              {"id": {{ v.id }}, "size": {{ vsize | json }}, "color": {{ vcolor | json }}, "available": {{ v.available }}, "priceText": {{ v.price | money | json }}, "compareText": {{ v.compare_at_price | money | json }}, "inv": {{ v.inventory_quantity | default: 0 }}, "img": {{ vimg | json }}, "mediaId": {{ v.featured_media.id | default: 0 | json }}}{%- unless forloop.last -%},{%- endunless -%}
             {%- endfor -%}
           ]
         </script>
@@ -388,7 +423,7 @@
     (setupPdpLightbox); it reuses the inline gallery's active index, so opening
     lands on the current image and closing returns the inline gallery to it. {%- endcomment -%}
   {%- if product.media.size > 0 -%}
-    {%- assign lb_total = product.media.size | at_most: 6 -%}
+    {%- assign lb_total = product.media.size -%}
     <div class="tapi-lightbox" data-lightbox hidden>
       <div class="tapi-lightbox__backdrop" data-lightbox-close></div>
       <div class="tapi-lightbox__dialog" role="dialog" aria-modal="true" aria-label="{{ product.title | escape }} gallery">
@@ -399,7 +434,7 @@
           </button>
         </div>
         <div class="tapi-lightbox__stage" data-lightbox-stage>
-          {%- for media in product.media limit: 6 -%}
+          {%- for media in product.media -%}
             <figure class="tapi-lightbox__slide{% if forloop.first %} is-active{% endif %}" data-lightbox-index="{{ forloop.index0 }}" data-media-type="{{ media.media_type }}">
               {%- case media.media_type -%}
                 {%- when 'video' -%}
@@ -436,7 +471,7 @@
         </div>
         {%- if lb_total > 1 -%}
           <div class="tapi-lightbox__thumbs" data-lightbox-thumbs>
-            {%- for media in product.media limit: 6 -%}
+            {%- for media in product.media -%}
               <button type="button" class="tapi-lightbox__thumb{% if forloop.first %} is-active{% endif %}" data-lightbox-thumb="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}">
                 {{ media.preview_image | image_url: width: 160 | image_tag: loading: 'lazy', alt: '', widths: '120, 160' }}
               </button>
@@ -514,7 +549,11 @@
   }
   .tapi-pdp__layout { display: grid; grid-template-columns: 80px 1fr 1fr; gap: clamp(2.4rem, 4vw, 5.6rem); align-items: start; }
   .tapi-pdp__gallery { display: contents; }
-  .tapi-pdp__gallery-thumbs { display: flex; flex-direction: column; gap: 0.8rem; position: sticky; top: 130px; }
+  .tapi-pdp__gallery-thumbs {
+    display: flex; flex-direction: column; gap: 0.8rem; position: sticky; top: 130px;
+    max-height: calc(100vh - 150px); overflow-y: auto; scrollbar-width: none; padding-right: 2px;
+  }
+  .tapi-pdp__gallery-thumbs::-webkit-scrollbar { display: none; }
   .tapi-pdp__thumb { width: 72px; height: 90px; border: 1px solid var(--tapi-hairline-2); padding: 2px; background: transparent; cursor: pointer; transition: border-color 200ms; overflow: hidden; }
   .tapi-pdp__thumb img { width: 100%; height: 100%; object-fit: cover; }
   .tapi-pdp__thumb.is-active { border-color: var(--tapi-charcoal); }
@@ -744,7 +783,12 @@
   @media (max-width: 1100px) {
     .tapi-pdp__layout { grid-template-columns: 1fr; gap: 2.4rem; }
     .tapi-pdp__gallery { display: contents; }
-    .tapi-pdp__gallery-thumbs { flex-direction: row; flex-wrap: wrap; position: static; order: 2; }
+    .tapi-pdp__gallery-thumbs {
+      flex-direction: row; flex-wrap: nowrap; overflow-x: auto; max-height: none;
+      position: static; order: 2; -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity; padding-bottom: 2px;
+    }
+    .tapi-pdp__gallery-thumbs .tapi-pdp__thumb { flex: 0 0 auto; scroll-snap-align: start; }
     .tapi-pdp__gallery-main { position: static; order: 1; min-height: auto; }
     .tapi-pdp__info { order: 3; }
   }
@@ -981,11 +1025,13 @@
       }
       if (mobilePrice && priceText) mobilePrice.textContent = priceText;
 
-      // Per-colour image swap (no-op until variants carry their own image).
-      if (v && v.img) {
-        const img = (sec.querySelector('.tapi-pdp__main-img.is-active img') || sec.querySelector('.tapi-pdp__main-img img'));
-        if (img && img.getAttribute('src') !== v.img) { img.setAttribute('src', v.img); img.removeAttribute('srcset'); }
-      }
+      // Per-colour media: drive the SHARED gallery (and the full-screen viewer,
+      // which mirrors its index) to the slide holding this variant's image. The
+      // controller lives in tapi-motion.js and exposes __tapiGotoMedia once booted;
+      // reusing it keeps the main image, active thumb, dots and lightbox on ONE
+      // source of truth instead of the old parallel `<img src>` swap that updated
+      // only the main image and left the thumbs / lightbox pointing elsewhere.
+      if (v && v.mediaId && sec.__tapiGotoMedia) sec.__tapiGotoMedia(v.mediaId);
       paintAvailability();
       refadeActiveMain();
     };
@@ -1040,8 +1086,23 @@
       bar.classList.add('in');
     }
 
-    // Initial sync (in case size was preselected server-side)
+    // Initial sync (in case size/colour was preselected server-side or via ?variant)
     rerenderCta();
+
+    // The gallery controller (tapi-motion.js) boots on DOMContentLoaded — AFTER this
+    // inline script parses — so the first render above can't drive the image yet.
+    // Re-issue the media jump once the controller is live; this lands a deep-linked
+    // ?variant (e.g. a Colour-first product opened on a non-default colour) on the
+    // right image. No-op when the default colour already maps to slide 0.
+    var syncInitialMedia = function () {
+      var v0 = findVariant(selSize, selColor);
+      if (v0 && v0.mediaId && sec.__tapiGotoMedia) { sec.__tapiGotoMedia(v0.mediaId); return true; }
+      return false;
+    };
+    if (!syncInitialMedia()) {
+      document.addEventListener('DOMContentLoaded', syncInitialMedia);
+      window.addEventListener('load', syncInitialMedia);
+    }
   })();
 </script>
 

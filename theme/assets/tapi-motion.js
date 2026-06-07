@@ -198,6 +198,24 @@
       return cur ? parseInt(cur.getAttribute('data-main-index'), 10) || 0 : 0;
     }
 
+    // ----- variant -> media bridge -----
+    // Map each media id to its gallery index so the variant picker (the inline PDP
+    // script) can switch the gallery to a colour's image WITHOUT owning any gallery
+    // state itself. setActiveImage moves the main image, the active thumb and the
+    // dots together; the full-screen viewer reads this same active index when it
+    // opens, so a single call keeps every surface in sync (no parallel state).
+    var mediaIndex = {};
+    mains.forEach(function (m) {
+      var id = m.getAttribute('data-media-id');
+      if (id) mediaIndex[id] = parseInt(m.getAttribute('data-main-index'), 10) || 0;
+    });
+    sec.__tapiGotoMedia = function (id) {
+      var i = mediaIndex[String(id)];
+      if (i == null) return false;
+      if (i !== currentIndex()) setActiveImage(i);
+      return true;
+    };
+
     thumbs.forEach(function (t) {
       t.addEventListener('click', function () {
         setActiveImage(parseInt(t.getAttribute('data-thumb-index'), 10) || 0);
