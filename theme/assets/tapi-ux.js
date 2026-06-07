@@ -77,15 +77,19 @@
   /* ----------------------------------------------------------------------
    * Wishlist hearts.
    * -------------------------------------------------------------------- */
+  // Write only when a value actually changes. Redundant writes (esp. textContent)
+  // are real DOM mutations — if a heart sits inside a watched MutationObserver
+  // subtree, a no-op repaint would still re-trigger the observer and can spin into
+  // an infinite loop. Guarding every write makes repaint idempotent and cheap.
   function paintHeart(btn, saved) {
-    btn.classList.toggle('is-saved', saved);
-    btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
+    if (btn.classList.contains('is-saved') !== saved) btn.classList.toggle('is-saved', saved);
+    if ((btn.getAttribute('aria-pressed') === 'true') !== saved) btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
     var on = btn.getAttribute('data-label-on') || 'Saved';
     var off = btn.getAttribute('data-label-off') || 'Save';
     var txt = btn.querySelector('[data-wishlist-text]');
-    if (txt) txt.textContent = saved ? on : off;
+    if (txt) { var nt = saved ? on : off; if (txt.textContent !== nt) txt.textContent = nt; }
     var sr = btn.querySelector('[data-wishlist-sr]');
-    if (sr) sr.textContent = saved ? (on + ', remove from wishlist') : (off + ' to wishlist');
+    if (sr) { var ns = saved ? (on + ', remove from wishlist') : (off + ' to wishlist'); if (sr.textContent !== ns) sr.textContent = ns; }
   }
   // Paint initial saved-state onto any hearts in `root`. Used at boot and after
   // async card injection (related products) — clicks are handled by delegation,
@@ -108,11 +112,16 @@
     if (saved && !reduceMotion) { btn.classList.remove('tapi-pop'); void btn.offsetWidth; btn.classList.add('tapi-pop'); }
   });
   // Repaint hearts as soon as product-recommendations swaps in its cards.
+  // IMPORTANT: observe ONLY direct children (no subtree). Dawn injects the cards
+  // via `this.innerHTML = ...` (a direct-child mutation), so childList alone
+  // catches it. Watching the subtree would also catch paintHeart's own deep
+  // textContent writes and re-fire endlessly — a self-retriggering loop that
+  // freezes the page. paintHeart is also guarded above, so this is belt + braces.
   function observeRecommendations() {
     document.querySelectorAll('product-recommendations').forEach(function (pr) {
       if (pr.__tapiObserved) return;
       pr.__tapiObserved = true;
-      new MutationObserver(function () { paintHearts(pr); }).observe(pr, { childList: true, subtree: true });
+      new MutationObserver(function () { paintHearts(pr); }).observe(pr, { childList: true });
     });
   }
   // Keep every heart + every count in sync whenever the store changes.
