@@ -647,7 +647,18 @@ button.shopify-payment-button__button--unbranded {
   .header__heading, .header__heading-link { min-width: 0; }
   .header__heading-link { padding: 0 !important; }
   .header__icons { gap: 0.4rem !important; }
-  .header__icon { width: 36px !important; height: 36px !important; }
+  /* Compact-but-proper action icons. The 36px above was dead code: the global
+     `.header__icon { min-width: 44px }` touch-target rule (below) clamped every
+     box back to 44px, leaving ~24px of dead air between the small glyphs and
+     making the cluster read as loose / unevenly weighted. Settle on a 40x44 box
+     (height is the critical thumb dimension; width 40 trims the wasted space and
+     stays a proper target) and lift the non-cart glyphs to 22px so they hold
+     their weight next to Dawn's larger cart illustration. */
+  .header__icon { width: 40px !important; min-width: 40px !important; height: 44px !important; }
+  .header__icon .svg-wrapper { width: 40px; }
+  .header__icon--search .icon,
+  .header__icon--account .icon,
+  .header__icon--wishlist .icon { width: 22px !important; height: 22px !important; }
   /* Hide the country/lang selector on mobile if Dawn left it on */
   .header__inline-menu { display: none; }
   /* Trust marquee — smaller text */
