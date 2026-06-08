@@ -83,7 +83,7 @@
       {% comment %} {%- if m.review_count -%}<span>{{ m.review_count }} reviews</span><span class="tapi-card__sep"></span>{%- endif -%} {% endcomment %}
       {%- if m.gsm -%}<span class="tnum">{{ m.gsm }} GSM</span>{%- endif -%}
       {%- if low_stock -%}<span class="tapi-card__sep"></span><span class="tapi-card__low"><span class="tapi-card__pulse"></span>Low stock</span>{%- endif -%}
-      {%- if product.available == false -%}<span class="tapi-card__sep"></span><span style="color: var(--tapi-terracotta);">Sold out</span>{%- endif -%}
+      {%- if product.available == false -%}<span class="tapi-card__sep"></span><span class="tapi-card__soldout" style="color: var(--tapi-terracotta);">Sold out</span>{%- endif -%}
     </div>
   </div>
 </article>
@@ -139,20 +139,40 @@
   .tapi-card:hover .tapi-card__quick-btn { transform: translateY(0); opacity: 1; }
   .tapi-card:hover .tapi-card__quick-btn em { transform: translateX(6px); }
 
-  .tapi-card__info { display: flex; flex-direction: column; gap: 0.6rem; }
-  .tapi-card__row { display: flex; justify-content: space-between; align-items: baseline; gap: 1.2rem; }
-  .tapi-card__row--meta { align-items: center; }
-  .tapi-card__title { font-family: var(--font-heading-family); font-size: 1.9rem; margin: 0; font-weight: 500; letter-spacing: -0.008em; }
+  /* ---- Info block: one clean two-line unit on every grid (mobile + desktop) ----
+     Line 1 = product name (clamped to 2 lines, NATURAL height — no reserved dead
+     space, which is what used to float the price a full line below short names).
+     Line 2 = price. Then a compact colour-dots line and, only when relevant, the
+     availability cue (low stock / sold out). Material/blend, rating and GSM are
+     deferred to the PDP so the browse grid stays scannable. Intra-card gaps are
+     deliberately small (3-6px) so each card reads as ONE unit, well inside the
+     larger grid row-gap (Gestalt proximity — cards look clearly separated). */
+  .tapi-card__info { display: flex; flex-direction: column; gap: 0.5rem; }
+  .tapi-card__row { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+  .tapi-card__row--meta { flex-direction: row; align-items: center; gap: 0.8rem; }
+  .tapi-card__title {
+    font-family: var(--font-heading-family); font-size: 1.9rem; margin: 0; font-weight: 500;
+    letter-spacing: -0.008em; line-height: 1.25;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  }
   .tapi-card__title a { color: var(--mor-charcoal); text-decoration: none; transition: color var(--mor-dur-base) var(--mor-ease); }
   .tapi-card:hover .tapi-card__title a { color: var(--mor-accent); }
   .tapi-card__price { display: flex; align-items: baseline; gap: 0.6rem; }
   .tapi-card__price-now { font-family: var(--font-heading-family); font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
   .tapi-card__price-was { font-size: 1.2rem; color: var(--tapi-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
-  .tapi-card__subtitle { font-size: 1.2rem; color: var(--tapi-warm-grey); }
+  /* Defer material/blend, rating and GSM across the board for a clean two-line card. */
+  .tapi-card__subtitle { display: none; }
   .tapi-card__dots { display: flex; gap: 5px; align-items: center; }
   .tapi-card__dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--tapi-hairline-2); transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
   .tapi-card__dot:hover { transform: scale(1.2); }
-  .tapi-card__metaline { justify-content: space-between; display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; font-size: 1.1rem; color: var(--mor-text-muted); font-variant-numeric: tabular-nums; }
+  .tapi-card__metaline { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 0; font-size: 1.1rem; color: var(--mor-text-muted); font-variant-numeric: tabular-nums; }
+  .tapi-card__metaline .tapi-card__rating,
+  .tapi-card__metaline .tnum,
+  .tapi-card__metaline .tapi-card__sep { display: none; }
+  /* Drop the meta rows entirely when there is nothing to show, so the card ends
+     cleanly under the price (no trailing empty gap). */
+  .tapi-card__row--meta:not(:has(.tapi-card__dots)) { display: none; }
+  .tapi-card__metaline:not(:has(.tapi-card__low)):not(:has(.tapi-card__soldout)) { display: none; }
   .tapi-card__sep { width: 2px; height: 2px; background: var(--tapi-muted); border-radius: 50%; }
   .tapi-card__low { color: var(--tapi-terracotta); display: inline-flex; align-items: center; gap: 4px; }
   .tapi-card__pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta); animation: tapi-pulse 2.2s ease-in-out infinite; }
@@ -165,33 +185,11 @@
     .tapi-card:hover .tapi-card__img--back  { opacity: 0; }
   }
 
-  /* ---- Mobile 2-up refinement -------------------------------------------------
-     On small screens the catalog shows two cards per row. Tighten the info block
-     to a clean luxury rhythm: image -> name -> price -> colour, with availability
-     kept (it drives urgency and avoids wasted taps). Material/blend, rating and
-     GSM are deferred to the PDP so titles align and the grid scans evenly. */
+  /* ---- Mobile: same two-line card, just a tighter type scale for 2-up grids --- */
   @media (max-width: 749px) {
     .tapi-card { gap: 1rem; }
-    .tapi-card__info { gap: 0.5rem; }
-
-    /* Stack name above price; reserve two lines so every card in a row aligns. */
-    .tapi-card__row { flex-direction: column; align-items: stretch; gap: 0.3rem; }
-    .tapi-card__title {
-      font-size: 1.55rem; line-height: 1.3; letter-spacing: -0.004em;
-      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-      overflow: hidden; min-height: calc(1.55rem * 1.3 * 2);
-    }
+    .tapi-card__title { font-size: 1.55rem; line-height: 1.3; letter-spacing: -0.004em; }
     .tapi-card__price-now { font-size: 1.4rem; }
     .tapi-card__price-was { font-size: 1.15rem; }
-
-    /* Colour dots stay (a key browse signal); subtitle/specs step back. */
-    .tapi-card__subtitle { display: none; }
-    .tapi-card__row--meta { justify-content: flex-start; margin-top: 0; }
-    .tapi-card__metaline {
-      justify-content: flex-start; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.2rem;
-    }
-    .tapi-card__metaline .tapi-card__rating,
-    .tapi-card__metaline .tnum,
-    .tapi-card__metaline .tapi-card__sep { display: none; }
   }
 {% endstylesheet %}

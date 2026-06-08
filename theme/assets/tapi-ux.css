@@ -190,6 +190,13 @@
 /* Reserve space so fixed footer content is not hidden behind the nav (only when present) */
 @media (max-width: 749px) {
   body:has(.tapi-botnav) { padding-bottom: calc(54px + env(safe-area-inset-bottom)); }
+  /* The left menu drawer's footer (account + socials) is pinned to the drawer's
+     bottom edge — exactly where the fixed bottom nav sits, so it was being
+     covered. Reserve the nav height (+ safe area) at the bottom of the drawer's
+     scroll area so the socials lift clear of the nav and stay visible. */
+  .menu-drawer__navigation-container {
+    padding-bottom: calc(54px + env(safe-area-inset-bottom) + 1rem);
+  }
 }
 @media (prefers-reduced-motion: reduce) { .tapi-botnav__item { transition: color 200ms; } }
 
