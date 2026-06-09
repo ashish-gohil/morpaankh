@@ -20,6 +20,8 @@
 {%- assign mark_h = sz | times: 1.95 | round -%}
 {%- assign gap = sz | times: 0.4 | round -%}
 {%- assign word_size = sz | times: 0.88 | round -%}
+{%- comment -%} Context-specific mark file: header-logo.svg (charcoal, default) for light surfaces; pass mark: 'footer-logo.svg' (gold) for dark surfaces. {%- endcomment -%}
+{%- assign mark_file = mark | default: 'header-logo.svg' -%}
 {%- if as_link -%}
 <a href="{{ routes.root_url }}" class="tapi-logo" aria-label="{{ shop.name }}"
    style="display:inline-flex; align-items:center; color: inherit; text-decoration: none; line-height: 1;">
@@ -27,8 +29,8 @@
 <span class="tapi-logo" aria-label="{{ shop.name }}"
       style="display:inline-flex; align-items:center; color: inherit; line-height: 1;">
 {%- endif -%}
-  {%- comment -%} NEW LOGO MARK — MorpaankhLogo.svg (swapped in 2026-06-09). Full-colour fixed emblem served from theme assets. ROLLBACK: delete the <img> below and remove the {% comment %}/{% endcomment %} wrapper around the OLD inline SVG mark that follows. {%- endcomment -%}
-  <img class="tapi-logo__mark" src="{{ 'MorpaankhLogo.svg' | asset_url }}" alt="" width="{{ mark_h }}" height="{{ mark_h }}"
+  {%- comment -%} NEW LOGO MARK — context-specific SVG (2026-06-09): header-logo.svg (charcoal strokes, default) on the cream header; footer-logo.svg (gold strokes) passed via mark: on the dark footer. Transparent bg, no backing fill, so each takes its surface colour. ROLLBACK: point src back to 'MorpaankhLogo.svg', or uncomment the OLD inline SVG mark below and delete this <img>. {%- endcomment -%}
+  <img class="tapi-logo__mark" src="{{ mark_file | asset_url }}" alt="" width="{{ mark_h }}" height="{{ mark_h }}"
        aria-hidden="true" loading="eager" decoding="async"
        style="height: {{ mark_h }}px; width: {{ mark_h }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block;">
   {%- comment -%} OLD LOGO MARK — hand-built inline SVG, kept for rollback. To restore: uncomment this block (remove the surrounding comment tags) and delete the <img> above.

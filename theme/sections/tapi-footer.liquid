@@ -23,7 +23,7 @@
 
     <div class="tapi-footer__cols" data-tapi-stagger="80">
       <div data-tapi-reveal>
-        {%- render 'tapi-logo', size: 22, as_link: true -%}
+        {%- render 'tapi-logo', size: 22, as_link: true, mark: 'footer-logo.svg' -%}
         <p class="tapi-footer__about">{{ section.settings.about_blurb }}</p>
         <div class="tapi-footer__social">
           {%- if settings.social_instagram_link != blank -%}
@@ -98,8 +98,7 @@
 
 {% stylesheet %}
   .tapi-footer { background: var(--mor-charcoal); color: var(--mor-cream); margin-top: 0; overflow: hidden; border-top: 1px solid rgba(248, 244, 237, 0.09); }
-  /* New SVG logo mark uses fixed charcoal strokes, so on the dark footer it sits on a cream coin to stay legible. Remove this rule if reverting to the old (currentColor) logo. */
-  .tapi-footer .tapi-logo__mark { background: var(--mor-cream); border-radius: 50%; padding: 0.2rem; box-sizing: border-box; }
+  /* footer-logo.svg uses gold strokes on a transparent bg, so it reads on the dark footer with no backing/coin. */
   /* Footer newsletter eyebrow: animated line in gold, matching other sections */
   .tapi-footer__news-eyebrow.tapi-eyebrow--line::before { background: var(--mor-gold); }
   .tapi-footer .page-width { padding-top: 9.6rem; padding-bottom: 2.4rem; }
