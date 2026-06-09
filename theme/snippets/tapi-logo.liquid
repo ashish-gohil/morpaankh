@@ -27,6 +27,11 @@
 <span class="tapi-logo" aria-label="{{ shop.name }}"
       style="display:inline-flex; align-items:center; color: inherit; line-height: 1;">
 {%- endif -%}
+  {%- comment -%} NEW LOGO MARK — MorpaankhLogo.svg (swapped in 2026-06-09). Full-colour fixed emblem served from theme assets. ROLLBACK: delete the <img> below and remove the {% comment %}/{% endcomment %} wrapper around the OLD inline SVG mark that follows. {%- endcomment -%}
+  <img class="tapi-logo__mark" src="{{ 'MorpaankhLogo.svg' | asset_url }}" alt="" width="{{ mark_h }}" height="{{ mark_h }}"
+       aria-hidden="true" loading="eager" decoding="async"
+       style="height: {{ mark_h }}px; width: {{ mark_h }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block;">
+  {%- comment -%} OLD LOGO MARK — hand-built inline SVG, kept for rollback. To restore: uncomment this block (remove the surrounding comment tags) and delete the <img> above.
   <svg class="tapi-logo__mark" width="{{ mark_h }}" height="{{ mark_h }}" viewBox="0 0 100 100"
        aria-hidden="true" focusable="false"
        style="height: {{ mark_h }}px; width: {{ mark_h }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block;">
@@ -41,6 +46,7 @@
     <path d="M50 20 C 57 27 57 41 50 48 C 43 41 43 27 50 20 Z" fill="none" stroke="#B7472A" stroke-width="1.8" stroke-linejoin="round"/>
     <path d="M50 28 C 53.6 32 53.6 40 50 44 C 46.4 40 46.4 32 50 28 Z" fill="#B08947"/>
   </svg>
+  {%- endcomment -%}
   <span class="tapi-logo__word" style="font-family: 'Marcellus', var(--font-heading-family), serif; font-size: {{ word_size }}px; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: inherit; white-space: nowrap;">MorPaankh</span>
 {%- if as_link -%}
 </a>
