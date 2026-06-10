@@ -1,7 +1,16 @@
 {{ 'component-card.css' | asset_url | stylesheet_tag }}
 {{ 'section-collection-list.css' | asset_url | stylesheet_tag }}
 
-<div class="page-width">
+{%- comment -%} Bring /collections onto the same vertical rhythm as the collection
+  + search pages (was bare .page-width, so the heading sat tight under the header). {%- endcomment -%}
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: var(--mor-section-pad, 56px);
+    padding-bottom: var(--mor-section-pad, 56px);
+  }
+{%- endstyle -%}
+
+<div class="page-width section-{{ section.id }}-padding">
   <h1 class="title title--primary inline-richtext{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--fade-in{% endif %}">
     {{ section.settings.title }}
   </h1>
