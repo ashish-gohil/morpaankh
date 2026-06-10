@@ -30,6 +30,12 @@
         "id": "favicon",
         "label": "t:settings_schema.logo.settings.favicon.label",
         "info": "t:settings_schema.logo.settings.favicon.info"
+      },
+      {
+        "type": "image_picker",
+        "id": "share_image",
+        "label": "Social share image",
+        "info": "Used when the homepage is shared on social or read by AI/search. Upload a 1200x630px image (brand + a hero look)."
       }
     ]
   },

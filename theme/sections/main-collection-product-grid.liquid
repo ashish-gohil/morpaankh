@@ -193,6 +193,28 @@
 }
 </script>
 
+{%- comment -%} CollectionPage + ItemList: lets search and AI answer engines read the collection as a structured product list. {%- endcomment -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": {{ collection.title | json }},
+  "url": {{ request.origin | append: collection.url | json }},
+  {%- if collection.description != blank %}
+  "description": {{ collection.description | strip_html | truncate: 500 | json }},
+  {%- endif %}
+  "mainEntity": {
+    "@type": "ItemList",
+    "numberOfItems": {{ collection.all_products_count }},
+    "itemListElement": [
+      {%- for product in collection.products -%}
+      { "@type": "ListItem", "position": {{ forloop.index }}, "name": {{ product.title | json }}, "url": {{ request.origin | append: product.url | json }} }{%- unless forloop.last -%},{%- endunless -%}
+      {%- endfor -%}
+    ]
+  }
+}
+</script>
+
 {% schema %}
 {
   "name": "t:sections.main-collection-product-grid.name",

@@ -528,6 +528,7 @@
   {%- if product.description != blank -%}
   "description": {{ product.description | strip_html | truncate: 4000 | json }},
   {%- endif -%}
+  "category": "Women's Indian Ethnic Wear",
   "brand": { "@type": "Brand", "name": {{ product.vendor | default: shop.name | json }} },
   {%- if current_variant.sku != blank -%}
   "sku": {{ current_variant.sku | json }},
@@ -536,9 +537,11 @@
     {%- for variant in product.variants -%}
     {
       "@type": "Offer",
+      "itemCondition": "https://schema.org/NewCondition",
       "availability": "https://schema.org/{% if variant.available %}InStock{% else %}OutOfStock{% endif %}",
       "price": {{ variant.price | divided_by: 100.0 | json }},
       "priceCurrency": {{ cart.currency.iso_code | json }},
+      "priceValidUntil": "{{ 'now' | date: '%Y' | plus: 1 | append: '-12-31' }}",
       "url": {{ request.origin | append: variant.url | json }}{% if variant.sku != blank %},
       "sku": {{ variant.sku | json }}{% endif %}
     }{%- unless forloop.last -%},{%- endunless -%}
