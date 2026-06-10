@@ -3,8 +3,7 @@
 
   Renders a pincode-input that returns a (mock) delivery date.
   - Lookup table is inline JS — covers ~10 metro prefixes.
-  - When the entered pincode starts with "395" (Surat), it ALSO offers
-    in-studio pickup with the discount from shop.metafields.tapi.pickup_discount.
+  - Delivery only (no pickup).
   - Replace the inline LOOKUP map with a real call to your shipping app
     (e.g. Shiprocket, Delhivery, Easy Pincode) before launch. Marked TODO.
 
@@ -19,7 +18,7 @@
       <circle cx="6.5" cy="17.5" r="2"/>
       <circle cx="17.5" cy="17.5" r="2"/>
     </svg>
-    <span class="tapi-pincode__heading">Delivery &amp; pickup</span>
+    <span class="tapi-pincode__heading">Delivery</span>
   </div>
 
   <form class="tapi-pincode__row" data-pincode-form novalidate>
@@ -38,21 +37,13 @@
   <div class="tapi-pincode__result" data-pincode-result hidden></div>
 </div>
 
-<script type="application/json" data-tapi-pincode-config>
-  {
-    "pickup_pincode_prefix": "395",
-    "pickup_discount": {{ shop.metafields.tapi.pickup_discount | default: 50 | json }},
-    "pickup_address_line": "Rampura, Surat · ready in 48 hrs"
-  }
-</script>
-
 <script>
 (function () {
   // TODO: replace this lookup with a real shipping-rates API call.
   // Shopify's `cart/shipping_rates.json` endpoint can return live rates
   // for an entered address — or use your shipping partner's API.
   const LOOKUP = {
-    "395": { city: "Surat",      days: [1, 2], pickup: true  },
+    "395": { city: "Surat",      days: [1, 2]                },
     "400": { city: "Mumbai",     days: [3, 4]                },
     "560": { city: "Bengaluru",  days: [4, 5]                },
     "110": { city: "Delhi",      days: [4, 6]                },
@@ -68,7 +59,6 @@
     const form    = root.querySelector('[data-pincode-form]');
     const input   = root.querySelector('[data-pincode-input]');
     const result  = root.querySelector('[data-pincode-result]');
-    const config  = JSON.parse(root.querySelector('[data-tapi-pincode-config]').textContent);
 
     function dateString(daysFromNow) {
       const d = new Date();
@@ -81,7 +71,7 @@
       result.innerHTML = '<span style="color: var(--tapi-terracotta);">' + msg + '</span>';
     }
 
-    function showSuccess(meta, prefix) {
+    function showSuccess(meta) {
       const earliest = dateString(meta.days[0]);
       const latest   = dateString(meta.days[1]);
       let html = '';
@@ -90,15 +80,6 @@
       html += '  <span>Deliverable to <strong>' + meta.city + '</strong> in <strong>' + meta.days[0] + '–' + meta.days[1] + ' days</strong></span>';
       html += '</div>';
       html += '<div style="margin-top:0.6rem;font-size:1.1rem;color:var(--tapi-muted);">Arrives between ' + earliest + ' and ' + latest + '</div>';
-      if (meta.pickup && prefix === config.pickup_pincode_prefix) {
-        html += '<div class="tapi-pincode__pickup">';
-        html += '  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 22s-7-6-7-12a7 7 0 1 1 14 0c0 6-7 12-7 12Z"/><circle cx="12" cy="10" r="3"/></svg>';
-        html += '  <div style="flex:1;">';
-        html += '    <div style="font-family:var(--font-heading-family);font-size:1.4rem;">Pick up from us · save ₹' + config.pickup_discount + '</div>';
-        html += '    <div style="font-size:1.1rem;color:var(--tapi-warm-grey);">' + config.pickup_address_line + '</div>';
-        html += '  </div>';
-        html += '</div>';
-      }
       result.hidden = false;
       result.innerHTML = html;
     }
@@ -112,10 +93,10 @@
       const prefix = pin.slice(0, 3);
       const meta = LOOKUP[prefix];
       if (meta) {
-        showSuccess(meta, prefix);
+        showSuccess(meta);
       } else {
         // Conservative fallback: assume 5–7 days for unknown prefixes
-        showSuccess({ city: 'your address', days: [5, 7] }, prefix);
+        showSuccess({ city: 'your address', days: [5, 7] });
       }
     }
 

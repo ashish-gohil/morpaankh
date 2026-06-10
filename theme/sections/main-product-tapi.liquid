@@ -361,9 +361,9 @@
       </form>
 
       {%- comment -%}
-        Delivery & pickup (pincode lookup) — disabled on request. Un-wrap
-        this comment block to restore. Snippet snippets/pincode-delivery.liquid
-        is intact so re-enabling is a one-line revert.
+        Delivery pincode lookup — disabled on request. Un-wrap this comment
+        block to restore. Snippet snippets/pincode-delivery.liquid is intact
+        so re-enabling is a one-line revert. (Delivery-only, no pickup.)
       {%- endcomment -%}
       {%- comment -%}
       {%- render 'pincode-delivery', product: product -%}
@@ -407,7 +407,7 @@
         <details class="tapi-acc">
           <summary><span>Shipping &amp; returns</span><span class="tapi-acc__toggle">+</span></summary>
           <div class="tapi-acc__body">
-            <p>Free shipping over ₹2,000, and a 7-day exchange on your first order. Local pickup in Surat if you'd rather collect it yourself.</p>
+            <p>Free shipping over ₹2,000, and a 7-day exchange on your first order.</p>
           </div>
         </details>
       </div>
@@ -787,7 +787,6 @@
   .tapi-pincode__input { flex: 1; height: 4.4rem; padding: 0 1.2rem; border: 1px solid var(--tapi-hairline-2); background: var(--tapi-cream); }
   .tapi-pincode__row .button { height: 4.4rem; }
   .tapi-pincode__result { margin-top: 1.2rem; font-size: 1.3rem; }
-  .tapi-pincode__pickup { margin-top: 0.8rem; padding: 1.2rem; background: var(--tapi-terracotta-wash); display: flex; align-items: center; gap: 1rem; }
 
   /* Mobile sticky buy bar: a compact meta line (price + selected variant) above
      a row of two equal-width buttons (Add to Cart / Buy Now). */

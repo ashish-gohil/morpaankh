@@ -95,7 +95,7 @@
                 <h2 class="eyebrow tapi-search-block__title" data-default-title>Trending</h2>
                 <h2 class="eyebrow tapi-search-block__title" data-query-title hidden>Suggested</h2>
                 <ul class="tapi-search-list" data-default-trending>
-                  {%- assign trending_csv = section.settings.trending_terms | default: 'Saanjh kurta set, Mulmul 120 GSM, Sage co-ord, Festive dobby, Pickup from Surat' -%}
+                  {%- assign trending_csv = section.settings.trending_terms | default: 'Saanjh kurta set, Mulmul 120 GSM, Sage co-ord, Festive dobby, Block-print kurta' -%}
                   {%- assign trending_arr = trending_csv | split: ',' -%}
                   {%- for term in trending_arr limit: 6 -%}
                     {%- assign t = term | strip -%}

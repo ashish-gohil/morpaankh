@@ -219,8 +219,8 @@
         "s4": {
           "type": "stat",
           "settings": {
-            "value": "Pickup",
-            "label": "Available locally"
+            "value": "Tracked",
+            "label": "On every order"
           }
         }
       },
