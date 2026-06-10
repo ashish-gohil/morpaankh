@@ -101,14 +101,17 @@
   /* footer-logo.svg uses gold strokes on a transparent bg, so it reads on the dark footer with no backing/coin. */
   /* Footer newsletter eyebrow: animated line in gold, matching other sections */
   .tapi-footer__news-eyebrow.tapi-eyebrow--line::before { background: var(--mor-gold); }
-  .tapi-footer .page-width { padding-top: 9.6rem; padding-bottom: 2.4rem; }
+  /* One vertical rhythm for the whole footer: the top-of-footer gap, the space
+     around the newsletter divider, and the columns block all share 6.4rem so the
+     dark zone reads as evenly spaced bands (was a scattered 9.6 / 8 / 7.2). */
+  .tapi-footer .page-width { padding-top: 6.4rem; padding-bottom: 2.4rem; }
   .tapi-footer a { color: var(--mor-cream); text-decoration: none; opacity: 0.72; transition: opacity var(--mor-dur-base) var(--mor-ease), padding-left 320ms var(--mor-ease); }
   .tapi-footer a:hover { opacity: 1; padding-left: 6px; }
   /* Logo lockup is the brand mark, not a nav link: full strength always, gold wordmark, pointer only (no dim-at-rest, no hover shift). */
   .tapi-footer a.tapi-logo,
   .tapi-footer a.tapi-logo:hover { opacity: 1; padding-left: 0; }
 
-  .tapi-footer__news { display: grid; grid-template-columns: 1.1fr 1fr; gap: 6.4rem; padding-bottom: 8rem; border-bottom: 1px solid rgba(248,244,237,0.10); align-items: end; }
+  .tapi-footer__news { display: grid; grid-template-columns: 1.1fr 1fr; gap: 6.4rem; padding-bottom: 6.4rem; border-bottom: 1px solid rgba(248,244,237,0.10); align-items: end; }
   .tapi-footer__news-eyebrow { color: var(--mor-gold) !important; margin-bottom: 1.6rem; display: block; }
   .tapi-footer__news-title { font-family: var(--font-heading-family); font-size: var(--mor-h2); line-height: var(--mor-leading-snug); margin: 0 0 1.2rem; font-weight: 500; letter-spacing: -0.012em; color: var(--mor-cream); }
   .tapi-footer__news-body { color: var(--mor-cream); opacity: 0.62; max-width: 46rem; font-size: var(--mor-text-sm); line-height: var(--mor-leading-body); margin: 0; }
@@ -122,7 +125,7 @@
   .tapi-footer__form-hint { font-size: 1.1rem; color: rgba(248,244,237,0.6); }
   .tapi-footer__form-msg  { font-size: 1.2rem; color: var(--tapi-terracotta-soft); margin: 0; }
 
-  .tapi-footer__cols { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 5.6rem; padding: 7.2rem 0; }
+  .tapi-footer__cols { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 5.6rem; padding: 6.4rem 0; }
   .tapi-footer__about { color: var(--tapi-cream); opacity: 0.55; font-size: 1.3rem; max-width: 28rem; line-height: 1.7; margin: 2rem 0 2.4rem; }
   .tapi-footer__social { display: flex; gap: 1.4rem; font-size: 1.4rem; align-items: center; }
   .tapi-footer__social a { display: inline-block; padding-bottom: 0.6rem; }
@@ -139,6 +142,7 @@
   .tapi-footer__legal { display: flex; gap: 2.4rem; }
 
   @media (max-width: 989px) {
+    .tapi-footer .page-width { padding-top: 4.8rem; }
     .tapi-footer__news { grid-template-columns: 1fr; gap: 2.8rem; padding-bottom: 4.8rem; }
     .tapi-footer__cols { grid-template-columns: 1fr 1fr; gap: 2.8rem; padding: 4.8rem 0; }
   }
