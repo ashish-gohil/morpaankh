@@ -45,16 +45,26 @@
     <div class="tapi-card__quick" aria-hidden="true">
       <span class="tapi-card__quick-btn">Quick view <em>→</em></span>
     </div>
+
+    {%- comment -%} Status tags (new, bestseller, festive…) sit bottom-right of the image. They live inside the media so they anchor to the photo (not the card), and fade on hover so the Quick view CTA owns that space. {%- endcomment -%}
+    {%- capture status_tags -%}
+      {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+      {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
+      {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+    {%- endcapture -%}
+    {%- if status_tags != blank -%}
+    <div class="tapi-card__tags" aria-hidden="true">{{ status_tags }}</div>
+    {%- endif -%}
   </a>
 
   {% render 'tapi-wishlist-button', product: product, variant: 'card' %}
 
+  {%- comment -%} Discount badge stays top-left. {%- endcomment -%}
+  {%- if saving_pct > 0 -%}
   <div class="tapi-card__badges">
-    {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
-    {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
-    {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
-    {%- if saving_pct > 0 -%}<span class="tapi-card__savings">–{{ saving_pct }}%</span>{%- endif -%}
+    <span class="tapi-card__savings">–{{ saving_pct }}%</span>
   </div>
+  {%- endif -%}
 
   <div class="tapi-card__info">
     <div class="tapi-card__row">
@@ -110,6 +120,8 @@
   .tapi-card:hover .tapi-card__img--back  { opacity: 1; transform: scale(1); }
 
   .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; pointer-events: none; }
+  .tapi-card__tags { position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; z-index: 2; pointer-events: none; transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease); }
+  .tapi-card__media:hover .tapi-card__tags { opacity: 0; }
   .tapi-card__savings {
     align-self: flex-start;
     display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
