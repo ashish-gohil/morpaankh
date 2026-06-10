@@ -2510,9 +2510,15 @@ details[open] > summary .icon-caret {
 
 /* === Desktop 2-column: items on left, sticky checkout on right === */
 @media (min-width: 990px) {
-  /* The cart template's main content becomes the grid container */
-  .template-cart #MainContent,
-  body.template-cart main.content-for-layout {
+  /* The cart template's main content becomes the grid container — but ONLY when
+     the cart has items (Dawn drops the cart-footer section on an empty cart, so
+     :has() keeps the empty-state message in normal centred flow instead of
+     left-shifting it into column 1). */
+  /* Grid only once the cart has line items. The cart-footer SECTION is always in
+     the DOM (even empty), so guard on .cart-item (a real line row) — that keeps
+     the empty-cart message in normal centred flow. */
+  .template-cart #MainContent:has(.cart-item),
+  body.template-cart main.content-for-layout:has(.cart-item) {
     display: grid;
     grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
     column-gap: clamp(2rem, 4vw, 5.6rem);
@@ -2524,14 +2530,17 @@ details[open] > summary .icon-caret {
     align-items: start;
   }
 
+  /* JSON-template section IDs are shopify-section-template--{id}__{key}, so match
+     on the stable __key suffix. The bare #shopify-section-cart-items never existed,
+     which is why these placement rules were dead even before the body-class fix. */
   /* Cart-items section: column 1 */
-  .template-cart #shopify-section-cart-items {
+  .template-cart #MainContent > [id$="__cart-items"] {
     grid-column: 1;
     grid-row: 1;
     min-width: 0;
   }
   /* Cart-footer section: column 2, sticky */
-  .template-cart #shopify-section-cart-footer {
+  .template-cart #MainContent > [id$="__cart-footer"] {
     grid-column: 2;
     grid-row: 1;
     position: sticky;
@@ -2539,37 +2548,38 @@ details[open] > summary .icon-caret {
     align-self: start;
     min-width: 0;
   }
-  /* Featured-collection (and anything else): spans both columns */
-  .template-cart #MainContent > section:not(#shopify-section-cart-items):not(#shopify-section-cart-footer) {
+  /* Featured-collection (and anything else): spans both columns. Children are
+     div.shopify-section wrappers, not <section>. */
+  .template-cart #MainContent > div.shopify-section:not([id$="__cart-items"]):not([id$="__cart-footer"]) {
     grid-column: 1 / -1;
   }
 
   /* Strip the inner page-width since the grid parent provides the gutter */
-  .template-cart #shopify-section-cart-items cart-items > .page-width,
-  .template-cart #shopify-section-cart-footer .cart__footer-wrapper > .page-width,
-  .template-cart #shopify-section-cart-footer > .cart__footer-wrapper {
+  .template-cart [id$="__cart-items"] cart-items > .page-width,
+  .template-cart [id$="__cart-footer"] .cart__footer-wrapper > .page-width,
+  .template-cart [id$="__cart-footer"] > .cart__footer-wrapper {
     max-width: none !important;
     padding-inline: 0 !important;
   }
-  .template-cart #shopify-section-cart-items cart-items,
-  .template-cart #shopify-section-cart-footer .cart__footer {
+  .template-cart [id$="__cart-items"] cart-items,
+  .template-cart [id$="__cart-footer"] .cart__footer {
     padding-block: 0 !important;
   }
 
   /* Checkout aside framing — give it a card feel so it reads as a panel */
-  .template-cart #shopify-section-cart-footer .cart__footer {
+  .template-cart [id$="__cart-footer"] .cart__footer {
     background: var(--tapi-ivory, #fcfaf4);
     border: 1px solid var(--tapi-hairline, #e5ddc8);
     padding: clamp(20px, 2vw, 32px) !important;
   }
-  .template-cart #shopify-section-cart-footer .cart__blocks {
+  .template-cart [id$="__cart-footer"] .cart__blocks {
     display: flex;
     flex-direction: column;
     gap: 16px;
   }
   /* CHECK OUT button fills the aside width */
-  .template-cart #shopify-section-cart-footer .cart__ctas .button,
-  .template-cart #shopify-section-cart-footer .cart__ctas button[type="submit"] {
+  .template-cart [id$="__cart-footer"] .cart__ctas .button,
+  .template-cart [id$="__cart-footer"] .cart__ctas button[type="submit"] {
     width: 100%;
     min-height: 56px;
   }
