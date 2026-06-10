@@ -36,7 +36,8 @@
         role="list"
       >
         {% assign skip_card_product_styles = false %}
-        {% for recommendation in recommendations.products %}
+        {%- comment -%} Hard cap at the configured count (max 4) even if the recommendations API returns more. {%- endcomment -%}
+        {% for recommendation in recommendations.products limit: section.settings.products_to_show %}
           <li class="grid__item">
             {%- comment -%} Unified to the premium tapi card (one card system across the store). {%- endcomment -%}
             {% render 'card-product-tapi', product: recommendation %}

@@ -135,6 +135,32 @@
 }
 @media (min-width: 750px) { .tapi-rv__grid { grid-template-columns: repeat(4, 1fr); } }
 
+/* Mobile: recently-viewed becomes a horizontal snap-scroll rail (mirrors the
+   Wardrobe carousel) so the row stays one calm swipe with peeking cards
+   instead of a tall 2-up grid. Reverts to the 4-col grid at >=750.
+   Placed after the base/desktop rules so it wins source order on mobile. */
+@media (max-width: 749px) {
+  .tapi-rv__grid {
+    display: flex;
+    grid-template-columns: none;
+    flex-wrap: nowrap;
+    gap: 1.4rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-padding-left: var(--mor-gutter, 16px);
+  }
+  .tapi-rv__grid::-webkit-scrollbar { display: none; }
+  .tapi-rv__grid > .tapi-rv__item {
+    flex: 0 0 44%;
+    max-width: 22rem;
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+}
+
 /* ============================ Wishlist page ============================ */
 .tapi-wl { padding-block: clamp(3.2rem, 5vw, 6rem); }
 .tapi-wl__header { display: flex; align-items: baseline; gap: 1.2rem; margin-bottom: clamp(2.4rem, 4vw, 4rem); }
