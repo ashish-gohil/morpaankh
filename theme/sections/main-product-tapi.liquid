@@ -9,6 +9,17 @@
   endif
   assign low_stock_threshold = 3
   assign current_stock = current_variant.inventory_quantity
+  # Conditional-state flags — used to skip rendering empty blocks so the info
+  # column (a flex stack with a uniform 2.4rem gap) never carries a phantom gap.
+  assign has_fabric = false
+  if m.gsm or m.blend or m.weave or m.fit_type or m.opacity_note or m.breathability or m.wash_care
+    assign has_fabric = true
+  endif
+  assign has_pdp_tags = false
+  if product.tags contains 'new' or product.tags contains 'bestseller' or product.tags contains 'festive'
+    assign has_pdp_tags = true
+  endif
+  assign subtitle_val = m.subtitle | default: m.blend
 -%}
 
 <section class="tapi-pdp section" id="MainProduct-{{ section.id }}" data-section-id="{{ section.id }}">
@@ -137,17 +148,21 @@
 
     {%- comment -%} ----- BUY COLUMN ----- {%- endcomment -%}
     <div class="tapi-pdp__info">
-      <div class="tapi-pdp__tags">
-        {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
-        {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
-        {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
-      </div>
+      {%- if has_pdp_tags -%}
+        <div class="tapi-pdp__tags">
+          {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+          {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
+          {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+        </div>
+      {%- endif -%}
 
       <h1 class="tapi-pdp__title" data-tapi-reveal>{{ product.title }}</h1>
-      <p class="tapi-pdp__subtitle" data-tapi-reveal>
-        {{ m.subtitle | default: m.blend }}
-        {%- if m.pieces.value != blank -%} · {{ m.pieces.value | join: ' · ' }}{%- endif -%}
-      </p>
+      {%- if subtitle_val or m.pieces.value != blank -%}
+        <p class="tapi-pdp__subtitle" data-tapi-reveal>
+          {{ subtitle_val }}
+          {%- if m.pieces.value != blank -%} · {{ m.pieces.value | join: ' · ' }}{%- endif -%}
+        </p>
+      {%- endif -%}
 
       {%- if m.rating -%}
         <div class="tapi-pdp__rating">
@@ -374,22 +389,24 @@
           <summary><span>Description</span><span class="tapi-acc__toggle">+</span></summary>
           <div class="tapi-acc__body rte">{{ product.description }}</div>
         </details>
-        <details class="tapi-acc" open>
-          <summary><span>Fabric &amp; care</span><span class="tapi-acc__toggle">+</span></summary>
-          <div class="tapi-acc__body">
-            <table class="tapi-fabric-table">
-              <tbody>
-                {%- if m.gsm -%}<tr><td>GSM</td><td>{{ m.gsm }} gsm</td></tr>{%- endif -%}
-                {%- if m.blend -%}<tr><td>Fabric</td><td>{{ m.blend }}</td></tr>{%- endif -%}
-                {%- if m.weave -%}<tr><td>Weave</td><td>{{ m.weave }}</td></tr>{%- endif -%}
-                {%- if m.fit_type -%}<tr><td>Fit type</td><td>{{ m.fit_type }}</td></tr>{%- endif -%}
-                {%- if m.opacity_note -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
-                {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
-                {%- if m.wash_care -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
-              </tbody>
-            </table>
-          </div>
-        </details>
+        {%- if has_fabric -%}
+          <details class="tapi-acc" open>
+            <summary><span>Fabric &amp; care</span><span class="tapi-acc__toggle">+</span></summary>
+            <div class="tapi-acc__body">
+              <table class="tapi-fabric-table">
+                <tbody>
+                  {%- if m.gsm -%}<tr><td>GSM</td><td>{{ m.gsm }} gsm</td></tr>{%- endif -%}
+                  {%- if m.blend -%}<tr><td>Fabric</td><td>{{ m.blend }}</td></tr>{%- endif -%}
+                  {%- if m.weave -%}<tr><td>Weave</td><td>{{ m.weave }}</td></tr>{%- endif -%}
+                  {%- if m.fit_type -%}<tr><td>Fit type</td><td>{{ m.fit_type }}</td></tr>{%- endif -%}
+                  {%- if m.opacity_note -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
+                  {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
+                  {%- if m.wash_care -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        {%- endif -%}
         {%- if m.model_height -%}
           <details class="tapi-acc">
             <summary><span>Model &amp; fit</span><span class="tapi-acc__toggle">+</span></summary>
@@ -741,6 +758,9 @@
   @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.65; } }
   @media (prefers-reduced-motion: reduce) { .tapi-pdp__size.is-low::before { animation: none; } }
   .tapi-pdp__stock-note { margin: 0; font-size: 1.2rem; color: var(--tapi-warm-grey); }
+  /* Until tapi-motion/inline JS fills it, the stock note is empty — collapse it so
+     the size group never carries a phantom 1.2rem gap below the swatches. */
+  .tapi-pdp__stock-note:empty { display: none; }
 
   .tapi-fit-feedback { margin-top: 0; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: 2px; font-size: 1.3rem; }
   .tapi-fit-feedback__bar { display: flex; height: 6px; background: var(--tapi-cream); border-radius: 3px; overflow: hidden; margin: 0.8rem 0 0.6rem; }

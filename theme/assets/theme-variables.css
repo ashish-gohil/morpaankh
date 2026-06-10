@@ -2447,6 +2447,24 @@ details[open] > summary .icon-caret {
   padding-inline: var(--tapi-gutter, 16px);
 }
 
+/* ===== PDP downstream rhythm: related-products + recently-viewed =====
+   The lower half of the product page is three stacked sections (editorial band,
+   "You may also like", "Recently viewed"). The editorial band keeps its larger
+   section-pad + cream background as the first, distinct break. The two product
+   rails below it share ONE vertical beat so they read as a sequence, not three
+   differently-spaced blocks. (related-products shipped at 36px; recently-viewed
+   at ~72px — visibly uneven.) */
+.related-products {
+  padding-block: clamp(4rem, 6vw, 7.2rem) !important;
+}
+/* related-products and recently-viewed both sit on background-1, so a centred
+   hairline makes the boundary legible instead of an ambiguous gap. Scoped with
+   :has() to the PDP order (a recently-viewed whose preceding section holds
+   related-products); on the homepage rv has no such sibling, so no divider. */
+.shopify-section:has(.related-products) + .shopify-section .tapi-rv {
+  border-top: 1px solid var(--tapi-hairline);
+}
+
 /* ===== Cart page: items list + sticky checkout aside (desktop) ===== */
 /* Mobile: stays single-column. Desktop ≥990: side-by-side. */
 
