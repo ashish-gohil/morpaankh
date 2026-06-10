@@ -646,21 +646,20 @@ button.shopify-payment-button__button--unbranded {
   /* Smaller mark + wordmark on phones so logo + icons fit cleanly */
   .tapi-logo svg { width: 26px; height: 26px; margin-right: 8px !important; }
   .tapi-logo__mark { width: calc(var(--tapi-sz, 24px) * 1.5); height: calc(var(--tapi-sz, 24px) * 1.5); margin-right: 8px !important; }
-  .tapi-logo span { font-size: 17px !important; letter-spacing: -0.014em !important; }
+  .tapi-logo span { font-size: 17px !important; letter-spacing: 0.05em !important; }
   /* Tighten Dawn's header padding on mobile so logo + icons fit cleanly */
   .header { padding-top: 1.2rem !important; padding-bottom: 1.2rem !important; }
   .header__heading, .header__heading-link { min-width: 0; }
   .header__heading-link { padding: 0 !important; }
-  .header__icons { gap: 0.4rem !important; }
-  /* Compact-but-proper action icons. The 36px above was dead code: the global
-     `.header__icon { min-width: 44px }` touch-target rule (below) clamped every
-     box back to 44px, leaving ~24px of dead air between the small glyphs and
-     making the cluster read as loose / unevenly weighted. Settle on a 40x44 box
-     (height is the critical thumb dimension; width 40 trims the wasted space and
-     stays a proper target) and lift the non-cart glyphs to 22px so they hold
-     their weight next to Dawn's larger cart illustration. */
-  .header__icon { width: 40px !important; min-width: 40px !important; height: 44px !important; }
-  .header__icon .svg-wrapper { width: 40px; }
+  .header__icons { gap: 0.2rem !important; }
+  /* Compact-but-proper action icons. The global `.header__icon { min-width: 44px }`
+     touch-target rule (below) clamps every box to 44px, leaving dead air between
+     the small glyphs and making the cluster read as loose. Settle on a 36x44 box
+     (height is the critical thumb dimension; width 36 trims the wasted side
+     padding so the icons sit closer) and lift the non-cart glyphs to 22px so they
+     hold their weight next to Dawn's larger cart illustration. */
+  .header__icon { width: 36px !important; min-width: 36px !important; height: 44px !important; }
+  .header__icon .svg-wrapper { width: 36px; }
   .header__icon--search .icon,
   .header__icon--account .icon,
   .header__icon--wishlist .icon { width: 22px !important; height: 22px !important; }
