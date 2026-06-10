@@ -10,9 +10,12 @@
 
 :root {
   /* ---------- MorPaankh brand tokens (canonical) ---------- */
-  --mor-cream:           #F8F4ED;
-  --mor-cream-2:         #F1EBDD;
-  --mor-ivory:           #FCFAF4;
+  /* Warm neutral scale — deepened a step off near-white so the cream reads as
+     genuinely creamy (raw cotton / khadi), not "is that white?". Light->dark
+     steps preserved (ivory > cream > cream-2); charcoal text stays >11:1 on all. */
+  --mor-cream:           #F5EFE1;
+  --mor-cream-2:         #EFE6D4;
+  --mor-ivory:           #FAF6EC;
   --mor-paper:           #FFFFFF;
 
   --mor-charcoal:        #2C2826;
@@ -111,7 +114,7 @@
      Dawn uses these natively; overriding them re-skins
      Dawn's built-in components without touching their Liquid.
   */
-  --color-background:        248, 244, 237;   /* cream */
+  --color-background:        245, 239, 225;   /* warm cream (matches --mor-cream #F5EFE1) */
   --color-foreground:        44, 40, 38;      /* charcoal */
   --color-foreground-secondary: 107, 93, 84;  /* warm-grey */
 
