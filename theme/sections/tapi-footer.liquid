@@ -23,7 +23,7 @@
 
     <div class="tapi-footer__cols" data-tapi-stagger="80">
       <div data-tapi-reveal>
-        {%- render 'tapi-logo', size: 22, as_link: true, mark: 'footer-logo.svg' -%}
+        {%- render 'tapi-logo', size: 22, as_link: true, mark: 'footer-logo.svg', word_color: 'var(--mor-gold)' -%}
         <p class="tapi-footer__about">{{ section.settings.about_blurb }}</p>
         <div class="tapi-footer__social">
           {%- if settings.social_instagram_link != blank -%}
@@ -104,6 +104,9 @@
   .tapi-footer .page-width { padding-top: 9.6rem; padding-bottom: 2.4rem; }
   .tapi-footer a { color: var(--mor-cream); text-decoration: none; opacity: 0.72; transition: opacity var(--mor-dur-base) var(--mor-ease), padding-left 320ms var(--mor-ease); }
   .tapi-footer a:hover { opacity: 1; padding-left: 6px; }
+  /* Logo lockup is the brand mark, not a nav link: full strength always, gold wordmark, pointer only (no dim-at-rest, no hover shift). */
+  .tapi-footer a.tapi-logo,
+  .tapi-footer a.tapi-logo:hover { opacity: 1; padding-left: 0; }
 
   .tapi-footer__news { display: grid; grid-template-columns: 1.1fr 1fr; gap: 6.4rem; padding-bottom: 8rem; border-bottom: 1px solid rgba(248,244,237,0.10); align-items: end; }
   .tapi-footer__news-eyebrow { color: var(--mor-gold) !important; margin-bottom: 1.6rem; display: block; }

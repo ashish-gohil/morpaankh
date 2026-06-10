@@ -4,9 +4,17 @@
   reads clean on cream / charcoal / terracotta) followed by the
   "MorPaankh" wordmark. The wordmark colour inherits from the
   surrounding container; the mark artwork is full-colour and fixed.
-  @param {number} [size] - Nominal lockup size in px (default 24). The mark
-    height ≈ size × 1.8 (artwork is pre-trimmed, ratio 362:440); the uppercase
-    wordmark renders at ≈ size × 0.88 to optically match the caps height.
+  @param {number} [size] - Nominal lockup size in px (default 24). Exposed to
+    CSS as --tapi-sz on the wrapper; theme-variables.css sizes the mark from it
+    (calc, header 24px -> ~47px / footer 22px -> ~43px) and shrinks it on
+    phones. Wordmark size is set there too (.tapi-logo span: 26px desktop,
+    17/16px on phones; footer 30px).
+  @param {string} [mark] - Mark asset filename (default 'header-logo.svg',
+    green, for light surfaces; pass 'footer-logo.svg', gold, for dark).
+  @param {string} [word_color] - Wordmark colour, matched to the mark
+    (default var(--mor-primary) green for the header; footer passes
+    var(--mor-gold)). An explicit colour also overrides the .link--text:hover
+    fade so the header lockup keeps full strength on hover (pointer only).
   @param {boolean} [as_link] - Render as <a href="/"> instead of <span>.
     Default false because callers (e.g. header.liquid) already wrap this
     in their own <a class="header__heading-link">. Nested <a> tags break
@@ -20,19 +28,20 @@
 {%- assign mark_h = sz | times: 1.95 | round -%}
 {%- assign gap = sz | times: 0.4 | round -%}
 {%- assign word_size = sz | times: 0.88 | round -%}
-{%- comment -%} Context-specific mark file: header-logo.svg (charcoal, default) for light surfaces; pass mark: 'footer-logo.svg' (gold) for dark surfaces. {%- endcomment -%}
+{%- comment -%} Context-specific mark + matching wordmark colour. Header: header-logo.svg (green) + word var(--mor-primary), the default. Footer passes mark: 'footer-logo.svg' (gold) + word_color: 'var(--mor-gold)'. Render size flows from --tapi-sz (set inline on the wrapper); theme-variables.css (.tapi-logo__mark / .tapi-logo span) handles the responsive scaling. {%- endcomment -%}
 {%- assign mark_file = mark | default: 'header-logo.svg' -%}
+{%- assign word_color = word_color | default: 'var(--mor-primary)' -%}
 {%- if as_link -%}
 <a href="{{ routes.root_url }}" class="tapi-logo" aria-label="{{ shop.name }}"
-   style="display:inline-flex; align-items:center; color: inherit; text-decoration: none; line-height: 1;">
+   style="display:inline-flex; align-items:center; color: inherit; text-decoration: none; line-height: 1; --tapi-sz: {{ sz }}px;">
 {%- else -%}
 <span class="tapi-logo" aria-label="{{ shop.name }}"
-      style="display:inline-flex; align-items:center; color: inherit; line-height: 1;">
+      style="display:inline-flex; align-items:center; color: inherit; line-height: 1; --tapi-sz: {{ sz }}px;">
 {%- endif -%}
   {%- comment -%} NEW LOGO MARK — context-specific SVG (2026-06-09): header-logo.svg (charcoal strokes, default) on the cream header; footer-logo.svg (gold strokes) passed via mark: on the dark footer. Transparent bg, no backing fill, so each takes its surface colour. ROLLBACK: point src back to 'MorpaankhLogo.svg', or uncomment the OLD inline SVG mark below and delete this <img>. {%- endcomment -%}
   <img class="tapi-logo__mark" src="{{ mark_file | asset_url }}" alt="" width="{{ mark_h }}" height="{{ mark_h }}"
        aria-hidden="true" loading="eager" decoding="async"
-       style="height: {{ mark_h }}px; width: {{ mark_h }}px; margin-right: {{ gap }}px; flex: 0 0 auto; display: block;">
+       style="flex: 0 0 auto; display: block;">
   {%- comment -%} OLD LOGO MARK — hand-built inline SVG, kept for rollback. To restore: uncomment this block (remove the surrounding comment tags) and delete the <img> above.
   <svg class="tapi-logo__mark" width="{{ mark_h }}" height="{{ mark_h }}" viewBox="0 0 100 100"
        aria-hidden="true" focusable="false"
@@ -49,7 +58,7 @@
     <path d="M50 28 C 53.6 32 53.6 40 50 44 C 46.4 40 46.4 32 50 28 Z" fill="#B08947"/>
   </svg>
   {%- endcomment -%}
-  <span class="tapi-logo__word" style="font-family: 'Marcellus', var(--font-heading-family), serif; font-size: {{ word_size }}px; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: inherit; white-space: nowrap;">MorPaankh</span>
+  <span class="tapi-logo__word" style="font-family: 'Marcellus', var(--font-heading-family), serif; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: {{ word_color }}; white-space: nowrap;">MorPaankh</span>
 {%- if as_link -%}
 </a>
 {%- else -%}

@@ -636,11 +636,16 @@ button.shopify-payment-button__button--unbranded {
    Header / mobile alignment (Dawn header customization)
    ============================================================ */
 .tapi-logo { white-space: nowrap; }
-.tapi-logo svg { width: 36px; height: 36px; }
-.tapi-logo span { font-size: 22px; }
+.tapi-logo svg { width: 36px; height: 36px; } /* legacy inline-svg mark — rollback only */
+/* Active mark is an <img class="tapi-logo__mark">. Its size derives from
+   --tapi-sz set inline on the lockup (header 24px -> ~47px, footer 22px -> ~43px),
+   so header/footer auto-differentiate. Mobile media query below shrinks it. */
+.tapi-logo__mark { width: calc(var(--tapi-sz, 24px) * 1.95); height: calc(var(--tapi-sz, 24px) * 1.95); margin-right: calc(var(--tapi-sz, 24px) * 0.4); }
+.tapi-logo span { font-size: 26px; } /* wordmark — desktop/tablet (phones overridden below) */
 @media (max-width: 749px) {
-  /* Stop the wordmark from overflowing on small phones */
+  /* Smaller mark + wordmark on phones so logo + icons fit cleanly */
   .tapi-logo svg { width: 26px; height: 26px; margin-right: 8px !important; }
+  .tapi-logo__mark { width: calc(var(--tapi-sz, 24px) * 1.5); height: calc(var(--tapi-sz, 24px) * 1.5); margin-right: 8px !important; }
   .tapi-logo span { font-size: 17px !important; letter-spacing: -0.014em !important; }
   /* Tighten Dawn's header padding on mobile so logo + icons fit cleanly */
   .header { padding-top: 1.2rem !important; padding-bottom: 1.2rem !important; }
@@ -723,7 +728,7 @@ body.has-drawer-open { padding-right: 0 !important; }
    Footer — logo a touch larger right above the about blurb
    ============================================================ */
 .tapi-footer__cols > div:first-child .tapi-logo svg { width: 40px; height: 40px; margin-right: 14px !important; }
-.tapi-footer__cols > div:first-child .tapi-logo span { font-size: 28px; }
+.tapi-footer__cols > div:first-child .tapi-logo span { font-size: 30px; }
 
 /* ============================================================
    Predictive search — re-skin Dawn's results to the editorial look
