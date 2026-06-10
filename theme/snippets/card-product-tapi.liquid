@@ -169,8 +169,8 @@
   }
   .tapi-card__title a { color: var(--mor-charcoal); text-decoration: none; transition: color var(--mor-dur-base) var(--mor-ease); }
   .tapi-card:hover .tapi-card__title a { color: var(--mor-accent); }
-  .tapi-card__price { display: flex; align-items: baseline; gap: 0.6rem; }
-  .tapi-card__price-now { font-family: var(--font-heading-family); font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tapi-card__price { display: flex; align-items: baseline; gap: 0.9rem; }
+  .tapi-card__price-now { font-family: var(--font-heading-family); font-size: 1.6rem; font-weight: 600; letter-spacing: 0.01em; color: var(--mor-charcoal); font-variant-numeric: tabular-nums; }
   .tapi-card__price-was { font-size: 1.2rem; color: var(--tapi-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
   /* Defer material/blend, rating and GSM across the board for a clean two-line card. */
   .tapi-card__subtitle { display: none; }
@@ -201,7 +201,7 @@
   @media (max-width: 749px) {
     .tapi-card { gap: 1rem; }
     .tapi-card__title { font-size: 1.55rem; line-height: 1.3; letter-spacing: -0.004em; }
-    .tapi-card__price-now { font-size: 1.4rem; }
+    .tapi-card__price-now { font-size: 1.5rem; }
     .tapi-card__price-was { font-size: 1.15rem; }
   }
 {% endstylesheet %}
