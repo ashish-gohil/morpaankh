@@ -170,6 +170,8 @@
             spellcheck="false"
           >
           <input name="options[prefix]" type="hidden" value="last">
+          {%- comment -%} Products + collections only — keep SEO/utility pages out of results. {%- endcomment -%}
+          <input type="hidden" name="type" value="product,collection">
           <button
             type="reset"
             class="tapi-tsearch__btn tapi-tsearch__reset{% if search.terms == blank %} is-hidden{% endif %}"
@@ -318,6 +320,8 @@
                 role="list"
               >
                 {%- for item in search.results -%}
+                  {%- comment -%} Never surface pages or articles in product search (keeps SEO/utility pages like /pages/llms out, even on a direct /search?q= URL with no type filter). {%- endcomment -%}
+                  {%- if item.object_type == 'page' or item.object_type == 'article' -%}{%- continue -%}{%- endif -%}
                   {% assign lazy_load = false %}
                   {%- if forloop.index > 2 -%}
                     {%- assign lazy_load = true -%}

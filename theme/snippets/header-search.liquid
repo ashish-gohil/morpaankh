@@ -78,6 +78,8 @@
             >
             <label class="visually-hidden" for="{{ input_id }}">{{ 'general.search.search' | t }}</label>
             <input type="hidden" name="options[prefix]" value="last">
+            {%- comment -%} Search products + collections only, so pages/articles (e.g. /pages/llms) never appear in results. {%- endcomment -%}
+            <input type="hidden" name="type" value="product,collection">
 
             <button
               type="reset"
@@ -101,7 +103,7 @@
                     {%- assign t = term | strip -%}
                     {%- if t == blank -%}{% continue %}{%- endif -%}
                     <li class="tapi-search-list__item">
-                      <a href="{{ routes.search_url }}?q={{ t | url_encode }}" class="tapi-search-list__link link-u">
+                      <a href="{{ routes.search_url }}?q={{ t | url_encode }}&amp;type=product,collection" class="tapi-search-list__link link-u">
                         <span class="tapi-search-list__bullet" aria-hidden="true"></span>
                         <span class="tapi-search-list__label serif">{{ t }}</span>
                       </a>
