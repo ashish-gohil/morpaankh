@@ -1071,7 +1071,7 @@
         if (addBtn) { addBtn.disabled = false; addBtn.removeAttribute('aria-disabled'); }
         if (buyBtn) { buyBtn.disabled = false; buyBtn.removeAttribute('aria-disabled'); }
         if (stockNote) stockNote.textContent = (v.inv > 0 && v.inv <= lowStock)
-          ? `Only ${v.inv} left${label ? ' — ' + label : ''}`
+          ? `Selling fast${label ? ' — ' + label : ''}`
           : 'In stock — ships in 1–2 days';
       } else {
         if (addLabel) addLabel.textContent = 'Sold out';

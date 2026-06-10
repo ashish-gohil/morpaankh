@@ -92,7 +92,7 @@
       {%- if m.rating -%}<span class="tapi-card__rating">★ {{ m.rating }}</span><span class="tapi-card__sep"></span>{%- endif -%}
       {% comment %} {%- if m.review_count -%}<span>{{ m.review_count }} reviews</span><span class="tapi-card__sep"></span>{%- endif -%} {% endcomment %}
       {%- if m.gsm -%}<span class="tnum">{{ m.gsm }} GSM</span>{%- endif -%}
-      {%- if low_stock -%}<span class="tapi-card__sep"></span><span class="tapi-card__low"><span class="tapi-card__pulse"></span>Low stock</span>{%- endif -%}
+      {%- if low_stock -%}<span class="tapi-card__sep"></span><span class="tapi-card__low"><span class="tapi-card__pulse"></span>Selling fast</span>{%- endif -%}
       {%- if product.available == false -%}<span class="tapi-card__sep"></span><span class="tapi-card__soldout" style="color: var(--tapi-terracotta);">Sold out</span>{%- endif -%}
     </div>
   </div>
