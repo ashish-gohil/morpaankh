@@ -573,9 +573,18 @@
       var autoplay = root.getAttribute('data-autoplay') === '1' && !reduceMotion;
       var current = 0;
       var timer = null;
-      var rafId = null;
       var paused = false;
-      var startTime = 0;
+      var inView = false;
+
+      // A slide is "video-driven" when it holds a playable hero video for the
+      // current viewport. The carousel then does NOT advance on the fixed
+      // interval — it holds, and the video module calls __tapiHeroAdvance() once
+      // the clip ends. This getter is installed by initHeroVideo; on an
+      // image-only hero it's absent and treated as false (plain timer behaviour).
+      function videoDriven() {
+        return !!(root.__tapiHeroVideoActive && root.__tapiHeroVideoActive());
+      }
+      function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
 
       function setActive(idx) {
         var next = ((idx % slides.length) + slides.length) % slides.length;
@@ -591,63 +600,73 @@
           dots[current].classList.add('is-active');
           dots[current].setAttribute('aria-selected', 'true');
         }
-        resetProgress();
+        // Empty the progress bar. scheduleNext() animates it for image slides;
+        // the video module drives it from playback for video slides.
+        if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; fill.offsetWidth; }
         if (root.__tapiHeroVideoSync) root.__tapiHeroVideoSync();
       }
 
-      function resetProgress() {
-        if (!fill) return;
-        fill.style.transition = 'none';
-        fill.style.width = '0%';
-        // Force reflow so the next transition takes effect
-        // eslint-disable-next-line no-unused-expressions
-        fill.offsetWidth;
-        if (autoplay && !paused) {
+      // Hand off from the current slide to the next:
+      //  - video-driven -> no timer; the video's 'ended' calls __tapiHeroAdvance
+      //  - image slide  -> animate the progress fill, advance after `interval`
+      function scheduleNext() {
+        clearTimer();
+        if (!autoplay || paused || document.hidden || !inView) return;
+        if (videoDriven()) return; // the video owns the advance and drives `fill`
+        if (fill) {
+          fill.style.transition = 'none';
+          fill.style.width = '0%';
+          // eslint-disable-next-line no-unused-expressions
+          fill.offsetWidth; // reflow so the next transition runs
           fill.style.transition = 'width ' + interval + 'ms linear';
           fill.style.width = '100%';
         }
+        timer = setTimeout(advance, interval);
       }
-
-      function start() {
-        if (!autoplay || timer) return;
-        startTime = Date.now();
-        resetProgress();
-        timer = setInterval(function () {
-          if (paused || document.hidden) return;
-          setActive(current + 1);
-        }, interval);
-      }
+      function advance() { setActive(current + 1); scheduleNext(); }
       function stop() {
-        if (timer) { clearInterval(timer); timer = null; }
+        clearTimer();
         if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
       }
-      function restart() { stop(); start(); }
+
+      // Bridges the video module uses (guarded there, since the carousel bails
+      // out early on a single-slide hero and never defines these):
+      root.__tapiHeroAdvance = advance;          // video 'ended' -> next slide
+      root.__tapiHeroReschedule = scheduleNext;  // re-decide after a source swap / failure
+      root.__tapiHeroIsPaused = function () { return paused || document.hidden; };
 
       // Dot clicks
       Array.prototype.forEach.call(dots, function (d) {
         d.addEventListener('click', function () {
           setActive(parseInt(d.getAttribute('data-idx'), 10) || 0);
-          restart();
+          scheduleNext();
         });
       });
 
-      // Pause on hover (desktop) — uses matchMedia so we don't bind on touch
+      // Pause on hover (desktop) — halts the timer and the active video alike.
       if (window.matchMedia('(hover: hover)').matches) {
-        root.addEventListener('mouseenter', function () { paused = true; if (fill) fill.style.animationPlayState = 'paused'; });
-        root.addEventListener('mouseleave', function () { paused = false; });
+        root.addEventListener('mouseenter', function () {
+          paused = true; clearTimer();
+          if (root.__tapiHeroVideoSync) root.__tapiHeroVideoSync();
+        });
+        root.addEventListener('mouseleave', function () {
+          paused = false;
+          if (root.__tapiHeroVideoSync) root.__tapiHeroVideoSync();
+          scheduleNext();
+        });
       }
 
       // Pause on tab hidden
       document.addEventListener('visibilitychange', function () {
-        if (document.hidden) stop();
-        else if (autoplay) start();
+        if (document.hidden) clearTimer(); else scheduleNext();
+        if (root.__tapiHeroVideoSync) root.__tapiHeroVideoSync();
       });
 
       // Keyboard navigation when dots are focused
       Array.prototype.forEach.call(dots, function (d) {
         d.addEventListener('keydown', function (e) {
-          if (e.key === 'ArrowRight') { setActive(current + 1); restart(); }
-          else if (e.key === 'ArrowLeft') { setActive(current - 1); restart(); }
+          if (e.key === 'ArrowRight') { setActive(current + 1); scheduleNext(); }
+          else if (e.key === 'ArrowLeft') { setActive(current - 1); scheduleNext(); }
         });
       });
 
@@ -661,7 +680,7 @@
         var dx = e.changedTouches[0].clientX - touchStartX;
         if (Math.abs(dx) > 40) {
           setActive(current + (dx < 0 ? 1 : -1));
-          restart();
+          scheduleNext();
         }
         touchStartX = null;
       }, { passive: true });
@@ -673,9 +692,10 @@
       // back into view) starts immediately; manual dots/swipe are never gated.
       var autoplayArmed = false;
       function beginAutoplay() {
-        if (autoplayArmed) { start(); return; }
+        inView = true;
+        if (autoplayArmed) { scheduleNext(); return; }
         autoplayArmed = true;
-        var go = function () { start(); };
+        var go = function () { scheduleNext(); };
         if (document.readyState === 'complete') { setTimeout(go, 1000); }
         else { window.addEventListener('load', function () { setTimeout(go, 1000); }, { once: true }); }
       }
@@ -683,7 +703,7 @@
         var io = new IntersectionObserver(function (entries) {
           entries.forEach(function (entry) {
             if (entry.isIntersecting) beginAutoplay();
-            else stop();
+            else { inView = false; stop(); }
           });
         }, { threshold: 0.15 });
         io.observe(root);
@@ -703,25 +723,48 @@
       if (!vids.length) return;
       root.__tapiHeroVideoWired = true;
 
+      var multi = root.querySelectorAll('.tapi-hero__slide').length > 1;
+      var fill = root.querySelector('.tapi-hero__progress-fill');
       var desktopMQ = window.matchMedia('(min-width: 990px)');
       var inView = true;
 
+      function isPaused() { return root.__tapiHeroIsPaused ? root.__tapiHeroIsPaused() : document.hidden; }
       function srcFor(v) {
         return desktopMQ.matches
           ? (v.getAttribute('data-src-desktop') || '')
           : (v.getAttribute('data-src-mobile') || '');
       }
+      function activeSlide() { return root.querySelector('.tapi-hero__slide.is-active'); }
+      function slideOf(v) { return v.closest('.tapi-hero__slide'); }
+
+      // The carousel checks this before each auto-advance. True = the active
+      // slide has a real, playable video for THIS viewport, so the carousel holds
+      // and lets the clip finish instead of advancing on its fixed timer.
+      root.__tapiHeroVideoActive = function () {
+        if (reduceMotion) return false;
+        var a = activeSlide();
+        if (!a) return false;
+        var v = a.querySelector('.tapi-hero__video');
+        if (!v || v.__playFailed) return false;
+        return !!srcFor(v);
+      };
+
       function loadAndPlay(v) {
         if (reduceMotion) return;
         var src = srcFor(v);
         if (!src) { pause(v); return; }          // no video for this viewport → picture shows
+        v.loop = !multi;                         // single-slide loops; multi plays once, then advances
         if (v.getAttribute('data-loaded-src') !== src) {
           v.src = src;
           v.setAttribute('data-loaded-src', src);
           v.load();
         }
         var p = v.play();
-        if (p && p.catch) p.catch(function () {}); // ignore autoplay rejections
+        if (p && p.catch) p.catch(function () {
+          // Autoplay blocked — don't strand the carousel waiting on this slide.
+          v.__playFailed = true;
+          if (root.__tapiHeroReschedule) root.__tapiHeroReschedule();
+        });
         v.classList.add('is-playing');
       }
       function pause(v) {
@@ -729,19 +772,48 @@
         try { v.pause(); } catch (e) {}
       }
       function sync() {
-        var active = root.querySelector('.tapi-hero__slide.is-active');
+        var active = activeSlide();
         Array.prototype.forEach.call(vids, function (v) {
-          var slide = v.closest('.tapi-hero__slide');
-          if (inView && slide === active) loadAndPlay(v);
+          if (inView && !isPaused() && slideOf(v) === active) loadAndPlay(v);
           else pause(v);
         });
       }
       // Let the carousel's setActive re-evaluate which video should be playing.
       root.__tapiHeroVideoSync = sync;
 
-      // Crossing the 990px boundary swaps to the other viewport's source.
-      if (desktopMQ.addEventListener) desktopMQ.addEventListener('change', sync);
-      else if (desktopMQ.addListener) desktopMQ.addListener(sync);
+      Array.prototype.forEach.call(vids, function (v) {
+        // A finished clip on a multi-slide hero advances to the next slide —
+        // this is what makes the carousel wait for the video instead of the timer.
+        v.addEventListener('ended', function () {
+          if (multi && slideOf(v) === activeSlide() && root.__tapiHeroAdvance) root.__tapiHeroAdvance();
+        });
+        // A broken source must not hang the carousel — fall back to the timer.
+        v.addEventListener('error', function () {
+          v.__playFailed = true;
+          if (slideOf(v) === activeSlide() && root.__tapiHeroReschedule) root.__tapiHeroReschedule();
+        });
+        // While it's the active video, it drives the progress bar so the bar
+        // tracks real remaining time rather than the fixed interval.
+        v.addEventListener('timeupdate', function () {
+          if (!fill || reduceMotion) return;
+          if (slideOf(v) !== activeSlide() || !srcFor(v)) return;
+          var d = v.duration;
+          if (!d || !isFinite(d)) return;
+          fill.style.transition = 'width 0.25s linear';
+          fill.style.width = Math.min(100, (v.currentTime / d) * 100) + '%';
+        });
+      });
+
+      // Crossing the 990px boundary swaps to the other viewport's source, which
+      // can change whether this slide is video-driven — re-sync, clear any stale
+      // failure flag, then let the carousel re-decide timer vs video.
+      function onMQ() {
+        Array.prototype.forEach.call(vids, function (v) { v.__playFailed = false; });
+        sync();
+        if (root.__tapiHeroReschedule) root.__tapiHeroReschedule();
+      }
+      if (desktopMQ.addEventListener) desktopMQ.addEventListener('change', onMQ);
+      else if (desktopMQ.addListener) desktopMQ.addListener(onMQ);
 
       // Pause while off-screen (saves battery/data), resume on return.
       if ('IntersectionObserver' in window) {
