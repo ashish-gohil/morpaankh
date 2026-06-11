@@ -122,6 +122,36 @@
   .tapi-wl__grid { column-gap: 1.4rem; row-gap: 2.8rem; }
 }
 
+/* ===================== Media load-in: shimmer + fade =====================
+   The card media box already reserves its 3:4 space with a cream-2 fill (no
+   CLS), so while the photo streams in we run a soft shimmer over that fill and
+   fade the image in on load. tapi-ux.js adds .is-loading / the img .tapi-img-fade
+   ONLY when the image isn't already complete, so cached + above-the-fold images
+   never flash and a no-JS render shows images normally. Covers every card image
+   in the store (collection grid, search, featured, related, recently-viewed,
+   wishlist) since they all share .tapi-card__media. */
+.tapi-card__media.is-loading::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(100deg,
+    transparent 28%, rgba(255, 255, 255, 0.42) 50%, transparent 72%);
+  background-size: 220% 100%;
+  animation: tapi-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes tapi-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -60% 0; }
+}
+.tapi-card__img--front img.tapi-img-fade { opacity: 0; }
+.tapi-card__img--front img.tapi-img-fade.is-loaded {
+  animation: tapi-media-in 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes tapi-media-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .tapi-card__media.is-loading::after { animation: none; }
+  .tapi-card__img--front img.tapi-img-fade { opacity: 1; }
+  .tapi-card__img--front img.tapi-img-fade.is-loaded { animation: none; }
+}
+
 /* ============================ Recently viewed ============================ */
 .tapi-rv { padding-block: clamp(4rem, 6vw, 7.2rem); }
 /* Recently-viewed always carries the warm cream-2 surface so it reads as its own

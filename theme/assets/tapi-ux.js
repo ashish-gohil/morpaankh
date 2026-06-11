@@ -121,7 +121,7 @@
     document.querySelectorAll('product-recommendations').forEach(function (pr) {
       if (pr.__tapiObserved) return;
       pr.__tapiObserved = true;
-      new MutationObserver(function () { paintHearts(pr); }).observe(pr, { childList: true });
+      new MutationObserver(function () { paintHearts(pr); setupMediaFade(pr); }).observe(pr, { childList: true });
     });
   }
   // Keep every heart + every count in sync whenever the store changes.
@@ -249,6 +249,7 @@
       if (!items.length) { sec.hidden = true; return; }
       grid.innerHTML = items.map(function (i) { return '<li class="tapi-rv__item">' + cardHTML(i, {}) + '</li>'; }).join('');
       sec.hidden = false;
+      setupMediaFade(grid);
     });
   }
 
@@ -272,6 +273,7 @@
     if (grid) {
       grid.hidden = false;
       grid.innerHTML = items.map(function (i) { return '<li class="tapi-wl__item">' + cardHTML(i, { remove: true, actions: true }) + '</li>'; }).join('');
+      setupMediaFade(grid);
     }
   }
   function wireWishlistPage() {
@@ -354,6 +356,33 @@
   /* ----------------------------------------------------------------------
    * Boot.
    * -------------------------------------------------------------------- */
+  /* ----------------------------------------------------------------------
+   * Media load-in: shimmer placeholder + fade. Progressive enhancement —
+   * only images that aren't already complete get the treatment, so cached
+   * and above-the-fold images never flash, and a no-JS render shows images
+   * normally. Idempotent per <img>. Listeners attach at boot to every card
+   * image (incl. below-the-fold lazy ones), so each fades in as it streams.
+   * -------------------------------------------------------------------- */
+  function setupMediaFade(root) {
+    (root || document).querySelectorAll('.tapi-card__img--front img').forEach(function (img) {
+      if (img.__tapiFade) return;
+      img.__tapiFade = true;
+      if (img.complete && img.naturalWidth > 0) return; // already painted
+      var media = img.closest('.tapi-card__media');
+      img.classList.add('tapi-img-fade');
+      if (media) media.classList.add('is-loading');
+      var done = function () {
+        img.classList.add('is-loaded');
+        if (media) media.classList.remove('is-loading');
+      };
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      // Close the check->attach race: if the image finished loading in that gap,
+      // its load event already fired, so reveal it now (never leave it invisible).
+      if (img.complete) done();
+    });
+  }
+
   function boot(root) {
     paintHearts(root);
     observeRecommendations();
@@ -362,6 +391,7 @@
     renderWishlistPage();
     wireShare(root);
     wireBottomNavSearch();
+    setupMediaFade(root);
   }
 
   function start() {
