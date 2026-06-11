@@ -27,13 +27,69 @@
             {{ b.shopify_attributes }}
           >
             <div class="tapi-hero__media">
-              {%- if b.settings.image != blank -%}
-                {{ b.settings.image | image_url: width: 2000 | image_tag:
-                   loading: loading_attr,
-                   fetchpriority: fetch_attr,
-                   widths: '600, 900, 1200, 1600, 2000',
-                   sizes: '100vw',
-                   alt: slide_alt }}
+              {%- liquid
+                assign img_d = b.settings.image
+                assign img_m = b.settings.image_mobile
+                # Mobile image falls back to the desktop one, so a mobile viewport is never left blank.
+                assign img_m_eff = img_m | default: img_d
+                # Pull the mp4 source out of each (optional) hosted video for lazy, JS-driven loading.
+                assign vd_src = ''
+                if b.settings.video != blank
+                  for s in b.settings.video.sources
+                    if s.format == 'mp4'
+                      assign vd_src = s.url
+                    endif
+                  endfor
+                endif
+                assign vm_src = ''
+                if b.settings.video_mobile != blank
+                  for s in b.settings.video_mobile.sources
+                    if s.format == 'mp4'
+                      assign vm_src = s.url
+                    endif
+                  endfor
+                endif
+              -%}
+              {%- if img_d != blank -%}
+                {%- comment -%}
+                  <picture>: the browser downloads ONLY the source that matches the
+                  viewport — the mobile crop below 990px, the desktop crop at/above it.
+                  No JS, no layout shift, LCP image stays the <img> below.
+                {%- endcomment -%}
+                <picture class="tapi-hero__picture">
+                  {%- if img_m != blank -%}
+                    <source
+                      media="(max-width: 989px)"
+                      srcset="{{ img_m_eff | image_url: width: 540 }} 540w, {{ img_m_eff | image_url: width: 750 }} 750w, {{ img_m_eff | image_url: width: 1080 }} 1080w, {{ img_m_eff | image_url: width: 1320 }} 1320w, {{ img_m_eff | image_url: width: 1600 }} 1600w"
+                      sizes="100vw">
+                  {%- endif -%}
+                  {{ img_d | image_url: width: 2000 | image_tag:
+                     loading: loading_attr,
+                     fetchpriority: fetch_attr,
+                     widths: '900, 1200, 1600, 2000, 2600',
+                     sizes: '100vw',
+                     alt: slide_alt,
+                     class: 'tapi-hero__img' }}
+                </picture>
+                {%- comment -%}
+                  Optional per-viewport video. preload=none + no src: tapi-motion.js sets
+                  the src for the CURRENT viewport only (never both) and plays it solely
+                  while this slide is active and in view. It fades in over the <picture>,
+                  which doubles as the poster/fallback (and the only media under
+                  reduced-motion or when a viewport has no video).
+                {%- endcomment -%}
+                {%- if vd_src != blank or vm_src != blank -%}
+                  <video
+                    class="tapi-hero__video"
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    aria-hidden="true"
+                    {% if vd_src != blank %}data-src-desktop="{{ vd_src }}"{% endif %}
+                    {% if vm_src != blank %}data-src-mobile="{{ vm_src }}"{% endif %}
+                  ></video>
+                {%- endif -%}
               {%- else -%}
                 <div class="tapi-hero__placeholder" style="--p-color: {{ tint }};">
                   <span class="tapi-hero__placeholder-mono">{{ mono }}</span>
@@ -165,6 +221,27 @@
   .tapi-hero__slide.is-active .tapi-hero__media img,
   .tapi-hero__slide.is-active .tapi-hero__placeholder {
     transform: scale(1.08);
+  }
+  /* <picture> wrapper must fill the media box so the <img>'s 100%/cover applies. */
+  .tapi-hero__picture { display: block; width: 100%; height: 100%; }
+  /* Optional video layer: sits over the picture (its poster/fallback) and fades in
+     only while playing. object-fit: cover so the uploaded per-viewport crop fills. */
+  .tapi-hero__video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity 700ms cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .tapi-hero__video.is-playing { opacity: 1; }
+  /* Reduced motion: never play video — the still picture below carries the hero. */
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-hero__video { display: none !important; }
   }
   .tapi-hero__placeholder {
     display: flex;
@@ -515,6 +592,7 @@
           dots[current].setAttribute('aria-selected', 'true');
         }
         resetProgress();
+        if (root.__tapiHeroVideoSync) root.__tapiHeroVideoSync();
       }
 
       function resetProgress() {
@@ -614,8 +692,71 @@
       }
     }
 
+    // Responsive hero video. Decoupled from the carousel so it works on single-slide
+    // heroes too. Wires up ONLY if a slide actually has a <video> — image-only heroes
+    // pay zero cost. Loads the source for the CURRENT viewport only (never both), and
+    // plays just the active, in-view slide. Falls back to the still <picture> under
+    // reduced-motion or when a viewport has no video set.
+    function initHeroVideo(root) {
+      if (root.__tapiHeroVideoWired) return;
+      var vids = root.querySelectorAll('.tapi-hero__video');
+      if (!vids.length) return;
+      root.__tapiHeroVideoWired = true;
+
+      var desktopMQ = window.matchMedia('(min-width: 990px)');
+      var inView = true;
+
+      function srcFor(v) {
+        return desktopMQ.matches
+          ? (v.getAttribute('data-src-desktop') || '')
+          : (v.getAttribute('data-src-mobile') || '');
+      }
+      function loadAndPlay(v) {
+        if (reduceMotion) return;
+        var src = srcFor(v);
+        if (!src) { pause(v); return; }          // no video for this viewport → picture shows
+        if (v.getAttribute('data-loaded-src') !== src) {
+          v.src = src;
+          v.setAttribute('data-loaded-src', src);
+          v.load();
+        }
+        var p = v.play();
+        if (p && p.catch) p.catch(function () {}); // ignore autoplay rejections
+        v.classList.add('is-playing');
+      }
+      function pause(v) {
+        v.classList.remove('is-playing');
+        try { v.pause(); } catch (e) {}
+      }
+      function sync() {
+        var active = root.querySelector('.tapi-hero__slide.is-active');
+        Array.prototype.forEach.call(vids, function (v) {
+          var slide = v.closest('.tapi-hero__slide');
+          if (inView && slide === active) loadAndPlay(v);
+          else pause(v);
+        });
+      }
+      // Let the carousel's setActive re-evaluate which video should be playing.
+      root.__tapiHeroVideoSync = sync;
+
+      // Crossing the 990px boundary swaps to the other viewport's source.
+      if (desktopMQ.addEventListener) desktopMQ.addEventListener('change', sync);
+      else if (desktopMQ.addListener) desktopMQ.addListener(sync);
+
+      // Pause while off-screen (saves battery/data), resume on return.
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) { inView = entry.isIntersecting; sync(); });
+        }, { threshold: 0.15 }).observe(root);
+      }
+      sync();
+    }
+
     function boot() {
-      document.querySelectorAll('[data-tapi-carousel]').forEach(initCarousel);
+      document.querySelectorAll('[data-tapi-carousel]').forEach(function (c) {
+        initCarousel(c);
+        initHeroVideo(c);
+      });
     }
 
     if (document.readyState === 'loading') {
@@ -626,7 +767,12 @@
 
     document.addEventListener('shopify:section:load', function (e) {
       var c = e.target.querySelector('[data-tapi-carousel]');
-      if (c) { c.__tapiCarouselWired = false; initCarousel(c); }
+      if (c) {
+        c.__tapiCarouselWired = false;
+        c.__tapiHeroVideoWired = false;
+        initCarousel(c);
+        initHeroVideo(c);
+      }
     });
   })();
 {% endjavascript %}
@@ -655,7 +801,13 @@
       "type": "slide",
       "name": "Slide",
       "settings": [
-        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "header", "content": "Desktop media (≥ 990px)" },
+        { "type": "image_picker", "id": "image", "label": "Desktop image", "info": "Wide / landscape crop. This is the LCP image and the fallback for everything below." },
+        { "type": "video", "id": "video", "label": "Desktop video (optional)", "info": "Plays muted on a loop over the desktop image. Needs the desktop image set as its still fallback." },
+        { "type": "header", "content": "Mobile media (< 990px)" },
+        { "type": "image_picker", "id": "image_mobile", "label": "Mobile image", "info": "Taller / portrait crop so phones aren't cropped. Falls back to the desktop image if left empty." },
+        { "type": "video", "id": "video_mobile", "label": "Mobile video (optional)", "info": "Plays muted on a loop on phones. Falls back to the mobile image if left empty." },
+        { "type": "header", "content": "Other" },
         { "type": "text", "id": "caption", "label": "Caption (overlay chip)" },
         { "type": "text", "id": "mono", "label": "Placeholder monogram", "default": "Saanjh" },
         { "type": "color", "id": "tint", "label": "Placeholder tint", "default": "#B7472A" }
