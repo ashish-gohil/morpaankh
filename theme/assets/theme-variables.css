@@ -2460,13 +2460,10 @@ details[open] > summary .icon-caret {
 .related-products {
   padding-block: clamp(4rem, 6vw, 7.2rem) !important;
 }
-/* related-products and recently-viewed both sit on background-1, so a centred
-   hairline makes the boundary legible instead of an ambiguous gap. Scoped with
-   :has() to the PDP order (a recently-viewed whose preceding section holds
-   related-products); on the homepage rv has no such sibling, so no divider. */
-.shopify-section:has(.related-products) + .shopify-section .tapi-rv {
-  border-top: 1px solid var(--tapi-hairline);
-}
+/* related-products sits on cream; recently-viewed now carries its own cream-2
+   surface (see .tapi-rv.gradient in tapi-ux.css), so the boundary reads as an
+   alternating-tone band change on both the PDP and home — no hairline needed,
+   the background tone shift is the separator. */
 
 /* ===== Cart page: items list + sticky checkout aside (desktop) ===== */
 /* Mobile: stays single-column. Desktop ≥990: side-by-side. */

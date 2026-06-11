@@ -124,6 +124,12 @@
 
 /* ============================ Recently viewed ============================ */
 .tapi-rv { padding-block: clamp(4rem, 6vw, 7.2rem); }
+/* Recently-viewed always carries the warm cream-2 surface so it reads as its own
+   band, separated by tone from the cream section above it (New Arrivals on home,
+   "You may also like" on the PDP). Adjacent sections alternate background tone —
+   the tone shift is the separation, no divider line needed. The compound .gradient
+   selector outranks Dawn's .gradient background so the surface actually paints. */
+.tapi-rv.gradient { background: var(--mor-cream-2); }
 .tapi-rv__head { margin-bottom: clamp(2rem, 3vw, 3.2rem); }
 .tapi-rv__heading {
   font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.01em;
