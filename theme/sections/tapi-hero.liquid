@@ -83,7 +83,7 @@
       <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
       <div class="tapi-hero__cta-row" data-tapi-reveal>
         {%- if section.settings.cta_primary != blank -%}
-          <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary tapi-hero__cta-primary">{{ section.settings.cta_primary }} →</a></span>
+          <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary tapi-hero__cta-primary">{{ section.settings.cta_primary }} <span class="tapi-cta-arrow" aria-hidden="true">→</span></a></span>
         {%- endif -%}
         {%- if section.settings.cta_secondary != blank -%}
           <a href="{{ section.settings.cta_secondary_link }}" class="tapi-hero__cta-secondary">{{ section.settings.cta_secondary }}</a>

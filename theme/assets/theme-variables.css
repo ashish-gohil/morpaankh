@@ -581,6 +581,11 @@ button.shopify-payment-button__button--unbranded {
 .tapi-lift:hover { transform: translateY(-6px); box-shadow: 0 24px 48px -28px rgba(44,40,38,0.25); }
 
 /* Arrow slide */
+/* Reusable trailing-arrow glyph for CTAs. As a flex child of an
+   inline-flex/align-items:center control, it optically centres on the label
+   (so a → never sits low under an uppercase button like "SUBSCRIBE" / "SEE
+   CATALOG"). Consistent across mobile + desktop. */
+.tapi-cta-arrow { display: inline-flex; align-items: center; line-height: 1; font-style: normal; }
 .tapi-arrow-slide { display: inline-flex; align-items: center; gap: 8px; }
 .tapi-arrow-slide em, .tapi-arrow-slide svg, .tapi-arrow-slide > .tapi-arrow {
   font-style: normal;
@@ -2319,6 +2324,9 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   color: var(--tapi-charcoal, #2c2826);
 }
 .tapi-search-product__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 11px;
   color: var(--tapi-terracotta, #b7472a);
   letter-spacing: 0.06em;

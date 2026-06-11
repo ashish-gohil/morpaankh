@@ -11,7 +11,7 @@
           <input type="hidden" name="contact[tags]" value="newsletter">
           <div class="tapi-footer__field">
             <input type="email" name="contact[email]" required placeholder="Your email address" aria-label="Email" autocomplete="email">
-            <button type="submit" class="tapi-footer__submit">Subscribe →</button>
+            <button type="submit" class="tapi-footer__submit">Subscribe <span class="tapi-cta-arrow">→</span></button>
           </div>
           {%- if form.posted_successfully? -%}
             <p class="tapi-footer__form-msg">Thank you. We'll write soon.</p>
@@ -137,7 +137,7 @@
   .tapi-footer__field:focus-within { border-color: var(--tapi-cream); }
   .tapi-footer__field input { flex: 1; background: transparent; color: var(--tapi-cream); border: none; font-family: inherit; font-size: 1.6rem; padding: 0.8rem 0; outline: none; }
   .tapi-footer__field input::placeholder { color: rgba(248,244,237,0.45); }
-  .tapi-footer__submit { background: none; border: none; color: var(--tapi-cream); font-size: 1.1rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; padding: 0.4rem 0; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-footer__submit { background: none; border: none; color: var(--tapi-cream); font-size: 1.1rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; padding: 0.4rem 0; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); display: inline-flex; align-items: center; gap: 0.5rem; }
   .tapi-footer__submit:hover { transform: translateX(6px); }
   .tapi-footer__form-hint { font-size: 1.1rem; color: rgba(248,244,237,0.6); }
   .tapi-footer__form-msg  { font-size: 1.2rem; color: var(--tapi-terracotta-soft); margin: 0; }
