@@ -2592,10 +2592,22 @@ details[open] > summary .icon-caret {
     align-self: start;
     min-width: 0;
   }
-  /* Featured-collection (and anything else): spans both columns. Children are
-     div.shopify-section wrappers, not <section>. */
-  .template-cart #MainContent > div.shopify-section:not([id$="__cart-items"]):not([id$="__cart-footer"]) {
+  /* Featured-collection (and anything else below the checkout) gets its own full
+     -width row UNDER the two columns. The section wrapper can be <div> OR <section>
+     (featured-collection renders as <section class="shopify-section">), so match on
+     the class alone — the old `div.shopify-section` selector silently missed the
+     <section> and left it auto-placed into the checkout column. Pin to row 2 so it
+     never relies on implicit auto-placement. */
+  .template-cart #MainContent > .shopify-section:not([id$="__cart-items"]):not([id$="__cart-footer"]) {
     grid-column: 1 / -1;
+    grid-row: 2;
+    /* A hairline + breathing room so the full-width rail reads as its own section
+       below the checkout, not a stray third column. The grid row-gap already sits
+       ABOVE this wrapper, so balance it with matching padding below the hairline
+       (the section keeps its own internal padding too). Desktop only; mobile keeps
+       the native stacked rhythm untouched. */
+    border-top: 1px solid var(--tapi-hairline, #e5ddc8);
+    padding-top: clamp(1.5rem, 2.5vw, 3rem);
   }
 
   /* Strip the inner page-width since the grid parent provides the gutter */
