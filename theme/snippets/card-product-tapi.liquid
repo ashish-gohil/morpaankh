@@ -48,7 +48,7 @@
 
     {%- comment -%} Status tags (new, bestseller, festive…) sit bottom-right of the image. They live inside the media so they anchor to the photo (not the card), and fade on hover so the Quick view CTA owns that space. {%- endcomment -%}
     {%- capture status_tags -%}
-      {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+      {%- unless suppress_new -%}{%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}{%- endunless -%}
       {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
       {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
     {%- endcapture -%}

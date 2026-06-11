@@ -19,7 +19,8 @@
       {%- if coll != blank -%}
         {%- for product in coll.products limit: max -%}
           <div data-tapi-reveal>
-            {%- render 'card-product-tapi', product: product -%}
+            {%- comment -%} The New Arrivals section already signals "new", so suppress the per-card New tag here only. Every other surface (collection, search, related, recently-viewed) still shows it. {%- endcomment -%}
+            {%- render 'card-product-tapi', product: product, suppress_new: true -%}
           </div>
         {%- endfor -%}
       {%- else -%}
