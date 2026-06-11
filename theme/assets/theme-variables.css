@@ -875,8 +875,12 @@ sticky-header.shopify-section-header-hidden { transform: none !important; }
   .header__inline-menu .header__menu-item span::after { transition: none; }
 }
 
-/* Cart page — Dawn sometimes scopes the header to a darker scheme; force consistency */
-.template-cart .header-wrapper, .template-cart sticky-header { background: var(--tapi-cream-2) !important; }
+/* Cart page header: NO page-specific overrides. The global header treatment
+   above (solid cream-2 at the top, frosted-glass `.is-scrolled` on scroll, full
+   padding) must apply identically here. An earlier `.template-cart .header-wrapper
+   { background: cream-2 }` rule had equal specificity but sat later in the file,
+   so it silently beat `.header-wrapper.is-scrolled` and killed the glass on the
+   cart only. Keep this header in lockstep with every other page. */
 
 /* ============================================================
    Mobile menu drawer — re-skin the bottom utility links so the
@@ -924,7 +928,9 @@ sticky-header.shopify-section-header-hidden { transform: none !important; }
 }
 /* Make the localization links underneath look tertiary */
 .menu-drawer__localization { padding-top: 0.4rem !important; }
-.template-cart .header, .template-cart .header__heading-link { padding-top: 0; padding-bottom: 0; }
+/* (Removed the cart-only `padding-top/bottom: 0` on .header — it cramped the cart
+   header so it no longer matched the home header's height. The header keeps its
+   normal global padding on every page now.) */
 .template-cart .tapi-logo, .template-cart .tapi-logo span, .template-cart .tapi-logo svg { color: var(--tapi-charcoal); }
 
 /* Trust marquee should always sit above the header (above the sticky band) */
@@ -2563,51 +2569,65 @@ details[open] > summary .icon-caret {
      the empty-cart message in normal centred flow. */
   .template-cart #MainContent:has(.cart-item),
   body.template-cart main.content-for-layout:has(.cart-item) {
-    display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+    /* Flex space-between: the cart list hugs the left edge, the order summary
+       hugs the right edge, and the empty space pools into a single clean gap
+       between them — instead of a wide fr-column whose content left a ragged
+       hole. The featured rail wraps to its own full-width line below. */
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
     column-gap: clamp(2rem, 4vw, 5.6rem);
-    row-gap: clamp(3rem, 4vw, 5rem);
+    row-gap: clamp(3.2rem, 5vw, 6rem);
     max-width: var(--tapi-max, 144rem);
     margin-inline: auto;
     padding-inline: var(--tapi-gutter, 16px);
     box-sizing: border-box;
-    align-items: start;
   }
 
   /* JSON-template section IDs are shopify-section-template--{id}__{key}, so match
      on the stable __key suffix. The bare #shopify-section-cart-items never existed,
      which is why these placement rules were dead even before the body-class fix. */
-  /* Cart-items section: column 1 */
+  /* Cart-items: left block */
   .template-cart #MainContent > [id$="__cart-items"] {
-    grid-column: 1;
-    grid-row: 1;
+    flex: 0 1 58%;
     min-width: 0;
   }
-  /* Cart-footer section: column 2, sticky */
+  /* Order summary: right block, sticky while the list scrolls */
   .template-cart #MainContent > [id$="__cart-footer"] {
-    grid-column: 2;
-    grid-row: 1;
+    flex: 0 0 clamp(320px, 26%, 360px);
     position: sticky;
     top: 120px;
-    align-self: start;
+    align-self: flex-start;
     min-width: 0;
   }
-  /* Featured-collection (and anything else below the checkout) gets its own full
-     -width row UNDER the two columns. The section wrapper can be <div> OR <section>
-     (featured-collection renders as <section class="shopify-section">), so match on
-     the class alone — the old `div.shopify-section` selector silently missed the
-     <section> and left it auto-placed into the checkout column. Pin to row 2 so it
-     never relies on implicit auto-placement. */
+  /* Featured collection wraps to its own full-width line below the checkout. The
+     wrapper can be <div> OR <section> (featured-collection renders as
+     <section class="shopify-section">), so match on the class alone — the old
+     `div.shopify-section` selector silently missed the <section> and left it beside
+     the checkout. It breaks out to a full-bleed cream-2 band: the same bg-tone shift
+     the home page uses to separate sections, so it reads as a distinct section
+     rather than a stray third column. Desktop only; mobile keeps the native stacked
+     rhythm untouched. */
   .template-cart #MainContent > .shopify-section:not([id$="__cart-items"]):not([id$="__cart-footer"]) {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    /* A hairline + breathing room so the full-width rail reads as its own section
-       below the checkout, not a stray third column. The grid row-gap already sits
-       ABOVE this wrapper, so balance it with matching padding below the hairline
-       (the section keeps its own internal padding too). Desktop only; mobile keeps
-       the native stacked rhythm untouched. */
-    border-top: 1px solid var(--tapi-hairline, #e5ddc8);
-    padding-top: clamp(1.5rem, 2.5vw, 3rem);
+    flex: 0 0 100%;
+    position: relative;
+    /* Full-bleed cream-2 band, scrollbar-safe: the box stays at container width
+       (content centres normally via the section's own page-width) while the bg is
+       painted edge-to-edge with a spread shadow, then clipped to the box vertically
+       so it only bleeds left/right. No 100vw, so no horizontal-scroll surprise. */
+    background: var(--mor-cream-2, #efe6d4);
+    box-shadow: 0 0 0 100vmax var(--mor-cream-2, #efe6d4);
+    clip-path: inset(0 -100vmax);
+    padding-block: clamp(2.5rem, 4vw, 4.5rem);
+  }
+  /* The native section paints its own colour-scheme background; clear the
+     structural wrapper so the cream-2 band shows through uniformly (cards keep
+     their own styling — this only targets the section's direct shell). */
+  .template-cart [id$="__featured-collection"] > [class*="color-"],
+  .template-cart [id$="__featured-collection"] > .gradient,
+  .template-cart [id$="__featured-collection"] > [class*="color-"] > .gradient {
+    background: transparent !important;
   }
 
   /* Strip the inner page-width since the grid parent provides the gutter */
