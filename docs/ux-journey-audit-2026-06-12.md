@@ -44,3 +44,9 @@ Done: Product+Offer+Breadcrumb, CollectionPage+ItemList, Organization, FAQPage J
 
 ## Validation plan once traffic exists
 Install analytics (Shopify native + optionally Microsoft Clarity for real heatmaps/scroll maps, free). Watch: announcement-bar click rate, PLP-to-PDP rate, PDP add-to-cart rate, cart-to-checkout rate before vs after the meter, and AOV distribution around the Rs 2,000 threshold. Every feature shipped is a one-checkbox rollback if a metric regresses.
+
+## Navigation addendum (same day, later pass)
+- **Found**: desktop header showed Catalog as a flat link to /collections/all; reaching a specific category cost two clicks plus a scroll. All three competitors expose categories on hover. The mobile drawer had a custom accordion (added earlier because the menu had no children).
+- **Shipped (menu data, zero theme code)**: gave the main menu's Catalog item five real children via the Menu API (New Arrivals, Kurta Sets, Co-ord Sets, Festive Edit, View all). Dawn's native mega menu now renders the desktop dropdown with active-state highlighting, and the drawer automatically switched from the custom accordion to native children because the native branch precedes it. One source of truth (the menu), native rendering everywhere, one click saved on every desktop category visit. Rollback: remove the child items in Admin Navigation.
+- **Also fixed**: footer rendered dead href-less social anchors when a link was unset; now hidden until set. Testimonials section shipped pre-wired but invisible until real quotes are added (no fabricated social proof, no review JSON-LD by design).
+- **Deliberately skipped**: deleting the legacy `.product-grid .card__*` CSS block. It is mostly dead (product grids use the tapi card) but search results can render Dawn article cards inside a product grid, so removal risks a regression for a few hundred bytes. Documented instead of deleted.
