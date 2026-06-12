@@ -2931,3 +2931,74 @@ details[open] > summary .icon-caret {
 @media (prefers-reduced-motion: reduce) {
   .cart-count-bubble { animation: none; }
 }
+
+/* ---------- Desktop nav flyout (replaces Dawn's details/summary mega menu)
+   Parent items with children render as plain links: click navigates
+   (Catalog -> /collections/all), hover or keyboard focus reveals the
+   children. Pure CSS, no caret icon, no JS. */
+.tapi-nav-flyout { position: relative; }
+
+.tapi-nav-flyout__panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  min-width: 22rem;
+  padding-top: 0.6rem; /* hover bridge between link and panel, keep no gap */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--mor-dur-base, 250ms) var(--mor-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    visibility 0s linear var(--mor-dur-base, 250ms);
+}
+
+.tapi-nav-flyout:hover .tapi-nav-flyout__panel,
+.tapi-nav-flyout:focus-within .tapi-nav-flyout__panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity var(--mor-dur-base, 250ms) var(--mor-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    visibility 0s;
+}
+
+.tapi-nav-flyout__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.8rem 0;
+  background: var(--mor-ivory, #FAF6EC);
+  border: 1px solid var(--mor-hairline, #E5DDC8);
+  border-radius: var(--mor-radius-md, 4px);
+  box-shadow: var(--mor-shadow-md, 0 12px 24px -16px rgba(44, 40, 38, 0.22));
+  transform: translateY(6px);
+  transition: transform var(--mor-dur-base, 250ms) var(--mor-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.tapi-nav-flyout:hover .tapi-nav-flyout__list,
+.tapi-nav-flyout:focus-within .tapi-nav-flyout__list {
+  transform: translateY(0);
+}
+
+.tapi-nav-flyout__link {
+  display: block;
+  padding: 1rem 2rem;
+  font-size: 1.4rem;
+  line-height: 1.4;
+  color: var(--mor-charcoal, #2C2826);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tapi-nav-flyout__link:hover,
+.tapi-nav-flyout__link:focus-visible,
+.tapi-nav-flyout__link.is-current {
+  color: var(--mor-primary, #2E4B3C);
+  background: var(--mor-cream-2, #EFE6D4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-nav-flyout__panel,
+  .tapi-nav-flyout__list { transition: none; }
+  .tapi-nav-flyout__list { transform: none; }
+}
