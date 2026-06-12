@@ -28,11 +28,13 @@
         <div class="tapi-footer__social">
           {%- if settings.social_instagram_link != blank -%}
             <a href="{{ settings.social_instagram_link }}" aria-label="Instagram">Instagram</a>
-          {%- else -%}<a aria-label="Instagram">Instagram</a>{%- endif -%}
-          <span class="tapi-footer__sep">·</span>
+          {%- endif -%}
+          {%- if settings.social_instagram_link != blank and settings.social_whatsapp_link != blank -%}
+            <span class="tapi-footer__sep">·</span>
+          {%- endif -%}
           {%- if settings.social_whatsapp_link != blank -%}
             <a href="{{ settings.social_whatsapp_link }}" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">WhatsApp</a>
-          {%- else -%}<a aria-label="WhatsApp">WhatsApp</a>{%- endif -%}
+          {%- endif -%}
         </div>
       </div>
 

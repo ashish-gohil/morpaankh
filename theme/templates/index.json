@@ -247,6 +247,13 @@
         "eyebrow": "Our promise",
         "heading": "Rooted in tradition. Honest in what we send."
       }
+    },
+    "tapi_testimonials": {
+      "type": "tapi-testimonials",
+      "settings": {
+        "eyebrow": "From our customers",
+        "heading": "Worn and loved"
+      }
     }
   },
   "order": [
@@ -255,6 +262,7 @@
     "tapi_collection_tiles",
     "tapi_featured",
     "recently_viewed",
-    "studio_strip"
+    "studio_strip",
+    "tapi_testimonials"
   ]
 }
