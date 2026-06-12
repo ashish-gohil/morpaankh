@@ -53,6 +53,25 @@
       <div class="cart__items" id="main-cart-items" data-id="{{ section.id }}">
         <div class="js-contents">
           {%- if cart != empty -%}
+            {%- if section.settings.show_shipping_meter and section.settings.shipping_threshold > 0 -%}
+              {%- assign ship_threshold = section.settings.shipping_threshold | times: 100 -%}
+              <div class="tapi-ship-meter" role="status">
+                {%- if cart.total_price >= ship_threshold -%}
+                  <p class="tapi-ship-meter__msg tapi-ship-meter__msg--done">
+                    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>{{ section.settings.shipping_meter_done_text | default: 'Your order ships free.' }}</span>
+                  </p>
+                  <div class="tapi-ship-meter__track"><span class="tapi-ship-meter__fill" style="width: 100%"></span></div>
+                {%- else -%}
+                  {%- assign ship_remaining = ship_threshold | minus: cart.total_price | money -%}
+                  {%- assign ship_pct = cart.total_price | times: 100.0 | divided_by: ship_threshold | round | at_most: 96 | at_least: 4 -%}
+                  <p class="tapi-ship-meter__msg">
+                    {{- section.settings.shipping_meter_text | default: 'Add [amount] more for free shipping' | replace: '[amount]', ship_remaining -}}
+                  </p>
+                  <div class="tapi-ship-meter__track"><span class="tapi-ship-meter__fill" style="width: {{ ship_pct }}%"></span></div>
+                {%- endif -%}
+              </div>
+            {%- endif -%}
             <table class="cart-items">
               <caption class="visually-hidden">
                 {{ 'sections.cart.title' | t }}
@@ -562,6 +581,47 @@
     #shopify-section-cart-footer,
     .shopify-section.cart__footer-wrapper { display: none !important; }
   }
+  .tapi-ship-meter {
+    margin: 0 0 2.4rem;
+    padding: 1.4rem 1.6rem;
+    background: var(--mor-cream-2, #F1EBDD);
+    border: 1px solid rgba(44, 40, 38, 0.08);
+    border-radius: var(--mor-radius-md, 4px);
+  }
+
+  .tapi-ship-meter__msg {
+    margin: 0 0 1rem;
+    font-size: 1.3rem;
+    letter-spacing: 0.01em;
+    color: var(--mor-charcoal, #2C2826);
+  }
+
+  .tapi-ship-meter__msg--done {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--mor-primary, #2E4B3C);
+    font-weight: 500;
+  }
+
+  .tapi-ship-meter__track {
+    height: 4px;
+    background: rgba(44, 40, 38, 0.1);
+    border-radius: var(--mor-radius-pill, 9999px);
+    overflow: hidden;
+  }
+
+  .tapi-ship-meter__fill {
+    display: block;
+    height: 100%;
+    background: var(--mor-primary, #2E4B3C);
+    border-radius: inherit;
+    transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-ship-meter__fill { transition: none; }
+  }
 {% endstylesheet %}
 
 {% schema %}
@@ -573,6 +633,36 @@
       "id": "color_scheme",
       "label": "t:sections.all.colors.label",
       "default": "scheme-1"
+    },
+    {
+      "type": "header",
+      "content": "Free shipping meter"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_shipping_meter",
+      "label": "Show free shipping progress",
+      "info": "Shows how close the order is to the free shipping threshold. Keep the threshold in sync with your shipping rates.",
+      "default": true
+    },
+    {
+      "type": "number",
+      "id": "shipping_threshold",
+      "label": "Free shipping threshold (in rupees)",
+      "default": 2000
+    },
+    {
+      "type": "text",
+      "id": "shipping_meter_text",
+      "label": "Progress message",
+      "info": "[amount] is replaced with what is left to add.",
+      "default": "Add [amount] more for free shipping"
+    },
+    {
+      "type": "text",
+      "id": "shipping_meter_done_text",
+      "label": "Unlocked message",
+      "default": "Your order ships free."
     },
     {
       "type": "header",
