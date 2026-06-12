@@ -8,7 +8,7 @@ Date: 2026-06-12. Scope: full purchase funnel on the live theme (189198631284), 
 - **Attention path**: announcement offer, then hero image, then CTA. The announcement carries a real value claim ("Pay online and save 5% / Free shipping over Rs 2,000"), matching the offer-led pattern all three competitors lead with, without fake urgency.
 - **First click prediction**: hero CTA or bottom-nav Search. Both reachable. Bottom nav (Home/Search/Cart/Account/Wishlist) matches Aachho's discovery pattern.
 - **Friction found earlier in project, already fixed**: above-fold reveal flash (content painted, hid, faded back) was killed by synchronous in-viewport reveal; hero autoplay now waits for window load.
-- **Open item (merchant)**: test slide `slide_cwredk` has an empty caption; share image (1200x630) not uploaded, so WhatsApp shares of the homepage have no image. Both are editor-side.
+- **Closed (2026-06-12, later same day)**: `slide_cwredk` now carries the supplied mustard kurta image with caption "Haldi · Exactly as pictured"; the 1200x630 share image was composed from brand assets, uploaded to Files, and wired to `settings.share_image`, so homepage shares unfurl with an on-brand card.
 
 ### 2. Discovery (PLP / collection)
 - Cards: 2-up mobile grid, struck MRP + savings, color dots, low-stock and sold-out states, wishlist heart, title clamped to 2 lines with reserved height so rows stay even. Material/rating/GSM deferred to PDP on mobile to keep scan speed high. This matches or beats the competitor card anatomy.
@@ -40,7 +40,7 @@ Rejected: three.js (150KB+ and GPU cost against slow-network mobile traffic, no 
 Storefront copy was through the premium-honesty rewrite in prior stages. This pass closed the last gap: four product bodies still claimed hand-work ("set by hand", "hand block-printed", "hand embroidery", "handloom") that cannot be verified; all four rewritten via Admin API with the sensory voice intact. Every claim on the store is now defensible.
 
 ## SEO (end-to-end status)
-Done: Product+Offer+Breadcrumb, CollectionPage+ItemList, Organization, FAQPage JSON-LD; SEO titles and metas on all 13 products and 4 collections; robots.txt admitting AI crawlers plus /llms.txt; OG/Twitter dedup; productType on all products; featured-image alt text written for all 13 products (this pass). Remaining: homepage share image upload (merchant), real reviews to unlock aggregateRating later.
+Done: Product+Offer+Breadcrumb, CollectionPage+ItemList, Organization, FAQPage JSON-LD; SEO titles and metas on all 13 products and 4 collections; robots.txt admitting AI crawlers plus /llms.txt; OG/Twitter dedup; productType on all products; featured-image alt text written for all 13 products (this pass). Remaining: a real reviews app later, to unlock aggregateRating with verifiable data. The share image is uploaded and live; four real customer reviews now render in the testimonials section (still no review JSON-LD, by design).
 
 ## Validation plan once traffic exists
 Install analytics (Shopify native + optionally Microsoft Clarity for real heatmaps/scroll maps, free). Watch: announcement-bar click rate, PLP-to-PDP rate, PDP add-to-cart rate, cart-to-checkout rate before vs after the meter, and AOV distribution around the Rs 2,000 threshold. Every feature shipped is a one-checkbox rollback if a metric regresses.
