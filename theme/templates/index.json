@@ -73,7 +73,8 @@
         "slide_saanjh": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/PART_1___ROLE_202605291741.jpg",
+            "image": "shopify://shop_images/Keep_this_exact_garment_unchanged_202606111114_2016a7d9-fbf6-4d7d-b8c6-2d4a31234129.jpg",
+            "image_mobile": "shopify://shop_images/Editorial_fashion_photograph_of_a_202606111653.jpg",
             "caption": "Saanjh · Kurta sets",
             "mono": "Saanjh",
             "tint": "#b7472a"
@@ -82,7 +83,8 @@
         "slide_amba": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Here_are_three_separate_hero-image_202605301107.jpg",
+            "image": "shopify://shop_images/Editorial_fashion_photograph_of_a_202606111719.jpg",
+            "image_mobile": "shopify://shop_images/WhatsAppImage2026-06-07at3.57.42PM.jpg",
             "caption": "Amba · Co-ord sets",
             "mono": "Amba",
             "tint": "#7a8761"
@@ -92,6 +94,7 @@
           "type": "slide",
           "settings": {
             "image": "shopify://shop_images/PART_4___IMAGE_202605291746.jpg",
+            "video_mobile": "shopify://files/videos/WhatsApp Video 2026-06-07 at 3.22.19 PM.mp4",
             "caption": "Mehfil · Festive edit",
             "mono": "Mehfil",
             "tint": "#b08947"
@@ -105,13 +108,23 @@
             "mono": "Dhoop",
             "tint": "#9d3c23"
           }
+        },
+        "slide_cwredk": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/Keep_this_exact_garment_unchanged_202606111114.jpg",
+            "caption": "",
+            "mono": "Saanjh",
+            "tint": "#b7472a"
+          }
         }
       },
       "block_order": [
         "slide_saanjh",
         "slide_amba",
         "slide_mehfil",
-        "slide_dhoop"
+        "slide_dhoop",
+        "slide_cwredk"
       ],
       "settings": {
         "autoplay": true,
