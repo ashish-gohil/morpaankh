@@ -25,9 +25,12 @@
   --mor-hairline:        #E5DDC8;
   --mor-hairline-2:      #D6CDB8;
 
-  /* Accent (will shift to peacock teal/emerald when logo arrives) */
+  /* Accent (will shift to peacock teal/emerald when logo arrives).
+     Interaction scale per hue: rest -> hover (-deep) -> pressed (-press).
+     A control NEVER changes hue across states, only depth. */
   --mor-accent:          #B7472A;
   --mor-accent-deep:     #8F3621;
+  --mor-accent-press:    #732B1A;
   --mor-accent-soft:     #D97A5F;
   --mor-accent-wash:     #F3D9CD;
 
@@ -41,6 +44,7 @@
   /* Primary brand colour — forest green. Drives main CTAs, links, focus. */
   --mor-primary:         #2E4B3C;
   --mor-primary-deep:    #233A2E;
+  --mor-primary-press:   #1A2B22;
   --mor-primary-soft:    #5C7A66;
   --mor-primary-wash:    #DDE5DD;
 
@@ -85,6 +89,13 @@
   --mor-dur-slower: 700ms;  /* luxurious image zoom / settle */
   --mor-ease:     cubic-bezier(0.22, 1, 0.36, 1);
   --mor-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- Background texture ----------
+     Chandrak (peacock feather-eye) tile, charcoal at 5% on a 64px half-drop.
+     Inline SVG data URI: zero network requests. Applied to the page body and
+     the cream-2 alternate sections so the tone-on-tone layering reads as
+     woven cloth, and raised ivory surfaces (cards) pop against it. */
+  --mor-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cg fill='none' stroke='%232C2826' stroke-opacity='0.05'%3E%3Cellipse cx='16' cy='16' rx='5' ry='8'/%3E%3Cellipse cx='48' cy='48' rx='5' ry='8'/%3E%3C/g%3E%3Cg fill='%232C2826' fill-opacity='0.05'%3E%3Ccircle cx='16' cy='16' r='1.2'/%3E%3Ccircle cx='48' cy='48' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
 
   /* ---------- Back-compat aliases ----------
      Existing CSS still references --tapi-*. These aliases route
@@ -626,9 +637,15 @@ button.shopify-payment-button__button--unbranded {
    override these back to none. */
 .button--primary:hover    { transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(46,75,60,0.45) !important; }
 .button--terracotta:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(143,54,33,0.42) !important; }
-.button--outline:hover    { background: var(--tapi-charcoal); color: var(--tapi-cream); transform: translateY(-2px); box-shadow: 0 12px 24px -18px rgba(44,40,38,0.32) !important; }
+/* Outline stays in the primary (green) family across states — no hue swap
+   mid-interaction. It fills green on hover, deepens on press. */
+.button--outline:hover    { background: var(--mor-primary); color: var(--mor-cream); border-color: var(--mor-primary); transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(46,75,60,0.45) !important; }
 .button--primary:hover::before, .button--terracotta:hover::before, .button--outline:hover::before { transform: translateY(0); opacity: 0.06; }
+/* Pressed = one depth step past hover, same hue (rest -> -deep -> -press) */
 .button--primary:active, .button--terracotta:active, .button--outline:active { transform: translateY(0); }
+.button--primary:not(:disabled):active    { background: var(--mor-primary-press); }
+.button--terracotta:not(:disabled):active { background: var(--mor-accent-press); }
+.button--outline:not(:disabled):active    { background: var(--mor-primary-press); color: var(--mor-cream); border-color: var(--mor-primary-press); }
 
 @media (prefers-reduced-motion: reduce) {
   .tapi-eyebrow--line::before { width: 20px; animation: none; }
@@ -3002,3 +3019,13 @@ details[open] > summary .icon-caret {
   .tapi-nav-flyout__list { transition: none; }
   .tapi-nav-flyout__list { transform: none; }
 }
+
+/* ---------- Page texture ----------
+   The chandrak tile rides on the body so every section that keeps a
+   transparent background (collection grids, PDP, content pages) gets the
+   woven-cloth read for free; raised ivory cards sit visibly proud of it.
+   body.gradient out-specifies Dawn's .gradient background shorthand. */
+body.gradient { background-image: var(--mor-pattern); }
+
+/* Pressed wash for nav flyout entries (hover = cream-2, press = hairline) */
+.tapi-nav-flyout__link:active { background: var(--mor-hairline); }
