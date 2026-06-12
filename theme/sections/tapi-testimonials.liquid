@@ -18,7 +18,7 @@
       {{ section.settings.heading | default: 'Worn and loved' }}
     </h2>
 
-    <ul class="tapi-testimonials__rail" role="list">
+    <ul class="tapi-testimonials__rail{% if section.blocks.size == 4 or section.blocks.size == 2 %} tapi-testimonials__rail--pairs{% endif %}" role="list">
       {%- for block in section.blocks -%}
         <li class="tapi-testimonials__card" data-tapi-reveal {{ block.shopify_attributes }}>
           {%- if block.settings.rating > 0 -%}
@@ -30,7 +30,10 @@
           {%- endif -%}
           <blockquote class="tapi-testimonials__quote">{{ block.settings.quote }}</blockquote>
           <p class="tapi-testimonials__by">
-            <span class="tapi-testimonials__name">{{ block.settings.name }}</span>
+            <span class="tapi-testimonials__name">
+              <svg class="tapi-testimonials__check" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="7.2" fill="currentColor" opacity="0.14"/><path d="M4.8 8.2l2.1 2.1 4.3-4.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              {{- block.settings.name -}}
+            </span>
             {%- if block.settings.detail != blank -%}
               <span class="tapi-testimonials__detail">{{ block.settings.detail }}</span>
             {%- endif -%}
@@ -103,7 +106,18 @@
     font-weight: 500;
     letter-spacing: 0.04em;
     color: var(--mor-charcoal, #2C2826);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
   }
+
+  .tapi-testimonials__check {
+    color: var(--mor-primary, #2E4B3C);
+    flex: 0 0 auto;
+  }
+
+  /* Even quote counts read better as balanced pairs than a 3 + 1 grid */
+  .tapi-testimonials__rail--pairs { grid-template-columns: repeat(2, 1fr); }
 
   .tapi-testimonials__detail {
     font-size: 1.2rem;
