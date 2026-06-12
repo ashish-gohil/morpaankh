@@ -189,8 +189,10 @@
     scroll-padding-left: var(--mor-gutter, 16px);
   }
   .tapi-rv__grid::-webkit-scrollbar { display: none; }
+  /* Two full cards per viewport plus a thin slice of the third: wide enough
+     for "price + compare price" to sit cleanly, sliver enough to cue the swipe. */
   .tapi-rv__grid > .tapi-rv__item {
-    flex: 0 0 44%;
+    flex: 0 0 45%;
     max-width: 22rem;
     min-width: 0;
     scroll-snap-align: start;
