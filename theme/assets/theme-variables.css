@@ -2133,6 +2133,9 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   border: 0;
   color: var(--tapi-warm-grey, #6b5d54);
   padding: 4px;
+  /* 44px touch target (WCAG 2.5.8 / HIG); the icon stays 16px, flex centers it */
+  min-width: 44px;
+  min-height: 44px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;

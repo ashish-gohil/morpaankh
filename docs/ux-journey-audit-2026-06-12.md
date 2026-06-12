@@ -50,3 +50,15 @@ Install analytics (Shopify native + optionally Microsoft Clarity for real heatma
 - **Shipped (menu data, zero theme code)**: gave the main menu's Catalog item five real children via the Menu API (New Arrivals, Kurta Sets, Co-ord Sets, Festive Edit, View all). Dawn's native mega menu now renders the desktop dropdown with active-state highlighting, and the drawer automatically switched from the custom accordion to native children because the native branch precedes it. One source of truth (the menu), native rendering everywhere, one click saved on every desktop category visit. Rollback: remove the child items in Admin Navigation.
 - **Also fixed**: footer rendered dead href-less social anchors when a link was unset; now hidden until set. Testimonials section shipped pre-wired but invisible until real quotes are added (no fabricated social proof, no review JSON-LD by design).
 - **Deliberately skipped**: deleting the legacy `.product-grid .card__*` CSS block. It is mostly dead (product grids use the tapi card) but search results can render Dawn article cards inside a product grid, so removal risks a regression for a few hundred bytes. Documented instead of deleted.
+
+## Measured behavioral audit (instrumented, same day)
+Method: Playwright-core driving Edge with true device emulation (iPhone-class 390x844 DPR3 with viewport meta honored, and 1440x900 desktop), all 10 templates, measuring document height, scroll depth to the primary CTA, CTA hit-box size, tap-target geometry across header and bottom nav, and horizontal overflow. This is the closest available proxy for scroll-depth and click-pattern analysis before analytics exist.
+
+Results (mobile / desktop):
+- Horizontal overflow: 0px on every page at both viewports. No layout breakage anywhere.
+- PLP and search: first product card reachable at 0.43 and 0.46 screens (mobile). Product discovery is effectively immediate.
+- Filled cart: checkout button 360x48 at 0.83 screens (mobile), with the shipping meter rendering above it ("Your order ships free." state verified in-browser). Desktop PDP add-to-cart at 0.89 screens, visible without scrolling.
+- Contact form submit at 0.82 screens, track-order CTA at 0.64 (mobile). Page lengths 2.0 to 5.6 screens except the fabric guide (9 screens, intentional reference content).
+- Home hero CTA sits at 1.22 screens on mobile (announcement bar + header + catalog strip push the hero down). Observation, not a defect: the catalog strip above the hero IS the primary discovery path and sits fully above the fold.
+- Tap targets: one real violation found and fixed, the header search clear button at 24x24 (16px icon + 4px padding). Now a 44px minimum touch box with the icon visually unchanged. The 31px nav-link geometry flagged on mobile was confirmed an artifact (computed style display:none; screenshot shows a clean mobile header). Logo link is 153x36, wide enough in area to be a non-issue.
+- Mobile header screenshot verified: announcement, burger/logo/search header, catalog chip strip, hero, in that order, no desktop nav leak after the menu change.
