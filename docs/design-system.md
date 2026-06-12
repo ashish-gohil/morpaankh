@@ -30,6 +30,10 @@ Brand palette (hex) with semantic aliases. Components must consume the semantic 
 | `--mor-gold` | #B08947 | tertiary. Stars, footer column titles, fine accents |
 | `--mor-sage` | #7A8761 | quiet green for editorial tints |
 
+Interaction states: each actionable hue has a fixed depth scale, rest -> hover -> pressed, and a control never changes hue across states. Primary: `#2E4B3C` -> `--mor-primary-deep` `#233A2E` -> `--mor-primary-press` `#1A2B22`. Accent: `#B7472A` -> `--mor-accent-deep` `#8F3621` -> `--mor-accent-press` `#732B1A`. The outline button fills primary on hover and primary-press on press (it does not swap to charcoal).
+
+Background texture: `--mor-pattern` is a 64px chandrak (feather-eye) SVG tile, charcoal at 5%, inlined as a data URI. It rides on `body.gradient` (so transparent sections inherit it) and on cream-2 sections that declare their own background (use `background-color` plus `background-image: var(--mor-pattern)`). Raised ivory surfaces sit on top of it untextured.
+
 Rules:
 - Adjacent full-width sections on multi-section pages (home, PDP) must alternate cream / cream-2; the tone shift IS the separator. Set background via token, never an orphaned color-scheme class.
 - Functional color always pairs with an icon or text (never color alone).
@@ -72,6 +76,7 @@ Sections consume `padding-block: var(--tapi-section-pad)`. Do not change the val
 - Radii: `--mor-radius-sm` 2px (buttons, chips), `-md` 4px (inputs, meter panel), `-lg` 8px (cards, panels), `-pill` 9999px (bubbles, bars). Plus 50% for circular dots. No other radius values.
 - Shadows, all charcoal-tinted rgba(44,40,38): `--mor-shadow-sm` (0 1px 2px / 0.05), `-md` (0 12px 24px -16px / 0.22), `-lg` (0 24px 48px -28px / 0.26). Hover-lift uses shadow-lg. Colored button hover shadows (green/terracotta tints) are the sanctioned exception.
 - Hairline dividers use `--mor-hairline`; "premium separation" = whitespace plus tone shift first, hairline second, shadow last.
+- Card surface recipe (product cards, testimonial cards, any card-like object): `--mor-surface-raised` (ivory) background, 1px `--mor-hairline` border, radius-lg, resting `--mor-shadow-sm`, `overflow: hidden` so media clips to the corners. Hover lifts the WHOLE card translateY(-4px) to shadow-lg with border deepening to hairline-2; pressed eases back; coarse pointers keep the static surface and press at scale(0.99). Text content inside a card gets inline padding (1.4rem desktop / 1.2rem mobile).
 - No gradients beyond the hero scrim band; the premium read comes from tone-on-tone cream layering, not gradient decoration.
 
 ## Buttons, inputs, badges
