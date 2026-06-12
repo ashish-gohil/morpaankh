@@ -2913,3 +2913,18 @@ details[open] > summary .icon-caret {
 @media (max-width: 640px) {
   .tapi-sort__menu { min-width: 200px; }
 }
+
+/* ---------- Cart bubble pop — add-to-cart feedback for free ----------
+   Dawn re-renders the #cart-icon-bubble section after every cart change,
+   so a mount animation replays on each add/remove. No JS needed. */
+@keyframes tapi-bubble-pop {
+  0%   { transform: scale(0.4); }
+  60%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.cart-count-bubble {
+  animation: tapi-bubble-pop 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cart-count-bubble { animation: none; }
+}
