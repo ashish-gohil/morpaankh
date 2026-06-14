@@ -10,6 +10,7 @@
 {
   "current": {
     "logo_width": 140,
+    "share_image": "shopify://shop_images/morpaankh-share.png",
     "type_header_font": "assistant_n4",
     "heading_scale": 110,
     "type_body_font": "assistant_n4",
@@ -103,7 +104,6 @@
     "badge_corner_radius": 40,
     "sale_badge_color_scheme": "scheme-5",
     "sold_out_badge_color_scheme": "scheme-3",
-    "share_image": "shopify://shop_images/morpaankh-share.png",
     "social_facebook_link": "",
     "social_instagram_link": "https://www.instagram.com/morpaankh_collection/",
     "social_whatsapp_link": "https://wa.me/919372710234",
@@ -134,9 +134,26 @@
         "settings": {
           "color_scheme": "scheme-1"
         }
+      },
+      "tapi-announcement": {
+        "type": "tapi-announcement",
+        "settings": {
+          "enabled": false,
+          "text": "Pay online and save 5% · Free shipping over ₹2,000",
+          "link": "",
+          "bg_color": "#2c2826",
+          "text_color": "#f8f4ed"
+        }
       }
     },
     "content_for_index": [],
+    "blocks": {
+      "1626193551103621034": {
+        "type": "shopify://apps/cod-king/blocks/app-embed/99553eb5-bf07-4ce0-9263-7e5f10cab22c",
+        "disabled": false,
+        "settings": {}
+      }
+    },
     "color_schemes": {
       "scheme-1": {
         "settings": {
