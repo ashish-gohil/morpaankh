@@ -138,10 +138,10 @@
       "tapi-announcement": {
         "type": "tapi-announcement",
         "settings": {
-          "enabled": false,
-          "text": "Pay online and save 5% · Free shipping over ₹2,000",
+          "enabled": true,
+          "text": "Free shipping over ₹2,000 · Tracked across India",
           "link": "",
-          "bg_color": "#2c2826",
+          "bg_color": "#b7472a",
           "text_color": "#f8f4ed"
         }
       }

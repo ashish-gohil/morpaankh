@@ -77,7 +77,7 @@ Sections consume `padding-block: var(--tapi-section-pad)`. Do not change the val
 - Shadows, all charcoal-tinted rgba(44,40,38): `--mor-shadow-sm` (0 1px 2px / 0.05), `-md` (0 12px 24px -16px / 0.22), `-lg` (0 24px 48px -28px / 0.26). Hover-lift uses shadow-lg. Colored button hover shadows (green/terracotta tints) are the sanctioned exception.
 - Hairline dividers use `--mor-hairline`; "premium separation" = whitespace plus tone shift first, hairline second, shadow last.
 - Card surface recipe (product cards, testimonial cards, any card-like object): `--mor-surface-raised` (ivory) background, 1px `--mor-hairline` border, radius-lg, resting `--mor-shadow-sm`, `overflow: hidden` so media clips to the corners. Hover lifts the WHOLE card translateY(-4px) to shadow-lg with border deepening to hairline-2; pressed eases back; coarse pointers keep the static surface and press at scale(0.99). Text content inside a card gets inline padding (1.4rem desktop / 1.2rem mobile).
-- No gradients beyond the hero scrim band; the premium read comes from tone-on-tone cream layering, not gradient decoration.
+- No gradients beyond the hero scrim band; the premium read comes from tone-on-tone cream layering, not gradient decoration. One sanctioned exception: the announcement bar's soft sheen sweep (a single contained highlight, merchant-toggleable, off under reduced motion).
 
 ## Buttons, inputs, badges
 
