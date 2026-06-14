@@ -553,6 +553,19 @@
   "description": {{ product.description | strip_html | truncate: 4000 | json }},
   {%- endif -%}
   "category": "Women's Indian Ethnic Wear",
+  "audience": { "@type": "PeopleAudience", "suggestedGender": "female" },
+  {%- if m.blend != blank %}
+  "material": {{ m.blend | json }},
+  {%- endif %}
+  {%- if m.blend != blank or m.gsm != blank or m.weave != blank or m.fit_type != blank %}
+  "additionalProperty": [
+    {%- assign fp = true -%}
+    {%- if m.blend != blank %}{ "@type": "PropertyValue", "name": "Fabric", "value": {{ m.blend | json }} }{%- assign fp = false -%}{%- endif -%}
+    {%- if m.gsm != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "GSM", "value": {{ m.gsm | append: ' gsm' | json }} }{%- assign fp = false -%}{%- endif -%}
+    {%- if m.weave != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Weave", "value": {{ m.weave | json }} }{%- assign fp = false -%}{%- endif -%}
+    {%- if m.fit_type != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Fit", "value": {{ m.fit_type | json }} }{%- assign fp = false -%}{%- endif -%}
+  ],
+  {%- endif %}
   "brand": { "@type": "Brand", "name": {{ product.vendor | default: shop.name | json }} },
   {%- if current_variant.sku != blank -%}
   "sku": {{ current_variant.sku | json }},

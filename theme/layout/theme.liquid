@@ -4,8 +4,16 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="theme-color" content="">
+    <meta name="theme-color" content="#F5EFE1">
     <link rel="canonical" href="{{ canonical_url }}">
+
+    {%- comment -%} Encourage large image previews + full text/video snippets in Google and
+      AI answer engines, on indexable page types only. Shopify emits its own noindex for
+      pages that should not be indexed (and the more restrictive directive always wins),
+      so this never forces indexing of a utility page. {%- endcomment -%}
+    {%- if request.page_type == 'index' or request.page_type == 'product' or request.page_type == 'collection' or request.page_type == 'list-collections' or request.page_type == 'page' or request.page_type == 'blog' or request.page_type == 'article' -%}
+      <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    {%- endif -%}
 
     {%- if settings.favicon != blank -%}
       <link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
@@ -26,11 +34,34 @@
       {%- endif -%}
     </title>
 
-    {% if page_description %}
-      <meta name="description" content="{{ page_description | escape }}">
-    {% elsif request.page_type == 'index' %}
-      <meta name="description" content="Shop MorPaankh for women's Indian ethnic wear: kurta sets, co-ord sets, and festive pieces from a Surat textile family. Honest fabric, true-to-body fit.">
-    {% endif %}
+    {%- comment -%} Every indexable page gets a description: the admin SEO field wins, then the
+      page's own body copy, then an honest brand-and-category fallback. A missing description
+      is a real ranking and click-through loss, so none should ship blank. {%- endcomment -%}
+    {%- liquid
+      assign meta_desc = page_description
+      if meta_desc == blank
+        if request.page_type == 'index'
+          assign meta_desc = "Shop MorPaankh for women's Indian ethnic wear: kurta sets, co-ord sets, and festive pieces from a Surat textile family. Honest fabric, true-to-body fit."
+        elsif request.page_type == 'product'
+          assign meta_desc = product.description | strip_html | truncate: 158
+          if meta_desc == blank
+            assign meta_desc = product.title | append: " from MorPaankh, women's Indian ethnic wear with honest fabric and true-to-body fit. Shipped tracked across India."
+          endif
+        elsif request.page_type == 'collection'
+          assign meta_desc = collection.description | strip_html | truncate: 158
+          if meta_desc == blank
+            assign meta_desc = collection.title | append: " from MorPaankh, women's Indian ethnic wear. Kurta sets, co-ord sets and festive pieces in honest fabric with true-to-body fit."
+          endif
+        elsif request.page_type == 'article'
+          assign meta_desc = article.excerpt_or_content | strip_html | truncate: 158
+        elsif request.page_type == 'page'
+          assign meta_desc = page.content | strip_html | truncate: 158
+        endif
+      endif
+    -%}
+    {%- if meta_desc != blank -%}
+      <meta name="description" content="{{ meta_desc | escape }}">
+    {%- endif -%}
 
     {% render 'meta-tags' %}
 
