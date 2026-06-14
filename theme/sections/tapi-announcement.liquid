@@ -1,30 +1,96 @@
 {%- comment -%}
   Promotional announcement bar. Sits at the very top of every page (above the
-  trust marquee and header) so it is the first thing the eye lands on. Merchant
-  toggles it on/off, sets the message, link and colours, and can turn the subtle
-  shimmer off. Renders nothing when disabled, so it adds zero markup when off.
-  Edit from Theme editor -> Announcement bar.
+  trust marquee and header) so it is the first thing the eye lands on.
+
+  Honest by design: scheduling and the countdown are tied to a REAL end time the
+  merchant sets. The bar shows only inside its window and hides itself the moment
+  the deadline passes (server gate for fresh loads, JS gate for cached pages and
+  for a shopper sitting on the page across the boundary). No resetting or looping
+  timers. Renders nothing when disabled. Edit from Theme editor -> Announcement.
 {%- endcomment -%}
-{%- if section.settings.enabled and section.settings.text != blank -%}
-  {%- liquid
-    assign tag = 'p'
-    if section.settings.link != blank
-      assign tag = 'a'
+{%- liquid
+  assign s = section.settings
+
+  assign can_show = false
+  if s.enabled and s.text != blank
+    assign can_show = true
+  endif
+
+  assign now_ts = 'now' | date: '%s' | times: 1
+  assign start_ts = 0
+  assign end_ts = 0
+  if s.schedule_enabled
+    if s.start_at != blank
+      assign start_ts = s.start_at | date: '%s' | times: 1
     endif
-  -%}
+    if s.end_at != blank
+      assign end_ts = s.end_at | date: '%s' | times: 1
+    endif
+    if start_ts > 0 and now_ts < start_ts
+      assign can_show = false
+    endif
+    if end_ts > 0 and now_ts >= end_ts
+      assign can_show = false
+    endif
+  endif
+
+  assign cd_on = false
+  if s.schedule_enabled and s.countdown_enabled and end_ts > 0
+    assign cd_on = true
+  endif
+
+  assign remain = 0
+  if cd_on
+    assign remain = end_ts | minus: now_ts
+    if remain < 0
+      assign remain = 0
+    endif
+    assign cd_d = remain | divided_by: 86400
+    assign cd_h = remain | modulo: 86400 | divided_by: 3600
+    assign cd_m = remain | modulo: 3600 | divided_by: 60
+    assign cd_s = remain | modulo: 60
+  endif
+
+  assign tag = 'p'
+  if s.link != blank
+    assign tag = 'a'
+  endif
+-%}
+{%- if can_show -%}
   <div
-    class="tapi-announce{% if section.settings.animate %} tapi-announce--animated{% endif %}"
-    style="--ta-bg: {{ section.settings.bg_color }}; --ta-fg: {{ section.settings.text_color }};"
+    class="tapi-announce{% if s.animate %} tapi-announce--animated{% endif %}{% if cd_on %} tapi-announce--has-cd{% endif %}"
+    style="--ta-bg: {{ s.bg_color }}; --ta-fg: {{ s.text_color }};"
     role="region"
     aria-label="Announcement"
+    data-announce
+    {%- if s.schedule_enabled %} data-start="{{ start_ts }}" data-end="{{ end_ts }}"{% endif %}
   >
-    {%- if section.settings.animate -%}
+    {%- if s.animate -%}
       <span class="tapi-announce__sheen" aria-hidden="true"></span>
     {%- endif -%}
-    <{{ tag }} class="tapi-announce__inner"{% if section.settings.link != blank %} href="{{ section.settings.link }}"{% endif %}>
-      <svg class="tapi-announce__spark" viewBox="0 0 24 24" width="9" height="9" aria-hidden="true" focusable="false"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z" fill="currentColor"/></svg>
-      <span class="tapi-announce__text">{{ section.settings.text }}</span>
-      <svg class="tapi-announce__spark" viewBox="0 0 24 24" width="9" height="9" aria-hidden="true" focusable="false"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z" fill="currentColor"/></svg>
+    <{{ tag }} class="tapi-announce__inner"{% if s.link != blank %} href="{{ s.link }}"{% endif %}>
+      {%- unless cd_on -%}
+        <svg class="tapi-announce__spark" viewBox="0 0 24 24" width="9" height="9" aria-hidden="true" focusable="false"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z" fill="currentColor"/></svg>
+      {%- endunless -%}
+      <span class="tapi-announce__text">{{ s.text }}</span>
+      {%- if cd_on -%}
+        <span class="tapi-announce__sep" aria-hidden="true"></span>
+        <span class="tapi-announce__countdown">
+          <svg class="tapi-announce__cd-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
+          {%- if s.countdown_label != blank -%}
+            <span class="tapi-announce__cd-label">{{ s.countdown_label }}</span>
+          {%- endif -%}
+          <span class="tapi-announce__cd-tiles" aria-hidden="true">
+            <span class="tapi-cd__g" data-cd-d-group{% unless cd_d > 0 %} hidden{% endunless %}><b data-cd-d>{% if cd_d < 10 %}0{% endif %}{{ cd_d }}</b><i>days</i></span>
+            <span class="tapi-cd__g"><b data-cd-h>{% if cd_h < 10 %}0{% endif %}{{ cd_h }}</b><i>hrs</i></span>
+            <span class="tapi-cd__g"><b data-cd-m>{% if cd_m < 10 %}0{% endif %}{{ cd_m }}</b><i>min</i></span>
+            <span class="tapi-cd__g"><b data-cd-s>{% if cd_s < 10 %}0{% endif %}{{ cd_s }}</b><i>sec</i></span>
+          </span>
+          <span class="visually-hidden">{{ s.countdown_label | default: 'Offer ends soon' }}</span>
+        </span>
+      {%- else -%}
+        <svg class="tapi-announce__spark" viewBox="0 0 24 24" width="9" height="9" aria-hidden="true" focusable="false"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z" fill="currentColor"/></svg>
+      {%- endif -%}
     </{{ tag }}>
   </div>
 {%- endif -%}
@@ -41,6 +107,7 @@
     color: var(--ta-fg, #F8F4ED);
     border-bottom: 1px solid rgba(176, 137, 71, 0.45);
   }
+  .tapi-announce--hidden { display: none !important; }
   .tapi-announce__inner {
     position: relative;
     z-index: 1;
@@ -48,11 +115,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.2rem;
     text-align: center;
     color: inherit;
     text-decoration: none;
-    padding: 1rem 1.6rem;
+    padding: 0.9rem 1.6rem;
     font-family: var(--font-body-family);
     font-size: 1.3rem;
     font-weight: 600;
@@ -60,9 +128,35 @@
     text-transform: uppercase;
     line-height: 1.3;
   }
+  .tapi-announce--has-cd .tapi-announce__inner { padding-block: 0.7rem; }
   a.tapi-announce__inner { transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease, ease); }
   a.tapi-announce__inner:hover { opacity: 0.86; }
   .tapi-announce__spark { flex: 0 0 auto; opacity: 0.7; }
+  .tapi-announce__text { white-space: normal; }
+
+  /* Vertical divider between the message and the countdown (desktop only). */
+  .tapi-announce__sep {
+    width: 1px; height: 2rem; flex: 0 0 auto;
+    background: currentColor; opacity: 0.28;
+  }
+
+  /* Countdown: a calm, premium timer. Translucent tiles on the bar colour,
+     tabular figures so digits never jitter, small uppercase unit labels. */
+  .tapi-announce__countdown { display: inline-flex; align-items: center; gap: 0.8rem; white-space: nowrap; }
+  .tapi-announce__cd-icon { flex: 0 0 auto; opacity: 0.85; }
+  .tapi-announce__cd-label { font-size: 1.15rem; letter-spacing: 0.1em; font-weight: 600; opacity: 0.92; }
+  .tapi-announce__cd-tiles { display: inline-flex; align-items: center; gap: 0.5rem; }
+  .tapi-cd__g {
+    display: inline-flex; flex-direction: column; align-items: center;
+    min-width: 3.3rem; padding: 0.35rem 0.45rem 0.3rem;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: var(--mor-radius-sm, 2px);
+    line-height: 1;
+  }
+  .tapi-cd__g[hidden] { display: none; }
+  .tapi-cd__g b { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .tapi-cd__g i { font-style: normal; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.72; margin-top: 0.25rem; }
 
   /* Soft shimmer: a single contained highlight sweep (the one sanctioned
      gradient outside the hero scrim), reduced-motion safe. */
@@ -86,9 +180,21 @@
     .tapi-announce__sheen { display: none; }
   }
 
+  .visually-hidden {
+    position: absolute !important; width: 1px; height: 1px;
+    margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+
   @media (max-width: 749px) {
-    .tapi-announce__inner { font-size: 1.15rem; letter-spacing: 0.08em; padding: 0.85rem 1.2rem; gap: 0.7rem; }
+    .tapi-announce__inner { font-size: 1.1rem; letter-spacing: 0.08em; padding: 0.7rem 1.2rem; gap: 0.5rem 0.9rem; }
     .tapi-announce__spark { width: 8px; height: 8px; }
+    .tapi-announce__sep { display: none; }
+    .tapi-announce__cd-label { font-size: 1.02rem; }
+    .tapi-announce__countdown { gap: 0.6rem; }
+    .tapi-announce__cd-tiles { gap: 0.4rem; }
+    .tapi-cd__g { min-width: 2.8rem; padding: 0.3rem 0.35rem 0.25rem; }
+    .tapi-cd__g b { font-size: 1.3rem; }
+    .tapi-cd__g i { font-size: 0.78rem; }
   }
 {% endstylesheet %}
 
@@ -122,6 +228,48 @@
       "label": "Subtle shimmer",
       "default": true,
       "info": "A slow sheen sweep to draw the eye. Automatically off for visitors who prefer reduced motion."
+    },
+    {
+      "type": "header",
+      "content": "Schedule & countdown"
+    },
+    {
+      "type": "paragraph",
+      "content": "Keep it honest: set a real deadline. The bar shows only inside its window and hides itself the moment the end time passes."
+    },
+    {
+      "type": "checkbox",
+      "id": "schedule_enabled",
+      "label": "Schedule this bar / show a countdown",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "start_at",
+      "label": "Start showing at",
+      "info": "Optional. Format: 2026-06-20 09:00 (your store's timezone). Leave blank to start immediately."
+    },
+    {
+      "type": "text",
+      "id": "end_at",
+      "label": "Ends at",
+      "info": "Format: 2026-06-22 23:59 (your store's timezone). The bar hides automatically after this time."
+    },
+    {
+      "type": "checkbox",
+      "id": "countdown_enabled",
+      "label": "Show live countdown to the end time",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "countdown_label",
+      "label": "Countdown label",
+      "default": "Sale ends in"
+    },
+    {
+      "type": "header",
+      "content": "Colours"
     },
     { "type": "color", "id": "bg_color", "label": "Background", "default": "#B7472A" },
     { "type": "color", "id": "text_color", "label": "Text", "default": "#F8F4ED" }

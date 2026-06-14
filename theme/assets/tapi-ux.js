@@ -411,6 +411,51 @@
     wireShare(root);
     wireBottomNavSearch();
     setupMediaFade(root);
+    initAnnounce(root);
+  }
+
+  /* --------------------------------------------------------------------
+   * Announcement bar — schedule window + honest live countdown.
+   * Reads data-start / data-end (epoch seconds, shop-timezone correct from
+   * Liquid). Hides the bar before the start and the instant the deadline
+   * passes; ticks the day/hr/min/sec tiles once a second in between. No
+   * reset and no loop: when the real end time is reached, the bar is gone.
+   * ------------------------------------------------------------------ */
+  function initAnnounce(root) {
+    (root || document).querySelectorAll('[data-announce]').forEach(function (bar) {
+      var startMs = (parseInt(bar.getAttribute('data-start'), 10) || 0) * 1000;
+      var endMs = (parseInt(bar.getAttribute('data-end'), 10) || 0) * 1000;
+      if (!startMs && !endMs) return;            // not scheduled, nothing to do
+      if (bar.__tapiAnnounce) return;
+      bar.__tapiAnnounce = true;
+      var dG = bar.querySelector('[data-cd-d-group]');
+      var dN = bar.querySelector('[data-cd-d]');
+      var hN = bar.querySelector('[data-cd-h]');
+      var mN = bar.querySelector('[data-cd-m]');
+      var sN = bar.querySelector('[data-cd-s]');
+      var timer;
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+      function tick() {
+        var now = Date.now();
+        if (startMs && now < startMs) { bar.classList.add('tapi-announce--hidden'); return; }
+        if (endMs && now >= endMs) {
+          bar.classList.add('tapi-announce--hidden');
+          if (timer) { clearInterval(timer); }
+          return;
+        }
+        bar.classList.remove('tapi-announce--hidden');
+        if (endMs && hN) {
+          var r = Math.floor((endMs - now) / 1000);
+          var d = Math.floor(r / 86400);
+          if (dG) { if (d > 0) { dG.hidden = false; if (dN) dN.textContent = pad(d); } else { dG.hidden = true; } }
+          hN.textContent = pad(Math.floor((r % 86400) / 3600));
+          if (mN) mN.textContent = pad(Math.floor((r % 3600) / 60));
+          if (sN) sN.textContent = pad(r % 60);
+        }
+      }
+      tick();
+      timer = setInterval(tick, 1000);
+    });
   }
 
   function start() {

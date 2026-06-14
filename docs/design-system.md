@@ -6,7 +6,7 @@ Canonical specification for the "Tapi" design system powering morpaankh.in (Shop
 
 - Brand name: **MorPaankh**, one word, capital M and P. Never "Mor Paankh". Lowercase `morpaankh`, caps `MORPAANKH`.
 - Voice: premium and honest. Never claim "handcrafted", "made by hand", "handloom", or any production process we cannot verify. Sensory fabric storytelling is the register: how cloth falls, breathes, catches light.
-- Copy style: natural, human, specific. No em dashes in customer-facing copy. No fake urgency (no countdowns, no "X people viewing", no invented customer counts).
+- Copy style: natural, human, specific. No em dashes in customer-facing copy. No fake urgency: no looping or resetting countdowns, no "X people viewing", no invented customer counts. A countdown is allowed only when it is bound to a real, merchant-set end time and the bar hides itself the moment that deadline passes (the announcement bar's scheduled countdown).
 - Logo lockup: trimmed peacock-feather mark sized by height, wordmark in Marcellus, uppercase, weight 400, letter-spacing 0.15em (`snippets/tapi-logo.liquid`).
 
 ## Color system
