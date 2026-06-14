@@ -111,6 +111,25 @@
     paintHeart(btn, saved);
     if (saved && !reduceMotion) { btn.classList.remove('tapi-pop'); void btn.offsetWidth; btn.classList.add('tapi-pop'); }
   });
+  // Collection "View all / Show less" toggle. Delegated so it survives Dawn's
+  // facet re-renders (the grid HTML is replaced without firing section:load).
+  // The fold is pure CSS keyed off .tapi-grid--expanded; JS only flips the class
+  // and aria-expanded, then eases back to the grid top when collapsing.
+  document.addEventListener('click', function (e) {
+    var toggle = e.target.closest && e.target.closest('[data-showall-toggle]');
+    if (!toggle) return;
+    var container = document.getElementById('ProductGridContainer');
+    if (!container) return;
+    var expanded = container.classList.toggle('tapi-grid--expanded');
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    if (!expanded) {
+      var grid = document.getElementById('product-grid');
+      if (grid) {
+        var top = grid.getBoundingClientRect().top + window.pageYOffset - 80;
+        window.scrollTo({ top: top, behavior: reduceMotion ? 'auto' : 'smooth' });
+      }
+    }
+  });
   // Repaint hearts as soon as product-recommendations swaps in its cards.
   // IMPORTANT: observe ONLY direct children (no subtree). Dawn injects the cards
   // via `this.innerHTML = ...` (a direct-child mutation), so childList alone

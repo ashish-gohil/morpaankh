@@ -3,7 +3,9 @@
     <span class="tapi-eyebrow tapi-eyebrow--line tapi-editorial-band__eyebrow">A note from the studio</span>
     <blockquote class="tapi-editorial-band__quote">"{{ section.settings.quote }}"</blockquote>
     <div class="tapi-editorial-band__body-col">
-      <p class="tapi-editorial-band__body">{{ section.settings.body }}</p>
+      {%- if section.settings.body != blank -%}
+        <p class="tapi-editorial-band__body">{{ section.settings.body }}</p>
+      {%- endif -%}
       {%- if section.settings.cta_text != blank -%}
         <a href="{{ section.settings.link | default: '/pages/fabric-guide' }}" class="tapi-editorial-band__cta">
           <span>{{ section.settings.cta_text }}</span>
@@ -131,7 +133,7 @@
   "class": "section",
   "settings": [
     { "type": "text", "id": "quote", "label": "Quote", "default": "If it isn't in the fabric, it isn't worth the price." },
-    { "type": "textarea", "id": "body", "label": "Body", "default": "Every kurta set lists its GSM, the weight of the fabric per square metre. Higher isn't always better; it depends on the season and the silhouette." },
+    { "type": "textarea", "id": "body", "label": "Body", "info": "Optional. Leave empty to show only the quote and the fabric-guide link." },
     { "type": "text", "id": "cta_text", "label": "CTA text", "default": "Read our fabric guide" },
     { "type": "url", "id": "link", "label": "CTA link" }
   ],
