@@ -109,6 +109,24 @@
       }
       setCtaState(initAvailable, initLabel, initPrice);
     }
+
+    // ----- Checkout / COD app compatibility (e.g. COD King OTP) -----
+    // The mobile sticky-bar buttons live OUTSIDE the product <form> (they target
+    // it via the form= attribute), so scripts that bind to the in-form desktop
+    // Add / Buy-now buttons never see a mobile tap. That is why the OTP gate
+    // fired on desktop but not on phones. Relay each mobile tap to its real
+    // in-form twin so mobile behaves identically to desktop, OTP and all. If
+    // this script never loads, the listeners are absent and the buttons fall
+    // back to their native form submit, so nothing regresses.
+    var mobileBuy = sec.querySelector('[data-mobile-buy]');
+    function relayTo(twin) {
+      return function (e) {
+        e.preventDefault();
+        if (twin && !twin.disabled) twin.click();
+      };
+    }
+    if (mobileAdd && addBtn) mobileAdd.addEventListener('click', relayTo(addBtn));
+    if (mobileBuy && buyBtn) mobileBuy.addEventListener('click', relayTo(buyBtn));
   }
 
   function boot() {
