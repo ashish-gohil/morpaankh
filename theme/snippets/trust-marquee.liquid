@@ -7,7 +7,7 @@
 {%- liquid
   assign items = shop.metafields.tapi.trust_items.value
   if items == blank
-    assign items = 'Rooted in tradition|Buy 2, get 10% off|Buy 3, get 15% off|First order? 10% off over ₹3,000 with code NEWMORPAANKH10|Free shipping over ₹2,000|Indian-sourced fabric|What you see is what arrives|Secure checkout · all India shipping' | split: '|'
+    assign items = 'Free shipping over ₹2,000|First order? 10% off over ₹3,000 with code NEWMORPAANKH10|What you see is what arrives' | split: '|'
   endif
 -%}
 <aside class="tapi-marquee" aria-label="Brand promises">
