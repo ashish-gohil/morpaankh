@@ -4,6 +4,7 @@
       "type": "main-product-tapi",
       "settings": {
         "enable_sticky_info": true,
+        "payment_perks": "Pay online and save 5% · Cash on Delivery available",
         "color_scheme": "background-1",
         "padding_top": 0,
         "padding_bottom": 0
