@@ -11,7 +11,12 @@
       AI answer engines, on indexable page types only. Shopify emits its own noindex for
       pages that should not be indexed (and the more restrictive directive always wins),
       so this never forces indexing of a utility page. {%- endcomment -%}
-    {%- if request.page_type == 'index' or request.page_type == 'product' or request.page_type == 'collection' or request.page_type == 'list-collections' or request.page_type == 'page' or request.page_type == 'blog' or request.page_type == 'article' -%}
+    {%- if request.page_type == 'product' and product.handle == 'partial-payment' -%}
+      {%- comment -%} COD King partial-payment utility: stays active for checkout, but kept
+        out of search and AI indexes. No robots.txt Disallow (that would stop crawlers
+        reading this noindex). {%- endcomment -%}
+      <meta name="robots" content="noindex, nofollow">
+    {%- elsif request.page_type == 'index' or request.page_type == 'product' or request.page_type == 'collection' or request.page_type == 'list-collections' or request.page_type == 'page' or request.page_type == 'blog' or request.page_type == 'article' -%}
       <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     {%- endif -%}
 
