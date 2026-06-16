@@ -275,7 +275,7 @@
           <div class="tapi-pdp__group">
             <div class="tapi-pdp__group-head">
               <span class="tapi-eyebrow">Size</span>
-              <a href="/pages/fabric-guide#size-guide" class="tapi-pdp__guide-link">Size guide</a>
+              <a href="/pages/fabric-guide#size-guide" class="tapi-pdp__guide-link" data-size-guide-open aria-haspopup="dialog">Size guide</a>
             </div>
             <div class="tapi-pdp__sizes" role="radiogroup" aria-label="Size">
               {%- for val in size_option.values -%}
@@ -290,6 +290,40 @@
             </div>
             <p class="tapi-pdp__stock-note" data-stock-note></p>
           </div>
+
+          {%- comment -%} On-PDP size guide. The trigger above is a real link to the
+            full guide (works with no JS); this dialog intercepts the click so the
+            shopper can check bust/hip without leaving the page. Native <dialog> gives
+            us focus handling, Esc-to-close and a backdrop for free. {%- endcomment -%}
+          <dialog class="tapi-sizeguide" id="sizeguide-{{ section.id }}" aria-label="Size guide">
+            <div class="tapi-sizeguide__panel">
+              <div class="tapi-sizeguide__head">
+                <div>
+                  <span class="tapi-eyebrow">Size &amp; Fit</span>
+                  <h3 class="tapi-sizeguide__title">Find your size</h3>
+                </div>
+                <button type="button" class="tapi-sizeguide__close" data-size-guide-close aria-label="Close size guide">&times;</button>
+              </div>
+              <p class="tapi-sizeguide__intro">A guide, not a rulebook. Our pieces come from a small group of trusted ateliers, so the fit can shift by about 2 to 3 inches between styles. Pick the size you usually wear. Measurements are in inches.</p>
+              <div class="tapi-sizeguide__scroll">
+                <table class="tapi-sizeguide__table">
+                  <thead>
+                    <tr><th scope="col">Size</th><th scope="col">Bust</th><th scope="col">Hip</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><th scope="row">XS</th><td>34</td><td>36</td></tr>
+                    <tr><th scope="row">S</th><td>36</td><td>38</td></tr>
+                    <tr><th scope="row">M</th><td>38</td><td>40</td></tr>
+                    <tr><th scope="row">L</th><td>40</td><td>42</td></tr>
+                    <tr><th scope="row">XL</th><td>42</td><td>44</td></tr>
+                    <tr><th scope="row">XXL</th><td>44</td><td>46</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="tapi-sizeguide__tip">Measure around the fullest part of the bust and hip, tape level and snug. Easiest of all: lay a kurta you already love flat and match it.</p>
+              <a class="tapi-sizeguide__full" href="/pages/fabric-guide#size-guide">See full measurements and fabric guide &rarr;</a>
+            </div>
+          </dialog>
         {%- endif -%}
 
         {%- comment -%} Full Size×Color variant matrix — the single source of truth
@@ -1049,6 +1083,31 @@
   @media (prefers-reduced-motion: reduce) {
     .tapi-lightbox__backdrop, .tapi-lightbox__dialog, .tapi-lightbox__img { transition: none; }
   }
+
+  /* ===== On-PDP size guide dialog ===== */
+  .tapi-sizeguide { border: none; padding: 0; max-width: 42rem; width: calc(100vw - 4rem);
+    border-radius: var(--mor-radius-md); background: var(--mor-cream); color: var(--mor-charcoal);
+    box-shadow: var(--mor-shadow-lg); }
+  .tapi-sizeguide::backdrop { background: rgba(38, 34, 30, 0.55); }
+  .tapi-sizeguide__panel { padding: 2.8rem; }
+  .tapi-sizeguide__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.6rem; margin-bottom: 1.4rem; }
+  .tapi-sizeguide__title { font-family: var(--font-heading-family); font-size: 2.4rem; font-weight: 500; letter-spacing: -0.01em; margin: 0.4rem 0 0; color: var(--mor-charcoal); }
+  .tapi-sizeguide__close { background: none; border: 0; font-size: 2.8rem; line-height: 1; cursor: pointer; color: var(--mor-text-muted); padding: 0 0.4rem; transition: color var(--mor-dur-base) var(--mor-ease); }
+  .tapi-sizeguide__close:hover { color: var(--mor-charcoal); }
+  .tapi-sizeguide__intro { font-size: var(--mor-text-sm); color: var(--mor-text-muted); line-height: 1.6; margin: 0 0 1.8rem; }
+  .tapi-sizeguide__scroll { overflow-x: auto; }
+  .tapi-sizeguide__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .tapi-sizeguide__table th, .tapi-sizeguide__table td { padding: 1rem 1.2rem; text-align: center; border-bottom: 1px solid var(--tapi-hairline); font-size: 1.4rem; }
+  .tapi-sizeguide__table thead th { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 1.2rem; color: var(--mor-charcoal); }
+  .tapi-sizeguide__table tbody th { font-weight: 600; }
+  .tapi-sizeguide__table tbody tr:last-child th, .tapi-sizeguide__table tbody tr:last-child td { border-bottom: none; }
+  .tapi-sizeguide__tip { font-size: 1.3rem; color: var(--mor-text-muted); line-height: 1.6; margin: 1.8rem 0 2rem; }
+  .tapi-sizeguide__full { display: inline-block; font-size: var(--mor-text-sm); font-weight: 500; color: var(--mor-primary); text-decoration: none; }
+  .tapi-sizeguide__full:hover { text-decoration: underline; text-underline-offset: 4px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .tapi-sizeguide[open] { animation: tapi-sizeguide-in var(--mor-dur-base) var(--mor-ease); }
+    @keyframes tapi-sizeguide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
 {% endstylesheet %}
 
 <script>
@@ -1257,6 +1316,28 @@
     if (!syncInitialMedia()) {
       document.addEventListener('DOMContentLoaded', syncInitialMedia);
       window.addEventListener('load', syncInitialMedia);
+    }
+
+    // ---- Size guide dialog ----
+    // The trigger is a real link to /pages/fabric-guide#size-guide; if the browser
+    // supports <dialog>, intercept the click and open inline instead. Anything older
+    // just follows the link. Idempotent so theme-editor re-renders don't double-bind.
+    if (!sec.__tapiSizeGuideWired) {
+      var sgDialog = sec.querySelector('.tapi-sizeguide');
+      var sgOpen = sec.querySelector('[data-size-guide-open]');
+      if (sgDialog && sgOpen && typeof sgDialog.showModal === 'function') {
+        sec.__tapiSizeGuideWired = true;
+        sgOpen.addEventListener('click', function (e) {
+          e.preventDefault();
+          sgDialog.showModal();
+        });
+        var sgClose = sgDialog.querySelector('[data-size-guide-close]');
+        if (sgClose) sgClose.addEventListener('click', function () { sgDialog.close(); });
+        // Click on the backdrop (outside the panel) closes it.
+        sgDialog.addEventListener('click', function (e) {
+          if (e.target === sgDialog) sgDialog.close();
+        });
+      }
     }
   })();
 </script>
