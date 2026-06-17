@@ -135,7 +135,12 @@
   @media (max-width: 749px) {
     .tapi-testimonials__rail {
       display: flex;
+      align-items: stretch;
       overflow-x: auto;
+      /* Setting overflow-x:auto makes the cross axis compute to auto too, so a
+         few px of card padding / snap rounding leaked a tiny vertical scroll.
+         Pin the vertical axis closed -- this is a horizontal swiper only. */
+      overflow-y: hidden;
       scroll-snap-type: x mandatory;
       -webkit-overflow-scrolling: touch;
       margin-inline: calc(-1 * var(--tapi-gutter, 2rem));
