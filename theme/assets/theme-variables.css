@@ -2043,9 +2043,13 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   background: var(--mor-cream, #F8F4ED) !important;
   border-bottom: 1px solid var(--mor-hairline, #e5ddc8);
   box-shadow: var(--mor-shadow-lg, 0 24px 48px -28px rgba(44, 40, 38, 0.18));
-  /* Top padding reserves a header zone for the corner close button so the
-     search bar sits clearly below it; sides/bottom unchanged. */
-  padding: clamp(64px, 7vw, 80px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
+  /* No top padding here: a scroll container clips overflow at its padding-box
+     edge (y=0), but a sticky child with top:0 sticks at the content-box edge
+     (below padding-top). Any padding-top would leave a gap between the two where
+     scrolled results render ABOVE the search bar. The close-button header zone
+     is reserved on .tapi-search-bar instead, so the sticky bar sits flush at the
+     clip edge and results scroll cleanly underneath it. */
+  padding: 0 clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
   /* Cap at 90% of the viewport so the panel never overflows past the
      screen — use dvh on supporting browsers so mobile URL/toolbar chrome
      doesn't cut off the bottom. Fallback to vh for older Safari. */
@@ -2078,9 +2082,14 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   display: flex;
   align-items: center;
   gap: 10px;
-  /* Compact, standard search-bar height: ~52px row. */
-  padding-top: 2px;
+  /* Reserve the close-button header zone HERE (not as panel padding-top) so the
+     opaque bar covers the full top of the scroll area and results always pass
+     UNDER it. The ~52px input row sits below the corner close button. */
+  padding-top: clamp(64px, 7vw, 80px);
   padding-bottom: 10px;
+  /* Literal first so the bar stays fully opaque even if the token is missing —
+     a transparent bar is what lets scrolled content show through. */
+  background: #f8f4ed;
   background: var(--tapi-cream, #f8f4ed);
   border-bottom: 1px solid var(--tapi-charcoal, #2c2826);
 }
