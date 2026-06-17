@@ -145,6 +145,9 @@
       -webkit-overflow-scrolling: touch;
       margin-inline: calc(-1 * var(--tapi-gutter, 2rem));
       padding-inline: var(--tapi-gutter, 2rem);
+      /* Small cross-axis padding so overflow-y:hidden doesn't shave the card's
+         resting shadow or the bottom of its rise-in reveal. */
+      padding-block: 0.6rem;
       scrollbar-width: none;
     }
     .tapi-testimonials__rail::-webkit-scrollbar { display: none; }
