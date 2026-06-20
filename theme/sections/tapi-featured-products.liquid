@@ -35,7 +35,19 @@
 </section>
 
 {% stylesheet %}
-  .tapi-featured { width: 100%; padding-block: clamp(48px, 8vw, 96px); }
+  /* Paint the morpaankh pattern on the section's OWN box so it rides with the
+     content on scroll, matching the testimonials section. The body carries the
+     pattern with background-attachment: fixed (Dawn's .gradient), which pins it
+     to the viewport and made the logos drift through this otherwise-transparent
+     section as you scrolled. An opaque cream fill (= the body colour, so the
+     look is unchanged) hides that fixed layer; default attachment: scroll then
+     anchors this copy to the section. */
+  .tapi-featured {
+    width: 100%;
+    padding-block: clamp(48px, 8vw, 96px);
+    background-color: var(--mor-cream);
+    background-image: var(--mor-pattern);
+  }
   .tapi-featured__inner { width: 100%; padding-inline: clamp(16px, 4vw, 48px); }
   .tapi-featured__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); gap: 2.4rem; flex-wrap: wrap; }
   /* inline-flex (not block) so the .tapi-eyebrow--line ::before bar keeps its
