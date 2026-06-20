@@ -68,3 +68,14 @@
     object-position: center 35% !important;
   }
 }
+
+/* Desktop crop framing: the copy overlays the LEFT half of the image, so keep
+   the figure in the right of the frame — crop more off the left, very little
+   off the right (72% x). Vertical bias matches mobile (35% y): less off the
+   top, more off the bottom. */
+@media (min-width: 990px) {
+  .tapi-hero__media img,
+  .tapi-hero__placeholder {
+    object-position: 72% 35% !important;
+  }
+}
