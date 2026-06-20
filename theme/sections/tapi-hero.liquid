@@ -52,13 +52,20 @@
               -%}
               {%- if img_d != blank -%}
                 {%- comment -%}
-                  Mobile-first <picture>: the eagerly fetched <img> below IS the mobile
-                  crop, so a phone's preload scanner never pulls (and flashes) the wide
-                  desktop image before the picture resolves. Desktop (>=990px) overrides
-                  via the min-width <source>. One download per viewport, no JS, no shift.
+                  Mobile-first <picture>. The mobile <source> is listed FIRST with an
+                  explicit max-width media so a phone's preload scanner matches it and
+                  fetches the mobile crop immediately -- it never momentarily resolves the
+                  desktop <source> during first paint (an iOS Safari quirk that flashed
+                  the wide desktop image in before the mobile one). Desktop (>=990px) takes
+                  the second <source>; the <img> is a mobile fallback for legacy browsers.
+                  One download per viewport, no JS, no shift.
                 {%- endcomment -%}
                 <picture class="tapi-hero__picture">
                   {%- if img_m != blank -%}
+                    <source
+                      media="(max-width: 989px)"
+                      srcset="{{ img_m_eff | image_url: width: 540 }} 540w, {{ img_m_eff | image_url: width: 750 }} 750w, {{ img_m_eff | image_url: width: 1080 }} 1080w, {{ img_m_eff | image_url: width: 1320 }} 1320w, {{ img_m_eff | image_url: width: 1600 }} 1600w"
+                      sizes="100vw">
                     <source
                       media="(min-width: 990px)"
                       srcset="{{ img_d | image_url: width: 900 }} 900w, {{ img_d | image_url: width: 1200 }} 1200w, {{ img_d | image_url: width: 1600 }} 1600w, {{ img_d | image_url: width: 2000 }} 2000w, {{ img_d | image_url: width: 2600 }} 2600w"
