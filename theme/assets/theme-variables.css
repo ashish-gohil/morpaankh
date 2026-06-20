@@ -3033,8 +3033,15 @@ details[open] > summary .icon-caret {
    The chandrak tile rides on the body so every section that keeps a
    transparent background (collection grids, PDP, content pages) gets the
    woven-cloth read for free; raised ivory cards sit visibly proud of it.
-   body.gradient out-specifies Dawn's .gradient background shorthand. */
-body.gradient { background-image: var(--mor-pattern); }
+   body.gradient out-specifies Dawn's .gradient background shorthand.
+
+   Dawn's .gradient sets background-attachment: fixed, which pins the tile to the
+   viewport so it parallaxes (drifts) under the content as you scroll. Override
+   to scroll here so the texture is anchored to the page and travels WITH the
+   content on every template (PDP, collection, cart, search, content pages) --
+   matching how the home page sections that paint their own pattern behave.
+   body.gradient (0,1,1) out-specifies .gradient (0,1,0), so this wins globally. */
+body.gradient { background-image: var(--mor-pattern); background-attachment: scroll; }
 
 /* Pressed wash for nav flyout entries (hover = cream-2, press = hairline) */
 .tapi-nav-flyout__link:active { background: var(--mor-hairline); }
