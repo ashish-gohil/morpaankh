@@ -58,12 +58,13 @@
    page-cache catches up. */
 .tapi-hero__caption { display: none !important; }
 
-/* Mobile-only crop bias: hero photos have the subject in the right two-thirds,
-   so the default 50% 50% crop slices the subject's edge. Shift the crop window
-   right so the figure sits closer to the viewport's centre on phones. */
+/* Mobile crop framing: centre the subject left-to-right (equal crop on both
+   sides, not pushed to one edge) and lift the crop window upward so the extra
+   image height is shaved off the bottom rather than split evenly top/bottom.
+   35% y keeps faces and upper body in frame on tall phone viewports. */
 @media (max-width: 989px) {
   .tapi-hero__media img,
   .tapi-hero__placeholder {
-    object-position: 72% center !important;
+    object-position: center 35% !important;
   }
 }
