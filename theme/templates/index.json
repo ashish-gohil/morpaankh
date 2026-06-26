@@ -83,7 +83,7 @@
         "slide_amba": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Editorial_fashion_photograph_of_a_202606111719.jpg",
+            "image": "shopify://shop_images/Premium_Opacity_Adjustment.png",
             "image_mobile": "shopify://shop_images/WhatsAppImage2026-06-07at3.57.42PM.jpg",
             "caption": "Amba · Co-ord sets",
             "mono": "Amba",
@@ -93,7 +93,7 @@
         "slide_mehfil": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/PART_4___IMAGE_202605291746.jpg",
+            "image": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201138.jpg",
             "video_mobile": "shopify://files/videos/WhatsApp Video 2026-06-07 at 3.22.19 PM.mp4",
             "caption": "Mehfil · Festive edit",
             "mono": "Mehfil",
@@ -103,7 +103,8 @@
         "slide_dhoop": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Image_Generation_Prompt___202605291851.jpg",
+            "image": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201217.jpg",
+            "image_mobile": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201119.jpg",
             "caption": "Dhoop · New arrivals",
             "mono": "Dhoop",
             "tint": "#9d3c23"
@@ -112,7 +113,8 @@
         "slide_cwredk": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/hero-haldi-kurta.jpg",
+            "image": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201052.jpg",
+            "image_mobile": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201052.jpg",
             "caption": "Haldi · Exactly as pictured",
             "mono": "Haldi",
             "tint": "#b08947"
@@ -128,7 +130,7 @@
       ],
       "settings": {
         "autoplay": true,
-        "interval_ms": 5000,
+        "interval_ms": 3500,
         "eyebrow": "Indian ethnic wear",
         "line_1": "Cloth we know",
         "line_2": "by heart.",
@@ -256,6 +258,7 @@
           "settings": {
             "quote": "Really impressed with the quality. The fabric feels soft and premium, exactly what the photos show. Even the packaging felt classy. Worth the price.",
             "name": "Verified buyer",
+            "detail": "",
             "rating": 5
           }
         },
@@ -264,6 +267,7 @@
           "settings": {
             "quote": "Excellent finishing and stitching. The material is soft, breathable, and feels like it will last. The size fit exactly as expected. Very satisfied with my MorPaankh order.",
             "name": "Verified buyer",
+            "detail": "",
             "rating": 5
           }
         },
@@ -272,6 +276,7 @@
           "settings": {
             "quote": "It looked even better in person. The fabric went past my expectations, and the fit was spot on going by the size chart. Great value for money.",
             "name": "Verified buyer",
+            "detail": "",
             "rating": 5
           }
         },
@@ -280,6 +285,7 @@
           "settings": {
             "quote": "My first order from MorPaankh and I am genuinely happy with it. Rich feel to the fabric, neat finish, and the size fit perfectly. A premium piece at a fair price.",
             "name": "Verified buyer",
+            "detail": "",
             "rating": 5
           }
         }
