@@ -458,6 +458,7 @@
                   {%- if m.opacity_note -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
                   {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
                   {%- if m.wash_care -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
+                  <tr><td>Country of origin</td><td>{{ m.origin | default: 'India' }}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -608,6 +609,7 @@
   {%- endif -%}
   "category": "Women's Indian Ethnic Wear",
   "audience": { "@type": "PeopleAudience", "suggestedGender": "female" },
+  "countryOfOrigin": {{ m.origin | default: 'India' | json }},
   {%- if m.blend != blank %}
   "material": {{ m.blend | json }},
   {%- endif %}
