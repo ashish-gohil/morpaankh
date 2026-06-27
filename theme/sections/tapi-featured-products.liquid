@@ -31,6 +31,15 @@
         {%- endfor -%}
       {%- endif -%}
     </div>
+
+    {%- if coll != blank -%}
+      <div class="tapi-featured__footer" data-tapi-reveal>
+        <a class="button button--outline tapi-featured__viewall-btn tapi-arrow-slide" href="{{ coll.url }}">
+          {{- section.settings.view_all_text | default: 'View all' }}
+          <em aria-hidden="true">→</em></a
+        >
+      </div>
+    {%- endif -%}
   </div>
 </section>
 
@@ -66,6 +75,19 @@
   .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tapi-card-gap, 24px); }
   @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
   @media (max-width: 749px)  { .tapi-featured__grid { grid-template-columns: 1fr 1fr; column-gap: 1.4rem; row-gap: 2.8rem; } }
+
+  /* End-of-grid CTA. The header keeps a quiet text link; this is the deliberate
+     "you've seen the new arrivals, here's the rest" button. Outline keeps it
+     calm against the cards yet clearly tappable (48px tall, 44px+ target). */
+  .tapi-featured__footer { display: flex; justify-content: center; margin-top: clamp(3.2rem, 5vw, 5.6rem); }
+  .tapi-featured__viewall-btn { padding-inline: clamp(2.8rem, 4vw, 3.6rem); }
+  /* The arrow rides on the same slide as the header link for one shared motion
+     language; the em is reset from italic so the glyph sits upright. */
+  .tapi-featured__viewall-btn em { font-style: normal; }
+  @media (max-width: 749px) {
+    .tapi-featured__footer { margin-top: 3.6rem; }
+    .tapi-featured__viewall-btn { width: 100%; max-width: 36rem; }
+  }
 {% endstylesheet %}
 
 {% schema %}
