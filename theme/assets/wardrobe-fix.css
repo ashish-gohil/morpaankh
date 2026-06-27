@@ -31,3 +31,27 @@
   .tapi-tile:hover .tapi-tile__placeholder { transform: none; }
   .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(0); }
 }
+
+/* ------------------------------------------------------------------
+   Variable tile count. The wardrobe now carries more than three ways
+   in (One Piece, Tunics), and each tile is independently toggleable,
+   so the visible count varies (3, 4, 5...). The base section hard-codes
+   a 3-column grid, which strands a 4th/5th tile on a lonely, left-
+   aligned row. Switch desktop + tablet to a centered flex-wrap: any
+   count stays balanced, and a capped tile width keeps a lone wrapped
+   tile from stretching the full row. Scoped to >=750px so the mobile
+   snap-carousel (section CSS, <=749) is left exactly as it was.
+   ------------------------------------------------------------------ */
+@media (min-width: 750px) {
+  .tapi-collection-tiles__grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+  }
+  .tapi-collection-tiles__grid > .tapi-tile {
+    flex: 1 1 26rem;
+    max-width: 38rem;
+    min-width: 0;
+  }
+}

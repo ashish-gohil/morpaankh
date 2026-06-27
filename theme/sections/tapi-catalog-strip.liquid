@@ -1,6 +1,7 @@
 <nav class="tapi-catalog-strip" aria-label="{{ section.settings.aria_label | default: 'Shop by category' }}">
   <ul class="tapi-catalog-strip__row" data-tapi-stagger="80">
     {%- for b in section.blocks -%}
+      {%- if b.settings.enable == false -%}{%- continue -%}{%- endif -%}
       {%- assign coll = b.settings.collection -%}
       {%- assign href = '/collections/all' -%}
       {%- if b.settings.link != blank -%}
@@ -134,6 +135,7 @@
       "type": "tile",
       "name": "Category",
       "settings": [
+        { "type": "checkbox", "id": "enable", "label": "Show this tile", "default": true },
         { "type": "collection", "id": "collection", "label": "Collection" },
         { "type": "url", "id": "link", "label": "Link override (optional)" },
         { "type": "text", "id": "label", "label": "Label" },
