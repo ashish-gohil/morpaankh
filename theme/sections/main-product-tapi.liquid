@@ -1,5 +1,6 @@
 {{ 'pdp-cta.css' | asset_url | stylesheet_tag }}
 {{ 'pdp-video.css' | asset_url | stylesheet_tag }}
+{{ 'pdp-offers.css' | asset_url | stylesheet_tag }}
 {%- liquid
   assign m = product.metafields.tapi
   assign current_variant = product.selected_or_first_available_variant
@@ -182,7 +183,22 @@
           <span class="tapi-tag tapi-tag--terracotta">Save {{ saving | money }}</span>
         {%- endif -%}
       </div>
-      <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping over ₹2,000.</p>
+      <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping over ₹1,500.</p>
+
+      {%- if section.settings.show_offers and section.settings.offer_lines != blank -%}
+        {%- assign offer_lines = section.settings.offer_lines | strip_html | newline_to_br | split: '<br />' -%}
+        <ul class="tapi-pdp__offers" data-tapi-reveal>
+          {%- for line in offer_lines -%}
+            {%- assign offer = line | strip -%}
+            {%- if offer != blank -%}
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+                <span>{{ offer }}</span>
+              </li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
 
       <div class="tapi-pdp__quickactions">
         {% render 'tapi-wishlist-button', product: product, variant: 'pdp' %}
@@ -481,7 +497,7 @@
         <details class="tapi-acc">
           <summary><span>Shipping &amp; returns</span><span class="tapi-acc__toggle">+</span></summary>
           <div class="tapi-acc__body">
-            <p>Free shipping over ₹2,000{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India{% endif %}. 7-day returns on any defect or wrong item, and unworn size or colour swaps. <a href="/pages/refund-policy">See full returns</a>.</p>
+            <p>Free shipping over ₹1,500{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India{% endif %}. 7-day returns on any defect or wrong item, and unworn size or colour swaps. <a href="/pages/refund-policy">See full returns</a>.</p>
           </div>
         </details>
       </div>
@@ -622,7 +638,9 @@
     {%- if m.fit_type != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Fit", "value": {{ m.fit_type | json }} }{%- assign fp = false -%}{%- endif -%}
   ],
   {%- endif %}
-  "brand": { "@type": "Brand", "name": {{ product.vendor | default: shop.name | json }} },
+  {%- comment -%} Always the store brand. product.vendor holds the internal supplier
+    and must never surface publicly (schema, feeds, or UI). {%- endcomment -%}
+  "brand": { "@type": "Brand", "name": {{ shop.name | json }} },
   {%- if current_variant.sku != blank -%}
   "sku": {{ current_variant.sku | json }},
   {%- endif -%}
@@ -1403,6 +1421,8 @@
     { "type": "checkbox", "id": "show_dynamic_checkout", "default": true, "label": "Show native Buy it now button", "info": "Shopify's native dynamic-checkout (Buy it now) button. Required for COD King's OTP / partial-COD to gate the Buy Now action. The mobile sticky Buy Now mirrors it. Turn off to sell through Add to cart only." },
     { "type": "header", "content": "Payment perks" },
     { "type": "text", "id": "payment_perks", "label": "Payment perks line (under buy button)", "info": "Shows under the buy button and adds COD to Shipping & returns. e.g. Pay online and save 5% · Cash on Delivery available. Leave blank to hide — turn on only once your COD / prepaid-discount app is live." },
+    { "type": "checkbox", "id": "show_offers", "label": "Show offers under the price", "default": true, "info": "Lists live offers next to the price. Keep in sync with Discounts — only claims that are actually active." },
+    { "type": "textarea", "id": "offer_lines", "label": "Offer lines (one per line)", "default": "Buy 2, get 10% off. Buy 3, get 15% off. Applied automatically at checkout.\nFirst order? ₹200 off over ₹1,000 with code WELCOME200." },
     { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
     { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 24 },
     { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 36 }

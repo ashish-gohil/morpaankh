@@ -41,7 +41,9 @@
           "settings": {
             "enable": true,
             "collection": "one-piece",
+            "link": "",
             "label": "One Piece",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-06-27_at_2.16.34_PM.jpg",
             "placeholder_name": "One",
             "tint": "#9d3c23"
           }
@@ -75,6 +77,7 @@
           "settings": {
             "enable": false,
             "collection": "tunics",
+            "link": "",
             "label": "Tunics",
             "placeholder_name": "Tunic",
             "tint": "#8a7b5c"
@@ -155,8 +158,8 @@
         "slide_cwredk"
       ],
       "settings": {
-        "autoplay": true,
-        "interval_ms": 3500,
+        "autoplay": false,
+        "interval_ms": 4000,
         "eyebrow": "Indian ethnic wear",
         "line_1": "Cloth we know",
         "line_2": "by heart.",
