@@ -311,6 +311,10 @@
     {{ 'tapi-ux.css' | asset_url | stylesheet_tag }}
     <script src="{{ 'tapi-motion.js' | asset_url }}" defer></script>
     <script src="{{ 'tapi-ux.js' | asset_url }}" defer></script>
+    {%- if settings.ga4_measurement_id != blank -%}
+      <script>window.TapiAnalytics = { ga4Id: {{ settings.ga4_measurement_id | json }}, debug: {{ settings.ga4_debug | json }} };</script>
+      <script src="{{ 'tapi-analytics.js' | asset_url }}" defer></script>
+    {%- endif -%}
     {%- comment -%} tapi-pdp.js removed: it was a legacy size-only variant script that
       expected data-variant-available attributes the current Size×Color matrix markup
       no longer renders, so it forced "Sold out" on initial PDP load and only corrected

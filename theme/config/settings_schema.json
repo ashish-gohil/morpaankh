@@ -1463,5 +1463,27 @@
         "default": "scheme-1"
       }
     ]
+  },
+  {
+    "name": "Analytics",
+    "settings": [
+      {
+        "type": "header",
+        "content": "Google Analytics 4"
+      },
+      {
+        "type": "text",
+        "id": "ga4_measurement_id",
+        "label": "GA4 Measurement ID",
+        "info": "Looks like G-XXXXXXXXXX. Free at analytics.google.com. Leave empty to disable all analytics (nothing loads)."
+      },
+      {
+        "type": "checkbox",
+        "id": "ga4_debug",
+        "label": "Debug mode",
+        "info": "Mirrors events to GA4 DebugView and the browser console. Turn off after testing.",
+        "default": false
+      }
+    ]
   }
 ]
