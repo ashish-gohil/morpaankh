@@ -139,14 +139,14 @@
         "type": "tapi-announcement",
         "settings": {
           "enabled": true,
-          "text": "Buy 2, get 10% off · Buy 3, get 15% off · Free delivery on prepaid orders",
+          "text": "Launch week: 15% off everything, applied automatically",
           "link": "/collections/all",
           "animate": true,
-          "schedule_enabled": false,
-          "start_at": "",
-          "end_at": "",
+          "schedule_enabled": true,
+          "start_at": "2026-07-02T00:00:00+05:30",
+          "end_at": "2026-07-05T23:59:59+05:30",
           "countdown_enabled": true,
-          "countdown_label": "Sale ends in",
+          "countdown_label": "Ends in",
           "bg_color": "#b7472a",
           "text_color": "#f8f4ed"
         }
