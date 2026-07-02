@@ -183,7 +183,7 @@
           <span class="tapi-tag tapi-tag--terracotta">Save {{ saving | money }}</span>
         {%- endif -%}
       </div>
-      <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping over ₹1,500.</p>
+      <p class="tapi-pdp__price-note">Inclusive of taxes. Free delivery on prepaid orders.</p>
 
       {%- if section.settings.show_offers and section.settings.offer_lines != blank -%}
         {%- assign offer_lines = section.settings.offer_lines | strip_html | newline_to_br | split: '<br />' -%}
@@ -497,7 +497,7 @@
         <details class="tapi-acc">
           <summary><span>Shipping &amp; returns</span><span class="tapi-acc__toggle">+</span></summary>
           <div class="tapi-acc__body">
-            <p>Free shipping over ₹1,500{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India{% endif %}. 7-day returns on any defect or wrong item, and unworn size or colour swaps. <a href="/pages/refund-policy">See full returns</a>.</p>
+            <p>Free delivery on prepaid orders{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India, with a delivery fee shown at checkout{% endif %}. 7-day returns on any defect or wrong item, and unworn size or colour swaps. <a href="/pages/refund-policy">See full returns</a>.</p>
           </div>
         </details>
       </div>

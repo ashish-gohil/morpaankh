@@ -139,7 +139,7 @@
         "type": "tapi-announcement",
         "settings": {
           "enabled": true,
-          "text": "Buy 2, get 10% off · Buy 3, get 15% off · Free shipping over ₹1,500",
+          "text": "Buy 2, get 10% off · Buy 3, get 15% off · Free delivery on prepaid orders",
           "link": "/collections/all",
           "animate": true,
           "schedule_enabled": false,
