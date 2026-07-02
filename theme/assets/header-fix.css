@@ -25,3 +25,13 @@
 .header-wrapper {
   border-bottom: 1px solid var(--mor-hairline, #E5DDC8);
 }
+
+/* Pre-CSS guard for the mobile menu drawer. component-menu-drawer.css loads
+   async (media="print" swap), so without this the drawer's nav paints fully
+   EXPANDED inside the header for ~1.5s and then collapses by ~516px when that
+   stylesheet applies — a 0.49 CLS that shifts the entire page. This file is
+   render-blocking, so the drawer is guaranteed closed from first paint.
+   Scoped to :not([open]) so a drawer the user opens is never suppressed. */
+.menu-drawer-container:not([open]) .menu-drawer {
+  display: none;
+}
