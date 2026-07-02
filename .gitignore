@@ -1,2 +1,7 @@
 node_modules/
 .DS_Store
+
+# Google service account keys — never commit
+*service-account*.json
+*-sa.json
+gsc-*.json
