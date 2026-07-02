@@ -11,9 +11,21 @@
  */
 const express = require('express');
 const config = require('./config');
-const { verifyShopifyHmac, verifyShiprocketToken } = require('./verify');
+const {
+  verifyShopifyHmac,
+  verifyShiprocketToken,
+  verifyAutomationSecret,
+} = require('./verify');
 const { handleOrderCreate } = require('./handlers/shopifyOrderCreate');
 const { handleTracking } = require('./handlers/shiprocketTracking');
+
+// Scheduled automation tasks, invoked by the node-workflow platform.
+// Each is an idempotent run() returning a summary the workflow asserts on.
+const automations = {
+  'abandoned-checkouts': require('./automations/abandonedCheckouts'),
+  'cod-confirmation': require('./automations/codConfirmation'),
+  'review-requests': require('./automations/reviewRequests'),
+};
 
 const app = express();
 
@@ -54,6 +66,40 @@ app.post('/webhooks/shiprocket/tracking', (req, res) => {
   handleTracking(req.body)
     .then((result) => console.log('[sr-tracking]', JSON.stringify(result)))
     .catch((e) => console.error('[sr-tracking] error:', e.message));
+});
+
+/**
+ * Scheduled automation runner. Unlike the webhooks above this responds only
+ * after the task finishes — the calling workflow needs the summary to assert
+ * success and to show honest run history. Callers must set a request timeout
+ * of 30s+ (work is a few seconds at current volume).
+ */
+app.post('/automations/:task/run', async (req, res) => {
+  if (!config.automation.sharedSecret) {
+    return res
+      .status(503)
+      .json({ ok: false, error: 'automations not configured (AUTOMATION_SHARED_SECRET unset)' });
+  }
+  if (!verifyAutomationSecret(req.get('x-automation-secret'))) {
+    return res.status(401).json({ ok: false, error: 'invalid automation secret' });
+  }
+  const mod = automations[req.params.task];
+  if (!mod) {
+    return res.status(404).json({
+      ok: false,
+      error: `unknown task "${req.params.task}"`,
+      tasks: Object.keys(automations),
+    });
+  }
+  const dryRun = Boolean((req.body || {}).dryRun) || config.automation.dryRun;
+  try {
+    const summary = await mod.run({ dryRun });
+    console.log(`[automation:${req.params.task}]`, JSON.stringify({ dryRun, ...summary }));
+    res.json({ ok: true, task: req.params.task, dryRun, ...summary });
+  } catch (e) {
+    console.error(`[automation:${req.params.task}] error:`, e.message);
+    res.status(500).json({ ok: false, task: req.params.task, error: e.message });
+  }
 });
 
 if (require.main === module) {

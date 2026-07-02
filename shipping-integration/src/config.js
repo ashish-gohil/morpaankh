@@ -54,4 +54,55 @@ module.exports = {
   },
 
   notifyCustomer: optional('NOTIFY_CUSTOMER', 'true') !== 'false',
+
+  // Customer-facing base URL used in message links
+  storefrontBase: optional('STOREFRONT_BASE_URL', 'https://www.morpaankh.in'),
+
+  /**
+   * Automation task endpoints (/automations/:task/run), called on a schedule
+   * by the node-workflow platform. All optional: without a shared secret the
+   * routes return 503, and each channel stays off until its creds + enable
+   * flag are set, so the shipping flows keep working with none of this
+   * configured.
+   */
+  automation: {
+    sharedSecret: optional('AUTOMATION_SHARED_SECRET', ''),
+    dryRun: optional('AUTOMATION_DRY_RUN', 'false') === 'true',
+    // Abandoned checkout recovery
+    acrMinAgeMinutes: Number(optional('ACR_MIN_AGE_MINUTES', 60)),
+    acrMaxAgeHours: Number(optional('ACR_MAX_AGE_HOURS', 48)),
+    // Only message people who opted in to marketing (WhatsApp abandoned-cart
+    // and review messages are marketing-category templates under Meta rules)
+    requireMarketingConsent: optional('REQUIRE_MARKETING_CONSENT', 'true') !== 'false',
+    // Brevo abandoned-cart email is OFF by default: Shopify's native
+    // abandoned-checkout email should own that channel (never send both)
+    acrEmailEnabled: optional('ACR_EMAIL_ENABLED', 'false') === 'true',
+    codMinAgeMinutes: Number(optional('COD_MIN_AGE_MINUTES', 20)),
+    reviewDelayDays: Number(optional('REVIEW_DELAY_DAYS', 3)),
+    reviewMaxAgeDays: Number(optional('REVIEW_MAX_AGE_DAYS', 30)),
+  },
+
+  // Meta WhatsApp Cloud API (direct, no third-party SaaS)
+  whatsapp: {
+    enabled: optional('WHATSAPP_ENABLED', 'false') === 'true',
+    phoneNumberId: optional('WHATSAPP_PHONE_NUMBER_ID', ''),
+    accessToken: optional('WHATSAPP_ACCESS_TOKEN', ''),
+    apiVersion: optional('WHATSAPP_API_VERSION', 'v20.0'),
+    languageCode: optional('WHATSAPP_TPL_LANG', 'en'),
+    templates: {
+      abandonedCheckout: optional('WHATSAPP_TPL_ABANDONED', 'abandoned_checkout_reminder'),
+      codConfirm: optional('WHATSAPP_TPL_COD_CONFIRM', 'cod_order_confirmation'),
+      shipped: optional('WHATSAPP_TPL_SHIPPED', 'order_shipped'),
+      delivered: optional('WHATSAPP_TPL_DELIVERED', 'order_delivered'),
+      review: optional('WHATSAPP_TPL_REVIEW', 'review_request'),
+    },
+  },
+
+  // Brevo transactional email (free tier: 300/day)
+  brevo: {
+    enabled: optional('BREVO_ENABLED', 'false') === 'true',
+    apiKey: optional('BREVO_API_KEY', ''),
+    senderEmail: optional('BREVO_SENDER_EMAIL', 'care@morpaankh.in'),
+    senderName: optional('BREVO_SENDER_NAME', 'MorPaankh'),
+  },
 };

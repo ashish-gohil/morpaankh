@@ -6,8 +6,31 @@
  * Shopify fulfillment event, and on RTO tags the order + writes a note so the
  * top-priority RTO signal is visible in the Shopify admin.
  */
+const config = require('../config');
 const shopify = require('../shopify');
+const whatsapp = require('../clients/whatsapp');
+const { istDateStamp } = require('../automations/helpers');
 const { mapStatus } = require('../statusMap');
+
+/**
+ * Best-effort WhatsApp shipped/delivered notifications (utility templates).
+ * Deduped with order tags so courier webhook retries and repeated status
+ * pings never message twice. Failures never break the tracking sync.
+ */
+async function notifyOnce(order, dedupTag, template, bodyParams) {
+  if ((order.tags || []).includes(dedupTag)) return { skipped: 'already sent' };
+  const phone =
+    order.phone ||
+    (order.shippingAddress && order.shippingAddress.phone) ||
+    (order.billingAddress && order.billingAddress.phone);
+  const outcome = await whatsapp.sendTemplate({
+    to: phone,
+    template,
+    bodyParams,
+  });
+  if (outcome.sent) await shopify.addTags(order.id, [dedupTag]);
+  return outcome;
+}
 
 async function handleTracking(payload) {
   const awb = payload.awb || payload.awb_code || '';
@@ -50,6 +73,45 @@ async function handleTracking(payload) {
     }
   } else {
     result.note = 'no fulfillment on order yet; status event skipped';
+  }
+
+  const firstName = (order.customer && order.customer.firstName) || 'there';
+
+  if (mapped.event === 'in_transit') {
+    try {
+      result.shippedNotify = await notifyOnce(
+        order,
+        'mp-wa-shipped-sent',
+        config.whatsapp.templates.shipped,
+        [firstName, order.name, awb]
+      );
+    } catch (e) {
+      result.shippedNotifyError = e.message;
+    }
+  }
+
+  if (mapped.event === 'delivered') {
+    // Feeds the review-request automation: mp-delivered marks the order,
+    // the dated tag records when, both visible in admin.
+    try {
+      await shopify.addTags(order.id, [
+        'mp-delivered',
+        `mp-delivered-on-${istDateStamp()}`,
+      ]);
+      result.deliveredTagged = true;
+    } catch (e) {
+      result.deliveredTagError = e.message;
+    }
+    try {
+      result.deliveredNotify = await notifyOnce(
+        order,
+        'mp-wa-delivered-sent',
+        config.whatsapp.templates.delivered,
+        [firstName, order.name]
+      );
+    } catch (e) {
+      result.deliveredNotifyError = e.message;
+    }
   }
 
   if (mapped.rto) {

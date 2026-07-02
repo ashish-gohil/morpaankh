@@ -26,4 +26,17 @@ function verifyShiprocketToken(headerToken) {
   return Boolean(headerToken) && headerToken === config.shiprocket.webhookToken;
 }
 
-module.exports = { verifyShopifyHmac, verifyShiprocketToken };
+/**
+ * Automation endpoints: shared secret sent as x-automation-secret by the
+ * node-workflow platform. Constant-time compare, same as the HMAC check.
+ */
+function verifyAutomationSecret(given) {
+  const secret = config.automation.sharedSecret;
+  if (!secret || !given) return false;
+  const a = Buffer.from(String(given));
+  const b = Buffer.from(secret);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+module.exports = { verifyShopifyHmac, verifyShiprocketToken, verifyAutomationSecret };

@@ -114,6 +114,10 @@ async function findOrderByName(name) {
            legacyResourceId
            name
            tags
+           phone
+           customer { firstName }
+           shippingAddress { phone }
+           billingAddress { phone }
            fulfillments(first: 10) { id legacyResourceId status }
          }
        }

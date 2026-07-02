@@ -13,6 +13,26 @@ Shopify theme (a theme has no server, secrets, or webhook endpoints):
 The **customer-facing tracking display** lives in the theme (the `/pages/track-order`
 page and the order-page callout) and reads the tracking data this service writes back.
 
+## Automation hub (scheduled by node-workflow)
+
+The service also hosts idempotent automation tasks under
+`POST /automations/:task/run` (auth: `x-automation-secret` header). They are
+called on a schedule by the node-workflow platform (`~/node-workflow`), which
+owns run history and retries; the endpoints own the Shopify queries, fan-out
+message sending, and dedup (order tags / a shop-metafield ledger):
+
+| Task | What it does |
+|------|--------------|
+| `abandoned-checkouts` | WhatsApp recovery message ~1h after checkout abandonment (marketing consent gated) |
+| `cod-confirmation` | WhatsApp confirmation for new COD orders (RTO reduction) |
+| `review-requests` | Review ask 3 days after delivery (consent gated) |
+
+Shipped/delivered WhatsApp notifications are event-driven inside the
+Shiprocket tracking handler, not scheduled. Message templates:
+`docs/whatsapp-templates.md`. Seed the flows: `scripts/seed-workflows.mjs`.
+Everything is off until the relevant env vars are set (see `.env.example`);
+`AUTOMATION_DRY_RUN=true` rehearses a full run without sending or tagging.
+
 ```
 Shopify order placed ──▶ orders/create webhook ──▶ [this service] ──▶ Shiprocket create order + AWB
                                                           │
