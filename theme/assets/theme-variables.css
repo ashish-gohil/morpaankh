@@ -26,6 +26,16 @@
   line-gap-override: 0%;
   size-adjust: 107.1194%;
 }
+/* Logo wordmark only (snippets/tapi-logo.liquid). Lighthouse traced the page's
+   0.5 CLS to the Marcellus swap; before this fallback the wordmark's interim
+   font was Cormorant Garamond, whose metrics differ wildly from Marcellus. */
+@font-face {
+  font-family: "Marcellus Fallback";
+  src: local('Georgia');
+  ascent-override: 95.0184%;
+  descent-override: 27.291%;
+  size-adjust: 102.5192%;
+}
 
 :root {
   /* ---------- MorPaankh brand tokens (canonical) ---------- */
