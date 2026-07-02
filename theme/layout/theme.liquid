@@ -28,6 +28,14 @@
     {%- unless settings.type_header_font.system? and settings.type_body_font.system? -%}
       <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
     {%- endunless -%}
+    {%- comment -%} Brand fonts come from Google Fonts in ONE link, early, so they
+      download in parallel with the theme CSS. Cormorant Garamond = headings,
+      Inter = body, Marcellus = the logo wordmark ONLY (snippets/tapi-logo.liquid).
+      Metric-matched fallback faces in theme-variables.css keep the swap shift
+      near zero. {%- endcomment -%}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap">
 
     <title>
       {%- if request.page_type == 'index' and page_title == shop.name -%}
@@ -311,9 +319,6 @@
     <link rel="stylesheet" href="{{ 'component-cart-items.css' | asset_url }}" media="print" onload="this.media='all'">
     <link rel="icon" type="image/svg+xml" href="{{ 'favicon.svg' | asset_url }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ 'mor-paankh-apple-touch.png' | asset_url }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap">
     <meta name="theme-color" content="#F8F4ED">
     {%- comment -%} Homepage OG/Twitter copy now lives in snippets/meta-tags.liquid
       (rendered once, line ~35) to avoid duplicate og:title/og:description tags. {%- endcomment -%}
@@ -326,16 +331,11 @@
       {{ 'component-discounts.css' | asset_url | stylesheet_tag }}
     {%- endif -%}
 
-    {%- unless settings.type_body_font.system? -%}
-      {% comment %}theme-check-disable AssetPreload{% endcomment %}
-      <link rel="preload" as="font" href="{{ settings.type_body_font | font_url }}" type="font/woff2" crossorigin>
-      {% comment %}theme-check-enable AssetPreload{% endcomment %}
-    {%- endunless -%}
-    {%- unless settings.type_header_font.system? -%}
-      {% comment %}theme-check-disable AssetPreload{% endcomment %}
-      <link rel="preload" as="font" href="{{ settings.type_header_font | font_url }}" type="font/woff2" crossorigin>
-      {% comment %}theme-check-enable AssetPreload{% endcomment %}
-    {%- endunless -%}
+    {%- comment -%} Dawn's settings-font preloads removed deliberately: the theme
+      editor fonts (Assistant) are fully overridden by the brand fonts in
+      theme-variables.css, so preloading them forced two unused woff2 downloads
+      onto the critical path. If the brand ever moves to Shopify-hosted fonts,
+      restore the preloads together with that change. {%- endcomment -%}
 
     {%- if localization.available_countries.size > 1 or localization.available_languages.size > 1 -%}
       {{ 'component-localization-form.css' | asset_url | stylesheet_tag: preload: true }}
