@@ -421,7 +421,7 @@
             <button type="button" data-qty-up>+</button>
           </div>
           <button type="submit" name="add" class="button button--primary tapi-pdp__add" data-add-btn>
-            <span data-add-label>Add to bag — {{ current_variant.price | money }}</span>
+            <span data-add-label>Add to bag · {{ current_variant.price | money }}</span>
           </button>
         </div>
         {%- comment -%} Native dynamic-checkout (Buy it now). Replaces the old custom
@@ -525,7 +525,7 @@
     <div class="tapi-pdp__mobile-actions">
       <button type="submit" form="product-form-{{ section.id }}" name="add"
               class="button button--primary tapi-pdp__mobile-add" data-mobile-add>
-        Add to Cart
+        Add to bag
       </button>
       {%- comment -%} Mobile Buy Now relays a tap to the native dynamic-checkout button
         in the buy column (the single, COD-King-hooked source of truth) instead of doing
@@ -1272,24 +1272,24 @@
       const label = hasColor ? [selSize, selColor].filter(Boolean).join(' · ') : selSize;
 
       // The mobile bar mirrors the selected variant on a muted meta line, so its
-      // two buttons can keep static, non-overflowing labels (Add to Cart / Buy Now).
+      // two buttons can keep static, non-overflowing labels (Add to bag / Buy Now).
       if (mobileSel) mobileSel.textContent = label || '';
       if (available) {
-        if (addLabel) addLabel.textContent = qty > 1 ? `Add to bag (${qty}) — ${priceText}` : `Add to bag — ${priceText}`;
-        if (mobileAdd) { mobileAdd.textContent = 'Add to Cart'; mobileAdd.disabled = false; mobileAdd.removeAttribute('aria-disabled'); }
+        if (addLabel) addLabel.textContent = qty > 1 ? `Add to bag (${qty}) · ${priceText}` : `Add to bag · ${priceText}`;
+        if (mobileAdd) { mobileAdd.textContent = 'Add to bag'; mobileAdd.disabled = false; mobileAdd.removeAttribute('aria-disabled'); }
         if (mobileBuy) { mobileBuy.textContent = 'Buy Now'; mobileBuy.disabled = false; mobileBuy.removeAttribute('aria-disabled'); }
         if (addBtn) { addBtn.disabled = false; addBtn.removeAttribute('aria-disabled'); }
         if (dynCheckout) dynCheckout.hidden = false;
         if (stockNote) stockNote.textContent = (v.inv > 0 && v.inv <= lowStock)
-          ? `Selling fast${label ? ' — ' + label : ''}`
-          : 'In stock — ships in 1–2 days';
+          ? `Selling fast${label ? ' · ' + label : ''}`
+          : 'In stock · ships in 1 to 2 days';
       } else {
         if (addLabel) addLabel.textContent = 'Sold out';
         if (mobileAdd) { mobileAdd.textContent = 'Sold out'; mobileAdd.disabled = true; mobileAdd.setAttribute('aria-disabled', 'true'); }
         if (mobileBuy) { mobileBuy.textContent = 'Buy Now'; mobileBuy.disabled = true; mobileBuy.setAttribute('aria-disabled', 'true'); }
         if (addBtn) { addBtn.disabled = true; addBtn.setAttribute('aria-disabled', 'true'); }
         if (dynCheckout) dynCheckout.hidden = true;
-        if (stockNote) stockNote.textContent = label ? `Sold out — ${label}` : 'Sold out — restocking soon';
+        if (stockNote) stockNote.textContent = label ? `Sold out · ${label}` : 'Sold out, restocking soon';
       }
       if (mobilePrice && priceText) mobilePrice.textContent = priceText;
 

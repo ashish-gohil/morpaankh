@@ -26,6 +26,13 @@
   line-gap-override: 0%;
   size-adjust: 107.1194%;
 }
+/* Cart: keep "Rs." and the amount on one line — at 412px the line-total column
+   wrapped the currency onto its own row, which read as broken. */
+.cart-item__totals .price,
+.cart-item__price-wrapper .price {
+  white-space: nowrap;
+}
+
 /* Logo wordmark only (snippets/tapi-logo.liquid). Lighthouse traced the page's
    0.5 CLS to the Marcellus swap; before this fallback the wordmark's interim
    font was Cormorant Garamond, whose metrics differ wildly from Marcellus. */
