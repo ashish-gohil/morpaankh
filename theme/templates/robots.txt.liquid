@@ -2,13 +2,31 @@
   Custom robots.txt — renders Shopify's default rules first (keeps cart/checkout/
   account protected and the sitemap reference), then explicitly allows the AI
   search/answer crawlers so MorPaankh can be retrieved and cited by them.
+
+  Crawl-delay directives are dropped: Googlebot does not support them and Search
+  Console flags every one as "Rule ignored by Googlebot". Groups left empty by
+  that filter (MJ12bot, Pinterest) are dropped too, so those bots fall back to
+  the stricter User-agent: * rules.
 {% endcomment %}
-{% for group in robots.default_groups %}
+{%- for group in robots.default_groups -%}
+{%- assign kept = 0 -%}
+{%- for rule in group.rules -%}
+{%- assign directive = rule.directive | downcase -%}
+{%- if directive != 'crawl-delay' -%}{%- assign kept = kept | plus: 1 -%}{%- endif -%}
+{%- endfor -%}
+{%- if kept > 0 or group.sitemap != blank -%}
 {{ group.user_agent }}
-{% for rule in group.rules %}{{ rule }}
-{% endfor %}{% if group.sitemap %}{{ group.sitemap }}
-{% endif %}
-{% endfor %}
+{%- for rule in group.rules -%}
+{%- assign directive = rule.directive | downcase -%}
+{%- if directive != 'crawl-delay' -%}
+{{ rule }}
+{%- endif -%}
+{%- endfor -%}
+{%- if group.sitemap != blank -%}
+{{ group.sitemap }}
+{%- endif %}
+{% endif -%}
+{%- endfor %}
 # --- AI search / answer engines (explicitly allowed) ---
 User-agent: GPTBot
 Allow: /
