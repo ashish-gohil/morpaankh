@@ -304,3 +304,48 @@
   font-size: 1.1rem; letter-spacing: 0.06em; border-radius: var(--mor-radius-sm, 4px);
 }
 .tapi-share__copy.is-copied { background: var(--mor-accent); border-color: var(--mor-accent); }
+
+/* ----------------------------------------------------------------------------
+ * Trust badges — honest point-of-purchase reassurance (snippets/tapi-trust-badges).
+ * On the PDP it sits right under the buy button, the moment the shopper decides.
+ * Two-per-row grid on wide info columns, single column when the column is narrow;
+ * the surface is the same raised ivory as the cards so it reads as one calm block.
+ * -------------------------------------------------------------------------- */
+.tapi-trust {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 1.6rem 1.8rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem 1.8rem;
+  background: var(--mor-surface-raised, #FAF6EC);
+  border: 1px solid var(--mor-hairline, rgba(44, 40, 38, 0.1));
+  border-radius: var(--mor-radius-md, 8px);
+}
+.tapi-trust__item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+.tapi-trust__item svg {
+  flex: 0 0 auto;
+  color: var(--tapi-terracotta, #B4623F);
+}
+.tapi-trust__label {
+  font-size: 1.25rem;
+  line-height: 1.35;
+  letter-spacing: 0.005em;
+  color: var(--mor-text-muted, #6B5D54);
+}
+.tapi-trust__label strong {
+  display: block;
+  font-weight: 600;
+  color: var(--mor-charcoal, #2C2826);
+}
+/* Narrow info columns (mobile, and the desktop buy column under ~420px) stack to
+ * one badge per row so the two-line label never truncates. */
+@media (max-width: 749px) {
+  .tapi-trust { grid-template-columns: 1fr; gap: 1.1rem; padding: 1.5rem 1.6rem; }
+  .tapi-trust__label { font-size: 1.3rem; }
+}

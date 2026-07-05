@@ -172,7 +172,10 @@
           </span>
           <span class="tapi-pdp__rating-num">{{ m.rating }}</span>
           <span class="tapi-pdp__divider"></span>
-          <a href="#reviews" class="tapi-pdp__rating-count">{{ m.review_count | default: 0 }} reviews</a>
+          {%- comment -%} Plain text, not a link: there is no on-page reviews section to
+            jump to, so an href="#reviews" was a dead click. When a verified reviews
+            block ships, restore the anchor to its id. {%- endcomment -%}
+          <span class="tapi-pdp__rating-count">{{ m.review_count | default: 0 }} reviews</span>
         </div>
       {%- endif -%}
 
@@ -445,6 +448,13 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
           <span>{{ section.settings.payment_perks }}</span>
         </p>
+      {%- endif -%}
+
+      {%- comment -%} Trust row at the point of purchase — the single highest-impact
+        placement per CRO research. COD only appears once payment perks (the COD-app
+        flag) is set, so the store never promises a payment method it cannot take. {%- endcomment -%}
+      {%- if section.settings.show_trust_badges -%}
+        {% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks != blank %}
       {%- endif -%}
 
       {%- comment -%}
@@ -1457,6 +1467,7 @@
     { "type": "checkbox", "id": "show_dynamic_checkout", "default": true, "label": "Show native Buy it now button", "info": "Shopify's native dynamic-checkout (Buy it now) button. Required for COD King's OTP / partial-COD to gate the Buy Now action. The mobile sticky Buy Now mirrors it. Turn off to sell through Add to cart only." },
     { "type": "header", "content": "Payment perks" },
     { "type": "text", "id": "payment_perks", "label": "Payment perks line (under buy button)", "info": "Shows under the buy button and adds COD to Shipping & returns. e.g. Pay online and save 5% · Cash on Delivery available. Leave blank to hide — turn on only once your COD / prepaid-discount app is live." },
+    { "type": "checkbox", "id": "show_trust_badges", "default": true, "label": "Show trust badges under buy button", "info": "Free delivery, 7-day returns and secure payment — the strongest conversion spot. The Cash on Delivery badge appears only when the payment perks line above is filled in (i.e. your COD app is live)." },
     { "type": "checkbox", "id": "show_offers", "label": "Show offers under the price", "default": true, "info": "Lists live offers next to the price. Keep in sync with Discounts — only claims that are actually active." },
     { "type": "textarea", "id": "offer_lines", "label": "Offer lines (one per line)", "default": "Buy 2, get 10% off. Buy 3, get 15% off. Applied automatically at checkout.\nFirst order? ₹200 off over ₹1,000 with code WELCOME200." },
     { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
