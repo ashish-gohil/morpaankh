@@ -649,6 +649,8 @@
     {
       "@type": "Offer",
       "itemCondition": "https://schema.org/NewCondition",
+      "shippingDetails": { "@id": "#mp-shipping" },
+      "hasMerchantReturnPolicy": { "@id": "#mp-returns" },
       "availability": "https://schema.org/{% if variant.available %}InStock{% else %}OutOfStock{% endif %}",
       "price": {{ variant.price | divided_by: 100.0 | json }},
       "priceCurrency": {{ cart.currency.iso_code | json }},
@@ -657,6 +659,40 @@
       "sku": {{ variant.sku | json }}{% endif %}
     }{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
+  ]
+}
+</script>
+{%- comment -%} Shipping + return policy nodes referenced by @id from every Offer above.
+  Values are ground truth from the store: delivery profile ships domestic at Rs 0,
+  FAQ promises 1-2 day dispatch and 3-7 day transit, refund policy gives a 7-day
+  window with free pickup. If shipping rates or the return window change in admin,
+  update this block to match. {%- endcomment -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@graph": [
+    {
+      "@type": "OfferShippingDetails",
+      "@id": "#mp-shipping",
+      "shippingRate": { "@type": "MonetaryAmount", "value": 0, "currency": "INR" },
+      "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IN" },
+      "deliveryTime": {
+        "@type": "ShippingDeliveryTime",
+        "handlingTime": { "@type": "QuantitativeValue", "minValue": 1, "maxValue": 2, "unitCode": "DAY" },
+        "transitTime": { "@type": "QuantitativeValue", "minValue": 3, "maxValue": 7, "unitCode": "DAY" }
+      }
+    },
+    {
+      "@type": "MerchantReturnPolicy",
+      "@id": "#mp-returns",
+      "applicableCountry": "IN",
+      "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+      "merchantReturnDays": 7,
+      "returnMethod": "https://schema.org/ReturnByMail",
+      "returnFees": "https://schema.org/FreeReturn",
+      "refundType": "https://schema.org/FullRefund",
+      "merchantReturnLink": {{ request.origin | append: '/pages/refund-policy' | json }}
+    }
   ]
 }
 </script>

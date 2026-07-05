@@ -316,8 +316,8 @@
     {{ 'tapi-ux.css' | asset_url | stylesheet_tag }}
     <script src="{{ 'tapi-motion.js' | asset_url }}" defer></script>
     <script src="{{ 'tapi-ux.js' | asset_url }}" defer></script>
-    {%- if settings.ga4_measurement_id != blank -%}
-      <script>window.TapiAnalytics = { ga4Id: {{ settings.ga4_measurement_id | json }}, debug: {{ settings.ga4_debug | json }} };</script>
+    {%- if settings.ga4_measurement_id != blank or settings.gtm_container_id != blank or settings.meta_pixel_id != blank -%}
+      <script>window.TapiAnalytics = { ga4Id: {{ settings.ga4_measurement_id | json }}, gtmId: {{ settings.gtm_container_id | json }}, metaPixelId: {{ settings.meta_pixel_id | json }}, debug: {{ settings.ga4_debug | json }} };</script>
       <script src="{{ 'tapi-analytics.js' | asset_url }}" defer></script>
     {%- endif -%}
     {%- comment -%} tapi-pdp.js removed: it was a legacy size-only variant script that
@@ -368,6 +368,9 @@
   </head>
 
   <body class="gradient template-{{ request.page_type | replace: '/', '-' }}{% if template.suffix != blank %} template-{{ template.suffix }}{% endif %}{% if settings.animations_hover_elements != 'none' %} animate--hover-{{ settings.animations_hover_elements }}{% endif %}">
+    {%- if settings.gtm_container_id != blank -%}
+      <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ settings.gtm_container_id | url_encode }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    {%- endif -%}
     <a class="skip-to-content-link button visually-hidden" href="#MainContent">
       {{ 'accessibility.skip_to_text' | t }}
     </a>

@@ -2,6 +2,8 @@
 
 End-to-end audit and the levers in place for search engines (SEO) and AI answer engines (GEO: ChatGPT, Perplexity, Claude, Google AI Overviews). Audited and updated 2026-06-14 against the live theme (189198631284, www.morpaankh.in).
 
+**2026-07-05 additions:** robots.txt no longer emits crawl-delay lines (Search Console "Rule ignored by Googlebot" warnings root-caused and fixed 2026-07-04). Product JSON-LD now carries `shippingDetails` (free IN shipping, 1-2 day dispatch, 3-7 day transit) and `hasMerchantReturnPolicy` (7-day window, free pickup, full refund) on every offer via `@id` references, matching the store's real delivery profile and refund policy. Shopify's `sitemap_agentic_discovery.xml` (feed for AI shopping agents) is live in the sitemap index. Analytics/ads wiring documented in `docs/marketing-integrations.md`. Note: an `llms.txt` at the domain root is not possible on Shopify (only robots.txt is overridable); the agentic sitemap plus full structured data is the platform-supported equivalent.
+
 ## Verdict
 
 The store was already well optimised. Crawler access, sitemaps, canonical URLs, social cards, and a full structured-data layer were in place from earlier work. This pass closed the remaining theme-side gaps (missing meta descriptions, rich-preview directive, product fabric facts, entity topics). The biggest remaining wins are now merchant-side data, not code.

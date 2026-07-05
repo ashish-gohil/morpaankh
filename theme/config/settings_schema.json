@@ -1483,6 +1483,26 @@
         "label": "Debug mode",
         "info": "Mirrors events to GA4 DebugView and the browser console. Turn off after testing.",
         "default": false
+      },
+      {
+        "type": "header",
+        "content": "Google Tag Manager"
+      },
+      {
+        "type": "text",
+        "id": "gtm_container_id",
+        "label": "GTM container ID",
+        "info": "Looks like GTM-XXXXXXX. Only needed if you manage tags in GTM. If GA4 is set both above and inside GTM, events double-count. Pick one home for GA4."
+      },
+      {
+        "type": "header",
+        "content": "Meta Pixel"
+      },
+      {
+        "type": "text",
+        "id": "meta_pixel_id",
+        "label": "Meta Pixel ID",
+        "info": "Numeric ID from Meta Events Manager. Sends PageView, ViewContent, AddToCart, InitiateCheckout. If you later install the Facebook & Instagram sales channel, clear this field. The channel injects its own pixel and both together double-fire."
       }
     ]
   }
