@@ -50,8 +50,14 @@
   <meta property="og:price:currency" content="{{ cart.currency.iso_code }}">
 {%- endif -%}
 
+{%- comment -%} Handle both x.com and legacy twitter.com URLs (and any ?query/#frag):
+  take the last path segment as the @handle. The old split on 'twitter.com/' left
+  the whole URL when the link was an x.com one, emitting @https://x.com/... {%- endcomment -%}
 {%- if settings.social_twitter_link != blank -%}
-  <meta name="twitter:site" content="{{ settings.social_twitter_link | split: 'twitter.com/' | last | prepend: '@' }}">
+  {%- assign tw_handle = settings.social_twitter_link | split: '?' | first | split: '#' | first | split: '/' | last -%}
+  {%- if tw_handle != blank -%}
+    <meta name="twitter:site" content="@{{ tw_handle }}">
+  {%- endif -%}
 {%- endif -%}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ og_title | escape }}">

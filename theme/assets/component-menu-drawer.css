@@ -250,10 +250,27 @@ details[open].menu-opening > .menu-drawer__submenu {
   width: 2.2rem;
   height: 2.2rem;
   color: inherit;
+  transition: transform 200ms var(--mor-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+              opacity 200ms var(--mor-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
-.menu-drawer .list-social__link:hover .icon {
-  transform: scale(1.07);
+/* Resting icons sit a touch quiet; the hovered one lifts and warms to the
+   brand terracotta, so the row reads as premium and interactive, not flat. */
+.menu-drawer .list-social__link .icon {
+  opacity: 0.72;
+}
+
+.menu-drawer .list-social__link:hover .icon,
+.menu-drawer .list-social__link:focus-visible .icon {
+  transform: scale(1.08);
+  opacity: 1;
+  color: var(--tapi-terracotta, #b4623f);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-drawer .list-social__item .icon { transition: none; }
+  .menu-drawer .list-social__link:hover .icon,
+  .menu-drawer .list-social__link:focus-visible .icon { transform: none; }
 }
 
 @media screen and (max-width: 749px) {
