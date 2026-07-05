@@ -12,7 +12,7 @@
   # Conditional-state flags — used to skip rendering empty blocks so the info
   # column (a flex stack with a uniform 2.4rem gap) never carries a phantom gap.
   assign has_fabric = false
-  if m.gsm or m.blend or m.weave or m.fit_type or m.opacity_note or m.breathability or m.wash_care
+  if m.gsm or m.blend or m.weave or m.fit_type or m.opacity_note or m.breathability or m.wash_care or m.neckline or m.length or m.occasion
     assign has_fabric = true
   endif
   assign has_pdp_tags = false
@@ -481,9 +481,12 @@
                   {%- if m.blend -%}<tr><td>Fabric</td><td>{{ m.blend }}</td></tr>{%- endif -%}
                   {%- if m.weave -%}<tr><td>Weave</td><td>{{ m.weave }}</td></tr>{%- endif -%}
                   {%- if m.fit_type -%}<tr><td>Fit type</td><td>{{ m.fit_type }}</td></tr>{%- endif -%}
+                  {%- if m.neckline -%}<tr><td>Neckline</td><td>{{ m.neckline }}</td></tr>{%- endif -%}
+                  {%- if m.length -%}<tr><td>Length</td><td>{{ m.length }}</td></tr>{%- endif -%}
                   {%- if m.opacity_note -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
                   {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
                   {%- if m.wash_care -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
+                  {%- if m.occasion -%}<tr><td>Occasion</td><td>{{ m.occasion }}</td></tr>{%- endif -%}
                   <tr><td>Country of origin</td><td>{{ m.origin | default: 'India' }}</td></tr>
                 </tbody>
               </table>
@@ -639,13 +642,15 @@
   {%- if m.blend != blank %}
   "material": {{ m.blend | json }},
   {%- endif %}
-  {%- if m.blend != blank or m.gsm != blank or m.weave != blank or m.fit_type != blank %}
+  {%- if m.blend != blank or m.gsm != blank or m.weave != blank or m.fit_type != blank or m.neckline != blank or m.length != blank %}
   "additionalProperty": [
     {%- assign fp = true -%}
     {%- if m.blend != blank %}{ "@type": "PropertyValue", "name": "Fabric", "value": {{ m.blend | json }} }{%- assign fp = false -%}{%- endif -%}
     {%- if m.gsm != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "GSM", "value": {{ m.gsm | append: ' gsm' | json }} }{%- assign fp = false -%}{%- endif -%}
     {%- if m.weave != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Weave", "value": {{ m.weave | json }} }{%- assign fp = false -%}{%- endif -%}
     {%- if m.fit_type != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Fit", "value": {{ m.fit_type | json }} }{%- assign fp = false -%}{%- endif -%}
+    {%- if m.neckline != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Neckline", "value": {{ m.neckline | json }} }{%- assign fp = false -%}{%- endif -%}
+    {%- if m.length != blank %}{% unless fp %},{% endunless %}{ "@type": "PropertyValue", "name": "Length", "value": {{ m.length | json }} }{%- assign fp = false -%}{%- endif -%}
   ],
   {%- endif %}
   {%- comment -%} Always the store brand. product.vendor holds the internal supplier
