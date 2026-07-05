@@ -9,6 +9,7 @@
  */
 {
   "current": {
+    "ga4_measurement_id": "G-T0YLNND1JT",
     "logo_width": 140,
     "share_image": "shopify://shop_images/morpaankh-share.png",
     "type_header_font": "assistant_n4",
@@ -139,7 +140,7 @@
         "type": "tapi-announcement",
         "settings": {
           "enabled": true,
-          "text": "Launch week: 15% off everything, applied automatically",
+          "text": "Launch week: 15% off",
           "link": "/collections/all",
           "animate": true,
           "schedule_enabled": true,
