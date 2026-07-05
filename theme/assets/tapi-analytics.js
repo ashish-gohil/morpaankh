@@ -171,4 +171,113 @@
       prevCount = arr.length;
     });
   }
+
+  /* --------------------------------------------------------------------
+   * Engagement — which products get explored, which buttons get pressed.
+   * GA4 + GTM only (Meta owns the standard funnel events above). Everything
+   * is delegated on document, so cards/buttons injected after load (related
+   * products, wishlist page, theme-editor re-renders) are covered with no
+   * re-wiring. Product data on cards is read from the wishlist button they
+   * already carry, so this needs zero extra Liquid per card.
+   * ------------------------------------------------------------------ */
+  function toNumber(money) { return Number(String(money || '').replace(/[^0-9.]/g, '')) || 0; }
+  function txt(el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
+
+  // Name a product list by its section's <h2> (card titles are <h3>, so they
+  // are never mistaken for the list name); fall back to the section id.
+  function listNameFor(el) {
+    var sec = el.closest('.shopify-section, [data-recently-viewed], product-recommendations') || el;
+    var h = sec.querySelector('h2, h1, .tapi-rv__heading');
+    return txt(h).slice(0, 80) || sec.id || 'product_list';
+  }
+  function listContainerOf(card) {
+    return card.closest('ul, ol, .tapi-grid, [data-recently-grid], [data-wishlist-grid], product-recommendations, .tapi-collection') || card.parentElement;
+  }
+  // The product a card represents — from its wishlist button when present,
+  // else from the visible title/price (client-rendered mini cards have no heart).
+  function itemFromCard(card, index, listName) {
+    var w = card.querySelector('[data-wishlist-toggle]');
+    var item = {
+      item_id: w ? (w.getAttribute('data-product-id') || w.getAttribute('data-handle') || '') : '',
+      item_name: (w && w.getAttribute('data-title')) || txt(card.querySelector('.tapi-card__title')),
+      item_brand: 'MorPaankh',
+      price: w ? toNumber(w.getAttribute('data-price')) : toNumber(txt(card.querySelector('.tapi-card__price-now')))
+    };
+    if (listName) item.item_list_name = listName;
+    if (index != null && index >= 0) item.index = index + 1;
+    return item;
+  }
+
+  // select_item — a shopper clicked into a product from a grid or rail.
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    var card = e.target.closest('.tapi-card');
+    if (!card) return;
+    if (!e.target.closest('a[href]')) return; // heart / non-navigational control
+    var listName = listNameFor(card);
+    var container = listContainerOf(card);
+    var cards = container ? container.querySelectorAll('.tapi-card') : [card];
+    var index = Array.prototype.indexOf.call(cards, card);
+    track('select_item', { item_list_name: listName, items: [itemFromCard(card, index, listName)] });
+  }, true);
+
+  // view_item_list — one impression per grid the first time it is on screen,
+  // so select_item clicks read as a click-through rate per list and position.
+  var listIO;
+  function observeLists() {
+    if (!('IntersectionObserver' in window)) return;
+    if (!listIO) {
+      listIO = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          listIO.unobserve(en.target);
+          var cards = en.target.querySelectorAll('.tapi-card');
+          if (!cards.length) return;
+          var name = listNameFor(en.target);
+          var items = [];
+          for (var i = 0; i < cards.length && i < 20; i++) items.push(itemFromCard(cards[i], i, name));
+          track('view_item_list', { item_list_name: name, items: items });
+        });
+      }, { threshold: 0.2 });
+    }
+    var seen = [];
+    document.querySelectorAll('.tapi-card').forEach(function (card) {
+      var c = listContainerOf(card);
+      if (!c || c.__tapiListObserved || seen.indexOf(c) !== -1) return;
+      seen.push(c);
+      c.__tapiListObserved = true;
+      listIO.observe(c);
+    });
+  }
+  observeLists();
+  document.addEventListener('shopify:section:load', function () { observeLists(); });
+  setTimeout(observeLists, 2500); // catch async product-recommendations
+
+  // Button engagement — size/colour chosen, gallery zoom, share, size guide,
+  // plus a generic data-tapi-track opt-in for any future control.
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t.closest) return;
+    var pname = (ld && ld.name) || document.title || '';
+
+    var generic = t.closest('[data-tapi-track]');
+    if (generic) {
+      var params = {};
+      for (var i = 0; i < generic.attributes.length; i++) {
+        var a = generic.attributes[i];
+        if (a.name.indexOf('data-tapi-p-') === 0) params[a.name.slice(12).replace(/-/g, '_')] = a.value;
+      }
+      track(generic.getAttribute('data-tapi-track'), params);
+    }
+
+    var size = t.closest('.tapi-pdp__size');
+    if (size && !size.classList.contains('is-out')) {
+      track('select_size', { item_name: pname, size: (size.getAttribute('data-size') || txt(size)) });
+    }
+    var color = t.closest('.tapi-pdp__color');
+    if (color) track('select_color', { item_name: pname, color: color.getAttribute('data-color') || '' });
+    if (t.closest('[data-gallery-zoom]')) track('view_gallery_fullscreen', { item_name: pname });
+    if (t.closest('[data-share-trigger]')) track('share', { method: navigator.share ? 'native' : 'popover', content_type: 'product', item_name: pname });
+    if (t.closest('[data-size-guide-open]')) track('open_size_guide', { item_name: pname });
+  }, true);
 })();
