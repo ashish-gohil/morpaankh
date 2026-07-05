@@ -30,6 +30,19 @@
       </a>
     </li>
   {%- endif -%}
+  {%- comment -%} WhatsApp is a real support + sales channel for the brand, so it sits
+    in the follow row next to Instagram. External chat link, so open in a new tab.
+    "WhatsApp" is a proper noun (not localised), hence a literal accessible label. {%- endcomment -%}
+  {%- if settings.social_whatsapp_link != blank -%}
+    <li class="list-social__item">
+      <a href="{{ settings.social_whatsapp_link }}" class="link list-social__link" target="_blank" rel="noopener">
+        <span class="svg-wrapper">
+          {{- 'icon-whatsapp.svg' | inline_asset_content -}}
+        </span>
+        <span class="visually-hidden">WhatsApp</span>
+      </a>
+    </li>
+  {%- endif -%}
   {%- if settings.social_youtube_link != blank -%}
     <li class="list-social__item">
       <a href="{{ settings.social_youtube_link }}" class="link list-social__link">
