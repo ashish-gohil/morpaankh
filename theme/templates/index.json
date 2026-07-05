@@ -72,6 +72,17 @@
             "tint": "#3a3633"
           }
         },
+        "short_kurti": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "short-kurti",
+            "link": "shopify://collections/short-kurti",
+            "label": "Short Kurti",
+            "placeholder_name": "Short Kurti",
+            "tint": "#8a6d3b"
+          }
+        },
         "tunic": {
           "type": "tile",
           "settings": {
@@ -88,6 +99,7 @@
         "coord",
         "three_piece",
         "one_piece",
+        "short_kurti",
         "festive",
         "newin",
         "tunic"
@@ -112,7 +124,7 @@
         "slide_amba": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Premium_Opacity_Adjustment.png",
+            "image": "shopify://shop_images/Gemini_Generated_Image_2hiast2hiast2hia.png",
             "image_mobile": "shopify://shop_images/WhatsAppImage2026-06-07at3.57.42PM.jpg",
             "caption": "Amba · Co-ord sets",
             "mono": "Amba",
@@ -122,7 +134,7 @@
         "slide_mehfil": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201138.jpg",
+            "image": "shopify://shop_images/Gemini_Generated_Image_3moe4g3moe4g3moe.png",
             "video_mobile": "shopify://files/videos/WhatsApp Video 2026-06-07 at 3.22.19 PM.mp4",
             "caption": "Mehfil · Festive edit",
             "mono": "Mehfil",
@@ -132,7 +144,7 @@
         "slide_dhoop": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201217.jpg",
+            "image": "shopify://shop_images/Gemini_Generated_Image_62omib62omib62om.png",
             "image_mobile": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201119.jpg",
             "caption": "Dhoop · New arrivals",
             "mono": "Dhoop",
@@ -158,11 +170,11 @@
         "slide_cwredk"
       ],
       "settings": {
-        "autoplay": false,
-        "interval_ms": 4000,
+        "autoplay": true,
+        "interval_ms": 5000,
         "eyebrow": "Indian ethnic wear",
-        "line_1": "Cloth we know",
-        "line_2": "by heart.",
+        "line_1": "Where stories",
+        "line_2": "bloom.",
         "lede": "We grew up around cloth, through generations in India's textile trade. That eye goes into every kurta set, co-ord, and festive piece we choose: honest fabric, a fit made for real bodies, and what you see is what arrives at your door.",
         "cta_primary": "See catalog",
         "cta_primary_link": "shopify://collections/all",
@@ -221,6 +233,18 @@
             "tint": "#b08947"
           }
         },
+        "short_kurti": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "short-kurti",
+            "heading": "Short Kurti",
+            "tagline": "Wear it your way",
+            "blurb": "Short kurtis to pair with your own jeans, palazzos or a skirt. Easy daytime pieces, cut true to the body.",
+            "placeholder_name": "Short Kurti",
+            "tint": "#8a6d3b"
+          }
+        },
         "tunic": {
           "type": "tile",
           "settings": {
@@ -239,6 +263,7 @@
         "coord",
         "one_piece",
         "festive",
+        "short_kurti",
         "tunic"
       ],
       "settings": {
