@@ -6,18 +6,30 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#F5EFE1">
     <meta name="google-site-verification" content="JFiFzJYC1lKF8PH_lYH9AuUsaWvFVKov30VGk6rskJw">
+    <meta name="msvalidate.01" content="26AA9428643E298F6E8CE49EA7AD11C9">
     <link rel="canonical" href="{{ canonical_url }}">
 
-    {%- comment -%} Encourage large image previews + full text/video snippets in Google and
+    {%- comment -%}
+      Encourage large image previews + full text/video snippets in Google and
       AI answer engines, on indexable page types only. Shopify emits its own noindex for
       pages that should not be indexed (and the more restrictive directive always wins),
-      so this never forces indexing of a utility page. {%- endcomment -%}
+      so this never forces indexing of a utility page.
+    {%- endcomment -%}
     {%- if request.page_type == 'product' and product.handle == 'partial-payment' -%}
-      {%- comment -%} COD King partial-payment utility: stays active for checkout, but kept
+      {%- comment -%}
+        COD King partial-payment utility: stays active for checkout, but kept
         out of search and AI indexes. No robots.txt Disallow (that would stop crawlers
-        reading this noindex). {%- endcomment -%}
+        reading this noindex).
+      {%- endcomment -%}
       <meta name="robots" content="noindex, nofollow">
-    {%- elsif request.page_type == 'index' or request.page_type == 'product' or request.page_type == 'collection' or request.page_type == 'list-collections' or request.page_type == 'page' or request.page_type == 'blog' or request.page_type == 'article' -%}
+    {%- elsif request.page_type == 'index'
+      or request.page_type == 'product'
+      or request.page_type == 'collection'
+      or request.page_type == 'list-collections'
+      or request.page_type == 'page'
+      or request.page_type == 'blog'
+      or request.page_type == 'article'
+    -%}
       <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     {%- endif -%}
 
@@ -28,23 +40,40 @@
     {%- unless settings.type_header_font.system? and settings.type_body_font.system? -%}
       <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
     {%- endunless -%}
-    {%- comment -%} Brand fonts come from Google Fonts in ONE link, early, so they
+    {%- comment -%}
+      Brand fonts come from Google Fonts in ONE link, early, so they
       download in parallel with the theme CSS. Cormorant Garamond = headings,
       Inter = body, Marcellus = the logo wordmark ONLY (snippets/tapi-logo.liquid).
       Metric-matched fallback faces in theme-variables.css keep the swap shift
-      near zero. {%- endcomment -%}
+      near zero.
+    {%- endcomment -%}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    {%- comment -%} Loaded async (print->all swap): the metric-matched fallback
+    {%- comment -%}
+      Loaded async (print->all swap): the metric-matched fallback
       faces make the interim render visually stable, so fonts can arrive off the
-      critical path without a jarring swap. noscript keeps fonts for no-JS. {%- endcomment -%}
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap"></noscript>
+      critical path without a jarring swap. noscript keeps fonts for no-JS.
+    {%- endcomment -%}
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap"
+    >
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    >
+    <noscript
+      ><link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap"
+    ></noscript>
 
     <title>
       {%- if request.page_type == 'index' and page_title == shop.name -%}
-        MorPaankh | Women's Indian Ethnic Wear & Kurta Sets
+        Morpaankh | Women's Indian Ethnic Wear & Kurta Sets
       {%- else -%}
         {{ page_title }}
         {%- if current_tags %} &ndash; tagged "{{ current_tags | join: ', ' }}"{% endif -%}
@@ -53,23 +82,25 @@
       {%- endif -%}
     </title>
 
-    {%- comment -%} Every indexable page gets a description: the admin SEO field wins, then the
+    {%- comment -%}
+      Every indexable page gets a description: the admin SEO field wins, then the
       page's own body copy, then an honest brand-and-category fallback. A missing description
-      is a real ranking and click-through loss, so none should ship blank. {%- endcomment -%}
+      is a real ranking and click-through loss, so none should ship blank.
+    {%- endcomment -%}
     {%- liquid
       assign meta_desc = page_description
       if meta_desc == blank
         if request.page_type == 'index'
-          assign meta_desc = "Shop MorPaankh for women's Indian ethnic wear: kurta sets, co-ord sets, and festive pieces from a Surat textile family. Honest fabric, true-to-body fit."
+          assign meta_desc = "Shop Morpaankh for women's Indian ethnic wear: kurta sets, co-ord sets, and festive pieces from a Surat textile family. Honest fabric, true-to-body fit."
         elsif request.page_type == 'product'
           assign meta_desc = product.description | strip_html | truncate: 158
           if meta_desc == blank
-            assign meta_desc = product.title | append: " from MorPaankh, women's Indian ethnic wear with honest fabric and true-to-body fit. Shipped tracked across India."
+            assign meta_desc = product.title | append: " from Morpaankh, women's Indian ethnic wear with honest fabric and true-to-body fit. Shipped tracked across India."
           endif
         elsif request.page_type == 'collection'
           assign meta_desc = collection.description | strip_html | truncate: 158
           if meta_desc == blank
-            assign meta_desc = collection.title | append: " from MorPaankh, women's Indian ethnic wear. Kurta sets, co-ord sets and festive pieces in honest fabric with true-to-body fit."
+            assign meta_desc = collection.title | append: " from Morpaankh, women's Indian ethnic wear. Kurta sets, co-ord sets and festive pieces in honest fabric with true-to-body fit."
           endif
         elsif request.page_type == 'article'
           assign meta_desc = article.excerpt_or_content | strip_html | truncate: 158
@@ -316,21 +347,30 @@
     {{ 'tapi-ux.css' | asset_url | stylesheet_tag }}
     <script src="{{ 'tapi-motion.js' | asset_url }}" defer></script>
     <script src="{{ 'tapi-ux.js' | asset_url }}" defer></script>
-    {%- if settings.ga4_measurement_id != blank or settings.gtm_container_id != blank or settings.meta_pixel_id != blank -%}
-      <script>window.TapiAnalytics = { ga4Id: {{ settings.ga4_measurement_id | json }}, gtmId: {{ settings.gtm_container_id | json }}, metaPixelId: {{ settings.meta_pixel_id | json }}, debug: {{ settings.ga4_debug | json }} };</script>
+    {%- if settings.ga4_measurement_id != blank
+      or settings.gtm_container_id != blank
+      or settings.meta_pixel_id != blank
+    -%}
+      <script>
+        window.TapiAnalytics = { ga4Id: {{ settings.ga4_measurement_id | json }}, gtmId: {{ settings.gtm_container_id | json }}, metaPixelId: {{ settings.meta_pixel_id | json }}, debug: {{ settings.ga4_debug | json }} };
+      </script>
       <script src="{{ 'tapi-analytics.js' | asset_url }}" defer></script>
     {%- endif -%}
-    {%- comment -%} tapi-pdp.js removed: it was a legacy size-only variant script that
+    {%- comment -%}
+      tapi-pdp.js removed: it was a legacy size-only variant script that
       expected data-variant-available attributes the current Size×Color matrix markup
       no longer renders, so it forced "Sold out" on initial PDP load and only corrected
       after a size/color toggle. The inline script in sections/main-product-tapi.liquid
-      is the single source of truth for variant selection now. {%- endcomment -%}
+      is the single source of truth for variant selection now.
+    {%- endcomment -%}
     <link rel="stylesheet" href="{{ 'component-cart-items.css' | asset_url }}" media="print" onload="this.media='all'">
     <link rel="icon" type="image/svg+xml" href="{{ 'favicon.svg' | asset_url }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ 'mor-paankh-apple-touch.png' | asset_url }}">
     <meta name="theme-color" content="#F8F4ED">
-    {%- comment -%} Homepage OG/Twitter copy now lives in snippets/meta-tags.liquid
-      (rendered once, line ~35) to avoid duplicate og:title/og:description tags. {%- endcomment -%}
+    {%- comment -%}
+      Homepage OG/Twitter copy now lives in snippets/meta-tags.liquid
+      (rendered once, line ~35) to avoid duplicate og:title/og:description tags.
+    {%- endcomment -%}
 
     {%- if settings.cart_type == 'drawer' -%}
       {{ 'component-cart-drawer.css' | asset_url | stylesheet_tag }}
@@ -340,11 +380,13 @@
       {{ 'component-discounts.css' | asset_url | stylesheet_tag }}
     {%- endif -%}
 
-    {%- comment -%} Dawn's settings-font preloads removed deliberately: the theme
+    {%- comment -%}
+      Dawn's settings-font preloads removed deliberately: the theme
       editor fonts (Assistant) are fully overridden by the brand fonts in
       theme-variables.css, so preloading them forced two unused woff2 downloads
       onto the critical path. If the brand ever moves to Shopify-hosted fonts,
-      restore the preloads together with that change. {%- endcomment -%}
+      restore the preloads together with that change.
+    {%- endcomment -%}
 
     {%- if localization.available_countries.size > 1 or localization.available_languages.size > 1 -%}
       {{ 'component-localization-form.css' | asset_url | stylesheet_tag: preload: true }}
@@ -365,11 +407,47 @@
         document.documentElement.classList.add('shopify-design-mode');
       }
     </script>
+    <!-- Meta Pixel Code -->
+    <script>
+      !(function (f, b, e, v, n, t, s) {
+        if (f.fbq) return;
+        n = f.fbq = function () {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if (!f._fbq) f._fbq = n;
+        n.push = n;
+        n.loaded = !0;
+        n.version = '2.0';
+        n.queue = [];
+        t = b.createElement(e);
+        t.async = !0;
+        t.src = v;
+        s = b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t, s);
+      })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '1029264589473232');
+      fbq('track', 'PageView');
+    </script>
+    <noscript
+      ><img
+        height="1"
+        width="1"
+        style="display:none"
+        src="https://www.facebook.com/tr?id=1029264589473232&ev=PageView&noscript=1"
+    ></noscript>
+    <!-- End Meta Pixel Code -->
   </head>
 
   <body class="gradient template-{{ request.page_type | replace: '/', '-' }}{% if template.suffix != blank %} template-{{ template.suffix }}{% endif %}{% if settings.animations_hover_elements != 'none' %} animate--hover-{{ settings.animations_hover_elements }}{% endif %}">
     {%- if settings.gtm_container_id != blank -%}
-      <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ settings.gtm_container_id | url_encode }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+      <noscript
+        ><iframe
+          src="https://www.googletagmanager.com/ns.html?id={{ settings.gtm_container_id | url_encode }}"
+          height="0"
+          width="0"
+          style="display:none;visibility:hidden"
+        ></iframe
+      ></noscript>
     {%- endif -%}
     <a class="skip-to-content-link button visually-hidden" href="#MainContent">
       {{ 'accessibility.skip_to_text' | t }}
@@ -389,8 +467,10 @@
 
     {% sections 'footer-group' %}
 
-    {%- comment -%} Mobile bottom nav — every template except product (the PDP
-      buy-bar owns the bottom edge there). {%- endcomment -%}
+    {%- comment -%}
+      Mobile bottom nav — every template except product (the PDP
+      buy-bar owns the bottom edge there).
+    {%- endcomment -%}
     {%- unless request.page_type == 'product' -%}
       {% render 'tapi-bottom-nav' %}
     {%- endunless -%}

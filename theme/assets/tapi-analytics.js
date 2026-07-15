@@ -102,7 +102,7 @@
     return {
       item_id: String(ld.sku || ld.productID || ld.name || ''),
       item_name: String(ld.name || ''),
-      item_brand: 'MorPaankh',
+      item_brand: 'Morpaankh',
       price: Number(offer.price || offer.lowPrice || 0)
     };
   }
@@ -129,12 +129,14 @@
     track('add_to_cart', params);
   }, true);
 
-  /* begin_checkout + announcement (promotion) clicks */
+  /* Announcement (promotion) clicks.
+     NOTE: begin_checkout intentionally NOT tracked here — the Customer Events
+     custom pixel ("GA4 Checkout") owns all checkout-funnel events
+     (begin_checkout, add_shipping_info, add_payment_info, purchase) because it
+     fires on actual checkout pages, which theme JS cannot see. Keeping it in
+     one place prevents double counting. */
   document.addEventListener('click', function (e) {
     if (!e.target || !e.target.closest) return;
-    if (e.target.closest('button[name="checkout"], a[href^="/checkout"], .cart__checkout-button')) {
-      track('begin_checkout', { currency: 'INR' });
-    }
     var ann = e.target.closest('.tapi-announce__inner');
     if (ann) {
       var txt = document.querySelector('.tapi-announce__text');
@@ -200,7 +202,7 @@
     var item = {
       item_id: w ? (w.getAttribute('data-product-id') || w.getAttribute('data-handle') || '') : '',
       item_name: (w && w.getAttribute('data-title')) || txt(card.querySelector('.tapi-card__title')),
-      item_brand: 'MorPaankh',
+      item_brand: 'Morpaankh',
       price: w ? toNumber(w.getAttribute('data-price')) : toNumber(txt(card.querySelector('.tapi-card__price-now')))
     };
     if (listName) item.item_list_name = listName;

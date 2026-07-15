@@ -1,5 +1,5 @@
 /* ============================================================
-   theme-variables.css — MorPaankh theme overrides for Dawn
+   theme-variables.css — Morpaankh theme overrides for Dawn
    Single source of truth for brand tokens. When the logo is
    final and we shift to a peacock palette, only the --mor-*
    values below change; the --tapi-* aliases beneath route the
@@ -45,7 +45,7 @@
 }
 
 :root {
-  /* ---------- MorPaankh brand tokens (canonical) ---------- */
+  /* ---------- Morpaankh brand tokens (canonical) ---------- */
   /* Warm neutral scale — deepened a step off near-white so the cream reads as
      genuinely creamy (raw cotton / khadi), not "is that white?". Light->dark
      steps preserved (ivory > cream > cream-2); charcoal text stays >11:1 on all. */

@@ -1,5 +1,5 @@
 /* ============================================================
-   MorPaankh — PDP gallery video support
+   Morpaankh — PDP gallery video support
    Loaded as a standalone asset (not via the section's {% stylesheet %})
    so it can't be held back by a stale compiled bundle.
    Styles the hosted <video>, the YouTube/Vimeo facade, the branded

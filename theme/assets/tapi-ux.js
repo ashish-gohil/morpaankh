@@ -1,5 +1,5 @@
 /*
- * tapi-ux.js — commerce-UX engine for the MorPaankh storefront.
+ * tapi-ux.js — commerce-UX engine for the Morpaankh storefront.
  * One deferred, idempotent module that powers:
  *   - Wishlist (localStorage store + heart buttons + live counts + wishlist page)
  *   - Recently viewed (track on PDP, render rails on PDP + home)

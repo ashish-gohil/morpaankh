@@ -172,10 +172,10 @@
       "settings": {
         "autoplay": true,
         "interval_ms": 5000,
-        "eyebrow": "Indian ethnic wear",
+        "eyebrow": "Indian ethnic wear for women",
         "line_1": "Where stories",
         "line_2": "bloom.",
-        "lede": "We grew up around cloth, through generations in India's textile trade. That eye goes into every kurta set, co-ord, and festive piece we choose: honest fabric, a fit made for real bodies, and what you see is what arrives at your door.",
+        "lede": "We grew up around cloth, through generations in Surat's textile trade. That eye goes into every cotton kurta set, co-ord set, and festive piece we choose: honest fabric, a fit made for real bodies, and what you see is what arrives at your door, anywhere in India.",
         "cta_primary": "See catalog",
         "cta_primary_link": "shopify://collections/all",
         "cta_secondary": "Our story",
@@ -192,7 +192,7 @@
             "collection": "kurta-sets",
             "heading": "Kurta Sets",
             "tagline": "Three pieces, every day",
-            "blurb": "A kurta, pants, and a dupatta. Easy to throw on, with a clean finish at the hem.",
+            "blurb": "A cotton kurta, easy pants, and a soft dupatta. Easy to throw on for work or a festive day, with a clean finish at the hem.",
             "placeholder_name": "Saanjh",
             "tint": "#b7472a"
           }
@@ -204,7 +204,7 @@
             "collection": "co-ord-sets",
             "heading": "Co-ord Sets",
             "tagline": "Two pieces, one story",
-            "blurb": "Cropped tops and wide pants. Wear the set together, or split it up with what you already own.",
+            "blurb": "Cropped tops and wide-leg pants that match top to bottom. Wear the set together, or split it up with what you already own.",
             "placeholder_name": "Amba",
             "tint": "#7a8761"
           }
@@ -216,7 +216,7 @@
             "collection": "one-piece",
             "heading": "One Piece",
             "tagline": "Wear it on its own",
-            "blurb": "Single kurtas that stand alone. Throw one on with your own denim or palazzos, no set required.",
+            "blurb": "Single cotton kurtas that stand alone. Throw one on with your own denim or palazzos, no set required.",
             "placeholder_name": "Champa",
             "tint": "#9d3c23"
           }
@@ -228,7 +228,7 @@
             "collection": "festive",
             "heading": "Festive Edit",
             "tagline": "For the days you'll remember",
-            "blurb": "Silk cotton dobby, fine tassel work, a quiet line of gold thread. Made for the days you dress up.",
+            "blurb": "Silk cotton dobby, fine tassel work, a quiet line of gold thread. Wedding-guest and festive wear for the days you dress up.",
             "placeholder_name": "Mehfil",
             "tint": "#b08947"
           }
@@ -240,7 +240,7 @@
             "collection": "short-kurti",
             "heading": "Short Kurti",
             "tagline": "Wear it your way",
-            "blurb": "Short kurtis to pair with your own jeans, palazzos or a skirt. Easy daytime pieces, cut true to the body.",
+            "blurb": "Short kurtis to pair with your own jeans, palazzos or a skirt. Easy cotton daytime pieces, cut true to the body.",
             "placeholder_name": "Short Kurti",
             "tint": "#8a6d3b"
           }
@@ -269,7 +269,7 @@
       "settings": {
         "eyebrow": "The wardrobe",
         "heading": "Ways into the wardrobe.",
-        "intro": "Pick the kind of piece you are after. Everyday kurta sets, relaxed co-ords, single pieces to wear on their own, and festive wear for the occasions that matter."
+        "intro": "Pick the kind of piece you are after. Everyday cotton kurta sets with dupatta, relaxed co-ord sets, single kurtis to wear your own way, and festive wear for the weddings and functions that matter."
       }
     },
     "tapi_featured": {
@@ -348,7 +348,7 @@
         "review_stitching": {
           "type": "quote",
           "settings": {
-            "quote": "Excellent finishing and stitching. The material is soft, breathable, and feels like it will last. The size fit exactly as expected. Very satisfied with my MorPaankh order.",
+            "quote": "Excellent finishing and stitching. The material is soft, breathable, and feels like it will last. The size fit exactly as expected. Very satisfied with my Morpaankh order.",
             "name": "Verified buyer",
             "detail": "",
             "rating": 5
@@ -366,7 +366,7 @@
         "review_first_order": {
           "type": "quote",
           "settings": {
-            "quote": "My first order from MorPaankh and I am genuinely happy with it. Rich feel to the fabric, neat finish, and the size fit perfectly. A premium piece at a fair price.",
+            "quote": "My first order from Morpaankh and I am genuinely happy with it. Rich feel to the fabric, neat finish, and the size fit perfectly. A premium piece at a fair price.",
             "name": "Verified buyer",
             "detail": "",
             "rating": 5
