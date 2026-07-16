@@ -383,11 +383,11 @@
    * image (incl. below-the-fold lazy ones), so each fades in as it streams.
    * -------------------------------------------------------------------- */
   function setupMediaFade(root) {
-    (root || document).querySelectorAll('.tapi-card__img--front img').forEach(function (img) {
+    (root || document).querySelectorAll('.tapi-card__img--front img, .tapi-tile__media img').forEach(function (img) {
       if (img.__tapiFade) return;
       img.__tapiFade = true;
       if (img.complete && img.naturalWidth > 0) return; // already painted
-      var media = img.closest('.tapi-card__media');
+      var media = img.closest('.tapi-card__media, .tapi-tile__media');
       img.classList.add('tapi-img-fade');
       if (media) media.classList.add('is-loading');
       var done = function () {

@@ -72,9 +72,8 @@
     text-decoration: none; transition: color var(--mor-dur-base) var(--mor-ease);
   }
   .tapi-featured__viewall:hover { color: var(--mor-accent); }
-  .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tapi-card-gap, 24px); }
-  @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
-  @media (max-width: 749px)  { .tapi-featured__grid { grid-template-columns: 1fr 1fr; column-gap: 1.4rem; row-gap: 2.8rem; } }
+  .tapi-featured__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--tapi-grid-col-gap, 6px); row-gap: var(--tapi-grid-row-gap, 40px); }
+  @media (max-width: 989px) { .tapi-featured__grid { grid-template-columns: 1fr 1fr; } }
 
   /* End-of-grid CTA. The header keeps a quiet text link; this is the deliberate
      "you've seen the new arrivals, here's the rest" button. Outline keeps it

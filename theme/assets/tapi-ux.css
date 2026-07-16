@@ -95,47 +95,36 @@
 }
 .related-products .product-grid {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--tapi-card-gap, 24px); margin: 0;
+  column-gap: var(--tapi-grid-col-gap, 6px); row-gap: var(--tapi-grid-row-gap, 40px); margin: 0;
 }
 .related-products .product-grid > .grid__item { width: auto; max-width: none; margin: 0; padding: 0; }
 @media (max-width: 989px) {
-  .related-products .product-grid { grid-template-columns: 1fr 1fr; gap: 2rem; }
-}
-@media (max-width: 749px) {
-  .related-products .product-grid { grid-template-columns: 1fr 1fr; column-gap: 1.4rem; row-gap: 2.8rem; }
+  .related-products .product-grid { grid-template-columns: 1fr 1fr; }
 }
 
-/* ===================== Mobile product-grid rhythm =====================
-   Every product grid in the store reads as one system on mobile: a clean 2-up
-   layout with a consistent gutter. Dawn's collection/search grids ship a very
-   tight ~4px mobile gutter (spacing_grid_horizontal 8 / 2), which is what made
-   the cards feel crowded. Re-base the gutter to the tapi rhythm here. The Dawn
-   `.grid` computes its item widths from these custom properties, so overriding
-   them on the container widens the gutter and keeps the 2-up math correct. */
+/* ===================== Product-grid rhythm (boxy mosaic) =====================
+   One system on every grid: flat square cards sit nearly flush side-by-side
+   (hairline --tapi-grid-col-gap) while --tapi-grid-row-gap keeps rows clearly
+   separated — the row gap, not a card border, is what groups image + title +
+   price into one unit (Gestalt proximity). Dawn's `.grid` computes item widths
+   from its spacing custom properties, so overriding them on the container
+   keeps the 2-up / 4-up math correct at every width. */
 @media (max-width: 749px) {
   .product-grid {
-    --grid-mobile-horizontal-spacing: 14px;
-    --grid-mobile-vertical-spacing: 28px;
+    --grid-mobile-horizontal-spacing: var(--tapi-grid-col-gap, 4px);
+    --grid-mobile-vertical-spacing: var(--tapi-grid-row-gap, 28px);
   }
   /* JS-hydrated tapi grids (recently viewed, wishlist) share the same rhythm. */
   .tapi-rv__grid,
-  .tapi-wl__grid { column-gap: 1.4rem; row-gap: 2.8rem; }
+  .tapi-wl__grid { column-gap: var(--tapi-grid-col-gap, 4px); row-gap: var(--tapi-grid-row-gap, 28px); }
 }
-
-/* ===================== Desktop product-grid rhythm =====================
-   Premium/editorial breathing room: Dawn's desktop grid inherited a 24px
-   column gap (theme-variables.css) and, critically, only an 8px row gap from
-   settings, so stacked cards nearly touched. Re-base both here so each card's
-   image + title + price reads as one calm unit with clear separation. Scoped
-   to .product-grid like the mobile block above; Dawn's `.grid` derives item
-   widths from these custom properties, so the N-up math stays correct. */
 @media (min-width: 750px) {
   .product-grid {
-    --grid-desktop-horizontal-spacing: 3.2rem;
-    --grid-desktop-vertical-spacing: 4.8rem;
+    --grid-desktop-horizontal-spacing: var(--tapi-grid-col-gap, 6px);
+    --grid-desktop-vertical-spacing: var(--tapi-grid-row-gap, 40px);
   }
   .tapi-rv__grid,
-  .tapi-wl__grid { column-gap: 3.2rem; row-gap: 4.8rem; }
+  .tapi-wl__grid { column-gap: var(--tapi-grid-col-gap, 6px); row-gap: var(--tapi-grid-row-gap, 40px); }
 }
 
 /* ===================== Media load-in: shimmer + fade =====================
@@ -146,7 +135,8 @@
    never flash and a no-JS render shows images normally. Covers every card image
    in the store (collection grid, search, featured, related, recently-viewed,
    wishlist) since they all share .tapi-card__media. */
-.tapi-card__media.is-loading::after {
+.tapi-card__media.is-loading::after,
+.tapi-tile__media.is-loading::after {
   content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background: linear-gradient(100deg,
     transparent 28%, rgba(255, 255, 255, 0.42) 50%, transparent 72%);
@@ -157,15 +147,20 @@
   from { background-position: 200% 0; }
   to   { background-position: -60% 0; }
 }
-.tapi-card__img--front img.tapi-img-fade { opacity: 0; }
-.tapi-card__img--front img.tapi-img-fade.is-loaded {
+.tapi-card__img--front img.tapi-img-fade,
+.tapi-tile__media img.tapi-img-fade { opacity: 0; }
+.tapi-card__img--front img.tapi-img-fade.is-loaded,
+.tapi-tile__media img.tapi-img-fade.is-loaded {
   animation: tapi-media-in 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 @keyframes tapi-media-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .tapi-card__media.is-loading::after { animation: none; }
-  .tapi-card__img--front img.tapi-img-fade { opacity: 1; }
-  .tapi-card__img--front img.tapi-img-fade.is-loaded { animation: none; }
+  .tapi-card__media.is-loading::after,
+  .tapi-tile__media.is-loading::after { animation: none; }
+  .tapi-card__img--front img.tapi-img-fade,
+  .tapi-tile__media img.tapi-img-fade { opacity: 1; }
+  .tapi-card__img--front img.tapi-img-fade.is-loaded,
+  .tapi-tile__media img.tapi-img-fade.is-loaded { animation: none; }
 }
 
 /* ============================ Recently viewed ============================ */
@@ -183,7 +178,8 @@
 }
 .tapi-rv__grid {
   list-style: none; margin: 0; padding: 0; display: grid;
-  grid-template-columns: repeat(2, 1fr); gap: clamp(1.6rem, 3vw, 3.2rem);
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: var(--tapi-grid-col-gap, 6px); row-gap: var(--tapi-grid-row-gap, 40px);
 }
 @media (min-width: 750px) { .tapi-rv__grid { grid-template-columns: repeat(4, 1fr); } }
 
@@ -196,7 +192,7 @@
     display: flex;
     grid-template-columns: none;
     flex-wrap: nowrap;
-    gap: 1.4rem;
+    gap: var(--tapi-grid-col-gap, 4px);
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
@@ -222,7 +218,8 @@
 .tapi-wl__count { color: var(--tapi-warm-grey); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
 .tapi-wl__grid {
   list-style: none; margin: 0; padding: 0; display: grid;
-  grid-template-columns: repeat(2, 1fr); gap: clamp(1.6rem, 3vw, 3.2rem);
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: var(--tapi-grid-col-gap, 6px); row-gap: var(--tapi-grid-row-gap, 40px);
 }
 @media (min-width: 750px) { .tapi-wl__grid { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 990px) { .tapi-wl__grid { grid-template-columns: repeat(4, 1fr); } }
@@ -336,7 +333,7 @@
   gap: 1.2rem 1.8rem;
   background: var(--mor-surface-raised, #FAF6EC);
   border: 1px solid var(--mor-hairline, rgba(44, 40, 38, 0.1));
-  border-radius: var(--mor-radius-md, 8px);
+  border-radius: 0; /* boxy pass: in-flow panels are square-cornered */
 }
 .tapi-trust__item {
   display: flex;
@@ -364,4 +361,18 @@
 @media (max-width: 749px) {
   .tapi-trust { grid-template-columns: 1fr; gap: 1.1rem; padding: 1.5rem 1.6rem; }
   .tapi-trust__label { font-size: 1.3rem; }
+}
+
+/* ===================== Below-fold render skip =====================
+   Home sections that sit below the first viewport skip layout/paint work
+   until the user scrolls near them (content-visibility: auto), cutting
+   initial render cost. `contain-intrinsic-size: auto <estimate>` reserves
+   an approximate height on first pass and remembers the real one after
+   render, so the scrollbar stays stable and CLS is unaffected. The hero
+   and catalog strip (above the fold) are deliberately excluded. */
+.tapi-studio-strip,
+.tapi-testimonials,
+.tapi-rv {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
 }

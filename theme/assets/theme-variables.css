@@ -194,10 +194,10 @@
   --grid-desktop-horizontal-spacing: 2.4rem;
 
   /* ---------- Radii ---------- */
-  --product-card-corner-radius:        2px;
+  --product-card-corner-radius:        0px; /* boxy pass: square card corners */
   --buttons-radius:                    2px;
   --inputs-radius:                     2px;
-  --media-radius:                      2px;
+  --media-radius:                      0px; /* boxy pass: square media corners */
 
   /* ---------- Borders ---------- */
   --buttons-border-width:              1px;
@@ -2519,6 +2519,14 @@ details[open] > summary .icon-caret {
   --tapi-section-pad: 56px;
   --tapi-card-gap:    16px;
   --tapi-max:         1440px;
+  /* Boxy mosaic grid (2026-07-16): flat square-cornered cards sit nearly
+     flush side-by-side (hairline column gap), while a roomy row gap keeps
+     each image+title+price unit scannable down the page. Consumed by every
+     product/tile grid (collection, search, featured, related, recently
+     viewed, wishlist, wardrobe). --tapi-card-gap remains for non-mosaic
+     consumers (press logos). */
+  --tapi-grid-col-gap: 4px;
+  --tapi-grid-row-gap: 28px;
   /* --mor-* spacing aliases (resolve responsively via the --tapi-* values
      redefined at each breakpoint below). Prefer --mor-* in new code. */
   --mor-gutter:      var(--tapi-gutter);
@@ -2527,10 +2535,10 @@ details[open] > summary .icon-caret {
   --mor-max:         var(--tapi-max);
 }
 @media (min-width: 641px) {
-  :root { --tapi-gutter: 32px; --tapi-section-pad: 72px; --tapi-card-gap: 20px; }
+  :root { --tapi-gutter: 32px; --tapi-section-pad: 72px; --tapi-card-gap: 20px; --tapi-grid-col-gap: 6px; --tapi-grid-row-gap: 36px; }
 }
 @media (min-width: 990px) {
-  :root { --tapi-gutter: 48px; --tapi-section-pad: 96px; --tapi-card-gap: 28px; }
+  :root { --tapi-gutter: 48px; --tapi-section-pad: 96px; --tapi-card-gap: 28px; --tapi-grid-col-gap: 6px; --tapi-grid-row-gap: 40px; }
 }
 @media (min-width: 1440px) {
   :root { --tapi-gutter: 64px; --tapi-section-pad: 112px; --tapi-card-gap: 32px; }

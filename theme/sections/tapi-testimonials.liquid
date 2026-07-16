@@ -74,13 +74,13 @@
     gap: 2.4rem;
   }
 
-  /* Same raised-surface recipe as the product card (ivory, hairline,
-     radius-lg, shadow-sm) so card-like things match across the site. */
+  /* Boxy pass (2026-07-16): product cards went flat and square, so the
+     matching recipe for text panels is ivory + hairline with SQUARE corners
+     and no shadow — card-like things still match across the site. */
   .tapi-testimonials__card {
     background: var(--mor-surface-raised, #FAF6EC);
     border: 1px solid var(--mor-hairline, #E5DDC8);
-    border-radius: var(--mor-radius-lg, 8px);
-    box-shadow: var(--mor-shadow-sm, 0 1px 2px rgba(44, 40, 38, 0.05));
+    border-radius: 0;
     padding: 2.8rem 2.4rem;
     display: flex;
     flex-direction: column;

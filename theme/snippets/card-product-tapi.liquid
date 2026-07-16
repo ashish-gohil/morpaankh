@@ -118,28 +118,16 @@
 </article>
 
 {% stylesheet %}
-  /* The card is a raised ivory surface: one step lighter than the cream page,
-     hairline-edged, resting on shadow-sm, so it reads as a distinct object on
-     the textured background. The WHOLE card lifts on hover (image and text
-     move as one unit), deepening to shadow-lg. Pressed eases back down. */
+  /* Flat editorial card (2026-07-16 boxy pass): no surface, no border, no
+     radius, no shadow — the square-cornered photograph IS the card, sitting
+     nearly flush against its neighbours (hairline column gaps set in
+     tapi-ux.css / theme-variables.css). Title + price rest directly on the
+     page cream, flush with the image's left edge. Hover stays with the
+     media (cross-fade + quick view), not a lift — flat tiles don't float. */
   .tapi-card {
     display: flex; flex-direction: column; gap: 1.2rem; position: relative;
     height: 100%; /* fill the grid/rail row so card bottoms align across a section */
-    background: var(--mor-surface-raised, #FAF6EC);
-    border: 1px solid var(--mor-hairline);
-    border-radius: var(--mor-radius-lg);
-    box-shadow: var(--mor-shadow-sm);
-    overflow: hidden;
-    transition: transform 480ms var(--mor-ease),
-                box-shadow 480ms var(--mor-ease),
-                border-color 480ms var(--mor-ease);
   }
-  .tapi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--mor-shadow-lg);
-    border-color: var(--mor-hairline-2);
-  }
-  .tapi-card:active { transform: translateY(-1px); }
   .tapi-card__media {
     position: relative; display: block; overflow: hidden;
     aspect-ratio: 3 / 4; background: var(--mor-cream-2);
@@ -192,7 +180,9 @@
      deferred to the PDP so the browse grid stays scannable. Intra-card gaps are
      deliberately small (3-6px) so each card reads as ONE unit, well inside the
      larger grid row-gap (Gestalt proximity — cards look clearly separated). */
-  .tapi-card__info { display: flex; flex-direction: column; gap: 0.5rem; padding: 0 1.4rem 1.6rem; flex: 1; }
+  /* Flush-left with the image edge; the small right inset guarantees a long
+     title never touches the neighbouring card's text across the hairline gap. */
+  .tapi-card__info { display: flex; flex-direction: column; gap: 0.5rem; padding: 0 1rem 0 0; flex: 1; }
   .tapi-card__row { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; }
   /* Dots pin to the card's bottom edge, so when titles wrap differently the
      slack sits between price and dots, and the last line aligns row-wide. */
@@ -246,7 +236,6 @@
 
   @media (hover: none) and (pointer: coarse) {
     .tapi-card__quick { display: none; }
-    .tapi-card:hover { transform: none; box-shadow: var(--mor-shadow-sm); border-color: var(--mor-hairline); }
     .tapi-card:active { transform: scale(0.99); }
     .tapi-card:hover .tapi-card__img--front { opacity: 1; }
     .tapi-card:hover .tapi-card__img--back  { opacity: 0; }
@@ -261,7 +250,6 @@
   /* ---- Mobile: same two-line card, just a tighter type scale for 2-up grids --- */
   @media (max-width: 749px) {
     .tapi-card { gap: 1rem; }
-    .tapi-card__info { padding: 0 1.2rem 1.4rem; }
     .tapi-card__title { font-size: 1.55rem; line-height: 1.3; letter-spacing: -0.004em; }
     .tapi-card__price { gap: 0.6rem; }
     .tapi-card__price-now { font-size: 1.5rem; }

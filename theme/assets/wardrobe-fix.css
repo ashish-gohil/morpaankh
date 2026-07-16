@@ -55,3 +55,20 @@
     min-width: 0;
   }
 }
+
+/* ------------------------------------------------------------------
+   Boxy mosaic gaps (2026-07-16). The wardrobe tiles adopt the same
+   near-flush column gap as the product grids (--tapi-grid-col-gap)
+   with the roomier row gap when tiles wrap. Lives here, not in the
+   section {% stylesheet %}, for the same stale-bundle reason as the
+   rules above.
+   ------------------------------------------------------------------ */
+@media (min-width: 750px) {
+  .tapi-collection-tiles__grid {
+    gap: var(--tapi-grid-row-gap, 36px) var(--tapi-grid-col-gap, 6px);
+  }
+}
+@media (max-width: 749px) {
+  /* Mobile snap carousel: tight filmstrip gap to match the boxy system. */
+  .tapi-collection-tiles__grid { gap: var(--tapi-grid-col-gap, 4px); }
+}
