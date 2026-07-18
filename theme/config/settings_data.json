@@ -139,14 +139,14 @@
       "tapi-announcement": {
         "type": "tapi-announcement",
         "settings": {
-          "enabled": false,
-          "text": "Launch week: 15% off",
+          "enabled": true,
+          "text": "Buy 2 saves 10% · Buy 3 saves 15% · applied for you in cart",
           "link": "/collections/all",
           "animate": true,
-          "schedule_enabled": true,
+          "schedule_enabled": false,
           "start_at": "2026-07-02T00:00:00+05:30",
           "end_at": "2026-07-05T23:59:59+05:30",
-          "countdown_enabled": true,
+          "countdown_enabled": false,
           "countdown_label": "Ends in",
           "bg_color": "#b7472a",
           "text_color": "#f8f4ed"

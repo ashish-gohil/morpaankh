@@ -1,0 +1,170 @@
+{%- comment -%}
+  Smart offers panel (cart page).
+
+  Reads the four offer slots from Theme settings -> Offers (the single
+  source of truth, shared with the PDP offers box) and server-renders
+  each offer's real saving for THIS cart. Sits inside .js-contents so it
+  re-renders with the cart on every quantity change, exactly like the
+  shipping meter. tapi-offers.js then auto-applies the biggest general
+  code via /discount/CODE and lets the shopper switch.
+
+  Honest by design: every row mirrors a live code in Discounts, savings
+  are computed from the actual cart, first-order codes are labelled and
+  never auto-applied, and rows a logged-in returning customer cannot
+  use are not shown to them at all.
+{%- endcomment -%}
+{%- liquid
+  assign o_total = cart.total_price
+  assign o_items = cart.item_count
+  assign is_returning = false
+  if customer and customer.orders_count > 0
+    assign is_returning = true
+  endif
+
+  assign shown = 0
+  assign best_code = ''
+  assign best_save = 0
+  assign best_general_code = ''
+  assign best_general_save = 0
+
+  for i in (1..4)
+    assign base = 'tapi_offer' | append: i
+    assign key = base | append: '_enable'
+    unless settings[key]
+      continue
+    endunless
+    assign key = base | append: '_first_order'
+    assign o_first = settings[key]
+    if o_first and is_returning
+      continue
+    endif
+    assign key = base | append: '_code'
+    assign o_code = settings[key] | strip | upcase
+    if o_code == blank
+      continue
+    endif
+    assign shown = shown | plus: 1
+
+    assign key = base | append: '_min_qty'
+    assign o_minq = settings[key] | default: 0 | plus: 0
+    assign key = base | append: '_min_subtotal'
+    assign o_mins = settings[key] | default: 0 | times: 100
+    if o_items >= o_minq and o_total >= o_mins
+      assign key = base | append: '_kind'
+      assign o_kind = settings[key]
+      assign key = base | append: '_value'
+      assign o_val = settings[key] | default: 0 | plus: 0
+      if o_kind == 'amount'
+        assign o_save = o_val | times: 100 | at_most: o_total
+      else
+        assign o_save = o_total | times: o_val | divided_by: 100
+      endif
+      if o_save > best_save
+        assign best_save = o_save
+        assign best_code = o_code
+      endif
+      unless o_first
+        if o_save > best_general_save
+          assign best_general_save = o_save
+          assign best_general_code = o_code
+        endif
+      endunless
+    endif
+  endfor
+-%}
+{%- if shown > 0 -%}
+  <div class="tapi-offers" data-tapi-offers data-best-general="{{ best_general_code }}" role="group" aria-label="Offers for this order">
+    <p class="tapi-offers__head">
+      Offers
+      <span class="tapi-offers__hint">One code per order &middot; entered for you at checkout</span>
+    </p>
+    <ul class="tapi-offers__list" role="list">
+      {%- for i in (1..4) -%}
+        {%- liquid
+          assign base = 'tapi_offer' | append: i
+          assign key = base | append: '_enable'
+          unless settings[key]
+            continue
+          endunless
+          assign key = base | append: '_first_order'
+          assign o_first = settings[key]
+          if o_first and is_returning
+            continue
+          endif
+          assign key = base | append: '_code'
+          assign o_code = settings[key] | strip | upcase
+          if o_code == blank
+            continue
+          endif
+          assign key = base | append: '_label'
+          assign o_label = settings[key]
+          assign key = base | append: '_min_qty'
+          assign o_minq = settings[key] | default: 0 | plus: 0
+          assign key = base | append: '_min_subtotal'
+          assign o_mins = settings[key] | default: 0 | times: 100
+          assign o_eligible = false
+          if o_items >= o_minq and o_total >= o_mins
+            assign o_eligible = true
+          endif
+          assign o_save = 0
+          if o_eligible
+            assign key = base | append: '_kind'
+            assign o_kind = settings[key]
+            assign key = base | append: '_value'
+            assign o_val = settings[key] | default: 0 | plus: 0
+            if o_kind == 'amount'
+              assign o_save = o_val | times: 100 | at_most: o_total
+            else
+              assign o_save = o_total | times: o_val | divided_by: 100
+            endif
+          endif
+        -%}
+        <li
+          class="tapi-offers__row{% if o_eligible %} is-eligible{% endif %}"
+          data-code="{{ o_code }}"
+          data-eligible="{% if o_eligible %}true{% else %}false{% endif %}"
+        >
+          <div class="tapi-offers__info">
+            <span class="tapi-offers__label">
+              {{ o_label | default: o_code }}
+              {%- if o_eligible and o_code == best_code and best_save > 0 %}
+                <span class="tapi-offers__flag tapi-offers__flag--best">Biggest saving</span>
+              {%- endif %}
+              {%- if o_first %}
+                <span class="tapi-offers__flag tapi-offers__flag--first">First order only</span>
+              {%- endif %}
+            </span>
+            <span class="tapi-offers__meta">
+              {%- if o_eligible -%}
+                Saves {{ o_save | money_without_trailing_zeros }} on this cart
+              {%- elsif o_items < o_minq -%}
+                {%- assign o_need = o_minq | minus: o_items -%}
+                Add {{ o_need }} more piece{% if o_need > 1 %}s{% endif %} to unlock
+              {%- else -%}
+                On orders over {{ o_mins | money_without_trailing_zeros }}
+              {%- endif -%}
+            </span>
+          </div>
+          {%- if o_eligible -%}
+            <button
+              type="button"
+              class="tapi-offers__apply"
+              data-tapi-offer-apply
+              data-code="{{ o_code }}"
+              aria-pressed="false"
+            >
+              <span class="tapi-offers__code">{{ o_code }}</span>
+              <span data-apply-label>Apply</span>
+            </button>
+          {%- else -%}
+            <span class="tapi-offers__code is-muted">{{ o_code }}</span>
+          {%- endif -%}
+        </li>
+      {%- endfor -%}
+    </ul>
+    <p class="tapi-offers__foot" data-tapi-offers-status aria-live="polite"></p>
+    <noscript>
+      <p class="tapi-offers__meta">Enter one of these codes at checkout to use an offer.</p>
+    </noscript>
+  </div>
+{%- endif -%}

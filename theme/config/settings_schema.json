@@ -1505,5 +1505,243 @@
         "info": "Numeric ID from Meta Events Manager. Sends PageView, ViewContent, AddToCart, InitiateCheckout. If you later install the Facebook & Instagram sales channel, clear this field. The channel injects its own pixel and both together double-fire."
       }
     ]
+  },
+  {
+    "name": "Offers",
+    "settings": [
+      {
+        "type": "paragraph",
+        "content": "Single source of truth for every offer surface (PDP offers box, cart smart-offers panel). Each slot must mirror a code that is LIVE in Admin → Discounts — the storefront never invents offers. One code applies per order; the cart auto-applies the biggest general saving and shoppers can switch."
+      },
+      {
+        "type": "header",
+        "content": "Offer 1"
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer1_enable",
+        "label": "Enable",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer1_code",
+        "label": "Discount code",
+        "default": "BUY2",
+        "info": "Exactly as it exists in Discounts."
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer1_label",
+        "label": "Label",
+        "default": "Buy 2 pieces · 10% off your order"
+      },
+      {
+        "type": "select",
+        "id": "tapi_offer1_kind",
+        "label": "Discount type",
+        "options": [
+          { "value": "percent", "label": "Percentage off order" },
+          { "value": "amount", "label": "Fixed amount off (₹)" }
+        ],
+        "default": "percent"
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer1_value",
+        "label": "Value (percent or ₹)",
+        "default": 10
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer1_min_qty",
+        "label": "Minimum items",
+        "default": 2
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer1_min_subtotal",
+        "label": "Minimum subtotal (₹)",
+        "default": 0
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer1_first_order",
+        "label": "First order only",
+        "info": "Shown with a label, never auto-applied, and hidden from logged-in returning customers.",
+        "default": false
+      },
+      {
+        "type": "header",
+        "content": "Offer 2"
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer2_enable",
+        "label": "Enable",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer2_code",
+        "label": "Discount code",
+        "default": "BUY3",
+        "info": "Exactly as it exists in Discounts."
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer2_label",
+        "label": "Label",
+        "default": "Buy 3 pieces · 15% off your order"
+      },
+      {
+        "type": "select",
+        "id": "tapi_offer2_kind",
+        "label": "Discount type",
+        "options": [
+          { "value": "percent", "label": "Percentage off order" },
+          { "value": "amount", "label": "Fixed amount off (₹)" }
+        ],
+        "default": "percent"
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer2_value",
+        "label": "Value (percent or ₹)",
+        "default": 15
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer2_min_qty",
+        "label": "Minimum items",
+        "default": 3
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer2_min_subtotal",
+        "label": "Minimum subtotal (₹)",
+        "default": 0
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer2_first_order",
+        "label": "First order only",
+        "default": false
+      },
+      {
+        "type": "header",
+        "content": "Offer 3"
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer3_enable",
+        "label": "Enable",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer3_code",
+        "label": "Discount code",
+        "default": "WELCOME200",
+        "info": "Exactly as it exists in Discounts."
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer3_label",
+        "label": "Label",
+        "default": "First order · ₹200 off over ₹1,000"
+      },
+      {
+        "type": "select",
+        "id": "tapi_offer3_kind",
+        "label": "Discount type",
+        "options": [
+          { "value": "percent", "label": "Percentage off order" },
+          { "value": "amount", "label": "Fixed amount off (₹)" }
+        ],
+        "default": "amount"
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer3_value",
+        "label": "Value (percent or ₹)",
+        "default": 200
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer3_min_qty",
+        "label": "Minimum items",
+        "default": 0
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer3_min_subtotal",
+        "label": "Minimum subtotal (₹)",
+        "default": 1000
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer3_first_order",
+        "label": "First order only",
+        "default": true
+      },
+      {
+        "type": "header",
+        "content": "Offer 4"
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer4_enable",
+        "label": "Enable",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer4_code",
+        "label": "Discount code",
+        "default": "NEWMORPAANKH10",
+        "info": "Exactly as it exists in Discounts."
+      },
+      {
+        "type": "text",
+        "id": "tapi_offer4_label",
+        "label": "Label",
+        "default": "First order · 10% off over ₹3,000"
+      },
+      {
+        "type": "select",
+        "id": "tapi_offer4_kind",
+        "label": "Discount type",
+        "options": [
+          { "value": "percent", "label": "Percentage off order" },
+          { "value": "amount", "label": "Fixed amount off (₹)" }
+        ],
+        "default": "percent"
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer4_value",
+        "label": "Value (percent or ₹)",
+        "default": 10
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer4_min_qty",
+        "label": "Minimum items",
+        "default": 0
+      },
+      {
+        "type": "number",
+        "id": "tapi_offer4_min_subtotal",
+        "label": "Minimum subtotal (₹)",
+        "default": 3000
+      },
+      {
+        "type": "checkbox",
+        "id": "tapi_offer4_first_order",
+        "label": "First order only",
+        "default": true
+      }
+    ]
   }
 ]

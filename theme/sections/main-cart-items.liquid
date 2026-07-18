@@ -4,6 +4,7 @@
 {{ 'component-price.css' | asset_url | stylesheet_tag }}
 {{ 'component-discounts.css' | asset_url | stylesheet_tag }}
 {{ 'quantity-popover.css' | asset_url | stylesheet_tag }}
+{{ 'tapi-offers.css' | asset_url | stylesheet_tag }}
 
 {%- style -%}
   .section-{{ section.id }}-padding {
@@ -24,6 +25,7 @@
 {%- endunless -%}
 
 <script src="{{ 'quantity-popover.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'tapi-offers.js' | asset_url }}" defer="defer"></script>
 
 <cart-items class="gradient color-{{ section.settings.color_scheme }} isolate{% if cart == empty %} is-empty{% else %} section-{{ section.id }}-padding{% endif %}">
   <div class="page-width">
@@ -72,30 +74,14 @@
                 {%- endif -%}
               </div>
             {%- endif -%}
-            {%- comment -%} Bundle ladder meter: mirrors the LIVE automatic discounts
-              (Buy 2 = 10%, Buy 3 = 15%). Server-rendered from cart.item_count, so it
-              re-renders with the cart on every quantity change, same as the shipping
-              meter above. Reuses the ship-meter styles for one visual language. {%- endcomment -%}
-            {%- if section.settings.show_bundle_meter -%}
-              <div class="tapi-ship-meter" role="status">
-                {%- if cart.item_count >= 3 -%}
-                  <p class="tapi-ship-meter__msg tapi-ship-meter__msg--done">
-                    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <span>{{ section.settings.bundle_done_text | default: '15% off unlocked on your whole order, applied at checkout.' }}</span>
-                  </p>
-                  <div class="tapi-ship-meter__track"><span class="tapi-ship-meter__fill" style="width: 100%"></span></div>
-                {%- elsif cart.item_count == 2 -%}
-                  <p class="tapi-ship-meter__msg">
-                    {{- section.settings.bundle_two_text | default: '10% off unlocked. One more piece makes it 15% off.' -}}
-                  </p>
-                  <div class="tapi-ship-meter__track"><span class="tapi-ship-meter__fill" style="width: 66%"></span></div>
-                {%- else -%}
-                  <p class="tapi-ship-meter__msg">
-                    {{- section.settings.bundle_one_text | default: 'Add 1 more piece and 10% comes off your whole order at checkout.' -}}
-                  </p>
-                  <div class="tapi-ship-meter__track"><span class="tapi-ship-meter__fill" style="width: 33%"></span></div>
-                {%- endif -%}
-              </div>
+            {%- comment -%} Smart offers panel: replaced the bundle ladder when the
+              Buy 2 / Buy 3 automatics became codes (automatic order discounts were
+              blocking WELCOME200 at checkout, so a shopper could never take the
+              bigger saving). Sits inside .js-contents so it re-renders with the
+              cart on every quantity change, same as the shipping meter above.
+              tapi-offers.js auto-applies the biggest general code. {%- endcomment -%}
+            {%- if section.settings.show_smart_offers -%}
+              {% render 'tapi-smart-offers' %}
             {%- endif -%}
             <table class="cart-items">
               <caption class="visually-hidden">
@@ -691,32 +677,14 @@
     },
     {
       "type": "header",
-      "content": "Bundle offer meter"
+      "content": "Smart offers panel"
     },
     {
       "type": "checkbox",
-      "id": "show_bundle_meter",
-      "label": "Show bundle discount progress",
-      "info": "Nudges toward the Buy 2 (10% off) and Buy 3 (15% off) automatic discounts. Keep the copy in sync with what is live in Discounts.",
+      "id": "show_smart_offers",
+      "label": "Show the smart offers panel",
+      "info": "Lists the codes from Theme settings → Offers with the real saving for this cart, auto-applies the biggest general one and lets the shopper switch. Keep Theme settings → Offers in sync with Discounts.",
       "default": true
-    },
-    {
-      "type": "text",
-      "id": "bundle_one_text",
-      "label": "Message at 1 item",
-      "default": "Add 1 more piece and 10% comes off your whole order at checkout."
-    },
-    {
-      "type": "text",
-      "id": "bundle_two_text",
-      "label": "Message at 2 items",
-      "default": "10% off unlocked. One more piece makes it 15% off."
-    },
-    {
-      "type": "text",
-      "id": "bundle_done_text",
-      "label": "Message at 3+ items",
-      "default": "15% off unlocked on your whole order, applied at checkout."
     },
     {
       "type": "header",
