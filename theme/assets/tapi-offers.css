@@ -1,21 +1,23 @@
 /* ------------------------------------------------------------------
-   Smart offers: cart panel + copyable code chips (PDP).
+   Smart offers: cart coupon cards + copyable code chips (PDP).
    Standalone asset on purpose — same fresh-URL pattern as
    pdp-offers.css — so it never gets trapped by a stale compiled
    section-stylesheet bundle.
    Every offer shown maps 1:1 to a LIVE code in Admin → Discounts,
-   configured once in Theme settings → Offers. Boxy pass language:
-   square corners, hairline borders, no shadows.
+   configured once in Theme settings → Offers. Codes attach to the
+   cart itself (/cart/update.js), so totals and checkout update
+   instantly. Boxy pass language: square corners, hairline borders,
+   flat surfaces, no shadows.
    ------------------------------------------------------------------ */
 .tapi-offers {
   background: var(--mor-surface-2, #f3eee3);
   border: 1px solid var(--mor-hairline, #e5ddc8);
-  padding: 1.6rem 1.8rem;
+  padding: 1.6rem;
   margin: 0 0 2.4rem;
 }
 
 .tapi-offers__head {
-  margin: 0 0 0.6rem;
+  margin: 0 0 1.2rem;
   font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -24,130 +26,180 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: space-between;
   gap: 0.4rem 1rem;
 }
 
 .tapi-offers__hint {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
   color: var(--mor-text-muted, #6b5d54);
 }
 
+.tapi-offers__saving {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 0 1.2rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--mor-primary, #2e4b3c);
+}
+
 .tapi-offers__list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
-.tapi-offers__row {
+/* One coupon = one flat ivory card. Chip and label share the first
+   line (single-line coupon look); the dynamic saving/unlock hint sits
+   underneath in small type. CTA column stays on the right at every
+   viewport — no stacking, so the chip never drops to its own row. */
+.tapi-offers__card {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.2rem;
-  padding: 1.2rem 0;
-  border-top: 1px solid var(--mor-hairline, #e5ddc8);
+  background: var(--mor-surface-raised, #faf6ec);
+  border: 1px solid var(--mor-hairline, #e5ddc8);
+  padding: 1.2rem 1.4rem;
 }
 
-.tapi-offers__info {
+.tapi-offers__card.is-applied {
+  border-color: var(--mor-primary, #2e4b3c);
+  box-shadow: inset 3px 0 0 var(--mor-primary, #2e4b3c);
+}
+
+.tapi-offers__best {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0.25rem 0.8rem;
+  background: var(--mor-primary, #2e4b3c);
+  color: var(--mor-cream, #f7f3e8);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tapi-offers__main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tapi-offers__line {
+  margin: 0 0 0.35rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.9rem;
   min-width: 0;
 }
 
+.tapi-offers__code {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.7rem;
+  border: 1px dashed var(--mor-gold, #b08947);
+  background: var(--mor-cream, #f7f3e8);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--mor-charcoal, #2c2826);
+}
+
 .tapi-offers__label {
+  min-width: 0;
   font-size: 1.35rem;
   font-weight: 500;
+  line-height: 1.35;
   color: var(--mor-charcoal, #2c2826);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem;
 }
-
-.tapi-offers__flag {
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.2rem 0.7rem;
-  border: 1px solid currentColor;
-}
-
-.tapi-offers__flag--best { color: var(--mor-primary, #2e4b3c); }
-.tapi-offers__flag--first { color: var(--mor-text-muted, #6b5d54); }
 
 .tapi-offers__meta {
-  font-size: 1.25rem;
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.4;
   color: var(--mor-text-muted, #6b5d54);
 }
 
-.tapi-offers__row.is-eligible .tapi-offers__meta {
+.tapi-offers__card.is-eligible .tapi-offers__meta {
   color: var(--mor-primary, #2e4b3c);
 }
 
+.tapi-offers__cta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+/* Text-button CTAs, Paytm-style: quiet until needed, generous tap area */
 .tapi-offers__apply {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  margin: -0.8rem -0.6rem;
+  padding: 1.5rem 0.6rem;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mor-primary, #2e4b3c);
+  cursor: pointer;
+}
+
+.tapi-offers__apply:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.tapi-offers__apply[disabled] { opacity: 0.5; cursor: default; }
+
+.tapi-offers__applied {
   display: inline-flex;
   align-items: center;
-  gap: 0.8rem;
-  min-height: 4rem;
-  padding: 0.6rem 1.2rem;
-  background: var(--mor-surface-raised, #faf6ec);
-  border: 1px solid var(--mor-charcoal, #2c2826);
-  border-radius: 0;
-  color: var(--mor-charcoal, #2c2826);
-  font: inherit;
-  font-size: 1.2rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
-}
-
-.tapi-offers__apply:hover {
-  background: var(--mor-charcoal, #2c2826);
-  color: var(--mor-cream, #f7f3e8);
-}
-
-.tapi-offers__row.is-applied .tapi-offers__apply,
-.tapi-offers__row.is-applied .tapi-offers__apply:hover {
-  background: var(--mor-primary, #2e4b3c);
-  border-color: var(--mor-primary, #2e4b3c);
-  color: var(--mor-cream, #f7f3e8);
-}
-
-.tapi-offers__code {
-  display: inline-block;
+  gap: 0.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  padding: 0.2rem 0.6rem;
-  border: 1px dashed currentColor;
+  text-transform: uppercase;
+  color: var(--mor-primary, #2e4b3c);
 }
 
-.tapi-offers__code.is-muted {
+.tapi-offers__remove {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  margin: -0.4rem -0.6rem -0.8rem;
+  padding: 0.8rem 0.6rem;
+  font: inherit;
+  font-size: 1.15rem;
   color: var(--mor-text-muted, #6b5d54);
-  font-size: 1.2rem;
-  align-self: center;
-  flex: 0 0 auto;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .tapi-offers__foot {
-  margin: 0.9rem 0 0;
+  margin: 1rem 0 0;
   font-size: 1.2rem;
   color: var(--mor-primary, #2e4b3c);
 }
+
+.tapi-offers__foot.is-error { color: var(--mor-accent, #b7472a); }
 
 .tapi-offers__foot:empty { display: none; }
 
 @media (max-width: 480px) {
-  .tapi-offers__row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.8rem;
-  }
+  .tapi-offers { padding: 1.4rem 1.2rem; }
+  .tapi-offers__card { padding: 1.1rem 1.2rem; gap: 1rem; }
+  .tapi-offers__label { font-size: 1.3rem; }
 }
 
 /* Copyable code chip (PDP offers box) */
@@ -193,6 +245,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tapi-offers__apply,
   .tapi-code-chip { transition: none; }
 }

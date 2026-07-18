@@ -192,15 +192,11 @@
 
       {%- comment -%} Offers come from Theme settings -> Offers, the single source
         of truth shared with the cart smart-offers panel, so PDP and cart can
-        never drift apart. Each row mirrors a live code in Discounts. Rows a
-        logged-in returning customer cannot use (first-order codes) are hidden
-        from them entirely. {%- endcomment -%}
+        never drift apart. Each row mirrors a live code in Discounts. All
+        public codes are listed for everyone; first-order labels carry the
+        eligibility, checkout enforces it. {%- endcomment -%}
       {%- if section.settings.show_offers -%}
         {%- liquid
-          assign pdp_is_returning = false
-          if customer and customer.orders_count > 0
-            assign pdp_is_returning = true
-          endif
           assign pdp_offer_list = ''
           for i in (1..4)
             assign base = 'tapi_offer' | append: i
@@ -208,10 +204,6 @@
             unless settings[key]
               continue
             endunless
-            assign key = base | append: '_first_order'
-            if settings[key] and pdp_is_returning
-              continue
-            endif
             assign key = base | append: '_code'
             assign o_code = settings[key] | strip | upcase
             if o_code == blank

@@ -1,77 +1,129 @@
 /* ------------------------------------------------------------------
    Smart offers behaviour.
-   Cart: auto-applies the biggest general (non-first-order) code via
-   Shopify's /discount/CODE cookie endpoint so checkout arrives with
-   the code pre-filled, and lets the shopper switch to any eligible
-   code (one code per order — Shopify enforces the rest).
+   Cart: applies a discount code to the CART itself via
+   POST /cart/update.js { discount } — the same mechanism the checkout
+   reads — so the cart total, the footer discount line and checkout
+   all reflect the code instantly, no refresh. The request bundles
+   Shopify section rendering, so the panel and totals re-render from
+   one round trip. The biggest general (non-first-order) code is
+   auto-applied once; the shopper can switch or remove freely.
    PDP: copy-to-clipboard for the offer code chips.
    Progressive enhancement: without JS the panel still lists codes and
-   they can be typed at checkout. No personal data is stored — only
-   the chosen code, per tab session.
+   they can be typed at checkout. Only a "shopper removed the code"
+   flag is stored, per tab session — no personal data.
    ------------------------------------------------------------------ */
 (function () {
   'use strict';
 
-  var KEY = 'tapi:offer-code';
+  var DISMISS_KEY = 'tapi:offer-dismissed';
   var busy = false;
+  var autoTried = false;
 
   function panel() {
     return document.querySelector('[data-tapi-offers]');
   }
 
-  function readSaved() {
-    try { return sessionStorage.getItem(KEY); } catch (e) { return null; }
+  function dismissed() {
+    try { return sessionStorage.getItem(DISMISS_KEY) === '1'; } catch (e) { return false; }
   }
 
-  function writeSaved(code) {
-    try { sessionStorage.setItem(KEY, code); } catch (e) { /* private mode */ }
+  function setDismissed(on) {
+    try {
+      if (on) sessionStorage.setItem(DISMISS_KEY, '1');
+      else sessionStorage.removeItem(DISMISS_KEY);
+    } catch (e) { /* private mode */ }
   }
 
-  function setStatus(p, msg) {
-    var s = p.querySelector('[data-tapi-offers-status]');
-    if (s) s.textContent = msg;
+  function sectionIds() {
+    var ids = [];
+    var items = document.getElementById('main-cart-items');
+    var footer = document.getElementById('main-cart-footer');
+    if (items && items.dataset.id) ids.push(items.dataset.id);
+    if (footer && footer.dataset.id) ids.push(footer.dataset.id);
+    return ids;
   }
 
-  function markApplied(p, code) {
-    var rows = p.querySelectorAll('.tapi-offers__row[data-code]');
-    Array.prototype.forEach.call(rows, function (row) {
-      var on = row.getAttribute('data-code') === code;
-      row.classList.toggle('is-applied', on);
-      var btn = row.querySelector('[data-tapi-offer-apply]');
-      if (btn) {
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        var lbl = btn.querySelector('[data-apply-label]');
-        if (lbl) lbl.textContent = on ? 'Applied' : 'Apply';
-      }
+  function swapSections(sections) {
+    if (!sections) return;
+    Object.keys(sections).forEach(function (id) {
+      var html = sections[id];
+      var host = document.getElementById('shopify-section-' + id);
+      if (!html || !host) return;
+      var fresh = new DOMParser().parseFromString(html, 'text/html').querySelector('.js-contents');
+      var live = host.querySelector('.js-contents');
+      if (fresh && live) live.innerHTML = fresh.innerHTML;
     });
-    setStatus(p, code ? 'Code ' + code + ' is set. It comes off your total at checkout.' : '');
   }
 
-  function applyCode(code, p) {
-    if (!code || busy) return;
+  function setStatus(msg, isError) {
+    var p = panel();
+    if (!p) return;
+    var s = p.querySelector('[data-tapi-offers-status]');
+    if (!s) return;
+    s.textContent = msg || '';
+    s.classList.toggle('is-error', !!isError);
+  }
+
+  function rupees(paise) {
+    return 'Rs. ' + (paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function postDiscount(code, opts) {
+    if (busy) return;
     busy = true;
-    fetch('/discount/' + encodeURIComponent(code), { credentials: 'same-origin' })
-      .then(function () {
-        writeSaved(code);
-        if (p) markApplied(p, code);
+    opts = opts || {};
+    var prev = null;
+    var p = panel();
+    if (p) prev = p.getAttribute('data-applied-code') || '';
+    var body = { discount: code };
+    var ids = sectionIds();
+    if (ids.length) body.sections = ids.join(',');
+    fetch('/cart/update.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (cart) {
+        var entry = (cart.discount_codes || [])[0];
+        var applicable = code === '' || (entry && entry.applicable === true);
+        swapSections(cart.sections);
+        if (applicable) {
+          if (!opts.silent) {
+            if (code === '') setStatus('Code removed.');
+            else setStatus('Code ' + code + ' applied. You save ' + rupees(cart.total_discount) + ' on this order.');
+          }
+          busy = false;
+          if (opts.after) opts.after();
+        } else {
+          // Structural miss (cart changed under us): put things back, then
+          // say why — after the restore's own section swap, or the message
+          // would be wiped along with the panel HTML.
+          busy = false;
+          postDiscount(prev || '', {
+            silent: true,
+            after: function () {
+              setStatus('Code ' + code + ' does not fit this cart yet.', true);
+            }
+          });
+        }
       })
-      .catch(function () { /* offline: shopper can still type the code at checkout */ })
-      .then(function () { busy = false; });
+      .catch(function () {
+        busy = false;
+        setStatus('Could not update the code. Please try again.', true);
+      });
   }
 
   function initCart() {
     var p = panel();
-    if (!p) return;
-    var saved = readSaved();
-    if (saved && p.querySelector('.tapi-offers__row[data-code="' + saved + '"][data-eligible="true"]')) {
-      markApplied(p, saved);
-      return;
+    if (!p || autoTried) return;
+    var applied = p.getAttribute('data-applied-code') || '';
+    var best = p.getAttribute('data-best-general') || '';
+    if (applied === '' && best !== '' && !dismissed()) {
+      autoTried = true;
+      postDiscount(best, { silent: true });
     }
-    // No valid choice yet for this cart: quietly set the biggest general
-    // saving. First-order-only codes are never auto-applied — the shopper
-    // opts in, since eligibility is theirs to know.
-    var best = p.getAttribute('data-best-general');
-    if (best) applyCode(best, p);
   }
 
   function copyChip(btn) {
@@ -104,31 +156,22 @@
   document.addEventListener('click', function (e) {
     var apply = e.target.closest('[data-tapi-offer-apply]');
     if (apply) {
-      applyCode(apply.getAttribute('data-code'), apply.closest('[data-tapi-offers]'));
+      setDismissed(false);
+      postDiscount(apply.getAttribute('data-code'));
+      return;
+    }
+    var remove = e.target.closest('[data-tapi-offer-remove]');
+    if (remove) {
+      setDismissed(true);
+      postDiscount('');
       return;
     }
     var chip = e.target.closest('[data-tapi-copy]');
     if (chip) copyChip(chip);
   });
 
-  // The cart section swaps .js-contents on every quantity change, which
-  // re-renders the panel server-side with fresh math. Re-run init so the
-  // applied state (and a better auto-pick) follows the new cart.
-  var observer = null;
-  function watchCart() {
-    var host = document.getElementById('main-cart-items');
-    if (!host || observer) return;
-    var t = null;
-    observer = new MutationObserver(function () {
-      window.clearTimeout(t);
-      t = window.setTimeout(initCart, 150);
-    });
-    observer.observe(host, { childList: true, subtree: true });
-  }
-
   function boot() {
     initCart();
-    watchCart();
   }
 
   if (document.readyState === 'loading') {
@@ -136,5 +179,5 @@
   } else {
     boot();
   }
-  document.addEventListener('shopify:section:load', initCart);
+  document.addEventListener('shopify:section:load', boot);
 })();
