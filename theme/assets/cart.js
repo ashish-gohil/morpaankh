@@ -120,7 +120,7 @@ class CartItems extends HTMLElement {
   }
 
   getSectionsToRender() {
-    return [
+    const sections = [
       {
         id: 'main-cart-items',
         section: document.getElementById('main-cart-items').dataset.id,
@@ -142,6 +142,16 @@ class CartItems extends HTMLElement {
         selector: '.js-contents',
       },
     ];
+    // The sticky desktop order summary lives outside .js-contents, so it
+    // needs its own entry or its totals go stale after a quantity change.
+    if (document.getElementById('tapi-cart-aside')) {
+      sections.push({
+        id: 'tapi-cart-aside',
+        section: document.getElementById('main-cart-items').dataset.id,
+        selector: '.tapi-cart-aside',
+      });
+    }
+    return sections;
   }
 
   updateQuantity(line, quantity, event, name, variantId) {
@@ -245,7 +255,10 @@ class CartItems extends HTMLElement {
   }
 
   getSectionInnerHTML(html, selector) {
-    return new DOMParser().parseFromString(html, 'text/html').querySelector(selector).innerHTML;
+    // Null-safe: an emptied cart renders without the aside, and one missing
+    // selector must not abort the remaining section swaps mid-loop.
+    const match = new DOMParser().parseFromString(html, 'text/html').querySelector(selector);
+    return match ? match.innerHTML : '';
   }
 
   enableLoading(line) {

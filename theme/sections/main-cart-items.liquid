@@ -74,15 +74,6 @@
                 {%- endif -%}
               </div>
             {%- endif -%}
-            {%- comment -%} Smart offers panel: replaced the bundle ladder when the
-              Buy 2 / Buy 3 automatics became codes (automatic order discounts were
-              blocking WELCOME200 at checkout, so a shopper could never take the
-              bigger saving). Sits inside .js-contents so it re-renders with the
-              cart on every quantity change, same as the shipping meter above.
-              tapi-offers.js auto-applies the biggest general code. {%- endcomment -%}
-            {%- if section.settings.show_smart_offers -%}
-              {% render 'tapi-smart-offers' %}
-            {%- endif -%}
             <table class="cart-items">
               <caption class="visually-hidden">
                 {{ 'sections.cart.title' | t }}
@@ -470,6 +461,15 @@
                 {%- endfor -%}
               </tbody>
             </table>
+            {%- comment -%} Smart offers panel: after the products (user-requested
+              reading order: products, offers, then checkout). Replaced the bundle
+              ladder when the Buy 2 / Buy 3 automatics became codes (automatic
+              order discounts were blocking WELCOME200 at checkout). Sits inside
+              .js-contents so it re-renders with the cart on every quantity
+              change; tapi-offers.js auto-applies the biggest general code. {%- endcomment -%}
+            {%- if section.settings.show_smart_offers -%}
+              {% render 'tapi-smart-offers' %}
+            {%- endif -%}
           {%- endif -%}
         </div>
       </div>
@@ -488,12 +488,12 @@
 
     {%- comment -%} Tapi sticky checkout aside — visible on md+ only (desktop 2-col) {%- endcomment -%}
     {%- if cart != empty -%}
-      <aside class="tapi-cart-aside" aria-label="Order summary">
+      <aside class="tapi-cart-aside" id="tapi-cart-aside" aria-label="Order summary">
         <h2 class="tapi-cart-aside__title serif">Order summary</h2>
 
         <div class="tapi-cart-aside__row">
           <span class="tapi-cart-aside__label">Subtotal</span>
-          <span class="tapi-cart-aside__value tnum">{{ cart.total_price | money_with_currency }}</span>
+          <span class="tapi-cart-aside__value tnum">{{ cart.items_subtotal_price | money }}</span>
         </div>
 
         {%- if cart.cart_level_discount_applications.size > 0 -%}
@@ -505,7 +505,12 @@
           {%- endfor -%}
         {%- endif -%}
 
-        <p class="tapi-cart-aside__note">Taxes included. Discounts and shipping calculated at checkout.</p>
+        <div class="tapi-cart-aside__row tapi-cart-aside__row--total">
+          <span class="tapi-cart-aside__label">Estimated total</span>
+          <span class="tapi-cart-aside__value tnum">{{ cart.total_price | money_with_currency }}</span>
+        </div>
+
+        <p class="tapi-cart-aside__note">Taxes included. Shipping calculated at checkout.</p>
 
         <form action="{{ routes.cart_url }}" method="post" id="tapi-cart-checkout-form">
           <button type="submit" name="checkout" class="button button--primary tapi-cart-aside__btn">
@@ -563,6 +568,13 @@
       color: var(--tapi-charcoal, #2c2826);
     }
     .tapi-cart-aside__row--discount .tapi-cart-aside__value { color: var(--tapi-terracotta, #b7472a); }
+    .tapi-cart-aside__row--total {
+      margin-top: 4px;
+      padding-top: 14px;
+      border-top: 1px solid var(--tapi-hairline, #e5ddc8);
+    }
+    .tapi-cart-aside__row--total .tapi-cart-aside__value { font-size: clamp(22px, 1.8vw, 26px); }
+    .tapi-cart-aside:empty { display: none !important; }
     .tapi-cart-aside__label {
       letter-spacing: 0.02em;
       color: var(--tapi-warm-grey, #6b5d54);

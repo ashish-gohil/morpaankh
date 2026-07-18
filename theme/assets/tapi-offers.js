@@ -49,9 +49,15 @@
       var html = sections[id];
       var host = document.getElementById('shopify-section-' + id);
       if (!html || !host) return;
-      var fresh = new DOMParser().parseFromString(html, 'text/html').querySelector('.js-contents');
+      var doc = new DOMParser().parseFromString(html, 'text/html');
+      var fresh = doc.querySelector('.js-contents');
       var live = host.querySelector('.js-contents');
       if (fresh && live) live.innerHTML = fresh.innerHTML;
+      // Sticky desktop order summary sits outside .js-contents in the items
+      // section; swap it too or its totals lag behind the applied code.
+      var freshAside = doc.querySelector('.tapi-cart-aside');
+      var liveAside = host.querySelector('.tapi-cart-aside');
+      if (freshAside && liveAside) liveAside.innerHTML = freshAside.innerHTML;
     });
   }
 
