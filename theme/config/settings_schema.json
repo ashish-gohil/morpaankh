@@ -1511,7 +1511,7 @@
     "settings": [
       {
         "type": "paragraph",
-        "content": "Single source of truth for every offer surface (PDP offers box, cart smart-offers panel). Each slot must mirror a code that is LIVE in Admin → Discounts — the storefront never invents offers. One code applies per order; the cart auto-applies the biggest general saving and shoppers can switch."
+        "content": "These slots MIRROR your live Admin → Discounts (Shopify won't let a theme read discounts directly). After you add, rename, or change a discount, run  node scripts/sync-offers.mjs  to pull the real codes and rules in here automatically — or edit the slots by hand to match. One code applies per order; the cart auto-applies the biggest general saving and shoppers can switch."
       },
       {
         "type": "header",
