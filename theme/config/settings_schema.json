@@ -1699,14 +1699,14 @@
         "type": "text",
         "id": "tapi_offer4_code",
         "label": "Discount code",
-        "default": "NEWMORPAANKH10",
+        "default": "OFF20",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer4_label",
         "label": "Label",
-        "default": "First order · 10% off over ₹3,000"
+        "default": "20% off orders over ₹3,000"
       },
       {
         "type": "select",
@@ -1722,7 +1722,7 @@
         "type": "number",
         "id": "tapi_offer4_value",
         "label": "Value (percent or ₹)",
-        "default": 10
+        "default": 20
       },
       {
         "type": "number",
@@ -1740,7 +1740,7 @@
         "type": "checkbox",
         "id": "tapi_offer4_first_order",
         "label": "First order only",
-        "default": true
+        "default": false
       }
     ]
   }
