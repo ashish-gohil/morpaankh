@@ -11,6 +11,15 @@
   var cfg = window.TapiAnalytics;
   if (!cfg || (!cfg.ga4Id && !cfg.gtmId && !cfg.metaPixelId)) return;
 
+  /* Non-customer contexts must never emit: the theme editor (design mode),
+   * shared theme previews (*.shopifypreview.com) and the raw *.myshopify.com
+   * domain would pollute GA4/Meta with non-shopper traffic. Real shoppers are
+   * on the primary domain (www.morpaankh.in), so bail before any backend inits
+   * or events fire. */
+  var host = location.hostname || '';
+  function hostEndsWith(s) { return host.length >= s.length && host.slice(-s.length) === s; }
+  if ((window.Shopify && Shopify.designMode) || hostEndsWith('shopifypreview.com') || hostEndsWith('.myshopify.com')) return;
+
   window.dataLayer = window.dataLayer || [];
   function gtag() { window.dataLayer.push(arguments); }
 
