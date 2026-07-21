@@ -246,9 +246,11 @@
           -%}
           <ul class="tapi-pdp__offers" data-tapi-reveal>
             <li class="tapi-pdp__offers-heroitem">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
-              <span class="tapi-pdp__offers-text">{% if hero_first %}First order? {{ hero_terms }} with code {{ hero_code }}{% else %}{{ hero_label | default: hero_code }} with code {{ hero_code }}{% endif %}</span>
-              <span class="tapi-pdp__offers-rec">Recommended</span>
+              <svg class="tapi-pdp__offers-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+              <span class="tapi-pdp__offers-main">
+                <span class="tapi-pdp__offers-rec">Recommended</span>
+                <span class="tapi-pdp__offers-text">{% if hero_first %}First order? {{ hero_terms }} with code {{ hero_code }}{% else %}{{ hero_label | default: hero_code }} with code {{ hero_code }}{% endif %}</span>
+              </span>
               <button type="button" class="tapi-code-chip" data-tapi-copy="{{ hero_code }}" aria-label="Copy code {{ hero_code }}">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
                 <span class="tapi-code-chip__label" data-copy-label>Copy</span>

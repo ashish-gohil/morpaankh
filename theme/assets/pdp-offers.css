@@ -34,30 +34,60 @@
   color: var(--mor-accent, #b7472a);
 }
 
-/* Recommended hero: the single first-order offer above the fold. */
+/* Recommended hero: the single first-order offer above the fold.
+   [icon] [ Recommended eyebrow / offer line ] [copy] — hierarchy comes from
+   structure and weight, not colour alone. */
 .tapi-pdp__offers-heroitem {
   align-items: center;
-  flex-wrap: wrap;
+  gap: 1.2rem;
 }
-.tapi-pdp__offers-text {
-  flex: 1 1 60%;
+.tapi-pdp__offers-ic {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+}
+.tapi-pdp__offers-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1 1 auto;
   min-width: 0;
 }
 .tapi-pdp__offers-rec {
-  flex: 0 0 auto;
-  order: 2;
-  font-size: 1rem;
+  align-self: flex-start;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  line-height: 1;
   text-transform: uppercase;
   color: var(--mor-primary, #2e4b3c);
   background: rgba(46, 75, 60, 0.1);
-  padding: 0.3rem 0.7rem;
-  white-space: nowrap;
+  padding: 0.4rem 0.7rem;
 }
-.tapi-pdp__offers-heroitem .tapi-code-chip {
-  order: 3;
-  margin-left: 0;
+.tapi-pdp__offers-text {
+  font-size: 1.45rem;
+  line-height: 1.5;
+  color: var(--mor-text, #2c2826);
+}
+
+/* Copy affordance: 44px touch target, keyboard focus ring, press feedback.
+   Scoped to the PDP so the cart panel's compact chip stays unchanged. */
+.tapi-pdp__offers .tapi-code-chip,
+.tapi-pdp__more-list .tapi-code-chip {
+  min-height: 4.4rem;
+  padding: 0 1.2rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tapi-code-chip:focus-visible {
+  outline: 2px solid var(--mor-primary, #2e4b3c);
+  outline-offset: 2px;
+}
+.tapi-code-chip:active {
+  background: var(--mor-surface-2, #f3eee3);
+}
+details.tapi-pdp__more-offers > summary:focus-visible {
+  outline: 2px solid var(--mor-primary, #2e4b3c);
+  outline-offset: -2px;
 }
 
 /* More offers: the rest, collapsed below the buy button. Reuses the shared
