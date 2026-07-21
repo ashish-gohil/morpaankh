@@ -33,3 +33,69 @@
   margin-top: 0.25em;
   color: var(--mor-accent, #b7472a);
 }
+
+/* Recommended hero: the single first-order offer above the fold. */
+.tapi-pdp__offers-heroitem {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tapi-pdp__offers-text {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+.tapi-pdp__offers-rec {
+  flex: 0 0 auto;
+  order: 2;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mor-primary, #2e4b3c);
+  background: rgba(46, 75, 60, 0.1);
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+}
+.tapi-pdp__offers-heroitem .tapi-code-chip {
+  order: 3;
+  margin-left: 0;
+}
+
+/* More offers: the rest, collapsed below the buy button. Reuses the shared
+   .tapi-acc collapse UI; element-qualified selectors override .tapi-acc so the
+   promotional box reads as its own bordered card, not an info accordion. */
+details.tapi-pdp__more-offers {
+  margin-top: 1.6rem;
+  border: 1px solid var(--mor-hairline, #e5ddc8);
+  background: var(--mor-surface-2, #f3eee3);
+}
+details.tapi-pdp__more-offers > summary {
+  padding: 1.3rem 1.6rem;
+  font-size: 1.5rem;
+}
+.tapi-pdp__more-offers .tapi-acc__body {
+  padding: 0 1.6rem 1.4rem;
+}
+.tapi-pdp__more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.tapi-pdp__more-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin: 0;
+  font-size: var(--mor-text-sm, 1.4rem);
+  line-height: 1.55;
+  color: var(--mor-text, #2c2826);
+}
+.tapi-pdp__more-list svg {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-top: 0.25em;
+  color: var(--mor-accent, #b7472a);
+}
