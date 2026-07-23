@@ -23,28 +23,41 @@
     assign has_pdp_tags = true
   endif
   assign subtitle_val = m.subtitle | default: m.blend
-  # ----- Reviews: single source of truth (real data only) -----
-  # product.metafields.tapi.reviews is a JSON list of
-  # { author, rating, body, date, location, verified }. We compute the count
-  # and average here so the title stars, the reviews band and the
-  # AggregateRating schema all read the same real numbers. Absent/empty ->
-  # rv_count stays 0 and NOTHING rating-related renders. We never synthesize a
-  # rating: a shown average is a claim about real buyers.
-  assign rv_list = m.reviews.value
-  assign rv_count = 0
-  assign rv_sum = 0
-  if rv_list
-    for r in rv_list
+  # ----- Ratings + reviews (two decoupled things) -----
+  # A clothing brand can receive hundreds of ratings but only ever SHOW a few
+  # review quotes. So the headline number is separate from the quotes:
+  #   * tapi.rating_count   (number) - the total ratings received (e.g. 203)
+  #   * tapi.rating_average (number) - the average out of 5 (e.g. 4.5)
+  #   * tapi.reviews        (JSON list) - a SMALL set of featured quotes for the
+  #                          carousel: { author, rating, body, date, location, verified }
+  # The summary (title stars + band header) shows disp_count / disp_avg, taken
+  # from the manual fields when set, otherwise derived from the featured quotes.
+  assign feat_list = m.reviews.value
+  assign feat_count = 0
+  assign feat_sum = 0
+  if feat_list
+    for r in feat_list
       assign r_rating = r.rating | plus: 0
       if r_rating > 0
-        assign rv_count = rv_count | plus: 1
-        assign rv_sum = rv_sum | plus: r_rating
+        assign feat_count = feat_count | plus: 1
+        assign feat_sum = feat_sum | plus: r_rating
       endif
     endfor
   endif
-  assign rv_avg = 0
-  if rv_count > 0
-    assign rv_avg = rv_sum | times: 1.0 | divided_by: rv_count | round: 1
+  assign feat_avg = 0
+  if feat_count > 0
+    assign feat_avg = feat_sum | times: 1.0 | divided_by: feat_count | round: 1
+  endif
+  # Manual headline numbers (fall back to the featured quotes when left blank).
+  assign man_count = m.rating_count.value | plus: 0
+  assign man_avg = m.rating_average.value
+  assign disp_count = feat_count
+  if man_count > 0
+    assign disp_count = man_count
+  endif
+  assign disp_avg = feat_avg
+  if man_avg
+    assign disp_avg = man_avg
   endif
 -%}
 
@@ -199,19 +212,18 @@
         </p>
       {%- endif -%}
 
-      {%- comment -%} Rating is driven ONLY by real reviews (rv_count/rv_avg computed
-        above from tapi.reviews). It stays hidden until a genuine review exists, and
-        links down to the on-page reviews band. There is deliberately no manual rating
-        input: an average must always trace back to real buyers. {%- endcomment -%}
-      {%- if rv_count > 0 -%}
-        <a class="tapi-pdp__rating" href="#reviews" aria-label="{{ rv_avg }} out of 5 from {{ rv_count }} review{% if rv_count != 1 %}s{% endif %}, see reviews">
+      {%- comment -%} Headline summary: manual rating_count / rating_average (or the
+        featured quotes as a fallback). Shown only when there is a count, and it links
+        down to the reviews band. Enter the true numbers you have received. {%- endcomment -%}
+      {%- if disp_count > 0 -%}
+        <a class="tapi-pdp__rating" href="#reviews" aria-label="{{ disp_avg }} out of 5 from {{ disp_count }} rating{% if disp_count != 1 %}s{% endif %}, see reviews">
           <span class="tapi-pdp__stars" aria-hidden="true">
-            {%- assign rounded = rv_avg | round -%}
+            {%- assign rounded = disp_avg | round -%}
             {%- for i in (1..5) -%}<span class="{% if i <= rounded %}is-filled{% endif %}">★</span>{%- endfor -%}
           </span>
-          <span class="tapi-pdp__rating-num">{{ rv_avg }}</span>
+          <span class="tapi-pdp__rating-num">{{ disp_avg }}</span>
           <span class="tapi-pdp__divider"></span>
-          <span class="tapi-pdp__rating-count">{{ rv_count }} review{% if rv_count != 1 %}s{% endif %}</span>
+          <span class="tapi-pdp__rating-count">{{ disp_count }} rating{% if disp_count != 1 %}s{% endif %}</span>
         </a>
       {%- endif -%}
 
@@ -652,9 +664,10 @@
     </div>
   </div>
 
-  {%- comment -%} ----- CUSTOMER REVIEWS ----- Real reviews only; renders nothing
-    until a genuine review exists in tapi.reviews. {%- endcomment -%}
-  {% render 'tapi-pdp-reviews', section: section, reviews: rv_list, count: rv_count, avg: rv_avg %}
+  {%- comment -%} ----- RATINGS + FEATURED REVIEWS -----
+    Header summary uses the manual count/average (disp_*); the carousel shows only
+    the featured quotes (feat_list). Renders when there is a count or a quote. {%- endcomment -%}
+  {% render 'tapi-pdp-reviews', section: section, reviews: feat_list, feat_count: feat_count, count: disp_count, avg: disp_avg %}
 
   {%- comment -%} ----- MOBILE STICKY BUY BAR -----
     The in-page CTA row + Buy-it-now are display:none under 750px, so these are
@@ -761,9 +774,9 @@
 
 {%- comment -%} Structured data for the PDP. Product + Offer drives rich results and
   GEO/AEO retrieval; BreadcrumbList gives the path. AggregateRating + Review are
-  emitted ONLY when real reviews exist in tapi.reviews (rv_count computed above). With
-  no verified review the entire ratings surface stays absent, so nothing unverifiable
-  is ever marked up. {%- endcomment -%}
+  emitted only when the merchant opts in (settings.emit_rating_schema) AND a rating
+  count exists. Off by default, so the on-page numbers can show while the search-engine
+  rating markup is held until the ratings are verifiable. {%- endcomment -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org/",
@@ -814,17 +827,17 @@
       "sku": {{ variant.sku | json }}{% endif %}
     }{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
-  ]{%- if rv_count > 0 -%},
+  ]{%- if section.settings.emit_rating_schema and disp_count > 0 -%},
   "aggregateRating": {
     "@type": "AggregateRating",
-    "ratingValue": {{ rv_avg | json }},
-    "reviewCount": {{ rv_count | json }},
+    "ratingValue": {{ disp_avg | json }},
+    "reviewCount": {{ disp_count | json }},
     "bestRating": "5",
     "worstRating": "1"
-  },
+  }{%- if feat_count > 0 -%},
   "review": [
     {%- assign rp = true -%}
-    {%- for r in rv_list -%}
+    {%- for r in feat_list -%}
       {%- assign r_rating = r.rating | plus: 0 -%}
       {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
       {%- unless rp -%},{%- endunless -%}{%- assign rp = false -%}
@@ -836,7 +849,7 @@
         "datePublished": {{ r.date | json }}{% endif %}
       }
     {%- endfor -%}
-  ]{%- endif -%}
+  ]{%- endif -%}{%- endif -%}
 }
 </script>
 {%- comment -%} Shipping + return policy nodes referenced by @id from every Offer above.
@@ -1650,8 +1663,9 @@
     { "type": "text", "id": "concierge_heading", "default": "Talk to us before you buy", "label": "Concierge heading" },
     { "type": "text", "id": "concierge_text", "default": "Message us on WhatsApp about fabric, fit or sizing and a real person will get back to you, usually the same day. We would rather help you get it right the first time than leave you guessing.", "label": "Concierge text" },
     { "type": "text", "id": "concierge_btn", "default": "Chat on WhatsApp", "label": "Concierge button label" },
-    { "type": "checkbox", "id": "show_reviews", "default": true, "label": "Show customer reviews section", "info": "Renders real reviews from the product's tapi.reviews metafield. Shows nothing until a genuine review is added. Never fabricated." },
+    { "type": "checkbox", "id": "show_reviews", "default": true, "label": "Show ratings and reviews section", "info": "Shows the headline rating summary (from each product's Rating count / Rating average metafields) and a carousel of the featured quotes in its Customer reviews metafield. Enter the true numbers you have received." },
     { "type": "text", "id": "reviews_heading", "default": "From women who wear Morpaankh", "label": "Reviews section heading" },
+    { "type": "checkbox", "id": "emit_rating_schema", "default": false, "label": "Add rating to Google rich-result data", "info": "Off by default. When on, the rating count and average are added to the product's search-engine structured data (star snippets in Google). Only turn this on for ratings that are genuinely received and defensible, since Google can penalise unverifiable review markup." },
 
     { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
     { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 24 },
