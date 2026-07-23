@@ -180,15 +180,18 @@
 
     {%- comment -%} ----- BUY COLUMN ----- {%- endcomment -%}
     <div class="tapi-pdp__info">
-      {%- if has_pdp_tags -%}
-        <div class="tapi-pdp__tags">
-          {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
-          {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
-          {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
-        </div>
-      {%- endif -%}
-
-      <h1 class="tapi-pdp__title" data-tapi-reveal>{{ product.title }}</h1>
+      {%- comment -%} Name and tag share one row, justified apart: title left, any
+        tags pinned top-right. {%- endcomment -%}
+      <div class="tapi-pdp__title-row" data-tapi-reveal>
+        <h1 class="tapi-pdp__title">{{ product.title }}</h1>
+        {%- if has_pdp_tags -%}
+          <div class="tapi-pdp__tags">
+            {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+            {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
+            {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+          </div>
+        {%- endif -%}
+      </div>
       {%- if subtitle_val or m.pieces.value != blank -%}
         <p class="tapi-pdp__subtitle" data-tapi-reveal>
           {{ subtitle_val }}
@@ -1007,8 +1010,9 @@
   @keyframes tapi-rise { from { opacity: 0; transform: translate3d(0,12px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
 
   .tapi-pdp__info { display: flex; flex-direction: column; gap: 2.4rem; min-width: 0; }
-  .tapi-pdp__tags { display: flex; gap: 0.8rem; }
-  .tapi-pdp__title { font-family: var(--font-heading-family); font-size: clamp(2.8rem, 4.4vw, 4.4rem); line-height: 1.08; letter-spacing: -0.012em; font-weight: 500; margin: 0; }
+  .tapi-pdp__title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.2rem; }
+  .tapi-pdp__tags { display: flex; gap: 0.8rem; flex: 0 0 auto; margin-top: 0.6rem; }
+  .tapi-pdp__title { font-family: var(--font-heading-family); font-size: clamp(2.8rem, 4.4vw, 4.4rem); line-height: 1.08; letter-spacing: -0.012em; font-weight: 500; margin: 0; flex: 0 1 auto; min-width: 0; }
   .tapi-pdp__subtitle { color: var(--tapi-warm-grey); margin: -1.7rem 0 0; font-size: clamp(1.4rem, 1.4vw, 1.7rem); line-height: 1.6; }
 
   .tapi-pdp__rating { display: flex; align-items: center; gap: 1.2rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
@@ -1021,7 +1025,7 @@
   .tapi-pdp__price { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
   .tapi-pdp__price-now { font-family: var(--font-body-family); font-size: 3.2rem; font-weight: 600; letter-spacing: 0.01em; color: var(--mor-charcoal); font-variant-numeric: tabular-nums; }
   .tapi-pdp__price-was { font-size: 1.5rem; color: var(--mor-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
-  .tapi-pdp__price-note { font-size: 1.2rem; color: var(--mor-text-muted); margin: -1.2rem 0 0; }
+  .tapi-pdp__price-note { font-size: 1.2rem; color: var(--mor-text-muted); margin: -1.9rem 0 0; }
 
   /* Payment perks line under the buy button — prepaid/COD nudge. Reads as a
      calm trust cue (not a loud promo) so it feels premium. Gold shield = the
