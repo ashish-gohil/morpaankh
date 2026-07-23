@@ -200,26 +200,34 @@ a.tapi-pdp__rating:focus-visible { outline: 2px solid var(--mor-primary, #2e4b3c
   font-size: 1.35rem;
   color: var(--mor-text-muted, #6d6459);
 }
-.tapi-reviews__grid {
+/* Reviews rail — mirrors the homepage testimonials: a tidy grid on desktop,
+   a horizontal scroll-snap swiper on phones (where this screenshot lives). */
+.tapi-reviews__rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(28rem, 1fr));
-  gap: 1px;
-  background: var(--mor-hairline, #e5ddc8); /* hairline gaps between flat cards */
-  border: 1px solid var(--mor-hairline, #e5ddc8);
+  grid-template-columns: repeat(auto-fit, minmax(28rem, 36rem));
+  gap: 2rem;
+  justify-content: center;
 }
 .tapi-review {
-  background: var(--mor-surface, #fbf8f1);
-  padding: 2.2rem 2.2rem 2rem;
+  background: var(--mor-surface-raised, #faf6ec);
+  border: 1px solid var(--mor-hairline, #e5ddc8);
+  border-radius: 0;
+  padding: 2.6rem 2.4rem 2.2rem;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1.4rem;
 }
 .tapi-review__stars .tapi-stars { font-size: 1.5rem; }
 .tapi-review__body {
   margin: 0;
-  font-size: 1.45rem;
-  line-height: 1.62;
+  font-family: var(--font-heading-family, "Cormorant Garamond", serif);
+  font-size: 1.9rem;
+  line-height: 1.5;
   color: var(--mor-text, #2c2826);
+  flex: 1;
 }
 .tapi-review__foot {
   margin-top: auto;
@@ -254,8 +262,24 @@ a.tapi-pdp__rating:focus-visible { outline: 2px solid var(--mor-primary, #2e4b3c
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 989px) {
+  .tapi-reviews__rail { grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr)); gap: 1.6rem; }
+}
 @media (max-width: 749px) {
-  .tapi-reviews__grid { grid-template-columns: 1fr; }
+  .tapi-reviews__rail {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    margin-inline: calc(-1 * var(--tapi-gutter, 2rem));
+    padding-inline: var(--tapi-gutter, 2rem);
+    padding-block: 0.4rem;
+    scrollbar-width: none;
+  }
+  .tapi-reviews__rail::-webkit-scrollbar { display: none; }
+  .tapi-review { flex: 0 0 82%; scroll-snap-align: start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tapi-concierge__btn { transition: none; }

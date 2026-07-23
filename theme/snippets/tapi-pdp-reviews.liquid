@@ -39,7 +39,7 @@
     </div>
   </div>
 
-  <div class="tapi-reviews__grid" data-tapi-stagger="80">
+  <div class="tapi-reviews__rail" data-tapi-stagger="80">
     {%- for r in reviews -%}
       {%- assign r_rating = r.rating | plus: 0 -%}
       {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
