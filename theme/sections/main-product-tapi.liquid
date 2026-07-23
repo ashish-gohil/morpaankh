@@ -1,6 +1,7 @@
 {{ 'pdp-cta.css' | asset_url | stylesheet_tag }}
 {{ 'pdp-video.css' | asset_url | stylesheet_tag }}
 {{ 'pdp-offers.css' | asset_url | stylesheet_tag }}
+{{ 'pdp-trust.css' | asset_url | stylesheet_tag }}
 {{ 'tapi-offers.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'tapi-offers.js' | asset_url }}" defer="defer"></script>
 {%- liquid
@@ -22,6 +23,29 @@
     assign has_pdp_tags = true
   endif
   assign subtitle_val = m.subtitle | default: m.blend
+  # ----- Reviews: single source of truth (real data only) -----
+  # product.metafields.tapi.reviews is a JSON list of
+  # { author, rating, body, date, location, verified }. We compute the count
+  # and average here so the title stars, the reviews band and the
+  # AggregateRating schema all read the same real numbers. Absent/empty ->
+  # rv_count stays 0 and NOTHING rating-related renders. We never synthesize a
+  # rating: a shown average is a claim about real buyers.
+  assign rv_list = m.reviews.value
+  assign rv_count = 0
+  assign rv_sum = 0
+  if rv_list
+    for r in rv_list
+      assign r_rating = r.rating | plus: 0
+      if r_rating > 0
+        assign rv_count = rv_count | plus: 1
+        assign rv_sum = rv_sum | plus: r_rating
+      endif
+    endfor
+  endif
+  assign rv_avg = 0
+  if rv_count > 0
+    assign rv_avg = rv_sum | times: 1.0 | divided_by: rv_count | round: 1
+  endif
 -%}
 
 <section class="tapi-pdp section" id="MainProduct-{{ section.id }}" data-section-id="{{ section.id }}">
@@ -172,19 +196,20 @@
         </p>
       {%- endif -%}
 
-      {%- if m.rating -%}
-        <div class="tapi-pdp__rating">
-          <span class="tapi-pdp__stars" aria-label="{{ m.rating }} out of 5">
-            {%- assign rounded = m.rating | round -%}
+      {%- comment -%} Rating is driven ONLY by real reviews (rv_count/rv_avg computed
+        above from tapi.reviews). It stays hidden until a genuine review exists, and
+        links down to the on-page reviews band. There is deliberately no manual rating
+        input: an average must always trace back to real buyers. {%- endcomment -%}
+      {%- if rv_count > 0 -%}
+        <a class="tapi-pdp__rating" href="#reviews" aria-label="{{ rv_avg }} out of 5 from {{ rv_count }} review{% if rv_count != 1 %}s{% endif %}, see reviews">
+          <span class="tapi-pdp__stars" aria-hidden="true">
+            {%- assign rounded = rv_avg | round -%}
             {%- for i in (1..5) -%}<span class="{% if i <= rounded %}is-filled{% endif %}">★</span>{%- endfor -%}
           </span>
-          <span class="tapi-pdp__rating-num">{{ m.rating }}</span>
+          <span class="tapi-pdp__rating-num">{{ rv_avg }}</span>
           <span class="tapi-pdp__divider"></span>
-          {%- comment -%} Plain text, not a link: there is no on-page reviews section to
-            jump to, so an href="#reviews" was a dead click. When a verified reviews
-            block ships, restore the anchor to its id. {%- endcomment -%}
-          <span class="tapi-pdp__rating-count">{{ m.review_count | default: 0 }} reviews</span>
-        </div>
+          <span class="tapi-pdp__rating-count">{{ rv_count }} review{% if rv_count != 1 %}s{% endif %}</span>
+        </a>
       {%- endif -%}
 
       <div class="tapi-pdp__price">
@@ -521,6 +546,10 @@
         {% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks != blank %}
       {%- endif -%}
 
+      {%- comment -%} Curation promise + WhatsApp concierge — honest, brand-true trust
+        at the point of purchase. Each toggles independently in the section settings. {%- endcomment -%}
+      {% render 'tapi-pdp-trust', section: section %}
+
       {%- comment -%}
         Delivery pincode lookup — disabled on request. Un-wrap this comment
         block to restore. Snippet snippets/pincode-delivery.liquid is intact
@@ -613,6 +642,10 @@
       </div>
     </div>
   </div>
+
+  {%- comment -%} ----- CUSTOMER REVIEWS ----- Real reviews only; renders nothing
+    until a genuine review exists in tapi.reviews. {%- endcomment -%}
+  {% render 'tapi-pdp-reviews', section: section, reviews: rv_list, count: rv_count, avg: rv_avg %}
 
   {%- comment -%} ----- MOBILE STICKY BUY BAR -----
     The in-page CTA row + Buy-it-now are display:none under 750px, so these are
@@ -718,9 +751,10 @@
 </section>
 
 {%- comment -%} Structured data for the PDP. Product + Offer drives rich results and
-  GEO/AEO retrieval; BreadcrumbList gives the path. AggregateRating is intentionally
-  omitted — the tapi.rating metafields are not a verified review source, and marking
-  up unverifiable ratings risks a manual action. {%- endcomment -%}
+  GEO/AEO retrieval; BreadcrumbList gives the path. AggregateRating + Review are
+  emitted ONLY when real reviews exist in tapi.reviews (rv_count computed above). With
+  no verified review the entire ratings surface stays absent, so nothing unverifiable
+  is ever marked up. {%- endcomment -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org/",
@@ -771,7 +805,29 @@
       "sku": {{ variant.sku | json }}{% endif %}
     }{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
-  ]
+  ]{%- if rv_count > 0 -%},
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": {{ rv_avg | json }},
+    "reviewCount": {{ rv_count | json }},
+    "bestRating": "5",
+    "worstRating": "1"
+  },
+  "review": [
+    {%- assign rp = true -%}
+    {%- for r in rv_list -%}
+      {%- assign r_rating = r.rating | plus: 0 -%}
+      {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
+      {%- unless rp -%},{%- endunless -%}{%- assign rp = false -%}
+      {
+        "@type": "Review",
+        "reviewRating": { "@type": "Rating", "ratingValue": {{ r_rating | json }}, "bestRating": "5", "worstRating": "1" },
+        "author": { "@type": "Person", "name": {{ r.author | default: 'Verified buyer' | json }} }{% if r.body != blank %},
+        "reviewBody": {{ r.body | strip_html | truncate: 1000 | json }}{% endif %}{% if r.date != blank %},
+        "datePublished": {{ r.date | json }}{% endif %}
+      }
+    {%- endfor -%}
+  ]{%- endif -%}
 }
 </script>
 {%- comment -%} Shipping + return policy nodes referenced by @id from every Offer above.
@@ -1571,6 +1627,22 @@
     { "type": "text", "id": "payment_perks", "label": "Payment perks line (under buy button)", "info": "Shows under the buy button and adds COD to Shipping & returns. e.g. Pay online and save 5% · Cash on Delivery available. Leave blank to hide — turn on only once your COD / prepaid-discount app is live." },
     { "type": "checkbox", "id": "show_trust_badges", "default": true, "label": "Show trust badges under buy button", "info": "Free delivery, 7-day returns and secure payment — the strongest conversion spot. The Cash on Delivery badge appears only when the payment perks line above is filled in (i.e. your COD app is live)." },
     { "type": "checkbox", "id": "show_offers", "label": "Show offers under the price", "default": true, "info": "Lists the offers configured in Theme settings → Offers (single source of truth, shared with the cart panel) with copyable codes. Keep Theme settings → Offers in sync with Discounts." },
+
+    { "type": "header", "content": "Trust & reviews", "info": "Honest, brand-true trust builders. Toggle any piece on or off. The reviews section shows ONLY real reviews stored in each product's tapi.reviews metafield and stays hidden until a genuine review exists, so no rating is ever fabricated." },
+    { "type": "checkbox", "id": "show_promise", "default": true, "label": "Show curation promise" },
+    { "type": "text", "id": "promise_heading", "default": "Personally selected, quality-checked", "label": "Curation promise heading" },
+    { "type": "textarea", "id": "promise_intro", "default": "We are a small, hands-on label. Every piece is chosen and checked by us before it reaches you, so what you see in the photos is what arrives at your door.", "label": "Curation promise intro" },
+    { "type": "text", "id": "promise_point_1", "default": "Fabric felt in hand and checked for weight and finish", "label": "Promise point 1" },
+    { "type": "text", "id": "promise_point_2", "default": "Colour matched against the product photos in daylight", "label": "Promise point 2" },
+    { "type": "text", "id": "promise_point_3", "default": "Stitching and fit inspected before it is dispatched", "label": "Promise point 3" },
+    { "type": "text", "id": "promise_signature", "default": "The Morpaankh team", "label": "Signature (optional)" },
+    { "type": "checkbox", "id": "show_concierge", "default": true, "label": "Show WhatsApp concierge", "info": "Uses the store WhatsApp link from Theme settings → Social media. Hides itself automatically when that link is blank." },
+    { "type": "text", "id": "concierge_heading", "default": "Questions before you buy?", "label": "Concierge heading" },
+    { "type": "text", "id": "concierge_text", "default": "Message us on WhatsApp for fabric, fit or sizing help. A real person replies, usually within the hour.", "label": "Concierge text" },
+    { "type": "text", "id": "concierge_btn", "default": "Chat on WhatsApp", "label": "Concierge button label" },
+    { "type": "checkbox", "id": "show_reviews", "default": true, "label": "Show customer reviews section", "info": "Renders real reviews from the product's tapi.reviews metafield. Shows nothing until a genuine review is added. Never fabricated." },
+    { "type": "text", "id": "reviews_heading", "default": "What buyers say", "label": "Reviews section heading" },
+
     { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
     { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 24 },
     { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 36 }

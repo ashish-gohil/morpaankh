@@ -1,0 +1,76 @@
+{% doc %}
+  Customer-reviews band for the PDP. Renders ONLY real reviews stored in
+  product.metafields.tapi.reviews (a JSON list of
+  { author, rating, body, date, location, verified }). When the list is
+  empty or absent it renders nothing at all: no empty widget, no "be the
+  first" prompt, and above all no fabricated star average. A shown rating
+  is a claim about real buyers, so with no buyer there is no star.
+
+  The average and count are computed by the caller and passed in, so the
+  section title rating, this band, and the AggregateRating schema all read
+  one source of truth and light up together the moment a real review lands.
+
+  @param {object} section - product section (settings + id).
+  @param {object} reviews - parsed tapi.reviews list (may be empty).
+  @param {number} count   - number of valid reviews.
+  @param {number} avg     - average rating, one decimal.
+{% enddoc %}
+{%- liquid
+  assign s = section.settings
+  assign do_render = true
+  unless s.show_reviews
+    assign do_render = false
+  endunless
+  if count == 0 or count == blank
+    assign do_render = false
+  endif
+  assign avg_pct = avg | times: 20
+-%}
+{%- if do_render -%}
+<div class="tapi-reviews page-width" id="reviews">
+  <div class="tapi-reviews__head" data-tapi-reveal>
+    <h2 class="tapi-reviews__title">{{ s.reviews_heading | default: 'What buyers say' }}</h2>
+    <div class="tapi-reviews__summary">
+      <span class="tapi-reviews__avg">{{ avg }}</span>
+      <span class="tapi-stars" style="--pct: {{ avg_pct }}%" role="img" aria-label="{{ avg }} out of 5">
+        <span class="tapi-stars__fill" aria-hidden="true"></span>
+      </span>
+      <span class="tapi-reviews__count">{{ count }} verified review{% if count != 1 %}s{% endif %}</span>
+    </div>
+  </div>
+
+  <div class="tapi-reviews__grid" data-tapi-stagger="80">
+    {%- for r in reviews -%}
+      {%- assign r_rating = r.rating | plus: 0 -%}
+      {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
+      {%- assign r_pct = r_rating | times: 20 -%}
+      <article class="tapi-review" data-tapi-reveal>
+        <div class="tapi-review__stars">
+          <span class="tapi-stars" style="--pct: {{ r_pct }}%" role="img" aria-label="{{ r_rating }} out of 5">
+            <span class="tapi-stars__fill" aria-hidden="true"></span>
+          </span>
+        </div>
+        {%- if r.body != blank -%}
+          <p class="tapi-review__body">{{ r.body | escape }}</p>
+        {%- endif -%}
+        <div class="tapi-review__foot">
+          <span class="tapi-review__author">{{ r.author | default: 'Verified buyer' | escape }}</span>
+          {%- if r.verified -%}
+            <span class="tapi-review__verified">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+              Verified
+            </span>
+          {%- endif -%}
+          {%- if r.location != blank or r.date != blank -%}
+            <span class="tapi-review__meta">
+              {%- if r.location != blank -%}{{ r.location | escape }}{%- endif -%}
+              {%- if r.location != blank and r.date != blank %} &middot; {% endif -%}
+              {%- if r.date != blank -%}{{ r.date | date: '%b %Y' }}{%- endif -%}
+            </span>
+          {%- endif -%}
+        </div>
+      </article>
+    {%- endfor -%}
+  </div>
+</div>
+{%- endif -%}

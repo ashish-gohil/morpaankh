@@ -1,0 +1,69 @@
+{% doc %}
+  Point-of-purchase trust cluster for the PDP buy column: a curation
+  promise and a WhatsApp concierge line. Both are honest, brand-true
+  content (nothing invented, no ratings) and each toggles independently
+  from the section settings, so they plug in and out with one checkbox.
+
+  The concierge reuses the global store WhatsApp link
+  (settings.social_whatsapp_link) and hides itself when that is blank,
+  so it can never link nowhere.
+
+  @param {object} section - the product section (for section.settings).
+{% enddoc %}
+{%- liquid
+  assign s = section.settings
+  assign show_promise = s.show_promise
+  assign wa = settings.social_whatsapp_link
+  assign show_concierge = s.show_concierge
+  if wa == blank
+    assign show_concierge = false
+  endif
+-%}
+{%- if show_promise or show_concierge -%}
+  <div class="tapi-pdp__trust" data-tapi-stagger="90">
+
+    {%- if show_promise -%}
+      <section class="tapi-promise" data-tapi-reveal aria-labelledby="promise-{{ section.id }}">
+        <h2 class="tapi-promise__title" id="promise-{{ section.id }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          {{ s.promise_heading | default: 'Personally selected, quality-checked' }}
+        </h2>
+        {%- if s.promise_intro != blank -%}
+          <p class="tapi-promise__intro">{{ s.promise_intro }}</p>
+        {%- endif -%}
+        <ul class="tapi-promise__list">
+          {%- for i in (1..3) -%}
+            {%- assign pk = 'promise_point_' | append: i -%}
+            {%- assign pv = s[pk] -%}
+            {%- if pv != blank -%}
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+                <span>{{ pv }}</span>
+              </li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ul>
+        {%- if s.promise_signature != blank -%}
+          <p class="tapi-promise__sign">{{ s.promise_signature }}</p>
+        {%- endif -%}
+      </section>
+    {%- endif -%}
+
+    {%- if show_concierge -%}
+      <section class="tapi-concierge" data-tapi-reveal aria-labelledby="concierge-{{ section.id }}">
+        <h2 class="tapi-concierge__title" id="concierge-{{ section.id }}">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm0 2a8 8 0 11-4.2 14.8l-.4-.2-2.5.7.7-2.4-.3-.4A8 8 0 0112 4zm-3 4.3c-.2 0-.5 0-.7.4-.3.3-.9.9-.9 2.1s.9 2.4 1 2.6c.2.2 1.8 2.9 4.5 3.9 2.2.8 2.7.7 3.2.6.5 0 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2 0-.1-.2-.2-.5-.4-.3-.1-1.5-.7-1.7-.8-.2 0-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.1-.3.2-.5 0-.3-.1-1.1-.4-2-1.2-.8-.7-1.3-1.5-1.4-1.7-.1-.3 0-.4.1-.5l.4-.5c.1-.2.2-.3.3-.5 0-.2 0-.3 0-.5 0-.1-.6-1.4-.8-1.9-.2-.4-.4-.4-.6-.4h-.4z"/></svg>
+          {{ s.concierge_heading | default: 'Questions before you buy?' }}
+        </h2>
+        {%- if s.concierge_text != blank -%}
+          <p class="tapi-concierge__text">{{ s.concierge_text }}</p>
+        {%- endif -%}
+        <a class="tapi-concierge__btn" href="{{ wa }}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm-3 6.3h.4c.2 0 .4 0 .6.4.2.5.8 1.8.8 1.9.1.2.1.3 0 .5-.1.2-.2.3-.3.5l-.4.5c-.1.1-.2.2-.1.5.1.2.6 1 1.4 1.7.9.8 1.7 1.1 2 1.2.2.2.4.1.5 0 .2-.2.6-.7.8-1 .2-.2.4-.1.6-.1.2.1 1.4.7 1.7.8.3.2.5.3.5.4.1.1.1.6-.1 1.2-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .2-3.2-.6-2.7-1-4.3-3.7-4.5-3.9-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.4.5-.4.7-.4z"/></svg>
+          {{ s.concierge_btn | default: 'Chat on WhatsApp' }}
+        </a>
+      </section>
+    {%- endif -%}
+
+  </div>
+{%- endif -%}
