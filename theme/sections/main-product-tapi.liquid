@@ -57,7 +57,7 @@
       <div class="tapi-pdp__gallery-thumbs">
         {%- for media in product.media -%}
           <button type="button" class="tapi-pdp__thumb {% if forloop.first %}is-active{% endif %}" data-thumb-index="{{ forloop.index0 }}" aria-label="View item {{ forloop.index }}{% unless media.media_type == 'image' %}, {{ media.media_type | replace: '_', ' ' }}{% endunless %}">
-            {{ media.preview_image | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.preview_image.alt | default: product.title }}
+            {{ media.preview_image | image_url: width: 160 | image_tag: loading: 'lazy', widths: '120, 160', sizes: '72px', alt: media.preview_image.alt | default: product.title }}
             {%- if media.media_type == 'video' or media.media_type == 'external_video' -%}
               <span class="tapi-pdp__thumb-badge" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -81,7 +81,7 @@
                     decode the m3u8/HLS source Safari prefers). {%- endcomment -%}
                   <div class="tapi-pdp__media-video" data-pdp-video-wrap>
                     <video class="tapi-pdp__video" data-pdp-video playsinline preload="none"
-                           poster="{{ media.preview_image | image_url: width: 1400 }}">
+                           poster="{{ media.preview_image | image_url: width: 1200 }}">
                       {%- for s in media.sources -%}{%- if s.format == 'mp4' -%}<source src="{{ s.url }}" type="{{ s.mime_type }}">{%- endif -%}{%- endfor -%}
                       {%- for s in media.sources -%}{%- unless s.format == 'mp4' -%}<source src="{{ s.url }}" type="{{ s.mime_type }}">{%- endunless -%}{%- endfor -%}
                     </video>
@@ -93,15 +93,21 @@
                   {%- comment -%} YouTube / Vimeo: lazy facade — show the poster + play button and
                     only inject the heavy iframe on click (keeps the PDP fast). {%- endcomment -%}
                   <div class="tapi-pdp__media-video tapi-pdp__media-external" data-pdp-external data-video-host="{{ media.host }}" data-video-id="{{ media.external_id }}">
-                    {{ media.preview_image | image_url: width: 1400 | image_tag: loading: 'lazy', alt: media.preview_image.alt | default: product.title, class: 'tapi-pdp__external-poster' }}
+                    {{ media.preview_image | image_url: width: 1200 | image_tag: loading: 'lazy', alt: media.preview_image.alt | default: product.title, class: 'tapi-pdp__external-poster' }}
                     <button type="button" class="tapi-pdp__play" data-pdp-external-play aria-label="Play video">
                       <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                     </button>
                   </div>
                 {%- else -%}
-                  {{ media.preview_image | image_url: width: 1400 | image_tag:
-                     loading: pdp_loading, fetchpriority: pdp_fetch, widths: '600, 900, 1200, 1600',
-                     sizes: '(min-width: 990px) 50vw, 100vw',
+                  {%- comment -%} Mobile-first responsive gallery image. First slide is
+                    eager + fetchpriority high (it is the LCP for ad-click landings); the
+                    rest lazy-load. srcset tops out at 1200w so a DPR-3 phone at 100vw never
+                    pulls a heavier file than it can show; sizes tracks the real layout
+                    (~45vw beside the buy column on desktop, full width below 1100px). CLS is
+                    already reserved by the 3/4 aspect-ratio on .tapi-pdp__main-img img. {%- endcomment -%}
+                  {{ media.preview_image | image_url: width: 1200 | image_tag:
+                     loading: pdp_loading, fetchpriority: pdp_fetch, widths: '400, 600, 800, 1000, 1200',
+                     sizes: '(min-width: 1100px) 45vw, 100vw',
                      alt: media.preview_image.alt | default: product.title }}
               {%- endcase -%}
             </div>
