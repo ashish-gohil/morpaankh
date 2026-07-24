@@ -2578,15 +2578,16 @@ details[open] > summary .icon-caret {
   padding-inline: var(--tapi-gutter, 16px);
 }
 
-/* ===== PDP downstream rhythm: related-products + recently-viewed =====
-   The lower half of the product page is three stacked sections (editorial band,
-   "You may also like", "Recently viewed"). The editorial band keeps its larger
-   section-pad + cream background as the first, distinct break. The two product
-   rails below it share ONE vertical beat so they read as a sequence, not three
-   differently-spaced blocks. (related-products shipped at 36px; recently-viewed
-   at ~72px — visibly uneven.) */
+/* ===== PDP downstream rhythm — one spacing system for every band =====
+   The lower half of the product page stacks three full-width sections: the
+   editorial band, "You may also like", and "Recently viewed". They all breathe
+   on the same --tapi-section-pad rhythm the editorial band and every homepage
+   section already use, so the whole page reads as one cohesive sequence instead
+   of three differently-spaced blocks. (related-products shipped at 36px,
+   recently-viewed at ~72px, editorial at section-pad — visibly uneven.)
+   recently-viewed is repointed to the same token in tapi-ux.css. */
 .related-products {
-  padding-block: clamp(4rem, 6vw, 7.2rem) !important;
+  padding-block: var(--tapi-section-pad) !important;
 }
 /* related-products sits on cream; recently-viewed now carries its own cream-2
    surface (see .tapi-rv.gradient in tapi-ux.css), so the boundary reads as an

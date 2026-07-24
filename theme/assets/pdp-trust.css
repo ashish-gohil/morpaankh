@@ -1,14 +1,16 @@
 /* ------------------------------------------------------------------
    PDP trust suite: curation promise + WhatsApp concierge (buy column)
-   and the customer-reviews band (full width). Standalone asset, same
-   fresh-URL pattern as pdp-offers.css / pdp-cta.css, so it never gets
-   trapped by a stale compiled section-stylesheet bundle.
+   plus the shared fractional star component used by the rating under the
+   product title. Standalone asset, same fresh-URL pattern as
+   pdp-offers.css / pdp-cta.css, so it never gets trapped by a stale
+   compiled section-stylesheet bundle.
 
-   Honesty rule baked in: the reviews band and every star only render
-   from real reviews (product.metafields.tapi.reviews). There is no
-   empty/placeholder star state here on purpose. A shown rating is a
-   claim about real buyers, so if there is no buyer there is no star.
-   Boxy system: square corners, hairline borders, no shadow, no lift.
+   Honesty rule baked in: the rating and every star only render from real
+   numbers (tapi.rating_count / tapi.rating_average, or real featured
+   quotes). There is no empty/placeholder star state here on purpose. A
+   shown rating is a claim about real buyers, so if there is no buyer
+   there is no star. Boxy system: square corners, hairline borders, no
+   shadow, no lift.
    ------------------------------------------------------------------ */
 
 /* ===== Shared star component (fractional fill via a clipped overlay) ===== */
@@ -161,126 +163,6 @@
   outline-offset: 2px;
 }
 
-/* Title rating becomes a jump link to the band — keep it looking like text. */
-a.tapi-pdp__rating { text-decoration: none; color: inherit; cursor: pointer; }
-a.tapi-pdp__rating:focus-visible { outline: 2px solid var(--mor-primary, #2e4b3c); outline-offset: 3px; }
-
-/* ===== Reviews band ===== */
-.tapi-reviews { padding: clamp(4.8rem, 7vw, 8rem) 0; }
-.tapi-reviews__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 1.2rem 2.4rem;
-  margin-bottom: 3.2rem;
-  padding-bottom: 2rem;
-  border-bottom: 1px solid var(--mor-hairline, #e5ddc8);
-}
-.tapi-reviews__title {
-  margin: 0;
-  font-family: var(--font-heading-family, "Cormorant Garamond", serif);
-  font-size: clamp(2.6rem, 4vw, 3.4rem);
-  font-weight: 500;
-  line-height: 1.1;
-  color: var(--mor-text, #2c2826);
-}
-.tapi-reviews__summary {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.tapi-reviews__avg {
-  font-size: 2rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--mor-text, #2c2826);
-}
-.tapi-reviews__summary .tapi-stars { font-size: 1.8rem; }
-.tapi-reviews__count {
-  font-size: 1.35rem;
-  color: var(--mor-text-muted, #6d6459);
-}
-/* Reviews rail — mirrors the homepage testimonials: a tidy grid on desktop,
-   a horizontal scroll-snap swiper on phones (where this screenshot lives). */
-.tapi-reviews__rail {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(28rem, 36rem));
-  gap: 2rem;
-  justify-content: center;
-}
-.tapi-review {
-  background: var(--mor-surface-raised, #faf6ec);
-  border: 1px solid var(--mor-hairline, #e5ddc8);
-  border-radius: 0;
-  padding: 2.6rem 2.4rem 2.2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.4rem;
-}
-.tapi-review__stars .tapi-stars { font-size: 1.5rem; }
-.tapi-review__body {
-  margin: 0;
-  font-family: var(--font-heading-family, "Cormorant Garamond", serif);
-  font-size: 1.9rem;
-  line-height: 1.5;
-  color: var(--mor-text, #2c2826);
-  flex: 1;
-}
-.tapi-review__foot {
-  margin-top: auto;
-  padding-top: 0.6rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.8rem;
-}
-.tapi-review__author {
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: var(--mor-text, #2c2826);
-}
-.tapi-review__verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--mor-primary, #2e4b3c);
-  background: rgba(46, 75, 60, 0.09);
-  padding: 0.3rem 0.7rem;
-}
-.tapi-review__verified svg { width: 1.2rem; height: 1.2rem; }
-.tapi-review__meta {
-  width: 100%;
-  font-size: 1.2rem;
-  color: var(--mor-text-muted, #6d6459);
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 989px) {
-  .tapi-reviews__rail { grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr)); gap: 1.6rem; }
-}
-@media (max-width: 749px) {
-  .tapi-reviews__rail {
-    display: flex;
-    align-items: stretch;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    margin-inline: calc(-1 * var(--tapi-gutter, 2rem));
-    padding-inline: var(--tapi-gutter, 2rem);
-    padding-block: 0.4rem;
-    scrollbar-width: none;
-  }
-  .tapi-reviews__rail::-webkit-scrollbar { display: none; }
-  .tapi-review { flex: 0 0 82%; scroll-snap-align: start; }
-}
 @media (prefers-reduced-motion: reduce) {
   .tapi-concierge__btn { transition: none; }
 }

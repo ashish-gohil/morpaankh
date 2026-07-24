@@ -213,18 +213,20 @@
       {%- endif -%}
 
       {%- comment -%} Headline summary: manual rating_count / rating_average (or the
-        featured quotes as a fallback). Shown only when there is a count, and it links
-        down to the reviews band. Enter the true numbers you have received. {%- endcomment -%}
+        featured quotes as a fallback). Shown only when there is a count. Uses the
+        shared fractional .tapi-stars component (real half-star support) so the stars
+        under the title read identically to the old reviews band. Enter the true
+        numbers you have received. {%- endcomment -%}
       {%- if disp_count > 0 -%}
-        <a class="tapi-pdp__rating" href="#reviews" aria-label="{{ disp_avg }} out of 5 from {{ disp_count }} rating{% if disp_count != 1 %}s{% endif %}, see reviews">
-          <span class="tapi-pdp__stars" aria-hidden="true">
-            {%- assign rounded = disp_avg | round -%}
-            {%- for i in (1..5) -%}<span class="{% if i <= rounded %}is-filled{% endif %}">★</span>{%- endfor -%}
+        {%- assign disp_pct = disp_avg | times: 20 -%}
+        <div class="tapi-pdp__rating">
+          <span class="tapi-stars" style="--pct: {{ disp_pct }}%" role="img" aria-label="{{ disp_avg }} out of 5 from {{ disp_count }} rating{% if disp_count != 1 %}s{% endif %}">
+            <span class="tapi-stars__fill" aria-hidden="true"></span>
           </span>
           <span class="tapi-pdp__rating-num">{{ disp_avg }}</span>
           <span class="tapi-pdp__divider"></span>
           <span class="tapi-pdp__rating-count">{{ disp_count }} rating{% if disp_count != 1 %}s{% endif %}</span>
-        </a>
+        </div>
       {%- endif -%}
 
       <div class="tapi-pdp__price">
@@ -664,11 +666,6 @@
     </div>
   </div>
 
-  {%- comment -%} ----- RATINGS + FEATURED REVIEWS -----
-    Header summary uses the manual count/average (disp_*); the carousel shows only
-    the featured quotes (feat_list). Renders when there is a count or a quote. {%- endcomment -%}
-  {% render 'tapi-pdp-reviews', section: section, reviews: feat_list, feat_count: feat_count, count: disp_count, avg: disp_avg %}
-
   {%- comment -%} ----- MOBILE STICKY BUY BAR -----
     The in-page CTA row + Buy-it-now are display:none under 750px, so these are
     the ONLY add/checkout controls on mobile. They are therefore real, focusable
@@ -1035,11 +1032,12 @@
   .tapi-pdp__subtitle { color: var(--tapi-warm-grey); margin: -1.7rem 0 0; font-size: clamp(1.4rem, 1.4vw, 1.7rem); line-height: 1.6; }
 
   .tapi-pdp__rating { display: flex; align-items: center; gap: 1.2rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
-  .tapi-pdp__stars { color: var(--tapi-hairline-2); font-size: 1.6rem; letter-spacing: 0.05em; }
-  .tapi-pdp__stars .is-filled { color: var(--mor-gold, #B08947); }
+  /* Stars use the shared fractional-fill .tapi-stars component (pdp-trust.css) —
+     same gold glyphs, size and true half-star support as the old reviews band. */
+  .tapi-pdp__rating .tapi-stars { font-size: 1.8rem; }
   .tapi-pdp__rating-num { font-size: 1.4rem; font-weight: 500; font-variant-numeric: tabular-nums; }
   .tapi-pdp__divider { width: 1px; height: 16px; background: var(--tapi-hairline-2); }
-  .tapi-pdp__rating-count { font-size: 1.3rem; color: var(--tapi-warm-grey); text-decoration: underline; text-underline-offset: 4px; }
+  .tapi-pdp__rating-count { font-size: 1.3rem; color: var(--tapi-warm-grey); }
 
   .tapi-pdp__price { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
   .tapi-pdp__price-now { font-family: var(--font-body-family); font-size: 3.2rem; font-weight: 600; letter-spacing: 0.01em; color: var(--mor-charcoal); font-variant-numeric: tabular-nums; }
@@ -1651,7 +1649,7 @@
     { "type": "checkbox", "id": "show_trust_badges", "default": true, "label": "Show trust badges under buy button", "info": "Free delivery, 7-day returns and secure payment — the strongest conversion spot. The Cash on Delivery badge appears only when the payment perks line above is filled in (i.e. your COD app is live)." },
     { "type": "checkbox", "id": "show_offers", "label": "Show offers under the price", "default": true, "info": "Lists the offers configured in Theme settings → Offers (single source of truth, shared with the cart panel) with copyable codes. Keep Theme settings → Offers in sync with Discounts." },
 
-    { "type": "header", "content": "Trust & reviews", "info": "Honest, brand-true trust builders. Toggle any piece on or off. The reviews section shows ONLY real reviews stored in each product's tapi.reviews metafield and stays hidden until a genuine review exists, so no rating is ever fabricated." },
+    { "type": "header", "content": "Trust & ratings", "info": "Honest, brand-true trust builders. Toggle any piece on or off. The rating under the product title shows ONLY the real numbers in each product's Rating count / Rating average metafields and stays hidden until you enter them, so no rating is ever fabricated." },
     { "type": "checkbox", "id": "show_promise", "default": true, "label": "Show curation promise" },
     { "type": "text", "id": "promise_heading", "default": "Checked end to end, before it reaches you", "label": "Curation promise heading" },
     { "type": "textarea", "id": "promise_intro", "default": "Morpaankh makes, it does not just sell. Some pieces are cut and stitched in our own unit, others with makers we work closely with, and every single one is checked end to end before it leaves us. So the piece that reaches you is the exact piece we signed off on, right down to the last thread.", "label": "Curation promise intro" },
@@ -1663,8 +1661,6 @@
     { "type": "text", "id": "concierge_heading", "default": "Talk to us before you buy", "label": "Concierge heading" },
     { "type": "text", "id": "concierge_text", "default": "Message us on WhatsApp about fabric, fit or sizing and a real person will get back to you, usually the same day. We would rather help you get it right the first time than leave you guessing.", "label": "Concierge text" },
     { "type": "text", "id": "concierge_btn", "default": "Chat on WhatsApp", "label": "Concierge button label" },
-    { "type": "checkbox", "id": "show_reviews", "default": true, "label": "Show ratings and reviews section", "info": "Shows the headline rating summary (from each product's Rating count / Rating average metafields) and a carousel of the featured quotes in its Customer reviews metafield. Enter the true numbers you have received." },
-    { "type": "text", "id": "reviews_heading", "default": "From women who wear Morpaankh", "label": "Reviews section heading" },
     { "type": "checkbox", "id": "emit_rating_schema", "default": false, "label": "Add rating to Google rich-result data", "info": "Off by default. When on, the rating count and average are added to the product's search-engine structured data (star snippets in Google). Only turn this on for ratings that are genuinely received and defensible, since Google can penalise unverifiable review markup." },
 
     { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
