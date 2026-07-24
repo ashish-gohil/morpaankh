@@ -164,7 +164,7 @@
 }
 
 /* ============================ Recently viewed ============================ */
-.tapi-rv { padding-block: var(--tapi-section-pad, 72px); } /* one page rhythm — matches editorial + related bands */
+.tapi-rv { padding-block: clamp(4rem, 6vw, 7.2rem); } /* home default; PDP overrides to the product-row beat (theme-variables.css) */
 /* Recently-viewed always carries the warm cream-2 surface so it reads as its own
    band, separated by tone from the cream section above it (New Arrivals on home,
    "You may also like" on the PDP). Adjacent sections alternate background tone —

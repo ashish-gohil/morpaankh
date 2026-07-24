@@ -2578,16 +2578,19 @@ details[open] > summary .icon-caret {
   padding-inline: var(--tapi-gutter, 16px);
 }
 
-/* ===== PDP downstream rhythm — one spacing system for every band =====
-   The lower half of the product page stacks three full-width sections: the
-   editorial band, "You may also like", and "Recently viewed". They all breathe
-   on the same --tapi-section-pad rhythm the editorial band and every homepage
-   section already use, so the whole page reads as one cohesive sequence instead
-   of three differently-spaced blocks. (related-products shipped at 36px,
-   recently-viewed at ~72px, editorial at section-pad — visibly uneven.)
-   recently-viewed is repointed to the same token in tapi-ux.css. */
-.related-products {
-  padding-block: var(--tapi-section-pad) !important;
+/* ===== PDP downstream rhythm — the SAME beat as the homepage product rows =====
+   The lower half of the product page stacks three full-width bands: the editorial
+   quote, "You may also like", and "Recently viewed". They now share the exact
+   padding the homepage's product rows use (home-stitch.css → .tapi-featured /
+   .tapi-collection-tiles): a generous top, a lighter bottom. So every band down
+   the product page breathes on one consistent beat AND matches the home page the
+   customer already knows — no more oversized 112px voids between rows.
+   Scoped to .template-product so the homepage's own bands are untouched.
+   (Was uneven: related 36px, recently ~72px, editorial 112px.) */
+.template-product .tapi-editorial-band,
+.template-product .related-products,
+.template-product .tapi-rv {
+  padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important;
 }
 /* related-products sits on cream; recently-viewed now carries its own cream-2
    surface (see .tapi-rv.gradient in tapi-ux.css), so the boundary reads as an
