@@ -48,6 +48,18 @@
             "tint": "#9d3c23"
           }
         },
+        "short_kurti": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "short-kurti",
+            "link": "shopify://collections/short-kurti",
+            "label": "Short Kurti",
+            "image": "shopify://shop_images/photo_6219828727785394378_x.jpg",
+            "placeholder_name": "Short Kurti",
+            "tint": "#8a6d3b"
+          }
+        },
         "festive": {
           "type": "tile",
           "settings": {
@@ -70,17 +82,6 @@
             "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM_1.jpg",
             "placeholder_name": "N",
             "tint": "#3a3633"
-          }
-        },
-        "short_kurti": {
-          "type": "tile",
-          "settings": {
-            "enable": true,
-            "collection": "short-kurti",
-            "link": "shopify://collections/short-kurti",
-            "label": "Short Kurti",
-            "placeholder_name": "Short Kurti",
-            "tint": "#8a6d3b"
           }
         },
         "tunic": {
@@ -269,7 +270,7 @@
       "settings": {
         "eyebrow": "The wardrobe",
         "heading": "Ways into the wardrobe.",
-        "intro": "Pick the kind of piece you are after. Everyday cotton kurta sets with dupatta, relaxed co-ord sets, single kurtis to wear your own way, and festive wear for the weddings and functions that matter."
+        "intro": ""
       }
     },
     "tapi_featured": {

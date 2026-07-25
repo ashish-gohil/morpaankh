@@ -33,42 +33,47 @@
 }
 
 /* ------------------------------------------------------------------
-   Variable tile count. The wardrobe now carries more than three ways
-   in (One Piece, Tunics), and each tile is independently toggleable,
-   so the visible count varies (3, 4, 5...). The base section hard-codes
-   a 3-column grid, which strands a 4th/5th tile on a lonely, left-
-   aligned row. Switch desktop + tablet to a centered flex-wrap: any
-   count stays balanced, and a capped tile width keeps a lone wrapped
-   tile from stretching the full row. Scoped to >=750px so the mobile
-   snap-carousel (section CSS, <=749) is left exactly as it was.
+   Desktop/tablet horizontal scroll (2026-07-25). The wardrobe now
+   carries more than four ways in (Kurta, Co-ord, One Piece, Festive,
+   Short Kurti...), and the old centered flex-wrap stranded the 5th tile
+   on a lonely second row. Match the mobile snap-carousel instead: one
+   non-wrapping row that scrolls horizontally, so the tiles never break
+   into multiple rows no matter how many are enabled. Fixed-basis cards
+   show ~4 across on a wide screen with the next peeking in as the scroll
+   affordance; `safe center` balances the row when few tiles fit and
+   falls back to a scrollable start-alignment when they overflow.
+
+   Card gap is 2.4rem to match the review cards (tapi-testimonials) so
+   the spacing between cards reads identically across both home sections.
+   Lives here, not in the section stylesheet block, for the same
+   stale-bundle reason as the rules above.
    ------------------------------------------------------------------ */
 @media (min-width: 750px) {
   .tapi-collection-tiles__grid {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    justify-content: safe center;
     align-items: stretch;
+    gap: 2.4rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: 0;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
   }
+  .tapi-collection-tiles__grid::-webkit-scrollbar { display: none; }
   .tapi-collection-tiles__grid > .tapi-tile {
-    flex: 1 1 26rem;
-    max-width: 38rem;
+    flex: 0 0 30rem;
+    max-width: 82vw;
     min-width: 0;
+    scroll-snap-align: start;
   }
 }
 
-/* ------------------------------------------------------------------
-   Boxy mosaic gaps (2026-07-16). The wardrobe tiles adopt the same
-   near-flush column gap as the product grids (--tapi-grid-col-gap)
-   with the roomier row gap when tiles wrap. Lives here, not in the
-   section {% stylesheet %}, for the same stale-bundle reason as the
-   rules above.
-   ------------------------------------------------------------------ */
-@media (min-width: 750px) {
-  .tapi-collection-tiles__grid {
-    gap: var(--tapi-grid-row-gap, 36px) var(--tapi-grid-col-gap, 6px);
-  }
-}
+/* Mobile snap carousel keeps the same 2.4rem gap so the spacing between
+   cards matches the review cards on every breakpoint. */
 @media (max-width: 749px) {
-  /* Mobile snap carousel: tight filmstrip gap to match the boxy system. */
-  .tapi-collection-tiles__grid { gap: var(--tapi-grid-col-gap, 4px); }
+  .tapi-collection-tiles__grid { gap: 2.4rem; }
 }

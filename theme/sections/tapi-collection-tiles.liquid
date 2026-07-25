@@ -6,7 +6,9 @@
         <span class="tapi-eyebrow tapi-eyebrow--line">{{ section.settings.eyebrow }}</span>
         <h2 class="tapi-collection-tiles__heading">{{ section.settings.heading }}</h2>
       </div>
-      <p class="tapi-collection-tiles__intro">{{ section.settings.intro }}</p>
+      {%- if section.settings.intro != blank -%}
+        <p class="tapi-collection-tiles__intro">{{ section.settings.intro }}</p>
+      {%- endif -%}
     </div>
     <div class="tapi-collection-tiles__grid" data-tapi-stagger="140">
       {%- for b in section.blocks -%}
