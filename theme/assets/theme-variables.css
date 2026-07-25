@@ -1804,8 +1804,12 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   margin: 0 !important;
 }
 
-/* The PDP needs slightly tighter spacing — keep it slim */
-.tapi-pdp { padding-top: 2.4rem !important; padding-bottom: 4.8rem !important; }
+/* The PDP needs slightly tighter spacing — keep it slim. The bottom padding is
+   the white gap below the product grid before the first cream band ("A note
+   from the studio"); at 3.6rem it pairs with that band's 56px top to land on
+   the same ~92px boundary the downstream bands share (see the PDP downstream
+   rhythm block below), so every section break down the page is even. */
+.tapi-pdp { padding-top: 2.4rem !important; padding-bottom: 3.6rem !important; }
 /* Clear the fixed mobile buy bar (price line + two-button row + safe-area). */
 @media (max-width: 749px) { .tapi-pdp { padding-bottom: 13rem !important; } }
 
@@ -2578,19 +2582,21 @@ details[open] > summary .icon-caret {
   padding-inline: var(--tapi-gutter, 16px);
 }
 
-/* ===== PDP downstream rhythm — the SAME beat as the homepage product rows =====
+/* ===== PDP downstream rhythm — one even beat down the whole page =====
    The lower half of the product page stacks three full-width bands: the editorial
-   quote, "You may also like", and "Recently viewed". They now share the exact
-   padding the homepage's product rows use (home-stitch.css → .tapi-featured /
-   .tapi-collection-tiles): a generous top, a lighter bottom. So every band down
-   the product page breathes on one consistent beat AND matches the home page the
-   customer already knows — no more oversized 112px voids between rows.
-   Scoped to .template-product so the homepage's own bands are untouched.
-   (Was uneven: related 36px, recently ~72px, editorial 112px.) */
+   quote, "You may also like", and "Recently viewed". They share one tight beat
+   (top clamp(32,4.5vw,56)px, bottom clamp(24,3vw,36)px) tuned so that, paired with
+   the product grid's 3.6rem bottom above them, EVERY section boundary down the
+   page lands on the same ~92px gap at desktop — accordion -> studio, studio ->
+   related, related -> recently. A shopping page wants a calmer, more compact
+   rhythm than the homepage's editorial voids, so this runs tighter than the home
+   bands on purpose. Scoped to .template-product so the homepage is untouched.
+   (Was uneven and cavernous: pdp 48px + editorial 72px = ~120px voids; earlier
+   still, related 36px / recently ~72px / editorial 112px.) */
 .template-product .tapi-editorial-band,
 .template-product .related-products,
 .template-product .tapi-rv {
-  padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important;
+  padding-block: clamp(32px, 4.5vw, 56px) clamp(24px, 3vw, 36px) !important;
 }
 /* related-products sits on cream; recently-viewed now carries its own cream-2
    surface (see .tapi-rv.gradient in tapi-ux.css), so the boundary reads as an

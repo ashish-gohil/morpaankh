@@ -18,6 +18,16 @@
 .tapi-tile__blurb { flex: 0 0 auto; margin: 0 0 2rem; }
 .tapi-tile__arrow { margin-top: auto; }
 
+/* Heading -> tiles gap. The section stylesheet sets this to 4.8rem, which
+   left an oversized void between "Ways into the wardrobe." and the first row
+   of tiles. Bring it to 3.2rem so it matches the review-card section
+   (tapi-testimonials heading uses margin-bottom: 3.2rem) — the same rhythm
+   the wardrobe already borrows for its card gap. Lives here (fresh URL,
+   loaded after the compiled bundle) because edits to the section
+   {% stylesheet %} never reach the live homepage. */
+.tapi-collection-tiles__head { margin-bottom: 3.2rem; }
+@media (max-width: 749px) { .tapi-collection-tiles__head { margin-bottom: 2.8rem; } }
+
 /* Touch screens have no real hover, so:
    - show the EXPLORE underline statically on EVERY card (uniform), and
    - neutralise the sticky-hover effects that freeze on the tapped card
