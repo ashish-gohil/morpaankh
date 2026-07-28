@@ -1521,18 +1521,20 @@
         "type": "checkbox",
         "id": "tapi_offer1_enable",
         "label": "Enable",
-        "default": false
+        "default": true
       },
       {
         "type": "text",
         "id": "tapi_offer1_code",
         "label": "Discount code",
+        "default": "BUY2",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer1_label",
-        "label": "Label"
+        "label": "Label",
+        "default": "Buy 2 pieces · 10% off your order"
       },
       {
         "type": "select",
@@ -1577,18 +1579,20 @@
         "type": "checkbox",
         "id": "tapi_offer2_enable",
         "label": "Enable",
-        "default": false
+        "default": true
       },
       {
         "type": "text",
         "id": "tapi_offer2_code",
         "label": "Discount code",
+        "default": "BUY3",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer2_label",
-        "label": "Label"
+        "label": "Label",
+        "default": "Buy 3 pieces · 15% off your order"
       },
       {
         "type": "select",

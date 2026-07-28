@@ -526,19 +526,33 @@
         {% render 'tapi-wishlist-button', product: product, variant: 'pdp' %}
         {% render 'tapi-share', product: product %}
       </div>
-      {%- if section.settings.show_offers -%}
-        {%- comment -%} Static automatic-discount box: the store's live cart discounts
-          (Buy 2 / Buy 3, selected styles) are applied by Shopify with no code. Keeps
-          class .tapi-pdp__offers for the view_promotion analytics hook. {%- endcomment -%}
-        <div class="tapi-pdp__offers tapi-pdp__offers--static" data-tapi-reveal>
-          <svg class="tapi-pdp__offers-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
-          <div class="tapi-pdp__offers-main">
-            <p class="tapi-pdp__offers-title">Save more when you take two</p>
-            <p class="tapi-pdp__offers-text">Buy 2, save 10%</p>
-            <p class="tapi-pdp__offers-text">Buy 3 or more, save 15%</p>
-            <p class="tapi-pdp__offers-fine">On selected styles. Applied automatically in your cart, no code needed.</p>
-          </div>
-        </div>
+      {%- if section.settings.show_offers and pdp_hero_id != blank -%}
+        {%- liquid
+          assign base = 'tapi_offer' | append: pdp_hero_id
+          assign k_code = base | append: '_code'
+          assign hero_code = settings[k_code] | strip | upcase
+          assign k_label = base | append: '_label'
+          assign hero_label = settings[k_label]
+          assign k_first = base | append: '_first_order'
+          assign hero_first = settings[k_first]
+          assign hero_terms = hero_label
+          if hero_first and hero_label contains '·'
+            assign hero_terms = hero_label | split: '·' | last | strip
+          endif
+        -%}
+        <ul class="tapi-pdp__offers" data-tapi-reveal>
+          <li class="tapi-pdp__offers-heroitem">
+            <svg class="tapi-pdp__offers-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+            <span class="tapi-pdp__offers-main">
+              <span class="tapi-pdp__offers-rec">Recommended</span>
+              <span class="tapi-pdp__offers-text">{% if hero_first %}First order? {{ hero_terms }} with code {{ hero_code }}{% else %}{{ hero_label | default: hero_code }} with code {{ hero_code }}{% endif %}</span>
+            </span>
+            <button type="button" class="tapi-code-chip" data-tapi-copy="{{ hero_code }}" aria-label="Copy code {{ hero_code }}">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+              <span class="tapi-code-chip__label" data-copy-label>Copy</span>
+            </button>
+          </li>
+        </ul>
       {%- endif -%}
 
       {%- if section.settings.payment_perks != blank -%}
@@ -568,9 +582,38 @@
       {%- render 'pincode-delivery', product: product -%}
       {%- endcomment -%}
 
-      {%- comment -%} "More offers" code accordion removed: the store runs automatic
-        cart discounts (Buy 2 / Buy 3, selected styles) with no code, stated once in
-        the box above. {%- endcomment -%}
+      {%- comment -%} More offers — the non-recommended codes, collapsed by
+        default so only ONE offer competes for attention above the fold. Reuses
+        pdp_offer_ids + pdp_hero_id computed in the offers block above; skips the
+        hero so it never repeats. {%- endcomment -%}
+      {%- if section.settings.show_offers and pdp_offer_ids.size > 1 -%}
+        <details class="tapi-acc tapi-pdp__more-offers">
+          <summary><span>More offers ({{ pdp_offer_ids.size | minus: 1 }})</span><span class="tapi-acc__toggle">+</span></summary>
+          <div class="tapi-acc__body tapi-pdp__more-body">
+            <ul class="tapi-pdp__more-list">
+              {%- for id in pdp_offer_ids -%}
+                {%- if id == pdp_hero_id -%}{%- continue -%}{%- endif -%}
+                {%- liquid
+                  assign mo_base = 'tapi_offer' | append: id
+                  assign k_code = mo_base | append: '_code'
+                  assign mo_code = settings[k_code] | strip | upcase
+                  assign k_label = mo_base | append: '_label'
+                  assign mo_label = settings[k_label]
+                -%}
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+                  <span>{{ mo_label | default: mo_code }}</span>
+                  <button type="button" class="tapi-code-chip" data-tapi-copy="{{ mo_code }}" aria-label="Copy code {{ mo_code }}">
+                    <span class="tapi-code-chip__code">{{ mo_code }}</span>
+                    <span class="tapi-code-chip__label" data-copy-label>Copy</span>
+                  </button>
+                </li>
+              {%- endfor -%}
+            </ul>
+            <p class="tapi-pdp__offers-note">One code per order &middot; the best one is applied for you in the cart.</p>
+          </div>
+        </details>
+      {%- endif -%}
 
       <div class="tapi-pdp__accordions">
         <details class="tapi-acc">
