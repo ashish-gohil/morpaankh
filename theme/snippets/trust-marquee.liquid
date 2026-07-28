@@ -7,7 +7,7 @@
 {%- liquid
   assign items = shop.metafields.tapi.trust_items.value
   if items == blank
-    assign items = 'Free delivery on prepaid orders|First order? ₹200 off over ₹1,000 with code WELCOME200|Buy 2, get 10% off. Buy 3, get 15% off|What you see is what arrives' | split: '|'
+    assign items = 'Free delivery on prepaid orders|Buy 2 save 10% · Buy 3 save 15% on selected styles|Every piece checked end to end before it ships|Cash on Delivery across India|What you see is what arrives' | split: '|'
   endif
 -%}
 <aside class="tapi-marquee" aria-label="Brand promises">

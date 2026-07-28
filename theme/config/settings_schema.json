@@ -1521,20 +1521,18 @@
         "type": "checkbox",
         "id": "tapi_offer1_enable",
         "label": "Enable",
-        "default": true
+        "default": false
       },
       {
         "type": "text",
         "id": "tapi_offer1_code",
         "label": "Discount code",
-        "default": "BUY2",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer1_label",
-        "label": "Label",
-        "default": "Buy 2 pieces · 10% off your order"
+        "label": "Label"
       },
       {
         "type": "select",
@@ -1579,20 +1577,18 @@
         "type": "checkbox",
         "id": "tapi_offer2_enable",
         "label": "Enable",
-        "default": true
+        "default": false
       },
       {
         "type": "text",
         "id": "tapi_offer2_code",
         "label": "Discount code",
-        "default": "BUY3",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer2_label",
-        "label": "Label",
-        "default": "Buy 3 pieces · 15% off your order"
+        "label": "Label"
       },
       {
         "type": "select",
@@ -1636,20 +1632,18 @@
         "type": "checkbox",
         "id": "tapi_offer3_enable",
         "label": "Enable",
-        "default": true
+        "default": false
       },
       {
         "type": "text",
         "id": "tapi_offer3_code",
         "label": "Discount code",
-        "default": "WELCOME200",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer3_label",
-        "label": "Label",
-        "default": "First order · ₹200 off over ₹1,000"
+        "label": "Label"
       },
       {
         "type": "select",
@@ -1693,20 +1687,18 @@
         "type": "checkbox",
         "id": "tapi_offer4_enable",
         "label": "Enable",
-        "default": true
+        "default": false
       },
       {
         "type": "text",
         "id": "tapi_offer4_code",
         "label": "Discount code",
-        "default": "OFF20",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer4_label",
-        "label": "Label",
-        "default": "20% off orders over ₹3,000"
+        "label": "Label"
       },
       {
         "type": "select",

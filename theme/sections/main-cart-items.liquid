@@ -462,11 +462,11 @@
               </tbody>
             </table>
             {%- comment -%} Smart offers panel: after the products (user-requested
-              reading order: products, offers, then checkout). Replaced the bundle
-              ladder when the Buy 2 / Buy 3 automatics became codes (automatic
-              order discounts were blocking WELCOME200 at checkout). Sits inside
-              .js-contents so it re-renders with the cart on every quantity
-              change; tapi-offers.js auto-applies the biggest general code. {%- endcomment -%}
+              reading order: products, offers, then checkout). It self-hides when no
+              offer slots are enabled in Theme settings -> Offers. The store now runs
+              automatic cart discounts (Buy 2 / Buy 3, selected styles) that Shopify
+              applies with no code, so no codes are listed here. Sits inside
+              .js-contents so it re-renders with the cart on every quantity change. {%- endcomment -%}
             {%- if section.settings.show_smart_offers -%}
               {% render 'tapi-smart-offers' %}
             {%- endif -%}

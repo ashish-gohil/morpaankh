@@ -129,3 +129,33 @@ details.tapi-pdp__more-offers > summary {
   margin-top: 0.25em;
   color: var(--mor-accent, #b7472a);
 }
+
+/* Static automatic-offer box: no codes, no chips. The store's live automatic
+   cart discounts (Buy 2 / Buy 3, selected styles) stated plainly. Row layout
+   overrides the column default so the tag icon sits beside the copy. */
+.tapi-pdp__offers--static {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 1.2rem;
+}
+.tapi-pdp__offers--static .tapi-pdp__offers-ic {
+  margin-top: 0.2rem;
+}
+.tapi-pdp__offers-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--mor-text, #2c2826);
+}
+.tapi-pdp__offers--static .tapi-pdp__offers-text {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.5;
+}
+.tapi-pdp__offers-fine {
+  margin: 0.2rem 0 0;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: var(--mor-text-muted, #6f675f);
+}
