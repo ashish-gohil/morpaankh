@@ -140,7 +140,7 @@
         "type": "tapi-announcement",
         "settings": {
           "enabled": true,
-          "text": "Up to 45% off · Buy 2 save 10%, Buy 3 save 15% on selected styles",
+          "text": "Buy 2 save 10% · Buy 3 save 15%",
           "link": "/collections/all",
           "animate": true,
           "schedule_enabled": false,
