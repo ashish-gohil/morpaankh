@@ -44,36 +44,30 @@
               {% render block %}
             {%- when 'subtotal' -%}
               <div class="js-contents" {{ block.shopify_attributes }}>
-                <div>
-                  {%- if cart.cart_level_discount_applications.size > 0 -%}
-                    <ul class="discounts list-unstyled" role="list" aria-label="{{ 'customer.order.discount' | t }}">
-                      {%- for discount in cart.cart_level_discount_applications -%}
-                        <li class="discounts__discount discounts__discount--position">
-                          {{- 'icon-discount.svg' | inline_asset_content -}}
-                          {{ discount.title | escape }}
-                          (-{{ discount.total_allocated_amount | money }})
-                        </li>
-                      {%- endfor -%}
-                    </ul>
+                {%- assign applied_title = '' -%}
+                {%- for discount in cart.cart_level_discount_applications -%}
+                  {%- assign applied_title = discount.title -%}
+                {%- endfor -%}
+
+                <div class="tapi-cart-sum">
+                  {%- if cart.total_discount > 0 -%}
+                    <div class="tapi-cart-sum__row">
+                      <span class="tapi-cart-sum__label">Subtotal</span>
+                      <span class="tapi-cart-sum__value tnum">{{ cart.original_total_price | money }}</span>
+                    </div>
+                    <div class="tapi-cart-sum__row tapi-cart-sum__row--save">
+                      <span class="tapi-cart-sum__label">
+                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true" focusable="false"><path d="M9.5 1.8H13a1.2 1.2 0 011.2 1.2v3.5a1.2 1.2 0 01-.35.85l-6.4 6.4a1.2 1.2 0 01-1.7 0L1.8 9.05a1.2 1.2 0 010-1.7l6.4-6.4A1.2 1.2 0 019.5 1.8z" stroke="currentColor" stroke-width="1.3"/><circle cx="10.7" cy="5.3" r="1" fill="currentColor"/></svg>
+                        {%- if applied_title != blank -%}Discount ({{ applied_title | escape }}){%- else -%}Discount{%- endif -%}
+                      </span>
+                      <span class="tapi-cart-sum__value tnum">&minus;{{ cart.total_discount | money }}</span>
+                    </div>
                   {%- endif -%}
+                  <div class="tapi-cart-sum__row tapi-cart-sum__row--total">
+                    <h2 class="tapi-cart-sum__label">{{ 'sections.cart.estimated_total' | t }}</h2>
+                    <span class="tapi-cart-sum__value tnum">{{ cart.total_price | money_with_currency }}</span>
+                  </div>
                 </div>
-
-                <div class="totals">
-                  <h2 class="totals__total">{{ 'sections.cart.estimated_total' | t }}</h2>
-                  <p class="totals__total-value">
-                    {%- if cart.total_discount > 0 -%}
-                      <s class="tapi-cart-was">{{ cart.original_total_price | money }}</s>
-                    {%- endif -%}
-                    {{ cart.total_price | money_with_currency }}
-                  </p>
-                </div>
-
-                {%- if cart.total_discount > 0 -%}
-                  <p class="tapi-cart-saved">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    You save {{ cart.total_discount | money }} on this order
-                  </p>
-                {%- endif -%}
 
                 <small class="tax-note caption-large rte">
                   {%- if cart.duties_included and cart.taxes_included -%}
@@ -193,27 +187,81 @@
     color: var(--mor-primary, #2E4B3C);
   }
 
-  .tapi-cart-was {
-    margin-right: 0.6rem;
-    font-size: 0.6em;
-    font-weight: 400;
-    color: var(--mor-text-muted, #6B5D54);
-    text-decoration-thickness: 1px;
+  .tapi-cart-sum {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 0 0 1.6rem;
   }
 
-  .tapi-cart-saved {
+  .tapi-cart-sum h2 {
+    margin: 0;
+    letter-spacing: 0;
+  }
+
+  .tapi-cart-sum__row {
     display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.6rem;
+    font-size: 1.4rem;
+    line-height: 1.3;
+    color: var(--mor-text-muted, #6B5D54);
+  }
+
+  .tapi-cart-sum__label {
+    display: inline-flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 0.6rem;
-    margin: 0.6rem 0 0;
-    font-size: 1.3rem;
-    font-weight: 600;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+
+  .tapi-cart-sum__value {
+    color: var(--mor-charcoal, #2C2826);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .tapi-cart-sum__row--save,
+  .tapi-cart-sum__row--save .tapi-cart-sum__value {
     color: var(--mor-primary, #2E4B3C);
   }
 
-  .tapi-cart-saved svg {
+  .tapi-cart-sum__row--save .tapi-cart-sum__value {
+    font-weight: 600;
+  }
+
+  .tapi-cart-sum__row--save svg {
     flex: 0 0 auto;
+    color: currentColor;
+  }
+
+  .tapi-cart-sum__row--total {
+    margin-top: 0.4rem;
+    padding-top: 1.3rem;
+    border-top: 1px solid var(--tapi-hairline, rgba(44, 40, 38, 0.14));
+  }
+
+  .tapi-cart-sum__row--total .tapi-cart-sum__label {
+    font-family: var(--font-heading-family);
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--mor-charcoal, #2C2826);
+  }
+
+  .tapi-cart-sum__row--total .tapi-cart-sum__value {
+    font-size: clamp(2rem, 6vw, 2.4rem);
+    font-weight: 700;
+    color: var(--mor-charcoal, #2C2826);
+    letter-spacing: 0.01em;
+  }
+
+  .cart__footer .tax-note {
+    display: block;
+    margin: 1.2rem 0 0;
+    text-align: left;
+    color: var(--mor-text-muted, #6B5D54);
   }
 {% endstylesheet %}
 
