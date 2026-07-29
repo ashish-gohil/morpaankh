@@ -260,11 +260,11 @@
         }
       },
       "block_order": [
-        "kurta",
-        "coord",
-        "one_piece",
         "festive",
+        "coord",
+        "kurta",
         "short_kurti",
+        "one_piece",
         "tunic"
       ],
       "settings": {
