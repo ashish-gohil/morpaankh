@@ -276,11 +276,11 @@
     "tapi_featured": {
       "type": "tapi-featured-products",
       "settings": {
-        "eyebrow": "New in",
-        "heading": "New this season.",
+        "eyebrow": "The full collection",
+        "heading": "New in, then everything else.",
         "collection": "new-arrivals",
-        "products_to_show": 8,
-        "view_all_text": "View all"
+        "products_to_show": 12,
+        "view_all_text": "View all products"
       }
     },
     "recently_viewed": {
