@@ -19,28 +19,42 @@ That switches on the event stream already built into the theme: product views,
 add to cart, checkout clicks, offer impressions, wishlist adds. Nothing loads
 for visitors until the ID is saved.
 
-**Purchase tracking** (checkout pages are outside the theme): Shopify Admin →
-Settings → Customer events → Add custom pixel, name it `ga4-purchase`, paste
-this, replace the ID on the first line, Save, then Connect:
+**Purchase tracking** (checkout pages are outside the theme, so the theme
+CANNOT fire the order event — it must be a Customer Events pixel): Shopify
+Admin → Settings → Customer events → Add custom pixel, name it `ga4-purchase`,
+paste the code below (the real GA4 ID is already filled in), Save, then click
+**Connect**. Connect is what actually turns the pixel on. A pixel that is
+saved but left unconnected does nothing, which is the usual reason orders
+never reach GA4.
 
 ```js
-const GA4_ID = 'G-XXXXXXXXXX';
+// GA4 purchase for Morpaankh. Runs on the checkout / thank-you page, which
+// the theme cannot reach. It sends ONLY to GA4 via gtag. It never calls fbq,
+// so the Meta pixel (Facebook & Instagram channel) is completely untouched.
+const GA4_ID = 'G-T0YLNND1JT';
+
 const s = document.createElement('script');
 s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA4_ID;
 s.async = true;
 document.head.appendChild(s);
+
 window.dataLayer = window.dataLayer || [];
 function gtag() { dataLayer.push(arguments); }
 gtag('js', new Date());
 gtag('config', GA4_ID, { send_page_view: false });
+
 analytics.subscribe('checkout_completed', (event) => {
   const c = event.data.checkout;
   gtag('event', 'purchase', {
-    transaction_id: c.order && c.order.id,
-    currency: c.currencyCode,
+    transaction_id: (c.order && c.order.id) || c.token,
     value: c.totalPrice && c.totalPrice.amount,
-    items: c.lineItems.map((li) => ({
+    currency: c.currencyCode,
+    tax: c.totalTax && c.totalTax.amount,
+    shipping: c.shippingLine && c.shippingLine.price && c.shippingLine.price.amount,
+    items: (c.lineItems || []).map((li) => ({
+      item_id: (li.variant && li.variant.sku) || (li.variant && li.variant.id) || li.id,
       item_name: li.title,
+      item_brand: 'Morpaankh',
       quantity: li.quantity,
       price: li.variant && li.variant.price && li.variant.price.amount,
     })),
@@ -48,8 +62,11 @@ analytics.subscribe('checkout_completed', (event) => {
 });
 ```
 
-Verify: Theme settings → Analytics → tick Debug mode, browse the site, watch
-GA4 → Admin → DebugView. Untick when done.
+Verify: place a real or test order, then check GA4 → Admin → Realtime and
+DebugView (tick Theme settings → Analytics → Debug mode first). Both show the
+purchase within seconds. Standard reports (the Reports snapshot, Monetisation,
+etc.) lag 24 to 48 hours, so a same-day order not appearing there is normal
+even when the pixel is working. Untick Debug when done.
 
 ## 2. Native abandoned-checkout email (2 minutes)
 
