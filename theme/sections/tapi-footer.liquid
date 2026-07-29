@@ -54,7 +54,7 @@
                   {%- assign parts = it | split: '|' -%}
                   {%- assign label = parts[0] | strip -%}
                   {%- assign url   = parts[1] | default: '#' | strip -%}
-                  {%- if label != blank -%}<li><a href="{{ url }}">{{ label }}</a></li>{%- endif -%}
+                  {%- if label != blank -%}<li><a href="{{ url }}"{% if url contains '://' %} target="_blank" rel="noopener"{% endif %}>{{ label }}</a></li>{%- endif -%}
                 {%- endfor -%}
               {%- endif -%}
             </ul>
