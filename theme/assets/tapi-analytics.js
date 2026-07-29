@@ -138,6 +138,36 @@
     track('add_to_cart', params);
   }, true);
 
+  /* view_cart — the cart page is in theme scope (checkout pages are not), so
+     it fires here, not in the Customer Events pixel. Live line items come from
+     /cart.js so the event carries real products and value. */
+  if (/\/cart\/?$/.test(location.pathname)) {
+    fetch('/cart.js', { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (cart) {
+        var items = (cart.items || []).map(function (li) {
+          return {
+            item_id: String(li.sku || li.variant_id || li.product_id || ''),
+            item_name: String(li.product_title || li.title || ''),
+            item_brand: 'Morpaankh',
+            quantity: li.quantity,
+            price: (li.final_price || li.price || 0) / 100
+          };
+        });
+        track('view_cart', { currency: cart.currency || 'INR', value: (cart.total_price || 0) / 100, items: items });
+      })
+      .catch(function () { /* analytics must never break the store */ });
+  }
+
+  /* apply_coupon — shopper tapped Apply on a cart offer card. The checkout
+     pixel also reports the coupon on begin_checkout and purchase; this is the
+     in-cart, storefront-side signal that a code was chosen. */
+  document.addEventListener('click', function (e) {
+    if (!e.target || !e.target.closest) return;
+    var applyBtn = e.target.closest('[data-tapi-offer-apply]');
+    if (applyBtn) track('apply_coupon', { coupon: applyBtn.getAttribute('data-code') || '' });
+  }, true);
+
   /* Announcement (promotion) clicks.
      NOTE: begin_checkout intentionally NOT tracked here — the Customer Events
      custom pixel ("GA4 Checkout") owns all checkout-funnel events

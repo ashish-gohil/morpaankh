@@ -28,9 +28,11 @@ saved but left unconnected does nothing, which is the usual reason orders
 never reach GA4.
 
 ```js
-// GA4 purchase for Morpaankh. Runs on the checkout / thank-you page, which
-// the theme cannot reach. It sends ONLY to GA4 via gtag. It never calls fbq,
-// so the Meta pixel (Facebook & Instagram channel) is completely untouched.
+// GA4 checkout funnel for Morpaankh. Runs on Shopify's checkout pages, which
+// the theme cannot reach. Sends ONLY to GA4 via gtag (never fbq, so the Meta
+// channel pixel is untouched). Storefront events (view_item, add_to_cart,
+// view_cart, select_item, apply_coupon) are fired by the theme, so they are
+// deliberately NOT repeated here to avoid double counting.
 const GA4_ID = 'G-T0YLNND1JT';
 
 const s = document.createElement('script');
@@ -43,21 +45,63 @@ function gtag() { dataLayer.push(arguments); }
 gtag('js', new Date());
 gtag('config', GA4_ID, { send_page_view: false });
 
-analytics.subscribe('checkout_completed', (event) => {
-  const c = event.data.checkout;
-  gtag('event', 'purchase', {
-    transaction_id: (c.order && c.order.id) || c.token,
-    value: c.totalPrice && c.totalPrice.amount,
-    currency: c.currencyCode,
-    tax: c.totalTax && c.totalTax.amount,
-    shipping: c.shippingLine && c.shippingLine.price && c.shippingLine.price.amount,
-    items: (c.lineItems || []).map((li) => ({
+function tapiItems(lineItems) {
+  return (lineItems || []).map(function (li) {
+    return {
       item_id: (li.variant && li.variant.sku) || (li.variant && li.variant.id) || li.id,
       item_name: li.title,
       item_brand: 'Morpaankh',
       quantity: li.quantity,
       price: li.variant && li.variant.price && li.variant.price.amount,
-    })),
+    };
+  });
+}
+function tapiCoupon(c) {
+  var d = c.discountApplications && c.discountApplications[0];
+  return (d && d.title) ? d.title : undefined;
+}
+
+analytics.subscribe('checkout_started', function (event) {
+  var c = event.data.checkout;
+  gtag('event', 'begin_checkout', {
+    currency: c.currencyCode,
+    value: c.totalPrice && c.totalPrice.amount,
+    coupon: tapiCoupon(c),
+    items: tapiItems(c.lineItems),
+  });
+});
+
+analytics.subscribe('checkout_shipping_info_submitted', function (event) {
+  var c = event.data.checkout;
+  gtag('event', 'add_shipping_info', {
+    currency: c.currencyCode,
+    value: c.totalPrice && c.totalPrice.amount,
+    coupon: tapiCoupon(c),
+    shipping_tier: c.delivery && c.delivery.selectedDeliveryOptions && c.delivery.selectedDeliveryOptions[0] && c.delivery.selectedDeliveryOptions[0].title,
+    items: tapiItems(c.lineItems),
+  });
+});
+
+analytics.subscribe('payment_info_submitted', function (event) {
+  var c = event.data.checkout;
+  gtag('event', 'add_payment_info', {
+    currency: c.currencyCode,
+    value: c.totalPrice && c.totalPrice.amount,
+    coupon: tapiCoupon(c),
+    items: tapiItems(c.lineItems),
+  });
+});
+
+analytics.subscribe('checkout_completed', function (event) {
+  var c = event.data.checkout;
+  gtag('event', 'purchase', {
+    transaction_id: (c.order && c.order.id) || c.token,
+    value: c.totalPrice && c.totalPrice.amount,
+    currency: c.currencyCode,
+    coupon: tapiCoupon(c),
+    tax: c.totalTax && c.totalTax.amount,
+    shipping: c.shippingLine && c.shippingLine.price && c.shippingLine.price.amount,
+    items: tapiItems(c.lineItems),
   });
 });
 ```
