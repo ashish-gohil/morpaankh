@@ -1534,7 +1534,7 @@
         "type": "text",
         "id": "tapi_offer1_label",
         "label": "Label",
-        "default": "Buy 2 pieces · 10% off your order"
+        "default": "Buy 2 pieces, save 10% on your order"
       },
       {
         "type": "select",
@@ -1592,7 +1592,7 @@
         "type": "text",
         "id": "tapi_offer2_label",
         "label": "Label",
-        "default": "Buy 3 pieces · 15% off your order"
+        "default": "Buy 3 pieces, save 15% on your order"
       },
       {
         "type": "select",

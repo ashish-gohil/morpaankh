@@ -141,6 +141,7 @@
           {%- if o_eligible and o_code == best_code and best_save > 0 -%}
             <span class="tapi-offers__best">Biggest saving</span>
           {%- endif -%}
+          <div class="tapi-offers__body">
           <div class="tapi-offers__main">
             <p class="tapi-offers__line">
               <span class="tapi-offers__code">{{ o_code }}</span>
@@ -172,6 +173,7 @@
                 Apply
               </button>
             {%- endif -%}
+          </div>
           </div>
         </li>
       {%- endfor -%}

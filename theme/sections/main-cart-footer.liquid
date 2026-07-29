@@ -60,8 +60,20 @@
 
                 <div class="totals">
                   <h2 class="totals__total">{{ 'sections.cart.estimated_total' | t }}</h2>
-                  <p class="totals__total-value">{{ cart.total_price | money_with_currency }}</p>
+                  <p class="totals__total-value">
+                    {%- if cart.total_discount > 0 -%}
+                      <s class="tapi-cart-was">{{ cart.original_total_price | money }}</s>
+                    {%- endif -%}
+                    {{ cart.total_price | money_with_currency }}
+                  </p>
                 </div>
+
+                {%- if cart.total_discount > 0 -%}
+                  <p class="tapi-cart-saved">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    You save {{ cart.total_discount | money }} on this order
+                  </p>
+                {%- endif -%}
 
                 <small class="tax-note caption-large rte">
                   {%- if cart.duties_included and cart.taxes_included -%}
@@ -179,6 +191,29 @@
   .tapi-cart-assure__item svg {
     flex: 0 0 auto;
     color: var(--mor-primary, #2E4B3C);
+  }
+
+  .tapi-cart-was {
+    margin-right: 0.6rem;
+    font-size: 0.6em;
+    font-weight: 400;
+    color: var(--mor-text-muted, #6B5D54);
+    text-decoration-thickness: 1px;
+  }
+
+  .tapi-cart-saved {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin: 0.6rem 0 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--mor-primary, #2E4B3C);
+  }
+
+  .tapi-cart-saved svg {
+    flex: 0 0 auto;
   }
 {% endstylesheet %}
 

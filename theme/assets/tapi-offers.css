@@ -64,11 +64,20 @@
 .tapi-offers__card {
   position: relative;
   display: flex;
+  flex-direction: column;
+  background: var(--mor-surface-raised, #faf6ec);
+  border: 1px solid var(--mor-hairline, #e5ddc8);
+  overflow: hidden;
+}
+
+/* Body holds the coupon row (chip + label + CTA). The "Biggest saving"
+   ribbon sits above it as its own flow row, so it can never overlap the
+   Applied/Remove column the way the old absolute corner tag did. */
+.tapi-offers__body {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.2rem;
-  background: var(--mor-surface-raised, #faf6ec);
-  border: 1px solid var(--mor-hairline, #e5ddc8);
   padding: 1.2rem 1.4rem;
 }
 
@@ -78,10 +87,8 @@
 }
 
 .tapi-offers__best {
-  position: absolute;
-  top: 0;
-  right: 0;
-  padding: 0.25rem 0.8rem;
+  align-self: flex-end;
+  padding: 0.3rem 0.9rem;
   background: var(--mor-primary, #2e4b3c);
   color: var(--mor-cream, #f7f3e8);
   font-size: 0.95rem;
@@ -198,7 +205,7 @@
 
 @media (max-width: 480px) {
   .tapi-offers { padding: 1.4rem 1.2rem; }
-  .tapi-offers__card { padding: 1.1rem 1.2rem; gap: 1rem; }
+  .tapi-offers__body { padding: 1.1rem 1.2rem; gap: 1rem; }
   .tapi-offers__label { font-size: 1.3rem; }
 }
 
