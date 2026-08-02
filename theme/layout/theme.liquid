@@ -347,6 +347,29 @@
     {{ 'tapi-ux.css' | asset_url | stylesheet_tag }}
     <script src="{{ 'tapi-motion.js' | asset_url }}" defer></script>
     <script src="{{ 'tapi-ux.js' | asset_url }}" defer></script>
+    {%- comment -%}
+      Capture Meta's fbclid into a first-party _fbc cookie on landing, before any
+      redirect can strip the query string. The Facebook & Instagram channel's
+      Conversions API reads _fbc, so this lifts fbc coverage / Event Match Quality
+      on AddToCart and later events (fbclid was being lost between landing and cart).
+      Runs on the live storefront only (skips theme editor + preview/myshopify).
+    {%- endcomment -%}
+    <script>
+      (function () {
+        try {
+          if (window.Shopify && Shopify.designMode) return;
+          var h = location.hostname || '';
+          if (/\.shopifypreview\.com$/.test(h) || /\.myshopify\.com$/.test(h)) return;
+          var m = location.search.match(/[?&]fbclid=([^&]+)/);
+          if (!m) return;
+          if (/(?:^|;\s*)_fbc=/.test(document.cookie)) return; // pixel already set it
+          var val = 'fb.1.' + Date.now() + '.' + decodeURIComponent(m[1]);
+          var c = '_fbc=' + val + ';path=/;max-age=7776000;SameSite=Lax'; // 90 days, Meta's _fbc lifetime
+          if (/(?:^|\.)morpaankh\.in$/.test(h)) c += ';domain=.morpaankh.in';
+          document.cookie = c;
+        } catch (e) { /* tracking must never break the store */ }
+      })();
+    </script>
     {%- if settings.ga4_measurement_id != blank
       or settings.gtm_container_id != blank
       or settings.meta_pixel_id != blank
