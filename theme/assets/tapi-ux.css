@@ -32,8 +32,8 @@
 /* PDP pill (icon + label) */
 .tapi-wishlist--pdp {
   height: 4.6rem; padding: 0 1.8rem; border: 1px solid var(--tapi-hairline-2);
-  border-radius: 9999px; background: transparent;
-  font-size: 1.2rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+  border-radius: var(--radius-pill); background: transparent;
+  font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
   transition: border-color 200ms, color 200ms, background 200ms;
 }
 .tapi-wishlist--pdp:hover { border-color: var(--tapi-charcoal); }
@@ -55,7 +55,7 @@
   min-width: 1.7rem; height: 1.7rem; padding: 0 0.4rem;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--mor-accent); color: var(--mor-cream);
-  font-size: 0.9rem; line-height: 1; font-weight: 600; border-radius: 9999px;
+  font-size: var(--fs-xs); line-height: 1; font-weight: 600; border-radius: var(--radius-pill);
   font-variant-numeric: tabular-nums;
 }
 .tapi-count-bubble[hidden] { display: none; }
@@ -70,7 +70,7 @@
 
 /* ============================ Mini cards / actions ============================ */
 .tapi-card--mini .tapi-card__actions { margin-top: 1rem; }
-.tapi-card--mini .tapi-card__actions .button { width: 100%; height: 4.4rem; min-height: 4.4rem; font-size: 1.2rem; }
+.tapi-card--mini .tapi-card__actions .button { width: 100%; height: 4.4rem; min-height: 4.4rem; font-size: var(--fs-xs); }
 .tapi-card--mini .tapi-card__actions .button.is-loading { opacity: 0.7; pointer-events: none; }
 .tapi-card--mini .tapi-card__img--front { position: static; }
 .tapi-card--mini .tapi-card__img--front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -215,7 +215,7 @@
 .tapi-wl { padding-block: clamp(3.2rem, 5vw, 6rem); }
 .tapi-wl__header { display: flex; align-items: baseline; gap: 1.2rem; margin-bottom: clamp(2.4rem, 4vw, 4rem); }
 .tapi-wl__title { font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.01em; font-size: clamp(3rem, 5vw, 4.4rem); margin: 0; }
-.tapi-wl__count { color: var(--tapi-warm-grey); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.tapi-wl__count { color: var(--tapi-warm-grey); font-size: var(--fs-base); font-variant-numeric: tabular-nums; }
 .tapi-wl__grid {
   list-style: none; margin: 0; padding: 0; display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -257,11 +257,11 @@
 .tapi-botnav__item:active { transform: scale(0.95); }
 .tapi-botnav__item.is-active::before {
   content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  width: 22px; height: 2px; background: var(--mor-accent); border-radius: 0 0 2px 2px;
+  width: 22px; height: 2px; background: var(--mor-accent); border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 .tapi-botnav__icon { position: relative; display: inline-flex; }
 .tapi-botnav__icon svg { width: 22px; height: 22px; }
-.tapi-botnav__label { font-size: 1rem; letter-spacing: 0.04em; }
+.tapi-botnav__label { font-size: var(--fs-xs); letter-spacing: 0.04em; }
 .tapi-botnav__item.is-active .tapi-botnav__label { font-weight: 600; }
 .tapi-botnav .tapi-count-bubble { top: -7px; right: -10px; }
 /* Reserve space so fixed footer content is not hidden behind the nav (only when present) */
@@ -282,9 +282,9 @@
 .tapi-share__trigger {
   appearance: none; -webkit-appearance: none; cursor: pointer; font-family: inherit;
   display: inline-flex; align-items: center; gap: 0.8rem;
-  height: 4.6rem; padding: 0 1.8rem; border: 1px solid var(--tapi-hairline-2); border-radius: 9999px;
+  height: 4.6rem; padding: 0 1.8rem; border: 1px solid var(--tapi-hairline-2); border-radius: var(--radius-pill);
   background: transparent; color: var(--tapi-charcoal);
-  font-size: 1.2rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+  font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
   transition: border-color 200ms, color 200ms;
 }
 .tapi-share__trigger:hover { border-color: var(--tapi-charcoal); }
@@ -300,21 +300,21 @@
 .tapi-share__link {
   display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
   padding: 0.9rem 0.4rem; border-radius: var(--mor-radius-sm, 4px); text-decoration: none;
-  color: var(--tapi-charcoal); font-size: 0.95rem; letter-spacing: 0.02em;
+  color: var(--tapi-charcoal); font-size: var(--fs-xs); letter-spacing: 0.02em;
   transition: background 180ms; cursor: pointer; border: none; background: none; font-family: inherit;
 }
 .tapi-share__link:hover { background: var(--tapi-cream-2); }
 .tapi-share__link svg { width: 22px; height: 22px; }
 .tapi-share__copyrow { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--tapi-hairline); display: flex; gap: 0.8rem; align-items: center; }
 .tapi-share__url {
-  flex: 1; min-width: 0; height: 3.6rem; padding: 0 1rem; font-size: 1.2rem;
+  flex: 1; min-width: 0; height: 3.6rem; padding: 0 1rem; font-size: var(--fs-xs);
   border: 1px solid var(--tapi-hairline-2); background: var(--tapi-cream-2); color: var(--tapi-warm-grey);
   border-radius: var(--mor-radius-sm, 4px); overflow: hidden; text-overflow: ellipsis;
 }
 .tapi-share__copy {
   flex: 0 0 auto; height: 3.6rem; padding: 0 1.2rem; cursor: pointer; font-family: inherit;
   border: 1px solid var(--tapi-charcoal); background: var(--tapi-charcoal); color: var(--tapi-cream);
-  font-size: 1.1rem; letter-spacing: 0.06em; border-radius: var(--mor-radius-sm, 4px);
+  font-size: var(--fs-xs); letter-spacing: 0.06em; border-radius: var(--mor-radius-sm, 4px);
 }
 .tapi-share__copy.is-copied { background: var(--mor-accent); border-color: var(--mor-accent); }
 
@@ -346,7 +346,7 @@
   color: var(--tapi-terracotta, #B4623F);
 }
 .tapi-trust__label {
-  font-size: 1.25rem;
+  font-size: var(--fs-xs);
   line-height: 1.35;
   letter-spacing: 0.005em;
   color: var(--mor-text-muted, #6B5D54);
@@ -360,7 +360,7 @@
  * one badge per row so the two-line label never truncates. */
 @media (max-width: 749px) {
   .tapi-trust { grid-template-columns: 1fr; gap: 1.1rem; padding: 1.5rem 1.6rem; }
-  .tapi-trust__label { font-size: 1.3rem; }
+  .tapi-trust__label { font-size: var(--fs-sm); }
 }
 
 /* ===================== Below-fold render skip =====================

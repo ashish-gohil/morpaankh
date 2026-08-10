@@ -74,7 +74,7 @@
 }
 
 .article-template__link {
-  font-size: 1.8rem;
+  font-size: var(--fs-lg);
   display: flex;
   justify-content: center;
   align-items: center;

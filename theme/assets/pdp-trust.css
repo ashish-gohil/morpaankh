@@ -18,7 +18,7 @@
   --pct: 0%;
   position: relative;
   display: inline-block;
-  font-size: 1.5rem;
+  font-size: var(--fs-base);
   line-height: 1;
   letter-spacing: 0.22em;
   white-space: nowrap;
@@ -56,7 +56,7 @@
   gap: 1rem;
   margin: 0 0 0.8rem;
   font-family: var(--font-heading-family, "Cormorant Garamond", serif);
-  font-size: 2.1rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0.01em;
@@ -70,7 +70,7 @@
 }
 .tapi-promise__intro {
   margin: 0 0 1.4rem;
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--mor-text-muted, #6d6459);
 }
@@ -87,7 +87,7 @@
   align-items: flex-start;
   gap: 1rem;
   margin: 0;
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   color: var(--mor-text, #2c2826);
 }
@@ -103,7 +103,7 @@
   padding-top: 1.3rem;
   border-top: 1px solid var(--mor-hairline, #e5ddc8);
   font-family: var(--font-heading-family, "Cormorant Garamond", serif);
-  font-size: 1.6rem;
+  font-size: var(--fs-base);
   font-style: italic;
   color: var(--mor-text-muted, #6d6459);
 }
@@ -121,7 +121,7 @@
   align-items: center;
   gap: 0.9rem;
   margin: 0;
-  font-size: 1.55rem;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--mor-text, #2c2826);
 }
@@ -133,7 +133,7 @@
 }
 .tapi-concierge__text {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   color: var(--mor-text-muted, #6d6459);
 }
@@ -147,7 +147,7 @@
   border: 1px solid var(--mor-primary, #2e4b3c);
   background: var(--mor-primary, #2e4b3c);
   color: #fff;
-  font-size: 1.35rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   letter-spacing: 0.02em;
   text-decoration: none;

@@ -15,7 +15,7 @@
 }
 
 .swatch-input__input + .swatch-input__label.swatch-input__label--square {
-  --swatch-input--border-radius: 0.2rem;
+  --swatch-input--border-radius: var(--radius-sm);
 }
 
 /* Active state */

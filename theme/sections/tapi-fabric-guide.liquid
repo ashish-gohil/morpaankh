@@ -320,7 +320,7 @@
   .tapi-fg__title { font-family: var(--font-heading-family); font-weight: 500; letter-spacing: -0.012em; line-height: 1.04; font-size: clamp(3.6rem, 6.5vw, 6.4rem); margin: 1.2rem 0 0; }
   .tapi-fg__intro { font-size: clamp(1.5rem, 1.7vw, 1.8rem); line-height: 1.65; color: var(--tapi-warm-grey); margin: 1.6rem 0 0; }
   .tapi-fg__jump { display: flex; flex-wrap: wrap; gap: 1.6rem; margin-top: 2.4rem; }
-  .tapi-fg__jump a { font-size: 1.15rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-charcoal); text-decoration: none; padding-bottom: 4px; border-bottom: 1px solid var(--tapi-hairline-2); transition: border-color 240ms, color 240ms; }
+  .tapi-fg__jump a { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-charcoal); text-decoration: none; padding-bottom: 4px; border-bottom: 1px solid var(--tapi-hairline-2); transition: border-color 240ms, color 240ms; }
   .tapi-fg__jump a:hover { color: var(--tapi-terracotta); border-color: var(--tapi-terracotta); }
 
   /* Section heads */
@@ -329,16 +329,16 @@
   .tapi-fg__lead { font-size: clamp(1.4rem, 1.5vw, 1.6rem); line-height: 1.7; color: var(--tapi-warm-grey); margin: 1.4rem 0 0; }
 
   /* GSM weight scale */
-  .tapi-fg__scale { height: 6px; border-radius: 9999px; background: linear-gradient(90deg, var(--tapi-cream-2), var(--tapi-hairline-2) 45%, var(--tapi-charcoal)); margin-bottom: 2.4rem; opacity: 0.85; }
+  .tapi-fg__scale { height: 6px; border-radius: var(--radius-pill); background: linear-gradient(90deg, var(--tapi-cream-2), var(--tapi-hairline-2) 45%, var(--tapi-charcoal)); margin-bottom: 2.4rem; opacity: 0.85; }
   .tapi-fg__gsm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
   .tapi-fg__weight { background: var(--tapi-ivory); border: 1px solid var(--tapi-hairline); border-top: 2px solid var(--tapi-charcoal); padding: 2.4rem; }
   .tapi-fg__weight:nth-child(2) { border-top-color: var(--tapi-gold); }
   .tapi-fg__weight:nth-child(3) { border-top-color: var(--tapi-terracotta); }
   .tapi-fg__weight-num { font-family: var(--font-heading-family); font-size: 2.8rem; font-weight: 500; font-variant-numeric: tabular-nums; display: inline-flex; align-items: baseline; gap: 0.5rem; }
-  .tapi-fg__weight-num i { font-style: normal; font-size: 1.2rem; font-family: var(--font-body-family); color: var(--tapi-muted); text-transform: lowercase; letter-spacing: 0.04em; }
-  .tapi-fg__weight-name { font-family: var(--font-heading-family); font-size: 1.9rem; font-weight: 500; margin: 0.6rem 0 0; }
-  .tapi-fg__weight-eg { font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tapi-muted); margin: 0.4rem 0 1rem; }
-  .tapi-fg__weight-for { font-size: 1.35rem; line-height: 1.6; color: var(--tapi-warm-grey); margin: 0; }
+  .tapi-fg__weight-num i { font-style: normal; font-size: var(--fs-xs); font-family: var(--font-body-family); color: var(--tapi-muted); text-transform: lowercase; letter-spacing: 0.04em; }
+  .tapi-fg__weight-name { font-family: var(--font-heading-family); font-size: var(--fs-lg); font-weight: 500; margin: 0.6rem 0 0; }
+  .tapi-fg__weight-eg { font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--tapi-muted); margin: 0.4rem 0 1rem; }
+  .tapi-fg__weight-for { font-size: var(--fs-sm); line-height: 1.6; color: var(--tapi-warm-grey); margin: 0; }
 
   /* Fabric library */
   .tapi-fg__fabrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
@@ -349,50 +349,50 @@
   }
   .tapi-fg__fabric::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--sw, var(--tapi-hairline-2)); }
   .tapi-fg__fabric:hover { transform: translateY(-4px); box-shadow: var(--mor-shadow-lg, 0 24px 48px -28px rgba(44,40,38,0.26)); border-color: var(--tapi-hairline-2); }
-  .tapi-fg__fabric-tag { font-size: 1.05rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-muted); }
-  .tapi-fg__fabric-name { font-family: var(--font-heading-family); font-size: 2.2rem; font-weight: 500; margin: 0.6rem 0 0; letter-spacing: -0.004em; }
-  .tapi-fg__fabric-essence { font-size: 1.35rem; line-height: 1.65; color: var(--tapi-warm-grey); margin: 1rem 0 1.6rem; }
+  .tapi-fg__fabric-tag { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--tapi-muted); }
+  .tapi-fg__fabric-name { font-family: var(--font-heading-family); font-size: var(--fs-xl); font-weight: 500; margin: 0.6rem 0 0; letter-spacing: -0.004em; }
+  .tapi-fg__fabric-essence { font-size: var(--fs-sm); line-height: 1.65; color: var(--tapi-warm-grey); margin: 1rem 0 1.6rem; }
   .tapi-fg__spec { margin: auto 0 0; display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--tapi-hairline); }
   .tapi-fg__spec > div { display: grid; grid-template-columns: 7rem 1fr; gap: 1.2rem; padding: 0.9rem 0; border-bottom: 1px dashed var(--tapi-hairline); }
   .tapi-fg__spec > div:last-child { border-bottom: 0; }
-  .tapi-fg__spec dt { font-size: 1.05rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin: 0; }
-  .tapi-fg__spec dd { font-size: 1.3rem; line-height: 1.5; color: var(--tapi-charcoal); margin: 0; }
+  .tapi-fg__spec dt { font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin: 0; }
+  .tapi-fg__spec dd { font-size: var(--fs-sm); line-height: 1.5; color: var(--tapi-charcoal); margin: 0; }
 
   /* Weave grid */
   .tapi-fg__weaves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--tapi-hairline); border: 1px solid var(--tapi-hairline); }
   .tapi-fg__weave { background: var(--tapi-cream); padding: 2rem; }
-  .tapi-fg__weave strong { display: block; font-family: var(--font-heading-family); font-size: 1.7rem; font-weight: 500; margin-bottom: 0.4rem; }
-  .tapi-fg__weave span { font-size: 1.3rem; line-height: 1.55; color: var(--tapi-warm-grey); }
+  .tapi-fg__weave strong { display: block; font-family: var(--font-heading-family); font-size: var(--fs-lg); font-weight: 500; margin-bottom: 0.4rem; }
+  .tapi-fg__weave span { font-size: var(--fs-sm); line-height: 1.55; color: var(--tapi-warm-grey); }
 
   /* Size guide */
   .tapi-fg__sizes { scroll-margin-top: 120px; }
-  .tapi-fg__trust { max-width: 64rem; background: var(--tapi-terracotta-wash); border-left: 3px solid var(--tapi-terracotta); padding: 1.8rem 2rem; font-size: 1.4rem; line-height: 1.7; color: var(--tapi-terracotta-deep); margin: 0 0 2.8rem; }
-  .tapi-fg__hint { font-size: 1.2rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin: 0 0 1rem; }
+  .tapi-fg__trust { max-width: 64rem; background: var(--tapi-terracotta-wash); border-left: 3px solid var(--tapi-terracotta); padding: 1.8rem 2rem; font-size: var(--fs-sm); line-height: 1.7; color: var(--tapi-terracotta-deep); margin: 0 0 2.8rem; }
+  .tapi-fg__hint { font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin: 0 0 1rem; }
   .tapi-fg__table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tapi-fg__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 36rem; }
-  .tapi-fg__table th, .tapi-fg__table td { padding: 1.2rem 1.4rem; text-align: center; font-size: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
-  .tapi-fg__table thead th { font-family: var(--font-body-family); font-size: 1.1rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tapi-muted); border-bottom: 1px solid var(--tapi-hairline-2); }
+  .tapi-fg__table th, .tapi-fg__table td { padding: 1.2rem 1.4rem; text-align: center; font-size: var(--fs-sm); border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-fg__table thead th { font-family: var(--font-body-family); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tapi-muted); border-bottom: 1px solid var(--tapi-hairline-2); }
   .tapi-fg__table tbody th[scope="row"] { text-align: left; font-weight: 500; color: var(--tapi-charcoal); }
   .tapi-fg__table tbody tr:nth-child(even) { background: var(--tapi-ivory); }
   .tapi-fg__table--key { max-width: 44rem; border: 1px solid var(--tapi-hairline); }
   .tapi-fg__table--key thead th { background: var(--tapi-charcoal); color: var(--tapi-cream); border-bottom: 0; }
   .tapi-fg__table--key tbody th[scope="row"] { padding-left: 1.8rem; }
 
-  .tapi-fg__measure { margin-top: 3.2rem; background: var(--tapi-cream-2); padding: 2.4rem; border-radius: 2px; max-width: 64rem; }
-  .tapi-fg__measure-title { font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; margin: 0 0 1.2rem; }
+  .tapi-fg__measure { margin-top: 3.2rem; background: var(--tapi-cream-2); padding: 2.4rem; border-radius: var(--radius-sm); max-width: 64rem; }
+  .tapi-fg__measure-title { font-family: var(--font-heading-family); font-size: var(--fs-lg); font-weight: 500; margin: 0 0 1.2rem; }
   .tapi-fg__measure ol { margin: 0; padding-left: 1.8rem; display: flex; flex-direction: column; gap: 0.7rem; }
-  .tapi-fg__measure li { font-size: 1.35rem; line-height: 1.6; color: var(--tapi-warm-grey); }
+  .tapi-fg__measure li { font-size: var(--fs-sm); line-height: 1.6; color: var(--tapi-warm-grey); }
   .tapi-fg__measure li strong { color: var(--tapi-charcoal); font-weight: 500; }
-  .tapi-fg__measure-tip { font-size: 1.3rem; line-height: 1.6; color: var(--tapi-warm-grey); margin: 1.4rem 0 0; padding-top: 1.4rem; border-top: 1px dashed var(--tapi-hairline-2); }
+  .tapi-fg__measure-tip { font-size: var(--fs-sm); line-height: 1.6; color: var(--tapi-warm-grey); margin: 1.4rem 0 0; padding-top: 1.4rem; border-top: 1px dashed var(--tapi-hairline-2); }
 
   .tapi-fg__full { margin-top: 2.4rem; border-top: 1px solid var(--tapi-hairline); }
-  .tapi-fg__full summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; padding: 2rem 0; font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; }
+  .tapi-fg__full summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; padding: 2rem 0; font-family: var(--font-heading-family); font-size: var(--fs-lg); font-weight: 500; }
   .tapi-fg__full summary::-webkit-details-marker { display: none; }
   .tapi-fg__full-icon { font-size: 2.4rem; line-height: 1; color: var(--tapi-terracotta); transition: transform 280ms cubic-bezier(0.4,0,0.2,1); }
   .tapi-fg__full[open] .tapi-fg__full-icon { transform: rotate(45deg); }
-  .tapi-fg__full-note { font-size: 1.2rem; color: var(--tapi-muted); margin: 0 0 1.6rem; }
-  .tapi-fg__toggle { display: inline-flex; border: 1px solid var(--tapi-hairline-2); border-radius: 9999px; padding: 4px; margin-bottom: 1.6rem; }
-  .tapi-fg__toggle-btn { border: 0; background: transparent; cursor: pointer; padding: 0.7rem 1.8rem; font-family: var(--font-body-family); font-size: 1.25rem; letter-spacing: 0.04em; color: var(--tapi-warm-grey); border-radius: 9999px; transition: background 240ms, color 240ms; }
+  .tapi-fg__full-note { font-size: var(--fs-xs); color: var(--tapi-muted); margin: 0 0 1.6rem; }
+  .tapi-fg__toggle { display: inline-flex; border: 1px solid var(--tapi-hairline-2); border-radius: var(--radius-pill); padding: 4px; margin-bottom: 1.6rem; }
+  .tapi-fg__toggle-btn { border: 0; background: transparent; cursor: pointer; padding: 0.7rem 1.8rem; font-family: var(--font-body-family); font-size: var(--fs-xs); letter-spacing: 0.04em; color: var(--tapi-warm-grey); border-radius: var(--radius-pill); transition: background 240ms, color 240ms; }
   .tapi-fg__toggle-btn.is-active { background: var(--tapi-charcoal); color: var(--tapi-cream); }
 
   @media (max-width: 990px) {

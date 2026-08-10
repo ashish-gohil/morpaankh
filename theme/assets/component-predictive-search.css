@@ -166,7 +166,7 @@ predictive-search[loading] .predictive-search__results-groups-wrapper ~ .predict
 }
 
 .predictive-search__item-vendor {
-  font-size: 0.9rem;
+  font-size: var(--fs-xs);
 }
 
 .predictive-search__item-heading {
@@ -187,7 +187,7 @@ predictive-search[loading] .predictive-search__results-groups-wrapper ~ .predict
 
 .predictive-search__item .price {
   color: rgba(var(--color-foreground), 0.7);
-  font-size: 1.2rem;
+  font-size: var(--fs-xs);
 }
 
 .predictive-search__item-vendor + .predictive-search__item-heading,

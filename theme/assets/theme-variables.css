@@ -107,11 +107,37 @@
   --mor-leading-snug:  1.3;
   --mor-leading-body:  1.65;
 
-  /* ---------- Radius scale ---------- */
-  --mor-radius-sm:   2px;
-  --mor-radius-md:   4px;
-  --mor-radius-lg:   8px;
-  --mor-radius-pill: 9999px;
+  /* ============================================================
+     Design tokens — single source of truth (spacing · type · radii)
+     px-based scale. Consume via var(--space-*) / var(--fs-*) /
+     var(--radius-*); never hardcode these raw values in component
+     CSS again. Boxy model: square corners (0) stay literal 0 — there
+     is deliberately no --radius-none; the token floor is --radius-sm.
+     ============================================================ */
+  --space-2xs: 4px;
+  --space-xs:  8px;
+  --space-sm:  12px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+  --space-3xl: 72px;
+
+  --fs-xs:   12px;
+  --fs-sm:   14px;
+  --fs-base: 16px;
+  --fs-lg:   18px;
+  --fs-xl:   22px;
+
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-pill: 9999px;
+
+  /* ---------- Radius scale (brand aliases → route through tokens) ---------- */
+  --mor-radius-sm:   var(--radius-sm);   /* was 2px → 4px: unifies small controls */
+  --mor-radius-md:   var(--radius-sm);   /* 4px */
+  --mor-radius-lg:   var(--radius-md);   /* 8px */
+  --mor-radius-pill: var(--radius-pill);
 
   /* ---------- Elevation (3 tiers) ---------- */
   --mor-shadow-sm: 0 1px 2px rgba(44, 40, 38, 0.05);
@@ -195,8 +221,8 @@
 
   /* ---------- Radii ---------- */
   --product-card-corner-radius:        0px; /* boxy pass: square card corners */
-  --buttons-radius:                    2px;
-  --inputs-radius:                     2px;
+  --buttons-radius:                    var(--radius-sm);
+  --inputs-radius:                     var(--radius-sm);
   --media-radius:                      0px; /* boxy pass: square media corners */
 
   /* ---------- Borders ---------- */
@@ -223,7 +249,7 @@ h1, h2, h3, h4, h5, h6,
 /* ---------- Editorial uppercase eyebrow ---------- */
 .tapi-eyebrow {
   font-family: var(--font-body-family);
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -235,7 +261,7 @@ h1, h2, h3, h4, h5, h6,
 button.shopify-payment-button__button--unbranded {
   border-radius: var(--mor-radius-sm);
   font-family: var(--font-body-family);
-  font-size: 1.3rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -276,7 +302,7 @@ button.shopify-payment-button__button--unbranded {
 .card-wrapper { padding-bottom: 0.8rem; }
 .card__heading {
   font-family: var(--font-heading-family);
-  font-size: 1.9rem;
+  font-size: var(--fs-lg);
   font-weight: 500;
   letter-spacing: -0.008em;
 }
@@ -285,7 +311,7 @@ button.shopify-payment-button__button--unbranded {
 }
 .price {
   font-family: var(--font-heading-family);
-  font-size: 1.5rem;
+  font-size: var(--fs-base);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -293,7 +319,7 @@ button.shopify-payment-button__button--unbranded {
   color: var(--tapi-muted);
 }
 .card .tapi-meta {
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   color: var(--tapi-muted);
   display: flex;
   gap: 0.8rem;
@@ -361,7 +387,7 @@ button.shopify-payment-button__button--unbranded {
 .product-grid .card__information > * { margin: 0; }
 .product-grid .card__information .card__heading {
   font-family: var(--font-heading-family);
-  font-size: 1.6rem;
+  font-size: var(--fs-base);
   line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -412,7 +438,7 @@ button.shopify-payment-button__button--unbranded {
 .product-grid .card__inner > .card__content > .card__information .card__heading {
   margin: 0 !important;
   font-family: var(--font-heading-family) !important;
-  font-size: 1.2rem !important;
+  font-size: var(--fs-xs) !important;
   font-weight: 500 !important;
   letter-spacing: 0.02em !important;
   line-height: 1.2 !important;
@@ -421,7 +447,7 @@ button.shopify-payment-button__button--unbranded {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   padding: 6px 10px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
@@ -453,11 +479,11 @@ button.shopify-payment-button__button--unbranded {
   height: 24px;
   padding: 0 10px;
   font-family: var(--font-body-family) !important;
-  font-size: 1.1rem !important;
+  font-size: var(--fs-xs) !important;
   font-weight: 500 !important;
   letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-pill) !important;
   border: none !important;
   background: var(--tapi-charcoal) !important;
   color: var(--tapi-cream) !important;
@@ -476,7 +502,7 @@ button.shopify-payment-button__button--unbranded {
 .field__input {
   background: var(--tapi-ivory);
   border: 1px solid var(--tapi-hairline-2);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-body-family);
 }
 .field__input:focus {
@@ -490,7 +516,7 @@ button.shopify-payment-button__button--unbranded {
   color: var(--tapi-cream);
   padding: 1rem 0;
   overflow: hidden;
-  font-size: 1.2rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -520,7 +546,7 @@ button.shopify-payment-button__button--unbranded {
 .tapi-fabric-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
 }
 .tapi-fabric-table tr {
   border-bottom: 1px dashed var(--tapi-hairline);
@@ -539,8 +565,8 @@ button.shopify-payment-button__button--unbranded {
   margin-top: 1.6rem;
   padding: 1.4rem;
   background: var(--tapi-cream-2);
-  font-size: 1.3rem;
-  border-radius: 2px;
+  font-size: var(--fs-sm);
+  border-radius: var(--radius-sm);
 }
 .tapi-fit-feedback__bar {
   display: flex;
@@ -554,7 +580,7 @@ button.shopify-payment-button__button--unbranded {
 .tapi-fit-feedback__legend {
   display: flex;
   justify-content: space-between;
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   color: var(--tapi-warm-grey);
 }
 
@@ -575,7 +601,7 @@ button.shopify-payment-button__button--unbranded {
 }
 .tapi-pincode__result {
   margin-top: 1.2rem;
-  font-size: 1.3rem;
+  font-size: var(--fs-sm);
   color: var(--tapi-charcoal);
 }
 .tapi-pincode__pickup {
@@ -592,7 +618,7 @@ button.shopify-payment-button__button--unbranded {
 .footer a { color: var(--tapi-cream); opacity: 0.78; }
 .footer h2, .footer h3 {
   color: var(--tapi-cream);
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   font-family: var(--font-body-family);
@@ -732,7 +758,7 @@ button.shopify-payment-button__button--unbranded {
   /* Hide the country/lang selector on mobile if Dawn left it on */
   .header__inline-menu { display: none; }
   /* Trust marquee — smaller text */
-  .tapi-marquee { font-size: 0.95rem; padding: 0.7rem 0; }
+  .tapi-marquee { font-size: var(--fs-xs); padding: 0.7rem 0; }
 }
 @media (max-width: 540px) {
   .tapi-logo svg { width: 22px; height: 22px; }
@@ -805,7 +831,7 @@ predictive-search,
 .predictive-search__heading,
 .predictive-search h2 {
   font-family: var(--font-body-family) !important;
-  font-size: 1.1rem !important;
+  font-size: var(--fs-xs) !important;
   font-weight: 500 !important;
   letter-spacing: 0.18em !important;
   text-transform: uppercase !important;
@@ -817,7 +843,7 @@ predictive-search,
 .predictive-search-item__heading,
 .predictive-search-item__heading a {
   font-family: var(--font-heading-family) !important;
-  font-size: 1.7rem !important;
+  font-size: var(--fs-lg) !important;
   font-weight: 500 !important;
   letter-spacing: -0.008em !important;
   color: var(--tapi-charcoal) !important;
@@ -825,18 +851,18 @@ predictive-search,
 .predictive-search-item__image, .predictive-search__image {
   aspect-ratio: 3 / 4 !important;
   background: var(--tapi-cream-2) !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm) !important;
 }
 .predictive-search-item__price,
 .predictive-search-item__price .price {
   font-family: var(--font-heading-family) !important;
-  font-size: 1.4rem !important;
+  font-size: var(--fs-sm) !important;
   font-variant-numeric: tabular-nums !important;
   color: var(--tapi-charcoal) !important;
 }
 .predictive-search-item__vendor,
 .predictive-search-item__type {
-  font-size: 1.1rem !important;
+  font-size: var(--fs-xs) !important;
   color: var(--tapi-warm-grey) !important;
   letter-spacing: 0.04em !important;
 }
@@ -847,10 +873,10 @@ predictive-search,
 .predictive-search__view-all-button, .predictive-search__view-all {
   display: inline-flex !important; align-items: center !important; gap: 8px !important;
   height: 44px !important; padding: 0 1.6rem !important;
-  font-family: var(--font-body-family) !important; font-size: 1.2rem !important;
+  font-family: var(--font-body-family) !important; font-size: var(--fs-xs) !important;
   letter-spacing: 0.06em !important; text-transform: uppercase !important;
   color: var(--tapi-cream) !important; background: var(--tapi-charcoal) !important;
-  border-radius: 2px !important; margin-top: 1.2rem !important;
+  border-radius: var(--radius-sm) !important; margin-top: 1.2rem !important;
 }
 .predictive-search__view-all-button:hover, .predictive-search__view-all:hover { background: var(--tapi-terracotta) !important; }
 
@@ -964,9 +990,9 @@ sticky-header.shopify-section-header-hidden { transform: none !important; }
   background: var(--tapi-charcoal) !important;
   color: var(--tapi-cream) !important;
   border: none !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm) !important;
   font-family: var(--font-body-family) !important;
-  font-size: 1.2rem !important;
+  font-size: var(--fs-xs) !important;
   font-weight: 500 !important;
   letter-spacing: 0.1em !important;
   text-transform: uppercase !important;
@@ -1019,11 +1045,11 @@ textarea:not(.tapi-footer__field textarea),
   padding: 0 1.4rem;
   line-height: 4.8rem;          /* vertical centering for single-line */
   font-family: var(--font-body-family) !important;
-  font-size: 1.4rem !important;
+  font-size: var(--fs-sm) !important;
   color: var(--tapi-charcoal);
   background: var(--tapi-ivory) !important;
   border: 1px solid var(--tapi-hairline-2) !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm) !important;
   box-shadow: none !important;
   outline: none !important;
   appearance: none;
@@ -1162,12 +1188,12 @@ select:not(.tapi-footer__field select) {
   appearance: none !important;
   -webkit-appearance: none !important;
   -moz-appearance: none !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm) !important;
   background-color: var(--tapi-ivory) !important;
   border: 1px solid var(--tapi-hairline-2) !important;
   color: var(--tapi-charcoal) !important;
   font-family: var(--font-body-family) !important;
-  font-size: 1.3rem !important;
+  font-size: var(--fs-sm) !important;
   letter-spacing: 0.04em !important;
   cursor: pointer;
   transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -1271,10 +1297,10 @@ localization-form select,
   padding: 0 1.4rem;
   background: var(--tapi-ivory);
   border: 1px solid var(--tapi-hairline-2);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   color: var(--tapi-charcoal);
   font-family: var(--font-body-family);
-  font-size: 1.3rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   letter-spacing: 0.04em;
   text-align: left;
@@ -1313,7 +1339,7 @@ localization-form select,
   overflow-y: auto;
   background: var(--tapi-ivory);
   border: 1px solid var(--tapi-charcoal);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   box-shadow: 0 16px 40px -20px rgba(44, 40, 38, 0.22);
   z-index: 60;
   padding: 0.6rem 0;
@@ -1340,7 +1366,7 @@ localization-form select,
   border: none;
   color: var(--tapi-charcoal);
   font-family: var(--font-body-family);
-  font-size: 1.3rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.04em;
   cursor: pointer;
   white-space: nowrap;
@@ -1382,11 +1408,11 @@ localization-form select,
   min-height: 24px !important;
   padding: 0 10px !important;
   font-family: var(--font-body-family) !important;
-  font-size: 11px !important;
+  font-size: var(--fs-xs) !important;
   letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
   font-weight: 500 !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-pill) !important;
   border: none !important;
   box-sizing: border-box !important;
   white-space: nowrap !important;
@@ -1459,7 +1485,7 @@ header .header > * { min-width: 0; }
   transform: none !important;
   left: auto !important; top: auto !important;
   font-family: var(--font-body-family) !important;
-  font-size: 1.1rem !important;
+  font-size: var(--fs-xs) !important;
   letter-spacing: 0.16em !important;
   text-transform: uppercase !important;
   color: var(--tapi-warm-grey) !important;
@@ -1881,7 +1907,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 .tapi-customer__label {
   font-family: var(--font-body-family);
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1897,7 +1923,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 .tapi-customer__label-row .tapi-customer__label { margin: 0; }
 .tapi-customer__link {
-  font-size: 1.2rem;
+  font-size: var(--fs-xs);
   color: var(--tapi-terracotta);
   text-decoration: none;
   position: relative;
@@ -1938,7 +1964,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   gap: 1.6rem;
   margin: 2.8rem 0 2rem;
   color: var(--tapi-muted);
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -1948,13 +1974,13 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 
 .tapi-customer__help {
-  font-size: 1.3rem;
+  font-size: var(--fs-sm);
   color: var(--tapi-warm-grey);
   margin-top: 2.8rem;
   text-align: center;
 }
 .tapi-customer__fine {
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   margin-top: 2rem;
   text-align: left;
   color: var(--tapi-muted);
@@ -1972,8 +1998,8 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 .tapi-customer__errors,
 .tapi-customer__success {
   padding: 1.4rem 1.6rem;
-  font-size: 1.3rem;
-  border-radius: 2px;
+  font-size: var(--fs-sm);
+  border-radius: var(--radius-sm);
   margin-bottom: 0.4rem;
 }
 .tapi-customer__errors {
@@ -2268,7 +2294,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 .tapi-search-block__title {
   margin: 0 0 14px;
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -2292,7 +2318,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   padding: 6px 0;
   color: var(--tapi-charcoal, #2c2826);
   font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
-  font-size: 17px;
+  font-size: var(--fs-lg);
   background: transparent;
   border: 0;
   text-align: left;
@@ -2302,7 +2328,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 .tapi-search-list__link--compact {
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--tapi-warm-grey, #6b5d54);
   padding: 4px 0;
   gap: 10px;
@@ -2317,7 +2343,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 .tapi-search-list__link:hover .tapi-search-list__bullet { width: 24px; }
 .tapi-search-list__count {
   color: var(--tapi-muted, #9a8d83);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 /* ---- Bestsellers / Matches product rows ---- */
@@ -2376,7 +2402,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 .tapi-search-product__name {
   font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
-  font-size: 17px;
+  font-size: var(--fs-lg);
   line-height: 1.2;
   color: var(--tapi-charcoal, #2c2826);
   overflow: hidden;
@@ -2384,7 +2410,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   white-space: nowrap;
 }
 .tapi-search-product__sub {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--tapi-muted, #9a8d83);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2400,14 +2426,14 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 }
 .tapi-search-product__price {
   font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
-  font-size: 16px;
+  font-size: var(--fs-base);
   color: var(--tapi-charcoal, #2c2826);
 }
 .tapi-search-product__cta {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--tapi-terracotta, #b7472a);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2417,7 +2443,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 .tapi-search-empty {
   font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
   font-style: italic;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--tapi-warm-grey, #6b5d54);
   margin: 0;
 }
@@ -2433,7 +2459,7 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   align-items: center;
   gap: 8px;
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2633,7 +2659,7 @@ details[open] > summary .icon-caret {
   background: transparent;
   border: 0;
   font-family: var(--font-body-family, Inter, sans-serif);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--tapi-charcoal, #2c2826);
 }
 .template-cart .quantity__button,
@@ -2781,7 +2807,7 @@ details[open] > summary .icon-caret {
   .template-cart .cart-item__totals .price,
   .template-cart .cart-item__totals .totals__subtotal-value {
     font-family: var(--font-heading-family, "Cormorant Garamond", Georgia, serif);
-    font-size: 18px;
+    font-size: var(--fs-lg);
     color: var(--tapi-charcoal, #2c2826);
   }
 }
@@ -2818,7 +2844,7 @@ details[open] > summary .icon-caret {
   height: 44px !important;
   padding: 0 38px 0 14px !important;
   font-family: var(--font-body-family, Inter, sans-serif) !important;
-  font-size: 13px !important;
+  font-size: var(--fs-sm) !important;
   font-weight: 500 !important;
   letter-spacing: 0.02em !important;
   color: var(--tapi-charcoal, #2c2826) !important;
@@ -2877,7 +2903,7 @@ details[open] > summary .icon-caret {
   background: var(--tapi-ivory, #fcfaf4) !important;
   color: var(--tapi-charcoal, #2c2826) !important;
   font-family: var(--font-body-family, Inter, sans-serif) !important;
-  font-size: 13px !important;
+  font-size: var(--fs-sm) !important;
   padding: 10px 14px !important;
 }
 .facet-filters__sort option:checked,
@@ -2899,20 +2925,20 @@ details[open] > summary .icon-caret {
 }
 .facets__form ul, .facets__display ul { padding-left: 0; }
 .facets__item label, .facets__list label {
-  font-size: 13px !important;
+  font-size: var(--fs-sm) !important;
   letter-spacing: 0.02em;
   color: var(--tapi-charcoal, #2c2826) !important;
   font-weight: 400;
 }
 .facet-filters__field { gap: 12px; align-items: center; }
 .facet-filters__label, .facet-filters__label label {
-  font-size: 11px !important;
+  font-size: var(--fs-xs) !important;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--tapi-muted, #97887a) !important;
   font-weight: 500;
 }
-.product-count, .product-count__text { color: var(--tapi-muted, #97887a); font-size: 13px; }
+.product-count, .product-count__text { color: var(--tapi-muted, #97887a); font-size: var(--fs-sm); }
 .product-count__text { letter-spacing: 0.02em; }
 
 @media (max-width: 640px) {
@@ -2967,7 +2993,7 @@ details[open] > summary .icon-caret {
   gap: 10px;
   padding: 10px 16px;
   font-family: var(--font-body-family, Inter, sans-serif);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   letter-spacing: 0.02em;
   color: var(--tapi-charcoal, #2c2826);
   cursor: pointer;
@@ -3068,7 +3094,7 @@ details[open] > summary .icon-caret {
 .tapi-nav-flyout__link {
   display: block;
   padding: 1rem 2rem;
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
   line-height: 1.4;
   color: var(--mor-charcoal, #2C2826);
   text-decoration: none;

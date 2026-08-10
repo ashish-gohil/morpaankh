@@ -232,13 +232,13 @@ slider-component.slider-component-full-width {
 
 .slider::-webkit-scrollbar-thumb {
   background-color: rgb(var(--color-foreground));
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   border: 0;
 }
 
 .slider::-webkit-scrollbar-track {
   background: rgba(var(--color-foreground), 0.04);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
 }
 
 .slider-counter {

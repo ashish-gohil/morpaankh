@@ -101,7 +101,7 @@ details[open].menu-opening > .menu-drawer__submenu {
 .menu-drawer__menu-item {
   padding: 1.1rem 3rem;
   text-decoration: none;
-  font-size: 1.8rem;
+  font-size: var(--fs-lg);
 }
 
 .menu-drawer summary.menu-drawer__menu-item {
@@ -155,7 +155,7 @@ details[open].menu-opening > .menu-drawer__submenu {
   text-decoration: none;
   display: flex;
   align-items: center;
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
   width: 100%;
   background-color: transparent;
   font-family: var(--font-body-family);
@@ -196,7 +196,7 @@ details[open].menu-opening > .menu-drawer__submenu {
   align-items: center;
   text-decoration: none;
   padding: 1rem 0;
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
   color: rgb(var(--color-foreground));
   margin-bottom: 0;
 }

@@ -79,7 +79,7 @@
       html += '  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="var(--tapi-sage-deep)" stroke-width="1.6"><path d="M2 7l3.5 3.5L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       html += '  <span>Deliverable to <strong>' + meta.city + '</strong> in <strong>' + meta.days[0] + '–' + meta.days[1] + ' days</strong></span>';
       html += '</div>';
-      html += '<div style="margin-top:0.6rem;font-size:1.1rem;color:var(--tapi-muted);">Arrives between ' + earliest + ' and ' + latest + '</div>';
+      html += '<div style="margin-top:0.6rem;font-size:var(--fs-xs);color:var(--tapi-muted);">Arrives between ' + earliest + ' and ' + latest + '</div>';
       result.hidden = false;
       result.innerHTML = html;
     }

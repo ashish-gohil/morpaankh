@@ -101,7 +101,7 @@ h2,
   color: rgb(var(--color-button-label));
   min-width: 12rem;
   height: auto;
-  font-size: 1.5rem;
+  font-size: var(--fs-base);
   letter-spacing: 0.1rem;
   line-height: calc(1 + 0.2 / var(--font-body-scale));
 }
@@ -182,7 +182,7 @@ h2,
 
 .gift-card__number {
   color: rgb(var(--color-foreground));
-  font-size: 1.8rem;
+  font-size: var(--fs-lg);
   line-height: calc(1 + 0.6 / var(--font-body-scale));
   text-align: center;
   letter-spacing: 0.25rem;
@@ -197,7 +197,7 @@ h2,
 
 .gift-card__text {
   text-align: center;
-  font-size: 1.7rem;
+  font-size: var(--fs-lg);
   opacity: 0.6;
   margin: 0;
   line-height: calc(1 + 0.5 / var(--font-body-scale));
@@ -205,9 +205,9 @@ h2,
 
 .badge {
   border: 1px solid transparent;
-  border-radius: 4rem;
+  border-radius: var(--radius-pill);
   display: inline-block;
-  font-size: 1.2rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.1rem;
   line-height: 1;
   padding: 0.6rem 1.3rem;
@@ -297,7 +297,7 @@ h2,
 .form__message {
   align-items: center;
   display: flex;
-  font-size: 1.2rem;
+  font-size: var(--fs-xs);
   line-height: 1.5rem;
   justify-content: center;
   margin-bottom: 0.5rem;

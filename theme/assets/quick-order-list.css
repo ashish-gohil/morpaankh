@@ -79,7 +79,7 @@ quick-order-list .pagination-wrapper {
   padding-bottom: 2rem;
   opacity: 0.85;
   font-weight: normal;
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
 }
 
 .variant-item__quantity-wrapper {
@@ -141,7 +141,7 @@ quick-order-list .pagination-wrapper {
 }
 
 .variant-item__details {
-  font-size: 1.6rem;
+  font-size: var(--fs-base);
   line-height: calc(1 + 0.4 / var(--font-body-scale));
 }
 
@@ -157,13 +157,13 @@ quick-order-list .pagination-wrapper {
 
 .variant-item__name {
   display: block;
-  font-size: 1.6rem;
+  font-size: var(--fs-base);
   letter-spacing: 0.06rem;
   line-height: calc(1 + 0.5 / var(--font-body-scale));
 }
 
 .variant-item__sku {
-  font-size: 1.1rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04rem;
   margin-top: 0.2rem;
 }
@@ -185,7 +185,7 @@ quick-order-list .pagination-wrapper {
 }
 
 .variant-item__discounted-prices .variant-item__old-price {
-  font-size: 1.4rem;
+  font-size: var(--fs-sm);
 }
 
 .variant-item__old-price {
@@ -198,7 +198,7 @@ quick-order-list .pagination-wrapper {
 
 .variant-item__sold-out {
   opacity: 0.7;
-  font-size: 1.6rem;
+  font-size: var(--fs-base);
   color: rgb(var(--color-foreground));
 }
 
@@ -209,7 +209,7 @@ quick-order-list .pagination-wrapper {
 }
 
 .quick-order-list__button-cancel {
-  font-size: 1.5rem;
+  font-size: var(--fs-base);
   letter-spacing: 0.06rem;
 }
 
@@ -351,7 +351,7 @@ quick-order-list .pagination-wrapper {
 }
 
 .variant-item__error-text {
-  font-size: 1.2rem;
+  font-size: var(--fs-xs);
   line-height: calc(1 + 0.2 / var(--font-body-scale));
   order: 1;
 }

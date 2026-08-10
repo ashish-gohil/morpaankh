@@ -566,7 +566,7 @@
         placement per CRO research. COD only appears once payment perks (the COD-app
         flag) is set, so the store never promises a payment method it cannot take. {%- endcomment -%}
       {%- if section.settings.show_trust_badges -%}
-        {% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks != blank %}
+        {% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks %}
       {%- endif -%}
 
       {%- comment -%} Curation promise + WhatsApp concierge — honest, brand-true trust
@@ -901,7 +901,7 @@
 
 {% stylesheet %}
   .tapi-pdp { padding-top: 2.4rem; padding-bottom: 4.8rem; }
-  .tapi-pdp__breadcrumb { font-size: 1.2rem; color: var(--mor-text-muted); margin-bottom: 2.4rem; }
+  .tapi-pdp__breadcrumb { font-size: var(--fs-xs); color: var(--mor-text-muted); margin-bottom: 2.4rem; }
   .tapi-pdp__breadcrumb a { color: var(--mor-text-muted); text-decoration: none; transition: color 200ms; }
   .tapi-pdp__breadcrumb a:hover { color: var(--tapi-terracotta); }
   .tapi-pdp__breadcrumb span:last-child { color: var(--tapi-charcoal); }
@@ -1034,15 +1034,15 @@
   .tapi-pdp__rating { display: flex; align-items: center; gap: 1.2rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
   /* Stars use the shared fractional-fill .tapi-stars component (pdp-trust.css) —
      same gold glyphs, size and true half-star support as the old reviews band. */
-  .tapi-pdp__rating .tapi-stars { font-size: 1.8rem; }
-  .tapi-pdp__rating-num { font-size: 1.4rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__rating .tapi-stars { font-size: var(--fs-lg); }
+  .tapi-pdp__rating-num { font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; }
   .tapi-pdp__divider { width: 1px; height: 16px; background: var(--tapi-hairline-2); }
-  .tapi-pdp__rating-count { font-size: 1.3rem; color: var(--tapi-warm-grey); }
+  .tapi-pdp__rating-count { font-size: var(--fs-sm); color: var(--tapi-warm-grey); }
 
   .tapi-pdp__price { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
   .tapi-pdp__price-now { font-family: var(--font-body-family); font-size: 3.2rem; font-weight: 600; letter-spacing: 0.01em; color: var(--mor-charcoal); font-variant-numeric: tabular-nums; }
-  .tapi-pdp__price-was { font-size: 1.5rem; color: var(--mor-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
-  .tapi-pdp__price-note { font-size: 1.2rem; color: var(--mor-text-muted); margin: -1.8rem 0 0; }
+  .tapi-pdp__price-was { font-size: var(--fs-base); color: var(--mor-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__price-note { font-size: var(--fs-xs); color: var(--mor-text-muted); margin: -1.8rem 0 0; }
 
   /* Payment perks line under the buy button — prepaid/COD nudge. Reads as a
      calm trust cue (not a loud promo) so it feels premium. Gold shield = the
@@ -1052,21 +1052,21 @@
     margin: 1.6rem 0 0; padding: 1.2rem 1.4rem;
     background: var(--mor-cream-2); border: 1px solid var(--tapi-hairline);
     border-radius: 0; /* boxy pass: in-flow panels are square-cornered */
-    font-size: 1.3rem; line-height: 1.4; color: var(--mor-text);
+    font-size: var(--fs-sm); line-height: 1.4; color: var(--mor-text);
   }
   .tapi-pdp__perks svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--mor-gold); }
 
   .tapi-pdp__quickactions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 
-  .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; }
+  .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: var(--radius-pill); }
   .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }
   .tapi-tag--sage       { background: var(--tapi-sage-wash); color: var(--tapi-sage-deep); }
   .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
 
   .tapi-pdp__group { display: flex; flex-direction: column; gap: 1.2rem; }
   .tapi-pdp__group-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .tapi-pdp__group-meta { font-size: 1.1rem; color: var(--mor-text-muted); }
-  .tapi-pdp__guide-link { font-size: 1.2rem; color: var(--tapi-charcoal); position: relative; padding-bottom: 2px; text-decoration: none; transition: color 200ms; }
+  .tapi-pdp__group-meta { font-size: var(--fs-xs); color: var(--mor-text-muted); }
+  .tapi-pdp__guide-link { font-size: var(--fs-xs); color: var(--tapi-charcoal); position: relative; padding-bottom: 2px; text-decoration: none; transition: color 200ms; }
   .tapi-pdp__guide-link::after { content:""; position: absolute; left:0; bottom:0; height:1px; width:100%; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-pdp__guide-link:hover::after { transform: scaleX(1); transform-origin: left; }
 
@@ -1102,7 +1102,7 @@
   .tapi-pdp__size {
     position: relative; height: 48px; min-width: 48px; padding: 0 1.4rem;
     background: transparent; border: 1px solid var(--tapi-hairline-2); color: var(--tapi-charcoal);
-    font-family: inherit; font-size: 1.3rem; font-weight: 500; letter-spacing: 0.04em;
+    font-family: inherit; font-size: var(--fs-sm); font-weight: 500; letter-spacing: 0.04em;
     cursor: pointer; transition: border-color 200ms, background 200ms, color 200ms;
   }
   .tapi-pdp__size:hover { border-color: var(--tapi-charcoal); }
@@ -1116,21 +1116,21 @@
   }
   @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.65; } }
   @media (prefers-reduced-motion: reduce) { .tapi-pdp__size.is-low::before { animation: none; } }
-  .tapi-pdp__stock-note { margin: 0; font-size: 1.2rem; color: var(--tapi-warm-grey); }
+  .tapi-pdp__stock-note { margin: 0; font-size: var(--fs-xs); color: var(--tapi-warm-grey); }
   /* Until tapi-motion/inline JS fills it, the stock note is empty — collapse it so
      the size group never carries a phantom 1.2rem gap below the swatches. */
   .tapi-pdp__stock-note:empty { display: none; }
 
-  .tapi-fit-feedback { margin-top: 0; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: 2px; font-size: 1.3rem; }
-  .tapi-fit-feedback__bar { display: flex; height: 6px; background: var(--tapi-cream); border-radius: 3px; overflow: hidden; margin: 0.8rem 0 0.6rem; }
+  .tapi-fit-feedback { margin-top: 0; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+  .tapi-fit-feedback__bar { display: flex; height: 6px; background: var(--tapi-cream); border-radius: var(--radius-sm); overflow: hidden; margin: 0.8rem 0 0.6rem; }
   .tapi-fit-feedback__bar > span { display: block; height: 100%; width: 0; transition: width 1200ms cubic-bezier(0.16,1,0.3,1); }
   .tapi-fit-feedback__bar.in > span { width: var(--w); }
-  .tapi-fit-feedback__legend { display: flex; justify-content: space-between; font-size: 1.1rem; color: var(--tapi-warm-grey); }
+  .tapi-fit-feedback__legend { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--tapi-warm-grey); }
 
   .tapi-pdp__cta-row { display: flex; gap: 1.2rem; align-items: stretch; }
   .tapi-pdp__qty { display: flex; align-items: center; border: 1px solid var(--tapi-hairline-2); height: 56px; flex: 0 0 auto; }
-  .tapi-pdp__qty button { width: 44px; height: 100%; background: transparent; border: none; font-size: 1.8rem; cursor: pointer; }
-  .tapi-pdp__qty input { width: 44px; height: 100%; text-align: center; border: none; background: transparent; font-family: inherit; font-size: 1.5rem; font-variant-numeric: tabular-nums; appearance: textfield; }
+  .tapi-pdp__qty button { width: 44px; height: 100%; background: transparent; border: none; font-size: var(--fs-lg); cursor: pointer; }
+  .tapi-pdp__qty input { width: 44px; height: 100%; text-align: center; border: none; background: transparent; font-family: inherit; font-size: var(--fs-base); font-variant-numeric: tabular-nums; appearance: textfield; }
   .tapi-pdp__qty input::-webkit-outer-spin-button, .tapi-pdp__qty input::-webkit-inner-spin-button { appearance: none; }
   .tapi-pdp__add { flex: 1; height: 56px; min-height: 56px !important; }
 
@@ -1151,17 +1151,17 @@
     background: var(--mor-accent-deep);
   }
   .tapi-pdp__dynamic-checkout .shopify-payment-button__more-options {
-    margin-top: 0.8rem; font-size: 1.2rem; color: var(--tapi-warm-grey);
+    margin-top: 0.8rem; font-size: var(--fs-xs); color: var(--tapi-warm-grey);
   }
 
   .tapi-pdp__accordions { display: flex; flex-direction: column; border-top: 1px solid var(--tapi-hairline); }
   .tapi-acc { border-bottom: 1px solid var(--tapi-hairline); }
-  .tapi-acc summary { display: flex; justify-content: space-between; align-items: center; padding: 2rem 0; cursor: pointer; list-style: none; font-family: var(--font-heading-family); font-size: 1.8rem; letter-spacing: -0.005em; transition: color 240ms ease; }
+  .tapi-acc summary { display: flex; justify-content: space-between; align-items: center; padding: 2rem 0; cursor: pointer; list-style: none; font-family: var(--font-heading-family); font-size: var(--fs-lg); letter-spacing: -0.005em; transition: color 240ms ease; }
   .tapi-acc summary::-webkit-details-marker { display: none; }
   .tapi-acc summary:hover { color: var(--tapi-terracotta); }
   .tapi-acc[open] .tapi-acc__toggle { transform: rotate(45deg); color: var(--tapi-terracotta); }
   .tapi-acc__toggle { font-size: 2.8rem; color: var(--tapi-charcoal); transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1), color 240ms ease; line-height: 1; display: inline-flex; align-items: center; justify-content: center; width: 2.8rem; height: 2.8rem; }
-  .tapi-acc__body { padding: 0 0 2.4rem; font-size: 1.4rem; line-height: 1.7; color: var(--tapi-warm-grey); animation: tapi-acc-open 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .tapi-acc__body { padding: 0 0 2.4rem; font-size: var(--fs-sm); line-height: 1.7; color: var(--tapi-warm-grey); animation: tapi-acc-open 320ms cubic-bezier(0.22, 1, 0.36, 1); }
   @keyframes tapi-acc-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) {
     .tapi-acc__toggle { transition: none; }
@@ -1169,25 +1169,25 @@
   }
   .tapi-acc__body p { margin: 0 0 1rem; }
 
-  .tapi-fabric-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; }
+  .tapi-fabric-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
   .tapi-fabric-table tr { border-bottom: 1px dashed var(--tapi-hairline); }
   .tapi-fabric-table td { padding: 1.2rem 0; }
   .tapi-fabric-table td:first-child { color: var(--mor-text-muted); width: 40%; letter-spacing: 0.04em; }
 
   .tapi-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem; padding-bottom: 1.6rem; }
   .tapi-model-grid > div { padding-bottom: 1.2rem; border-bottom: 1px dashed var(--tapi-hairline); }
-  .tapi-model-grid > div span { display: block; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mor-text-muted); margin-bottom: 0.4rem; }
+  .tapi-model-grid > div span { display: block; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--mor-text-muted); margin-bottom: 0.4rem; }
   .tapi-model-grid > div strong { font-weight: 500; color: var(--tapi-charcoal); }
   .tapi-model-grid__full { grid-column: 1 / -1; }
 
   /* Pincode widget brand styling */
   .tapi-pincode { border: 1px solid var(--tapi-hairline); background: var(--tapi-ivory); padding: 1.6rem; }
   .tapi-pincode__head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-  .tapi-pincode__heading { font-family: var(--font-heading-family); font-size: 1.6rem; }
+  .tapi-pincode__heading { font-family: var(--font-heading-family); font-size: var(--fs-base); }
   .tapi-pincode__row { display: flex; gap: 0.8rem; }
   .tapi-pincode__input { flex: 1; height: 4.4rem; padding: 0 1.2rem; border: 1px solid var(--tapi-hairline-2); background: var(--tapi-cream); }
   .tapi-pincode__row .button { height: 4.4rem; }
-  .tapi-pincode__result { margin-top: 1.2rem; font-size: 1.3rem; }
+  .tapi-pincode__result { margin-top: 1.2rem; font-size: var(--fs-sm); }
 
   /* Mobile sticky buy bar: a compact meta line (price + selected variant) above
      a row of two equal-width buttons (Add to Cart / Buy Now). */
@@ -1200,10 +1200,10 @@
   }
   .tapi-pdp__mobile-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
   .tapi-pdp__mobile-price-wrap { display: flex; align-items: baseline; gap: 0.7rem; flex: 0 0 auto; }
-  .tapi-pdp__mobile-price { font-family: var(--font-body-family); font-size: 1.9rem; font-weight: 500; line-height: 1; }
-  .tapi-pdp__mobile-was { font-size: 1.1rem; color: var(--mor-text-muted); text-decoration: line-through; }
+  .tapi-pdp__mobile-price { font-family: var(--font-body-family); font-size: var(--fs-lg); font-weight: 500; line-height: 1; }
+  .tapi-pdp__mobile-was { font-size: var(--fs-xs); color: var(--mor-text-muted); text-decoration: line-through; }
   .tapi-pdp__mobile-sel {
-    font-size: 1.15rem; letter-spacing: 0.05em; text-transform: uppercase;
+    font-size: var(--fs-xs); letter-spacing: 0.05em; text-transform: uppercase;
     color: var(--tapi-warm-grey); white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; max-width: 55%; text-align: right;
   }
@@ -1211,7 +1211,7 @@
   .tapi-pdp__mobile-actions { display: flex; gap: 0.8rem; }
   .tapi-pdp__mobile-actions .button {
     flex: 1 1 0; min-width: 0; height: 5rem; min-height: 5rem !important;
-    font-size: 1.35rem; padding: 0 1rem; white-space: nowrap;
+    font-size: var(--fs-sm); padding: 0 1rem; white-space: nowrap;
   }
   .tapi-pdp__mobile-actions .button:disabled { opacity: 0.45; }
 
@@ -1233,7 +1233,7 @@
     .tapi-pdp__breadcrumb { display: none; }
     .tapi-pdp__title { font-size: 3.2rem !important; }
     .tapi-pdp__price-now { font-size: 2.6rem; }
-    .tapi-pdp__price-was { font-size: 1.2rem; }
+    .tapi-pdp__price-was { font-size: var(--fs-xs); }
     .tapi-pdp__thumb { width: 56px; height: 70px; }
     .tapi-pdp__cta-row { display: none !important; }
     /* Keep the native dynamic-checkout button in the DOM so its web component
@@ -1288,7 +1288,7 @@
     padding: 1.6rem clamp(1.6rem, 4vw, 4rem); padding-top: calc(1.6rem + env(safe-area-inset-top));
     color: rgba(248, 244, 237, 0.92);
   }
-  .tapi-lightbox__counter { font-size: 1.3rem; letter-spacing: 0.14em; font-variant-numeric: tabular-nums; }
+  .tapi-lightbox__counter { font-size: var(--fs-sm); letter-spacing: 0.14em; font-variant-numeric: tabular-nums; }
   .tapi-lightbox__close {
     width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(248, 244, 237, 0.55);
     background: rgba(26, 23, 21, 0.55); color: var(--tapi-cream);
@@ -1370,11 +1370,11 @@
   .tapi-sizeguide__intro { font-size: var(--mor-text-sm); color: var(--mor-text-muted); line-height: 1.6; margin: 0 0 1.8rem; }
   .tapi-sizeguide__scroll { overflow-x: auto; }
   .tapi-sizeguide__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  .tapi-sizeguide__table th, .tapi-sizeguide__table td { padding: 1rem 1.2rem; text-align: center; border-bottom: 1px solid var(--tapi-hairline); font-size: 1.4rem; }
-  .tapi-sizeguide__table thead th { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 1.2rem; color: var(--mor-charcoal); }
+  .tapi-sizeguide__table th, .tapi-sizeguide__table td { padding: 1rem 1.2rem; text-align: center; border-bottom: 1px solid var(--tapi-hairline); font-size: var(--fs-sm); }
+  .tapi-sizeguide__table thead th { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: var(--fs-xs); color: var(--mor-charcoal); }
   .tapi-sizeguide__table tbody th { font-weight: 600; }
   .tapi-sizeguide__table tbody tr:last-child th, .tapi-sizeguide__table tbody tr:last-child td { border-bottom: none; }
-  .tapi-sizeguide__tip { font-size: 1.3rem; color: var(--mor-text-muted); line-height: 1.6; margin: 1.8rem 0 2rem; }
+  .tapi-sizeguide__tip { font-size: var(--fs-sm); color: var(--mor-text-muted); line-height: 1.6; margin: 1.8rem 0 2rem; }
   .tapi-sizeguide__full { display: inline-block; font-size: var(--mor-text-sm); font-weight: 500; color: var(--mor-primary); text-decoration: none; }
   .tapi-sizeguide__full:hover { text-decoration: underline; text-underline-offset: 4px; }
   @media (prefers-reduced-motion: no-preference) {
@@ -1671,3 +1671,15 @@
   "enabled_on": { "templates": ["product"] }
 }
 {% endschema %}
+{% comment %}
+
+This file has been rewritten to preserve the original behavior.
+
+---
+Changes:
+- from: "{% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks
+    != blank %}"
+  to: "{% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks
+    %}"
+  position: 33751..33835
+{% endcomment %}

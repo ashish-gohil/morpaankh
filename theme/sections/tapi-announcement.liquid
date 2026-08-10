@@ -122,7 +122,7 @@
     text-decoration: none;
     padding: 0.9rem 1.6rem;
     font-family: var(--font-body-family);
-    font-size: 1.3rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -144,7 +144,7 @@
      tabular figures so digits never jitter, small uppercase unit labels. */
   .tapi-announce__countdown { display: inline-flex; align-items: center; gap: 0.8rem; white-space: nowrap; }
   .tapi-announce__cd-icon { flex: 0 0 auto; opacity: 0.85; }
-  .tapi-announce__cd-label { font-size: 1.15rem; letter-spacing: 0.1em; font-weight: 600; opacity: 0.92; }
+  .tapi-announce__cd-label { font-size: var(--fs-xs); letter-spacing: 0.1em; font-weight: 600; opacity: 0.92; }
   .tapi-announce__cd-tiles { display: inline-flex; align-items: center; gap: 0.5rem; }
   .tapi-cd__g {
     display: inline-flex; flex-direction: column; align-items: center;
@@ -155,8 +155,8 @@
     line-height: 1;
   }
   .tapi-cd__g[hidden] { display: none; }
-  .tapi-cd__g b { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-  .tapi-cd__g i { font-style: normal; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.72; margin-top: 0.25rem; }
+  .tapi-cd__g b { font-size: var(--fs-base); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .tapi-cd__g i { font-style: normal; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.72; margin-top: 0.25rem; }
 
   /* Soft shimmer: a single contained highlight sweep (the one sanctioned
      gradient outside the hero scrim), reduced-motion safe. */
@@ -186,15 +186,15 @@
   }
 
   @media (max-width: 749px) {
-    .tapi-announce__inner { font-size: 1.1rem; letter-spacing: 0.08em; padding: 0.7rem 1.2rem; gap: 0.5rem 0.9rem; }
+    .tapi-announce__inner { font-size: var(--fs-xs); letter-spacing: 0.08em; padding: 0.7rem 1.2rem; gap: 0.5rem 0.9rem; }
     .tapi-announce__spark { width: 8px; height: 8px; }
     .tapi-announce__sep { display: none; }
-    .tapi-announce__cd-label { font-size: 1.02rem; }
+    .tapi-announce__cd-label { font-size: var(--fs-xs); }
     .tapi-announce__countdown { gap: 0.6rem; }
     .tapi-announce__cd-tiles { gap: 0.4rem; }
     .tapi-cd__g { min-width: 2.8rem; padding: 0.3rem 0.35rem 0.25rem; }
-    .tapi-cd__g b { font-size: 1.3rem; }
-    .tapi-cd__g i { font-size: 0.78rem; }
+    .tapi-cd__g b { font-size: var(--fs-sm); }
+    .tapi-cd__g i { font-size: var(--fs-xs); }
   }
 {% endstylesheet %}
 

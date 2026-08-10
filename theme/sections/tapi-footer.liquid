@@ -144,22 +144,22 @@
   .tapi-footer__form { display: flex; flex-direction: column; gap: 0.8rem; }
   .tapi-footer__field { display: flex; align-items: center; border-bottom: 1px solid rgba(248,244,237,0.35); padding-bottom: 0.6rem; transition: border-color 240ms; }
   .tapi-footer__field:focus-within { border-color: var(--tapi-cream); }
-  .tapi-footer__field input { flex: 1; background: transparent; color: var(--tapi-cream); border: none; font-family: inherit; font-size: 1.6rem; padding: 0.8rem 0; outline: none; }
+  .tapi-footer__field input { flex: 1; background: transparent; color: var(--tapi-cream); border: none; font-family: inherit; font-size: var(--fs-base); padding: 0.8rem 0; outline: none; }
   .tapi-footer__field input::placeholder { color: rgba(248,244,237,0.45); }
-  .tapi-footer__submit { background: none; border: none; color: var(--tapi-cream); font-size: 1.1rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; padding: 0.4rem 0; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); display: inline-flex; align-items: center; gap: 0.5rem; }
+  .tapi-footer__submit { background: none; border: none; color: var(--tapi-cream); font-size: var(--fs-xs); letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; padding: 0.4rem 0; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); display: inline-flex; align-items: center; gap: 0.5rem; }
   .tapi-footer__submit:hover { transform: translateX(6px); }
-  .tapi-footer__form-hint { font-size: 1.1rem; color: rgba(248,244,237,0.6); }
-  .tapi-footer__form-msg  { font-size: 1.2rem; color: var(--tapi-terracotta-soft); margin: 0; }
+  .tapi-footer__form-hint { font-size: var(--fs-xs); color: rgba(248,244,237,0.6); }
+  .tapi-footer__form-msg  { font-size: var(--fs-xs); color: var(--tapi-terracotta-soft); margin: 0; }
 
   .tapi-footer__cols { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 5.6rem; padding: 6.4rem 0; }
-  .tapi-footer__about { color: var(--tapi-cream); opacity: 0.55; font-size: 1.3rem; max-width: 28rem; line-height: 1.7; margin: 2rem 0 2.4rem; }
-  .tapi-footer__social { display: flex; gap: 1.4rem; font-size: 1.4rem; align-items: center; }
+  .tapi-footer__about { color: var(--tapi-cream); opacity: 0.55; font-size: var(--fs-sm); max-width: 28rem; line-height: 1.7; margin: 2rem 0 2.4rem; }
+  .tapi-footer__social { display: flex; gap: 1.4rem; font-size: var(--fs-sm); align-items: center; }
   .tapi-footer__social a { display: inline-block; padding-bottom: 0.6rem; }
   .tapi-footer__sep { opacity: 0.25; }
-  .tapi-footer__col-title { font-size: 1rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--mor-gold); margin-bottom: 2rem; font-weight: 500; }
-  .tapi-footer__links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; font-size: 1.4rem; }
-  .tapi-footer__address { font-family: var(--font-heading-family); font-style: italic; color: var(--tapi-cream); opacity: 0.72; font-size: 1.5rem; line-height: 1.7; margin: 0; }
-  .tapi-footer__cta { margin-top: 1.2rem; display: inline-block; font-size: 1.3rem; }
+  .tapi-footer__col-title { font-size: var(--fs-xs); letter-spacing: 0.22em; text-transform: uppercase; color: var(--mor-gold); margin-bottom: 2rem; font-weight: 500; }
+  .tapi-footer__links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; font-size: var(--fs-sm); }
+  .tapi-footer__address { font-family: var(--font-heading-family); font-style: italic; color: var(--tapi-cream); opacity: 0.72; font-size: var(--fs-base); line-height: 1.7; margin: 0; }
+  .tapi-footer__cta { margin-top: 1.2rem; display: inline-block; font-size: var(--fs-sm); }
 
   .tapi-footer__mark { font-family: var(--font-heading-family); font-weight: 500; font-size: clamp(5.6rem, 18vw, 22rem); line-height: 0.95; letter-spacing: -0.028em; color: rgba(248,244,237,0.08); text-align: center; user-select: none; white-space: nowrap; padding: 0; border-top: 1px solid rgba(248,244,237,0.10); padding-top: 2rem; overflow: hidden; }
   .tapi-footer__mark em { font-style: italic; color: rgba(217,122,95,0.30); }
@@ -168,13 +168,13 @@
      the trust row + copyright read as one bottom zone (bottom bar drops its own
      border to avoid a double hairline). */
   .tapi-footer__trust { display: flex; align-items: center; justify-content: space-between; gap: 1.4rem 2.4rem; flex-wrap: wrap; padding-top: 2.4rem; border-top: 1px solid rgba(248,244,237,0.08); }
-  .tapi-footer__secure { display: inline-flex; align-items: center; gap: 0.7rem; font-size: 1.1rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(248,244,237,0.66); }
+  .tapi-footer__secure { display: inline-flex; align-items: center; gap: 0.7rem; font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(248,244,237,0.66); }
   .tapi-footer__secure svg { width: 15px; height: 15px; opacity: 0.85; }
   .tapi-footer__pay { list-style: none; display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 0; padding: 0; }
   .tapi-footer__pay li { display: inline-flex; }
   /* Full-colour gateway SVGs need a light chip to read on the dark footer. */
   .tapi-footer__pay .tapi-pay-icon { width: 38px; height: 24px; background: #fff; border-radius: var(--mor-radius-sm, 2px); padding: 2px 3px; box-sizing: border-box; }
-  .tapi-footer__bottom { padding-top: 2rem; display: flex; justify-content: space-between; align-items: center; gap: 1.2rem 2.4rem; flex-wrap: wrap; font-size: 1.1rem; color: rgba(248,244,237,0.66); letter-spacing: 0.04em; }
+  .tapi-footer__bottom { padding-top: 2rem; display: flex; justify-content: space-between; align-items: center; gap: 1.2rem 2.4rem; flex-wrap: wrap; font-size: var(--fs-xs); color: rgba(248,244,237,0.66); letter-spacing: 0.04em; }
   /* Desktop: brand line + GSTIN + tagline read inline, separated by middots. */
   .tapi-footer__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.2rem; }
   .tapi-footer__meta > span:not(:first-child)::before { content: "·"; margin-right: 1.2rem; opacity: 0.5; }
