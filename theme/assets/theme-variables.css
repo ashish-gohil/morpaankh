@@ -2563,6 +2563,22 @@ details[open] > summary .icon-caret {
   --mor-section-pad: var(--tapi-section-pad);
   --mor-card-gap:    var(--tapi-card-gap);
   --mor-max:         var(--tapi-max);
+
+  /* ---- Vertical section-padding scale (SINGLE SOURCE) ----
+     One symmetric scale for every full-width section band. Never set an
+     asymmetric top/bottom section padding again — assign a tier below.
+     tiers: sm = tight strips · md = content rows · lg = showcase bands.
+     Mobile (≤749px) scales each down by one third — see media query. */
+  --section-pad-sm: 48px;
+  --section-pad-md: 72px;
+  --section-pad-lg: 96px;
+}
+@media (max-width: 749px) {
+  :root {
+    --section-pad-sm: 32px;   /* 48 × 2/3 */
+    --section-pad-md: 48px;   /* 72 × 2/3 */
+    --section-pad-lg: 64px;   /* 96 × 2/3 */
+  }
 }
 @media (min-width: 641px) {
   :root { --tapi-gutter: 32px; --tapi-section-pad: 72px; --tapi-card-gap: 20px; --tapi-grid-col-gap: 6px; --tapi-grid-row-gap: 36px; }
@@ -2574,17 +2590,33 @@ details[open] > summary .icon-caret {
   :root { --tapi-gutter: 64px; --tapi-section-pad: 112px; --tapi-card-gap: 32px; }
 }
 
-/* Apply system to all home sections (selectors target the existing section roots) */
-/* .tapi-hero is intentionally excluded — it is a full-bleed overlay hero that
-   manages its own spacing (flush under header, own bottom gap for trust strip). */
-.tapi-collection-tiles,
+/* Apply the vertical scale to every section band — symmetric top = bottom,
+   one tier per section type. Bare class selectors so a type (e.g. editorial)
+   carries the SAME value on every template it appears on.
+   .tapi-hero is intentionally excluded — full-bleed overlay hero manages its
+   own spacing (flush under header, own bottom gap for trust strip). */
+.tapi-collection-tiles,   /* md — content rows */
 .tapi-featured,
-.tapi-studio-strip,
 .tapi-editorial-band,
-.tapi-press {
-  padding-block: var(--tapi-section-pad) !important;
+.tapi-rv,
+.tapi-studio-strip,       /* lg — showcase bands */
+.tapi-testimonials,
+.tapi-press {             /* sm — tight strip */
   margin-block: 0 !important;
   width: 100%;
+}
+.tapi-collection-tiles,
+.tapi-featured,
+.tapi-editorial-band,
+.tapi-rv {
+  padding-block: var(--section-pad-md) !important;
+}
+.tapi-studio-strip,
+.tapi-testimonials {
+  padding-block: var(--section-pad-lg) !important;
+}
+.tapi-press {
+  padding-block: var(--section-pad-sm) !important;
 }
 .tapi-hero__trust,
 .tapi-collection-tiles > .page-width,
@@ -2619,10 +2651,12 @@ details[open] > summary .icon-caret {
    bands on purpose. Scoped to .template-product so the homepage is untouched.
    (Was uneven and cavernous: pdp 48px + editorial 72px = ~120px voids; earlier
    still, related 36px / recently ~72px / editorial 112px.) */
-.template-product .tapi-editorial-band,
-.template-product .related-products,
-.template-product .tapi-rv {
-  padding-block: clamp(32px, 4.5vw, 56px) clamp(24px, 3vw, 36px) !important;
+/* Dawn's "You may also like" carries its own default padding — pull it onto the
+   same md tier as the editorial + recently-viewed bands above/below it so the
+   whole PDP lower stack shares one symmetric beat. editorial-band + .tapi-rv are
+   already md via the global rules; this scopes the stock section to the product. */
+.template-product .related-products {
+  padding-block: var(--section-pad-md) !important;
 }
 /* related-products sits on cream; recently-viewed now carries its own cream-2
    surface (see .tapi-rv.gradient in tapi-ux.css), so the boundary reads as an

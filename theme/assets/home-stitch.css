@@ -13,11 +13,10 @@
 
 .tapi-hero { padding-bottom: 0 !important; }
 
-.tapi-collection-tiles { padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important; }
-
-.tapi-featured { padding-block: clamp(40px, 6vw, 72px) clamp(24px, 3vw, 40px) !important; }
-
-.tapi-studio-strip { padding-block: clamp(40px, 6vw, 72px) clamp(40px, 6vw, 72px); }
+/* Section vertical padding is now owned centrally by the symmetric
+   --section-pad-* scale in theme-variables.css (no asymmetric top/bottom
+   here anymore). The old flush-bottom clamps for collection-tiles / featured /
+   studio-strip were removed so every band tops AND bottoms on one scale. */
 
 /* Hide the per-slide caption chip ("Saanjh · Kurta sets", etc.) — removed from
    Liquid too, but this kills it instantly while the home page-cache catches up. */
