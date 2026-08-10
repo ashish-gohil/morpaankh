@@ -31,8 +31,13 @@
 
 /* Shopify's section wrapper class is .section-{{ section.id }}-padding;
    in collection.json the grid section id is "product-grid", so this
-   selector targets only the grid wrapper and nothing else on the page. */
+   selector targets only the grid wrapper and nothing else on the page.
+   DELIBERATE ASYMMETRY (the one exception to the symmetric section scale):
+   a tight --space-sm top keeps the sort/filter toolbar visually attached to
+   the collection title above it (a symmetric top would re-open the "cream
+   void" this file was created to close), while --section-pad-sm bottom lets
+   the grid breathe before the footer. Both are on-scale tokens. */
 [class*="product-grid-padding"] {
-  padding-top: 1.2rem !important;
-  padding-bottom: clamp(24px, 4vw, 48px) !important;
+  padding-top: var(--space-sm) !important;
+  padding-bottom: var(--section-pad-sm) !important;
 }

@@ -1830,13 +1830,14 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   margin: 0 !important;
 }
 
-/* The PDP needs slightly tighter spacing — keep it slim. The bottom padding is
-   the white gap below the product grid before the first cream band ("A note
-   from the studio"); at 3.6rem it pairs with that band's 56px top to land on
-   the same ~92px boundary the downstream bands share (see the PDP downstream
-   rhythm block below), so every section break down the page is even. */
-.tapi-pdp { padding-top: 2.4rem !important; padding-bottom: 3.6rem !important; }
-/* Clear the fixed mobile buy bar (price line + two-button row + safe-area). */
+/* Product-hero clearance zone — SYMMETRIC, kept tight so the product sits high
+   above the fold (like the full-bleed .tapi-hero, this is a special zone, not a
+   --section-pad band). 24px top/bottom via --space-lg; the downstream editorial
+   band adds its own 72px (--section-pad-md) top, so product → editorial reads as
+   a deliberate ~96px hero beat before the even 72/72 lower-stack rhythm. */
+.tapi-pdp { padding-block: var(--space-lg) !important; }
+/* Clear the fixed mobile buy bar (price line + two-button row + safe-area).
+   Functional collision-avoidance, not a spacing choice — stays asymmetric. */
 @media (max-width: 749px) { .tapi-pdp { padding-bottom: 13rem !important; } }
 
 /* Dawn wraps each Tapi section in <div class="shopify-section ..."> ; kill any
