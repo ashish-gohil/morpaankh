@@ -376,3 +376,54 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 520px;
 }
+
+/* ============================================================
+   Canonical section-header rhythm (site-wide, 2026-08-11)
+   One hierarchy for every section header: the eyebrow sits a
+   consistent 1.2rem above the title, the subtitle/intro hugs the
+   title as a tight pair (0.6rem), then a generous void
+   (clamp 2.6→4rem, auto-scaling to mobile) opens before the body
+   or content grid below. Replaces the per-section drift where
+   title→subtitle gaps ranged from 0.4rem to 1.6rem.
+
+   Loaded from tapi-ux.css (global, theme.liquid:347); section
+   {% stylesheet %} blocks use plain declarations, so !important
+   here wins the cascade regardless of injection order.
+
+   Intentional exceptions kept OUT of scope (do not add here):
+   • .tapi-pdp__title / __subtitle — flex title row with a
+     deliberate negative-margin tuck ([[pdp-section-rhythm]]).
+   • .tapi-hero__* — full-bleed overlay hero owns its own spacing.
+   • .tapi-footer__* — footer columns, different rhythm.
+   • .tapi-card__* — product-card meta, not a section header.
+   ============================================================ */
+
+/* eyebrow → title : consistent 1.2rem (normalises drifters like
+   sizeguide 0.4rem, track/sign-in) */
+.tapi-fg__title,
+.tapi-track__title,
+.tapi-sizeguide__title,
+.tapi-signin__title,
+.tapi-promise__title,
+.tapi-faq__heading {
+  margin-top: 1.2rem !important;
+}
+
+/* title → subtitle/intro : TIGHT pair (0.6rem) */
+.tapi-fg__intro,
+.tapi-track__intro,
+.tapi-sizeguide__intro,
+.tapi-promise__intro,
+.tapi-tsearch__sub {
+  margin-top: 0.6rem !important;
+}
+
+/* header block → body / content : GENEROUS void before what follows.
+   Applied to the LAST line of each header (intro or lead) so the
+   supporting copy breathes away from the content beneath it. */
+.tapi-fg__lead,
+.tapi-track__intro,
+.tapi-sizeguide__intro,
+.tapi-promise__intro {
+  margin-bottom: clamp(2.6rem, 4vw, 4rem) !important;
+}
