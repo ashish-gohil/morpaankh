@@ -68,7 +68,7 @@
                       sizes="100vw">
                     <source
                       media="(min-width: 990px)"
-                      srcset="{{ img_d | image_url: width: 900 }} 900w, {{ img_d | image_url: width: 1200 }} 1200w, {{ img_d | image_url: width: 1600 }} 1600w, {{ img_d | image_url: width: 2000 }} 2000w, {{ img_d | image_url: width: 2600 }} 2600w"
+                      srcset="{{ img_d | image_url: width: 900 }} 900w, {{ img_d | image_url: width: 1200 }} 1200w, {{ img_d | image_url: width: 1600 }} 1600w, {{ img_d | image_url: width: 2000 }} 2000w"
                       sizes="100vw">
                     {{ img_m_eff | image_url: width: 1080 | image_tag:
                        loading: loading_attr,
@@ -81,7 +81,7 @@
                     {{ img_d | image_url: width: 2000 | image_tag:
                        loading: loading_attr,
                        fetchpriority: fetch_attr,
-                       widths: '900, 1200, 1600, 2000, 2600',
+                       widths: '900, 1200, 1600, 2000',
                        sizes: '100vw',
                        alt: slide_alt,
                        class: 'tapi-hero__img' }}
