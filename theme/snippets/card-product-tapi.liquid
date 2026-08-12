@@ -3,6 +3,7 @@
   badge stack, compare-at savings %, color dots from tapi.color_options metafield,
   and rating/GSM/low-stock meta.
   @param {object} product - The product to render.
+  @param {boolean} [suppress_new] - Optional; when true, hides the "New" status tag (e.g. on a "New Arrivals" row where it would be redundant).
   @example
   {% render 'card-product-tapi', product: product %}
 {% enddoc %}
@@ -25,37 +26,27 @@
   <a class="tapi-card__media" href="{{ product.url }}" aria-label="{{ product.title }}">
     <div class="tapi-card__img tapi-card__img--front">
       {%- if img1 -%}
-        {%- comment -%} Photos uploaded as PNG are lossless and huge (~190KB where
-          ~15KB serves); force progressive JPEG for those only, so JPEG sources
-          keep the CDN's automatic WebP negotiation. {%- endcomment -%}
-        {%- if img1.src contains '.png' -%}
-          {{ img1 | image_url: width: 800, format: 'pjpg' | image_tag:
-             loading: 'lazy', widths: '200, 340, 450, 600, 800',
-             sizes: '(min-width: 750px) 25vw, 50vw',
-             alt: img1.alt | default: product.title }}
-        {%- else -%}
-          {{ img1 | image_url: width: 800 | image_tag:
-             loading: 'lazy', widths: '200, 340, 450, 600, 800',
-             sizes: '(min-width: 750px) 25vw, 50vw',
-             alt: img1.alt | default: product.title }}
-        {%- endif -%}
+        {%- comment -%} Shopify's CDN auto-negotiates WebP for JPEG AND PNG masters
+          off the Accept header, so no format override is needed here — a forced
+          `format: 'pjpg'` is a no-op the CDN ignores (verified: it neither shrank the
+          WebP for modern browsers nor stopped the raw-PNG fallback for the rest).
+          PNG masters that photographs were uploaded as should be re-exported to
+          JPEG/WebP at the SOURCE; that shrinks the raw fallback and the derived WebP
+          alike. {%- endcomment -%}
+        {{ img1 | image_url: width: 800 | image_tag:
+           loading: 'lazy', widths: '200, 340, 450, 600, 800',
+           sizes: '(min-width: 750px) 25vw, 50vw',
+           alt: img1.alt | default: product.title }}
       {%- else -%}
         {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg' }}
       {%- endif -%}
     </div>
     {%- if img2 -%}
       <div class="tapi-card__img tapi-card__img--back" aria-hidden="true">
-        {%- if img2.src contains '.png' -%}
-          {{ img2 | image_url: width: 800, format: 'pjpg' | image_tag:
-             loading: 'lazy', widths: '200, 340, 450, 600, 800',
-             sizes: '(min-width: 750px) 25vw, 50vw',
-             alt: '' }}
-        {%- else -%}
-          {{ img2 | image_url: width: 800 | image_tag:
-             loading: 'lazy', widths: '200, 340, 450, 600, 800',
-             sizes: '(min-width: 750px) 25vw, 50vw',
-             alt: '' }}
-        {%- endif -%}
+        {{ img2 | image_url: width: 800 | image_tag:
+           loading: 'lazy', widths: '200, 340, 450, 600, 800',
+           sizes: '(min-width: 750px) 25vw, 50vw',
+           alt: '' }}
       </div>
     {%- endif -%}
 
