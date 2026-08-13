@@ -48,6 +48,21 @@
     {%- endcomment -%}
     <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
 
+    {%- comment -%}
+      DNS-only hints (deliberately NOT full preconnects, so they don't compete
+      with the LCP image connection for the browser's early-connection budget)
+      for the analytics origins. The Meta pixel (connect.facebook.net, injected
+      by the Shopify Facebook channel through content_for_header) and GA4/GTM
+      (googletagmanager.com, loaded by tapi-analytics.js) are what log the
+      Landing Page View / PageView -- warming their DNS shaves lookup time off
+      the first pixel fire on an ad-click landing, which is exactly where the
+      funnel loses ad clicks before the LPV is counted.
+    {%- endcomment -%}
+    <link rel="dns-prefetch" href="https://connect.facebook.net">
+    {%- if settings.ga4_measurement_id != blank or settings.gtm_container_id != blank -%}
+      <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    {%- endif -%}
+
     {%- unless settings.type_header_font.system? and settings.type_body_font.system? -%}
       <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
     {%- endunless -%}
