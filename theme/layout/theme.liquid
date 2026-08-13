@@ -37,6 +37,17 @@
       <link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
     {%- endif -%}
 
+    {%- comment -%}
+      Open the socket to the image CDN as early as possible. EVERY product and
+      hero image is served from cdn.shopify.com, and it is the LCP element on the
+      home + PDP + collection pages. Without this, mobile clients pay a fresh
+      DNS+TLS handshake only after the parser reaches the first <img> in <body> --
+      dead time before the largest paint (and before the pixel reliably fires on
+      an ad-click landing). Placed ahead of the font hints on purpose: the LCP
+      image outranks the async, print->all swapped fonts.
+    {%- endcomment -%}
+    <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
+
     {%- unless settings.type_header_font.system? and settings.type_body_font.system? -%}
       <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
     {%- endunless -%}
