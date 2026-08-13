@@ -736,8 +736,16 @@
                     </button>
                   </div>
                 {%- else -%}
+                  {%- comment -%} The fullscreen viewer is opened by only a fraction of
+                    visitors and is display:none until then, so these were already deferred
+                    (loading=lazy inside [hidden]). We go one step further: a resolved src
+                    lives ONLY on the first slide; the rest carry the URL in data-src and are
+                    hydrated by setupPdpLightbox's loadLo() when their slide (or a neighbour)
+                    is shown -- mirroring the existing data-hi/loadHi upgrade. This trims N-1
+                    pre-resolved image URLs out of every PDP's initial HTML with zero change
+                    to what the viewer shows. width/height keep the box reserved pre-hydrate. {%- endcomment -%}
                   <img class="tapi-lightbox__img" data-zoomable
-                       src="{{ media.preview_image | image_url: width: 1200 }}"
+                       {% if forloop.first %}src="{{ media.preview_image | image_url: width: 1200 }}"{% else %}data-src="{{ media.preview_image | image_url: width: 1200 }}"{% endif %}
                        data-hi="{{ media.preview_image | image_url: width: 2048 }}"
                        width="{{ media.preview_image.width }}" height="{{ media.preview_image.height }}"
                        alt="{{ media.preview_image.alt | default: product.title | escape }}"

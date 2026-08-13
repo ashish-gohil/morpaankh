@@ -458,6 +458,19 @@
       }
     }
 
+    // Companion to loadHi: hydrate the base (w1200) src for slides that ship
+    // with the URL parked in data-src (every slide but the first -- the section
+    // keeps a resolved src only on the first slide to trim the initial HTML).
+    // Runs just before loadHi so the viewer shows the base image immediately,
+    // then upgrades to the 2048 hi-res.
+    function loadLo(slide) {
+      if (!slide) return;
+      var img = slide.querySelector('img[data-src]');
+      if (!img) return;
+      var lo = img.getAttribute('data-src');
+      if (lo && !img.getAttribute('src')) img.setAttribute('src', lo);
+    }
+
     function inlineActiveIndex() {
       var a = sec.querySelector('.tapi-pdp__main-img.is-active');
       return a ? (parseInt(a.getAttribute('data-main-index'), 10) || 0) : 0;
@@ -492,10 +505,12 @@
       var pos = vis.indexOf(i);
       if (curEl) curEl.textContent = String((pos < 0 ? 0 : pos) + 1);
       if (totalEl) totalEl.textContent = String(vis.length);
-      loadHi(slides[i]);
+      loadLo(slides[i]); loadHi(slides[i]);
       if (pos >= 0 && vis.length > 1) {
-        loadHi(slides[vis[(pos + 1) % vis.length]]);
-        loadHi(slides[vis[(pos - 1 + vis.length) % vis.length]]);
+        var nxt = slides[vis[(pos + 1) % vis.length]];
+        var prv = slides[vis[(pos - 1 + vis.length) % vis.length]];
+        loadLo(nxt); loadHi(nxt);
+        loadLo(prv); loadHi(prv);
       }
       var at = thumbs[i];
       if (at && at.scrollIntoView) {
