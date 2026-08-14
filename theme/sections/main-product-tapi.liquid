@@ -659,7 +659,7 @@
         <details class="tapi-acc">
           <summary><span>Shipping &amp; returns</span><span class="tapi-acc__toggle">+</span></summary>
           <div class="tapi-acc__body">
-            <p>Free delivery on prepaid orders{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India, with a delivery fee shown at checkout{% endif %}. 7-day returns on any defect or wrong item, and unworn size or colour swaps. <a href="/pages/refund-policy">See full returns</a>.</p>
+            <p>Free delivery on prepaid orders{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India, with a delivery fee shown at checkout{% endif %}. Defects or wrong items are put right at no cost within 7 days. Size or colour swaps on unworn pieces are welcome too, with the return courier taken off your refund. <a href="/pages/refund-policy">See full returns</a>.</p>
           </div>
         </details>
       </div>
@@ -860,8 +860,10 @@
 {%- comment -%} Shipping + return policy nodes referenced by @id from every Offer above.
   Values are ground truth from the store: delivery profile ships domestic at Rs 0,
   FAQ promises 1-2 day dispatch and 3-7 day transit, refund policy gives a 7-day
-  window with free pickup. If shipping rates or the return window change in admin,
-  update this block to match. {%- endcomment -%}
+  window. Defect/wrong-item returns are free (we pay pickup); voluntary size or
+  colour swaps are customer-paid return postage, hence returnFees =
+  ReturnFeesCustomerResponsibility (NOT FreeReturn). If shipping rates or the
+  return window change in admin, update this block to match. {%- endcomment -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org/",
@@ -884,7 +886,7 @@
       "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
       "merchantReturnDays": 7,
       "returnMethod": "https://schema.org/ReturnByMail",
-      "returnFees": "https://schema.org/FreeReturn",
+      "returnFees": "https://schema.org/ReturnFeesCustomerResponsibility",
       "refundType": "https://schema.org/FullRefund",
       "merchantReturnLink": {{ request.origin | append: '/pages/refund-policy' | json }}
     }
