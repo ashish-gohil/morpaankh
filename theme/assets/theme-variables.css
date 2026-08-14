@@ -2659,6 +2659,17 @@ details[open] > summary .icon-caret {
 .template-product .related-products {
   padding-block: var(--section-pad-md) !important;
 }
+/* Related products loads async and stays EMPTY when Shopify returns no
+   recommendations for a product (common on a small catalog) — Dawn's loader
+   (global.js) only fills it, and only adds .product-recommendations--loaded,
+   when real .grid__item cards come back. Until then, strip the band padding so
+   an empty response collapses to nothing instead of leaving a bare ~144px gap
+   between the editorial band and recently-viewed. Kept in normal flow (NOT
+   display:none) so the loader's IntersectionObserver still fires and can bring
+   the cards in; once loaded, the md rule above restores the 72px band. */
+.template-product product-recommendations.related-products:not(.product-recommendations--loaded) {
+  padding-block: 0 !important;
+}
 /* related-products sits on cream; recently-viewed now carries its own cream-2
    surface (see .tapi-rv.gradient in tapi-ux.css), so the boundary reads as an
    alternating-tone band change on both the PDP and home — no hairline needed,
@@ -2679,6 +2690,19 @@ details[open] > summary .icon-caret {
 .template-cart .title-wrapper-with-link {
   padding-block: 0;
   margin-bottom: clamp(2rem, 3vw, 3.2rem);
+}
+
+/* Drop Dawn's .cart__items divider. The bordered smart-offers card is the last
+   block inside .cart__items and already gives a clean visual boundary, so the
+   default border-bottom stacks as a redundant second hairline below it — and on
+   mobile that stray line lands right above the cart-footer's Estimated total,
+   reading as "two lines" between the offers card and checkout. Removing the
+   divider and its now-purposeless bottom padding leaves the offers card sitting
+   one clean section gap above the total. Scoped to .template-cart so it outranks
+   Dawn's single-class rule (and its 750px padding-bottom) without !important. */
+.template-cart .cart__items {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 /* Cart qty stepper — branded */
