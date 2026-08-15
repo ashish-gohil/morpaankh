@@ -153,6 +153,12 @@
                 <span>{{ section.settings.assure_3 }}</span>
               </li>
             {%- endif -%}
+            {%- if section.settings.assure_4 != blank -%}
+              <li class="tapi-cart-assure__item">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true" focusable="false"><path d="M3 5.5h14v8H8l-3.5 3v-3H3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                <span>{{ section.settings.assure_4 }}</span>
+              </li>
+            {%- endif -%}
           </ul>
         {%- endif -%}
 
@@ -303,6 +309,12 @@
       "id": "assure_3",
       "label": "Line 3 (security)",
       "default": "Secure checkout"
+    },
+    {
+      "type": "text",
+      "id": "assure_4",
+      "label": "Line 4 (concierge)",
+      "default": "Message us anytime, before or after you order"
     },
     {
       "type": "header",
