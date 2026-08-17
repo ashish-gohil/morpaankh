@@ -13,6 +13,19 @@
 
 .tapi-hero { padding-bottom: 0 !important; }
 
+/* Shorter hero on phones so the category rows and the product grid sit a quick
+   scroll away (mobile-first goal). Trims the image height and the copy-stack
+   spacing only. No copy, type, or colour changes, and desktop (>=750px) is
+   untouched. Lives here (fresh URL) so it applies past any stale section bundle. */
+@media (max-width: 749px) {
+  .tapi-hero { --hero-h: clamp(38vh, 44vh, 50vh) !important; }
+  .tapi-hero__carousel { min-height: 320px !important; }
+  .tapi-hero__overlay { padding-top: clamp(1.8rem, 5vw, 2.6rem) !important; }
+  .tapi-hero__title { margin: 1rem 0 1.2rem !important; }
+  .tapi-hero__lede { margin-bottom: 2rem !important; }
+  .tapi-hero__trust { margin-top: 1.8rem !important; padding-top: 1.8rem !important; }
+}
+
 /* Section vertical padding is now owned centrally by the symmetric
    --section-pad-* scale in theme-variables.css (no asymmetric top/bottom
    here anymore). The old flush-bottom clamps for collection-tiles / featured /
