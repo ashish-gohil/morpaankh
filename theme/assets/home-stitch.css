@@ -49,6 +49,19 @@
   .tapi-featured__viewall { height: auto !important; padding: 0.8rem 0 !important; }
 }
 
+/* Hero headline: give the accent word ("bloom.") a touch more weight than the
+   rest of the line for a premium, hand-set feel. Italic 600 is loaded from
+   Google Fonts (theme.liquid) so this is a real weight, not a faux bold.
+   Applies on every screen. */
+.tapi-hero__title-accent { font-weight: 600 !important; }
+
+/* Studio note quote: on phones let the pull-quote run the FULL content width
+   instead of the narrow ~20ch column, so "We grew up around cloth..." reads as
+   a confident full-width statement. Desktop keeps its measured column. */
+@media (max-width: 749px) {
+  .tapi-editorial-band__quote { max-width: none !important; }
+}
+
 /* Section vertical padding is now owned centrally by the symmetric
    --section-pad-* scale in theme-variables.css (no asymmetric top/bottom
    here anymore). The old flush-bottom clamps for collection-tiles / featured /

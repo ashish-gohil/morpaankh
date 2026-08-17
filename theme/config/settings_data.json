@@ -140,7 +140,7 @@
         "type": "tapi-announcement",
         "settings": {
           "enabled": true,
-          "text": "Buy 2 save 10% · Buy 3 save 15%",
+          "text": "Minimum 40% off · Ends tomorrow · Then full price returns",
           "link": "/collections/all",
           "animate": true,
           "schedule_enabled": false,
