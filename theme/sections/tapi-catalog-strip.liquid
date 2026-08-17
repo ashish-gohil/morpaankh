@@ -14,13 +14,13 @@
       <li class="tapi-catalog-strip__item" {{ b.shopify_attributes }}>
         <a href="{{ href }}" class="tapi-catalog-strip__link" aria-label="{{ label }}">
           <span class="tapi-catalog-strip__avatar" style="--p-color: {{ b.settings.tint | default: '#B7472A' }};">
-            {%- comment -%} The strip now sits below the hero, so these avatars are no longer the
-              above-the-fold LCP — load lazy so they never compete with the hero image for the
-              first paint's bandwidth. Tiny (220px webp), so lazy has no visible pop-in cost. {%- endcomment -%}
+            {%- comment -%} On mobile this strip is the first section, sitting above the hero, so the
+              avatars are above the fold: load eager to avoid pop-in. No fetchpriority, so the hero
+              image still keeps the high-priority LCP slot. (Hidden on desktop, 990px and up.) {%- endcomment -%}
             {%- if b.settings.image != blank -%}
-              {{ b.settings.image | image_url: width: 220 | image_tag: loading: 'lazy', alt: '', widths: '110,220,330' }}
+              {{ b.settings.image | image_url: width: 220 | image_tag: loading: 'eager', alt: '', widths: '110,220,330' }}
             {%- elsif coll != blank and coll.featured_image -%}
-              {{ coll.featured_image | image_url: width: 220 | image_tag: loading: 'lazy', alt: '', widths: '110,220,330' }}
+              {{ coll.featured_image | image_url: width: 220 | image_tag: loading: 'eager', alt: '', widths: '110,220,330' }}
             {%- else -%}
               <span class="tapi-catalog-strip__mono" aria-hidden="true">{{ mono | slice: 0, 1 }}</span>
             {%- endif -%}

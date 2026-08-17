@@ -396,8 +396,8 @@
     }
   },
   "order": [
-    "tapi_hero",
     "tapi_catalog_strip",
+    "tapi_hero",
     "tapi_collection_tiles",
     "tapi_featured",
     "story",
