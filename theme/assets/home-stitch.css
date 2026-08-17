@@ -26,6 +26,17 @@
   .tapi-hero__trust { margin-top: 1.8rem !important; padding-top: 1.8rem !important; }
 }
 
+/* Featured products header: tighten the mobile rhythm so the eyebrow, the
+   title, the "View all products" link and the product images read as one
+   deliberate block, not four far-apart rows. Desktop keeps its airier
+   editorial spacing (this is <=749px only). */
+@media (max-width: 749px) {
+  .tapi-featured__head { gap: 1rem !important; margin-bottom: 2rem !important; }
+  .tapi-featured__head .tapi-eyebrow { margin-bottom: 1rem !important; }
+  .tapi-featured__heading { line-height: 1.14 !important; }
+  .tapi-featured__viewall { height: auto !important; padding: 0.8rem 0 !important; }
+}
+
 /* Section vertical padding is now owned centrally by the symmetric
    --section-pad-* scale in theme-variables.css (no asymmetric top/bottom
    here anymore). The old flush-bottom clamps for collection-tiles / featured /
