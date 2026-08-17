@@ -2576,9 +2576,9 @@ details[open] > summary .icon-caret {
 }
 @media (max-width: 749px) {
   :root {
-    --section-pad-sm: 32px;   /* 48 × 2/3 */
-    --section-pad-md: 48px;   /* 72 × 2/3 */
-    --section-pad-lg: 64px;   /* 96 × 2/3 */
+    --section-pad-sm: 24px;   /* tighter mobile rhythm, less scroll (was 32) */
+    --section-pad-md: 36px;   /* keeps the 2:3:4 tier ratio (was 48) */
+    --section-pad-lg: 48px;   /* showcase bands still breathe (was 64) */
   }
 }
 @media (min-width: 641px) {

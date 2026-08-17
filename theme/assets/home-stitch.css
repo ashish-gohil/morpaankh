@@ -21,9 +21,21 @@
   .tapi-hero { --hero-h: clamp(38vh, 44vh, 50vh) !important; }
   .tapi-hero__carousel { min-height: 320px !important; }
   .tapi-hero__overlay { padding-top: clamp(1.8rem, 5vw, 2.6rem) !important; }
-  .tapi-hero__title { margin: 1rem 0 1.2rem !important; }
-  .tapi-hero__lede { margin-bottom: 2rem !important; }
-  .tapi-hero__trust { margin-top: 1.8rem !important; padding-top: 1.8rem !important; }
+  /* "Where stories bloom." on ONE line: drop the hard break and size the
+     display type to the viewport so it never wraps, for a single premium
+     headline instead of two stacked words. */
+  .tapi-hero__title {
+    margin: 1rem 0 1.2rem !important;
+    font-size: clamp(2.4rem, 7.8vw, 3.3rem) !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+  .tapi-hero__title br { display: none !important; }
+  .tapi-hero__lede { margin-bottom: 1.8rem !important; }
+  /* One confident primary CTA on mobile. "Our story" stays reachable from the
+     menu and footer, so removing it here cuts clutter and shortens the hero. */
+  .tapi-hero__cta-secondary { display: none !important; }
+  .tapi-hero__trust { margin-top: 1.6rem !important; padding-top: 1.6rem !important; }
 }
 
 /* Featured products header: tighten the mobile rhythm so the eyebrow, the
@@ -41,6 +53,15 @@
    --section-pad-* scale in theme-variables.css (no asymmetric top/bottom
    here anymore). The old flush-bottom clamps for collection-tiles / featured /
    studio-strip were removed so every band tops AND bottoms on one scale. */
+
+/* "Our promise" (studio strip): on mobile the heading, the gold hairline and
+   the stat grid sat ~80px apart (40 above the rule + 40 below). Halve that so
+   the promise reads as one tight, deliberate block instead of a cavernous one.
+   Desktop keeps its 4rem breathing room. */
+@media (max-width: 749px) {
+  .tapi-studio-strip__head { margin-bottom: 2rem !important; }
+  .tapi-studio-strip__grid { padding-top: 2rem !important; }
+}
 
 /* Hide the per-slide caption chip ("Saanjh · Kurta sets", etc.) — removed from
    Liquid too, but this kills it instantly while the home page-cache catches up. */
