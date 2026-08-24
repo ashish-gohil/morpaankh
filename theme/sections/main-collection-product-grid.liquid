@@ -1,3 +1,23 @@
+{%- comment -%}
+  /collections/all is Shopify's virtual "all" collection, whose default sort order
+  cannot be set from the admin. So when a shopper lands on it with no explicit sort,
+  send them to newest-first (created-descending) so new arrivals lead the page. Any
+  real sort chosen from the dropdown carries its own sort_by param and is left alone,
+  so there is no redirect loop and the shopper's choice always wins.
+{%- endcomment -%}
+{%- if collection.handle == 'all' and collection.sort_by == blank -%}
+  <script>
+    (function () {
+      try {
+        var url = new URL(window.location.href);
+        if (!url.searchParams.has('sort_by')) {
+          url.searchParams.set('sort_by', 'created-descending');
+          window.location.replace(url.toString());
+        }
+      } catch (e) {}
+    })();
+  </script>
+{%- endif -%}
 {{ 'template-collection.css' | asset_url | stylesheet_tag }}
 {{ 'component-card.css' | asset_url | stylesheet_tag }}
 {{ 'component-price.css' | asset_url | stylesheet_tag }}

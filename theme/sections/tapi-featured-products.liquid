@@ -9,7 +9,7 @@
   assign first_coll = section.settings.collection
   assign all_coll = collections.all
   assign max = section.settings.products_to_show | default: 12
-  assign all_url = all_coll.url | default: '/collections/all'
+  assign all_url = all_coll.url | default: '/collections/all' | append: '?sort_by=created-descending'
   assign has_products = false
   if first_coll != blank or all_coll != blank
     assign has_products = true
