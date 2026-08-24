@@ -23,13 +23,26 @@
   <script src="{{ 'quick-order-list.js' | asset_url }}" defer="defer"></script>
 {%- endif -%}
 
+{%- liquid
+  # Fold vs pager. The fold reveals every card client-side, but Liquid renders at
+  # most one page (products_per_page, capped at 50 by the platform). So the
+  # "show the first N cards, then View all reveals the rest" fold is only safe when
+  # the whole collection fits on a single page. The moment the catalogue overflows
+  # a page, fall back to the native numbered pager so no product is ever stranded.
+  # This switches automatically as products are added, with no setting change.
+  assign tapi_use_fold = false
+  if section.settings.enable_show_all and collection.all_products_count <= section.settings.products_per_page
+    assign tapi_use_fold = true
+  endif
+-%}
+
 {%- style -%}
   .section-{{ section.id }}-padding {
     padding-top: var(--mor-section-pad, 56px);
     padding-bottom: var(--mor-section-pad, 56px);
   }
 
-  {%- if section.settings.enable_show_all -%}
+  {%- if tapi_use_fold -%}
   /* Show-all fold: keep only the first {{ section.settings.initial_products }} cards
      visible until the shopper expands, then a single centred toggle reveals the
      rest (and collapses back). Pure-CSS hide so it survives facet re-renders. */
@@ -205,10 +218,10 @@
               N cards, then one centred toggle reveals the rest / collapses back. The
               native pager only returns as a fallback when a catalog overflows a single
               page (more than products_per_page items). {%- endcomment -%}
-            {%- if section.settings.enable_show_all and collection.products.size > section.settings.initial_products -%}
+            {%- if tapi_use_fold and collection.products.size > section.settings.initial_products -%}
               <div class="tapi-showall">
                 <button type="button" class="tapi-showall__btn" data-showall-toggle aria-expanded="false" aria-controls="product-grid">
-                  <span class="tapi-showall__more">View all {{ collection.products.size }} products</span>
+                  <span class="tapi-showall__more">View all {{ collection.all_products_count }} products</span>
                   <span class="tapi-showall__less">Show less</span>
                   <svg class="tapi-showall__caret" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
@@ -269,8 +282,8 @@
       "type": "range",
       "id": "products_per_page",
       "min": 8,
-      "max": 36,
-      "step": 4,
+      "max": 50,
+      "step": 2,
       "default": 16,
       "label": "t:sections.main-collection-product-grid.settings.products_per_page.label"
     },
