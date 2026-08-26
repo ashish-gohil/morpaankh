@@ -1,0 +1,161 @@
+/* ============================================================
+   Morpaankh — full-screen, story-style shoppable video player.
+   Shared by the Watch & Buy rail and the PDP video bubble.
+   Loaded standalone (not via a section bundle) so it is never
+   held back by a stale compiled section stylesheet.
+   ============================================================ */
+
+.tapi-story[hidden] { display: none; }
+.tapi-story {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-story.is-open { opacity: 1; }
+.tapi-story__backdrop {
+  position: absolute; inset: 0;
+  background: rgba(12, 10, 9, 0.92);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  border: 0; cursor: pointer;
+}
+
+/* Portrait stage — 9:16, capped to the viewport height. */
+.tapi-story__stage {
+  position: relative; z-index: 1;
+  width: min(46rem, 100vw); height: 100dvh; height: 100vh;
+  max-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  background: #0c0a09; overflow: hidden;
+  transform: translateY(14px); transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-story.is-open .tapi-story__stage { transform: translateY(0); }
+@media (min-width: 750px) {
+  .tapi-story__stage { height: min(92dvh, 84rem); max-height: 92dvh; border-radius: 14px; }
+}
+
+.tapi-story__video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block; background: #0c0a09;
+}
+
+/* Progress bars — one segment per clip, top of the stage. */
+.tapi-story__bars {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 4;
+  display: flex; gap: 4px; padding: 10px 12px 0;
+}
+.tapi-story__bar { flex: 1; height: 2.5px; border-radius: 3px; background: rgba(248, 244, 237, 0.28); overflow: hidden; }
+.tapi-story__bar-fill { display: block; height: 100%; width: 0; background: var(--mor-cream, #f8f4ed); border-radius: 3px; }
+.tapi-story__bar--done .tapi-story__bar-fill { width: 100%; }
+
+/* Top controls (mute + close). */
+.tapi-story__top {
+  position: absolute; top: 20px; left: 0; right: 0; z-index: 5;
+  display: flex; justify-content: flex-end; gap: 10px; padding: 0 12px;
+}
+.tapi-story__icon {
+  width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--mor-cream, #f8f4ed); background: rgba(20, 18, 16, 0.42);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  transition: background 200ms ease, transform 200ms cubic-bezier(0.22,1,0.36,1);
+}
+.tapi-story__icon:hover { background: rgba(20, 18, 16, 0.62); }
+.tapi-story__icon:active { transform: scale(0.94); }
+.tapi-story__icon:focus-visible { outline: 2px solid var(--mor-cream, #f8f4ed); outline-offset: 2px; }
+
+/* Left / right tap zones for prev / next (invisible, above the video). */
+.tapi-story__tap {
+  position: absolute; top: 64px; bottom: 24%; z-index: 3;
+  width: 32%; border: 0; background: transparent; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tapi-story__tap--prev { left: 0; }
+.tapi-story__tap--next { right: 0; }
+.tapi-story__tap:focus-visible { outline: 2px solid rgba(248,244,237,0.6); outline-offset: -6px; }
+
+/* Bottom product card — frosted, sits over the clip. */
+.tapi-story__card {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 12px;
+  background: linear-gradient(180deg, rgba(12,10,9,0) 0%, rgba(12,10,9,0.72) 46%, rgba(12,10,9,0.92) 100%);
+}
+.tapi-story__card-top { display: flex; align-items: center; gap: 12px; }
+.tapi-story__thumb { flex: 0 0 auto; width: 52px; height: 66px; border-radius: 6px; overflow: hidden; background: var(--mor-charcoal-2, #2c2826); display: block; }
+.tapi-story__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tapi-story__meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tapi-story__title { font-family: var(--font-heading-family); font-size: var(--fs-lg); font-weight: 500; color: var(--mor-cream, #f8f4ed); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tapi-story__price { font-family: var(--font-body-family); font-size: var(--fs-sm); font-weight: 600; color: rgba(248,244,237,0.92); font-variant-numeric: tabular-nums; }
+.tapi-story__view {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--mor-cream, #f8f4ed); background: rgba(248, 244, 237, 0.14);
+  border: 1px solid rgba(248, 244, 237, 0.28); text-decoration: none;
+  transition: background 200ms ease, transform 200ms cubic-bezier(0.22,1,0.36,1);
+}
+.tapi-story__view:hover { background: rgba(248, 244, 237, 0.24); }
+.tapi-story__view:active { transform: scale(0.94); }
+.tapi-story__view:focus-visible { outline: 2px solid var(--mor-cream, #f8f4ed); outline-offset: 2px; }
+
+/* Size chips. */
+.tapi-story__sizes { display: flex; flex-wrap: wrap; gap: 7px; }
+.tapi-story__sizes:empty { display: none; }
+.tapi-story__size {
+  min-width: 40px; height: 34px; padding: 0 10px; border-radius: 4px; cursor: pointer;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--mor-cream, #f8f4ed); background: rgba(248, 244, 237, 0.1);
+  border: 1px solid rgba(248, 244, 237, 0.3); font-variant-numeric: tabular-nums;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.tapi-story__size:hover { border-color: rgba(248, 244, 237, 0.6); }
+.tapi-story__size.is-active { background: var(--mor-cream, #f8f4ed); color: var(--mor-charcoal, #2c2826); border-color: var(--mor-cream, #f8f4ed); }
+.tapi-story__size[disabled] { opacity: 0.34; text-decoration: line-through; cursor: not-allowed; }
+.tapi-story__size:focus-visible { outline: 2px solid var(--mor-cream, #f8f4ed); outline-offset: 2px; }
+
+/* Add to cart. */
+.tapi-story__atc {
+  height: 48px; border: 0; border-radius: var(--mor-radius-sm, 4px); cursor: pointer;
+  font-family: var(--font-body-family); font-size: var(--fs-xs); font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--mor-cream, #f8f4ed); background: var(--mor-primary, #3f5540);
+  transition: background 200ms ease, opacity 200ms ease;
+}
+.tapi-story__atc:hover:not([disabled]) { background: var(--mor-accent, #b7472a); }
+.tapi-story__atc[disabled] { opacity: 0.5; cursor: not-allowed; }
+.tapi-story__atc.is-loading { opacity: 0.7; cursor: progress; }
+.tapi-story__atc.is-added { background: var(--mor-primary, #3f5540); }
+.tapi-story__atc:focus-visible { outline: 2px solid var(--mor-cream, #f8f4ed); outline-offset: 2px; }
+
+body.tapi-story-lock { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-story, .tapi-story__stage, .tapi-story__icon, .tapi-story__view { transition: none; }
+  .tapi-story__stage { transform: none; }
+}
+
+/* ---- PDP floating video bubble (P2) — a small looping preview that opens
+   the same player. Lives inside a [data-story-scope] on the product page. ---- */
+.tapi-vbubble {
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 60;
+  width: 66px; height: 66px; border-radius: 50%; overflow: hidden; cursor: pointer;
+  border: 2px solid var(--mor-cream, #f8f4ed); padding: 0; background: var(--mor-charcoal-2, #2c2826);
+  box-shadow: 0 8px 26px -8px rgba(12, 10, 9, 0.5);
+  transition: transform 240ms cubic-bezier(0.22,1,0.36,1), opacity 240ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tapi-vbubble:hover { transform: scale(1.06); }
+.tapi-vbubble:active { transform: scale(0.95); }
+.tapi-vbubble:focus-visible { outline: 2px solid var(--mor-accent, #b7472a); outline-offset: 3px; }
+.tapi-vbubble__video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tapi-vbubble__badge {
+  position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--mor-accent, #b7472a); color: var(--mor-cream, #f8f4ed);
+  border: 2px solid var(--mor-cream, #f8f4ed);
+}
+/* Lift above the PDP mobile buy bar when present. */
+@media (max-width: 749px) {
+  .tapi-vbubble { bottom: calc(84px + env(safe-area-inset-bottom)); width: 58px; height: 58px; }
+}
+.tapi-vbubble[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .tapi-vbubble { transition: none; } }

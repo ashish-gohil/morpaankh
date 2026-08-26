@@ -393,6 +393,34 @@
         "eyebrow": "From our customers",
         "heading": "Worn and loved"
       }
+    },
+    "tapi_watch_buy": {
+      "type": "tapi-watch-buy",
+      "blocks": {
+        "clip_1": {
+          "type": "clip",
+          "settings": {}
+        },
+        "clip_2": {
+          "type": "clip",
+          "settings": {}
+        },
+        "clip_3": {
+          "type": "clip",
+          "settings": {}
+        },
+        "clip_4": {
+          "type": "clip",
+          "settings": {}
+        }
+      },
+      "block_order": [
+        "clip_1",
+        "clip_2",
+        "clip_3",
+        "clip_4"
+      ],
+      "settings": {}
     }
   },
   "order": [
@@ -400,6 +428,7 @@
     "tapi_hero",
     "tapi_collection_tiles",
     "tapi_featured",
+    "tapi_watch_buy",
     "story",
     "studio_strip",
     "tapi_testimonials",
