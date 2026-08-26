@@ -43,6 +43,11 @@
 
 {% stylesheet %}
   .tapi-collection-tiles { background: var(--mor-surface-2); }
+  /* On phones the hero is image-only with 0 bottom padding; sit the wardrobe
+     right beneath it with just a small breath, no dead band. */
+  @media (max-width: 749px) {
+    .tapi-collection-tiles { padding-top: 1.2rem !important; }
+  }
   .tapi-collection-tiles__head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 4.8rem; gap: 3.2rem; flex-wrap: wrap; }
   .tapi-collection-tiles__heading { font-family: var(--font-heading-family); font-size: var(--mor-h2); margin: 1.2rem 0 0; font-weight: 500; letter-spacing: -0.012em; }
   .tapi-collection-tiles__intro { color: var(--mor-text-muted); font-size: var(--mor-text-base); line-height: var(--mor-leading-body); max-width: 36rem; margin: 0; }

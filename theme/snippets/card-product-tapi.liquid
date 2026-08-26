@@ -90,8 +90,13 @@
       </div>
     {%- endif -%}
 
-    {%- comment -%} Sold out rides bottom-left ON the photo (frosted chip, same
-        treatment as the wishlist heart). {%- endcomment -%}
+    {%- comment -%} One small glass status chip (bestseller/festive), bottom-right
+        of the photo, floating just above the size bar. {%- endcomment -%}
+    {%- if status_label != blank -%}
+      <span class="tapi-tag tapi-tag--glass tapi-card__tag" aria-hidden="true">{{ status_label }}</span>
+    {%- endif -%}
+
+    {%- comment -%} Sold out rides bottom-left ON the photo. {%- endcomment -%}
     {%- if product.available == false -%}
       <span class="tapi-card__state tapi-card__state--soldout">Sold out</span>
     {%- endif -%}
@@ -99,12 +104,10 @@
 
   {% render 'tapi-wishlist-button', product: product, variant: 'card' %}
 
-  {%- comment -%} Top-left stack: one glass status chip (bestseller/festive) over
-      the discount badge. One relevant tag per image, matching the header glass. {%- endcomment -%}
-  {%- if status_label != blank or saving_pct > 0 -%}
+  {%- comment -%} Discount % badge, top-left — always first / most prominent. {%- endcomment -%}
+  {%- if saving_pct > 0 -%}
   <div class="tapi-card__badges">
-    {%- if status_label != blank -%}<span class="tapi-tag tapi-tag--glass">{{ status_label }}</span>{%- endif -%}
-    {%- if saving_pct > 0 -%}<span class="tapi-card__savings">–{{ saving_pct }}%</span>{%- endif -%}
+    <span class="tapi-card__savings">–{{ saving_pct }}%</span>
   </div>
   {%- endif -%}
 
@@ -166,16 +169,19 @@
   /* Very small, boxy, borderless glass chip — mirrors the frosted header
      (translucent cream-2 + backdrop blur), a touch more see-through. */
   .tapi-tag {
-    display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
-    font-size: var(--fs-2xs); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+    display: inline-flex; align-items: center; height: 17px; padding: 0 5px;
+    font-size: var(--fs-2xs); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
     border-radius: 2px;
   }
   .tapi-tag--glass {
-    background: rgba(239, 230, 212, 0.72);
-    -webkit-backdrop-filter: saturate(1.08) blur(12px);
-    backdrop-filter: saturate(1.08) blur(12px);
+    background: rgba(239, 230, 212, 0.62);
+    -webkit-backdrop-filter: saturate(1.08) blur(14px);
+    backdrop-filter: saturate(1.08) blur(14px);
     color: var(--mor-charcoal);
   }
+  /* Status chip floats bottom-right, just above the size bar; fades on hover. */
+  .tapi-card__tag { position: absolute; right: 12px; bottom: 38px; z-index: 2; pointer-events: none; transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease); }
+  .tapi-card__media:hover .tapi-card__tag { opacity: 0; }
 
   .tapi-card__quick {
     position: absolute; inset: 0; z-index: 3;
@@ -257,9 +263,9 @@
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
     display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
     gap: 0.4rem 0.9rem; padding: 7px 10px;
-    background: rgba(239, 230, 212, 0.58);
-    -webkit-backdrop-filter: saturate(1.06) blur(10px);
-    backdrop-filter: saturate(1.06) blur(10px);
+    background: rgba(239, 230, 212, 0.38);
+    -webkit-backdrop-filter: saturate(1.08) blur(14px);
+    backdrop-filter: saturate(1.08) blur(14px);
     pointer-events: none;
     transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease), transform 480ms var(--mor-ease);
   }
@@ -293,6 +299,7 @@
     /* Tighter insets + a more compact size bar on small 2-up cards. */
     .tapi-card__state { bottom: 8px; left: 8px; }
     .tapi-card__badges { top: 8px; left: 8px; }
+    .tapi-card__tag { right: 8px; bottom: 34px; }
     .tapi-card__sizes { padding: 6px 8px; gap: 0.3rem 0.7rem; }
   }
 {% endstylesheet %}

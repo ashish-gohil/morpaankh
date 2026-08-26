@@ -70,10 +70,13 @@
     scroll-snap-type: x proximity;
     scroll-padding-left: 0;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(44, 40, 38, 0.22) transparent;
     scroll-behavior: smooth;
   }
-  .tapi-collection-tiles__grid::-webkit-scrollbar { display: none; }
+  .tapi-collection-tiles__grid::-webkit-scrollbar { height: 4px; }
+  .tapi-collection-tiles__grid::-webkit-scrollbar-track { background: transparent; }
+  .tapi-collection-tiles__grid::-webkit-scrollbar-thumb { background: rgba(44, 40, 38, 0.2); border-radius: 4px; }
   .tapi-collection-tiles__grid > .tapi-tile {
     flex: 0 0 30rem;
     max-width: 82vw;
