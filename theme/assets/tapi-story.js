@@ -47,6 +47,14 @@
         if (btn) { btn.classList.remove('is-loading'); btn.disabled = false; }
         if (res && res.status) { return; }
         if (notif && notif.renderContents) { try { notif.renderContents(res); } catch (e) {} }
+        // Keep the cart page + counts in sync when added from this overlay.
+        if (window.location.pathname.indexOf('/cart') !== -1) { window.location.reload(); return; }
+        fetch('/cart.js', { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (c) {
+            var n = c.item_count || 0;
+            document.querySelectorAll('[data-cart-count]').forEach(function (el) { el.textContent = n; el.toggleAttribute('hidden', n === 0); });
+          }).catch(function () {});
         if (btn) {
           btn.classList.add('is-added');
           var prev = btn.getAttribute('data-label') || 'Add to cart';

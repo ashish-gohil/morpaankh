@@ -35,3 +35,10 @@
 .menu-drawer-container:not([open]) .menu-drawer {
   display: none;
 }
+
+/* Mobile: tighten the gap between the right-side header icons only (narrow the
+   icon boxes; glyphs keep their size). */
+@media (max-width: 749px) {
+  .header__icons .header__icon .svg-wrapper { width: 36px; }
+  .header__icons { padding-right: 0.4rem; }
+}

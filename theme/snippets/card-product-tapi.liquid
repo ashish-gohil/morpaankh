@@ -160,18 +160,18 @@
   .tapi-card:hover .tapi-card__img--back  { opacity: 1; transform: scale(1); }
 
   /* Top-left stack: one glass status chip over the (rare) discount badge. */
-  .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; z-index: 2; pointer-events: none; }
+  .tapi-card__badges { position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; z-index: 2; pointer-events: none; }
   .tapi-card__savings {
-    display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
-    font-size: var(--fs-2xs); letter-spacing: 0.04em; font-weight: 600; border-radius: 2px;
+    display: inline-flex; align-items: center; height: 14px; padding: 0 4px;
+    font-size: var(--fs-2xs); letter-spacing: 0.02em; font-weight: 600; border-radius: 0;
     background: var(--mor-accent); color: var(--mor-cream); font-variant-numeric: tabular-nums;
   }
   /* Very small, boxy, borderless glass chip — mirrors the frosted header
      (translucent cream-2 + backdrop blur), a touch more see-through. */
   .tapi-tag {
-    display: inline-flex; align-items: center; height: 15px; padding: 0 5px;
-    font-size: var(--fs-2xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: 600;
-    border-radius: 2px;
+    display: inline-flex; align-items: center; height: 14px; padding: 0 4px;
+    font-size: var(--fs-2xs); letter-spacing: 0.02em; text-transform: uppercase; font-weight: 600;
+    border-radius: 0;
   }
   .tapi-tag--glass {
     background: rgba(250, 248, 244, 0.74);
@@ -181,7 +181,7 @@
   }
   /* Status chip: flush to the card's right edge (zero right margin), just above
      the size bar; rounded on the inner side only; fades on hover. */
-  .tapi-card__tag { position: absolute; right: 0; bottom: 38px; z-index: 2; border-radius: 2px 0 0 2px; pointer-events: none; transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease); }
+  .tapi-card__tag { position: absolute; right: 0; bottom: 24px; z-index: 2; border-radius: 0; pointer-events: none; transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease); }
   .tapi-card__media:hover .tapi-card__tag { opacity: 0; }
 
   .tapi-card__quick {
@@ -299,8 +299,8 @@
     .tapi-card__price-was { font-size: var(--fs-xs); }
     /* Tighter insets + a more compact size bar on small 2-up cards. */
     .tapi-card__state { bottom: 8px; left: 8px; }
-    .tapi-card__badges { top: 8px; left: 8px; }
-    .tapi-card__tag { right: 0; bottom: 34px; }
+    .tapi-card__badges { top: 0; left: 0; }
+    .tapi-card__tag { right: 0; bottom: 22px; }
     .tapi-card__sizes { padding: 6px 8px; gap: 0.3rem 0.7rem; }
   }
 {% endstylesheet %}

@@ -430,3 +430,27 @@
 .tapi-promise__intro {
   margin-bottom: clamp(2.6rem, 4vw, 4rem) !important;
 }
+
+/* Visible thin header-glass scrollbars on the horizontal rails, at ALL
+   breakpoints (Android/desktop render styled webkit scrollbars; iOS uses
+   overlay). Faint track so the bar reads whenever content overflows; native
+   overflow:auto keeps it hidden when it does not. */
+.tapi-collection-tiles__grid,
+.tapi-rv__grid,
+.tapi-watchbuy__rail,
+.tapi-catalog-strip__row {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(44, 40, 38, 0.3) rgba(44, 40, 38, 0.07) !important;
+}
+.tapi-collection-tiles__grid::-webkit-scrollbar,
+.tapi-rv__grid::-webkit-scrollbar,
+.tapi-watchbuy__rail::-webkit-scrollbar,
+.tapi-catalog-strip__row::-webkit-scrollbar { height: 4px !important; }
+.tapi-collection-tiles__grid::-webkit-scrollbar-track,
+.tapi-rv__grid::-webkit-scrollbar-track,
+.tapi-watchbuy__rail::-webkit-scrollbar-track,
+.tapi-catalog-strip__row::-webkit-scrollbar-track { background: rgba(44, 40, 38, 0.07) !important; }
+.tapi-collection-tiles__grid::-webkit-scrollbar-thumb,
+.tapi-rv__grid::-webkit-scrollbar-thumb,
+.tapi-watchbuy__rail::-webkit-scrollbar-thumb,
+.tapi-catalog-strip__row::-webkit-scrollbar-thumb { background: rgba(44, 40, 38, 0.3) !important; border-radius: 4px !important; }
