@@ -264,6 +264,10 @@
       }
       self.sizesEl.appendChild(chip);
     });
+
+    // Preselect the first in-stock size so Add to cart is usable right away.
+    var firstChip = self.sizesEl.querySelector('.tapi-story__size:not([disabled])');
+    if (firstChip) firstChip.click();
   };
 
   Player.prototype.next = function () { this.load(this.index + 1); };

@@ -21,12 +21,12 @@
 .tapi-wishlist--card {
   position: absolute; top: 10px; right: 10px; z-index: 4;
   width: 28px; height: 28px; padding: 0; border-radius: 50%;
-  background: rgba(239, 230, 212, 0.28); border: 0; box-shadow: none;
+  background: rgba(230, 206, 194, 0.34); border: 0; box-shadow: none;
   backdrop-filter: saturate(1.08) blur(10px); -webkit-backdrop-filter: saturate(1.08) blur(10px);
   transition: background 200ms, transform 220ms cubic-bezier(0.22,1,0.36,1), color 220ms;
 }
 .tapi-wishlist--card .tapi-wishlist__heart { width: 16px; height: 16px; }
-.tapi-wishlist--card:hover { background: rgba(239, 230, 212, 0.44); transform: scale(1.08); }
+.tapi-wishlist--card:hover { background: rgba(230, 206, 194, 0.5); transform: scale(1.08); }
 .tapi-wishlist--card:active { transform: scale(0.94); }
 
 /* PDP pill (icon + label) */

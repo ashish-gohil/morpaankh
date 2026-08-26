@@ -62,6 +62,9 @@
 .tapi-story__icon:hover { background: rgba(20, 18, 16, 0.62); }
 .tapi-story__icon:active { transform: scale(0.94); }
 .tapi-story__icon:focus-visible { outline: 2px solid var(--mor-cream, #f8f4ed); outline-offset: 2px; }
+/* Hide the inactive mute/sound glyph reliably (a global svg display rule can beat
+   the bare [hidden] attribute, which showed both icons). */
+.tapi-story__icon svg[hidden] { display: none !important; }
 
 /* Left / right tap zones for prev / next (invisible, above the video). */
 .tapi-story__tap {
@@ -117,11 +120,12 @@
   height: 48px; border: 0; border-radius: var(--mor-radius-sm, 4px); cursor: pointer;
   font-family: var(--font-body-family); font-size: var(--fs-xs); font-weight: 600;
   letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--mor-cream, #f8f4ed); background: var(--mor-primary, #3f5540);
-  transition: background 200ms ease, opacity 200ms ease;
+  color: var(--mor-cream, #f8f4ed) !important;
+  background: var(--mor-primary, #3f5540) !important;
+  transition: background 200ms ease;
 }
-.tapi-story__atc:hover:not([disabled]) { background: var(--mor-accent, #b7472a); }
-.tapi-story__atc[disabled] { opacity: 0.5; cursor: not-allowed; }
+.tapi-story__atc:hover:not([disabled]) { background: var(--mor-accent, #b7472a) !important; }
+.tapi-story__atc[disabled] { background: rgba(248, 244, 237, 0.18) !important; color: rgba(248, 244, 237, 0.55) !important; cursor: not-allowed; }
 .tapi-story__atc.is-loading { opacity: 0.7; cursor: progress; }
 .tapi-story__atc.is-added { background: var(--mor-primary, #3f5540); }
 .tapi-story__atc:focus-visible { outline: 2px solid var(--mor-cream, #f8f4ed); outline-offset: 2px; }
@@ -136,7 +140,7 @@ body.tapi-story-lock { overflow: hidden; }
 /* ---- PDP floating video bubble (P2) — a small looping preview that opens
    the same player. Lives inside a [data-story-scope] on the product page. ---- */
 .tapi-vbubble {
-  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 60;
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 90;
   width: 66px; height: 66px; border-radius: 50%; overflow: hidden; cursor: pointer;
   border: 2px solid var(--mor-cream, #f8f4ed); padding: 0; background: var(--mor-charcoal-2, #2c2826);
   box-shadow: 0 8px 26px -8px rgba(12, 10, 9, 0.5);
