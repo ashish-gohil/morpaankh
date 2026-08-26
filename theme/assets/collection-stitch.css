@@ -41,3 +41,14 @@
   padding-top: var(--space-sm) !important;
   padding-bottom: var(--section-pad-sm) !important;
 }
+
+/* Mobile catalog strip on collection pages.
+   The strip section carries its own visibility CSS (nav hidden by default,
+   shown at <=989px), so it already reads as mobile-only. This is a
+   belt-and-suspenders desktop hide of the section WRAPPER on collection
+   pages, so it never occupies layout on desktop even if the section's own
+   stylesheet loads after this one. The homepage hides it via the hero
+   section's stylesheet, which is not present here. */
+@media (min-width: 990px) {
+  .shopify-section--catalog-strip { display: none !important; }
+}

@@ -1,5 +1,93 @@
 {
   "sections": {
+    "tapi_catalog_strip": {
+      "type": "tapi-catalog-strip",
+      "blocks": {
+        "coord": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "",
+            "link": "shopify://collections/co-ord-sets",
+            "label": "Co-ord Sets",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM_1.jpg",
+            "placeholder_name": "Co",
+            "tint": "#7a8761"
+          }
+        },
+        "three_piece": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "",
+            "link": "shopify://collections/kurta-sets",
+            "label": "Kurta Sets",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM.jpg",
+            "placeholder_name": "3",
+            "tint": "#b7472a"
+          }
+        },
+        "one_piece": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "one-piece",
+            "link": "",
+            "label": "One Piece",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-06-27_at_2.16.34_PM.jpg",
+            "placeholder_name": "One",
+            "tint": "#9d3c23"
+          }
+        },
+        "short_kurti": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "short-kurti",
+            "link": "shopify://collections/short-kurti",
+            "label": "Short Kurti",
+            "image": "shopify://shop_images/photo_6219828727785394378_x.jpg",
+            "placeholder_name": "Short Kurti",
+            "tint": "#8a6d3b"
+          }
+        },
+        "festive": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "",
+            "link": "shopify://collections/festive",
+            "label": "Festive",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM.jpg",
+            "placeholder_name": "F",
+            "tint": "#b08947"
+          }
+        },
+        "newin": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "",
+            "link": "shopify://collections/new-arrivals",
+            "label": "New Arrivals",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM_1.jpg",
+            "placeholder_name": "N",
+            "tint": "#3a3633"
+          }
+        }
+      },
+      "block_order": [
+        "coord",
+        "three_piece",
+        "one_piece",
+        "short_kurti",
+        "festive",
+        "newin"
+      ],
+      "settings": {
+        "aria_label": "Shop by category"
+      }
+    },
     "banner": {
       "type": "main-collection-banner",
       "settings": {
@@ -28,6 +116,7 @@
     }
   },
   "order": [
+    "tapi_catalog_strip",
     "banner",
     "product-grid"
   ]
