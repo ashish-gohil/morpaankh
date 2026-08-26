@@ -1,9 +1,10 @@
 {%- comment -%}
   /collections/all is Shopify's virtual "all" collection, whose default sort order
   cannot be set from the admin. So when a shopper lands on it with no explicit sort,
-  send them to newest-first (created-descending) so new arrivals lead the page. Any
-  real sort chosen from the dropdown carries its own sort_by param and is left alone,
-  so there is no redirect loop and the shopper's choice always wins.
+  send them to best-selling so proven sellers lead the all-products page. (New arrivals
+  still lead the HOME grid, which is a separate section and unaffected.) Any real sort
+  chosen from the dropdown carries its own sort_by param and is left alone, so there is
+  no redirect loop and the shopper's choice always wins.
 {%- endcomment -%}
 {%- if collection.handle == 'all' and collection.sort_by == blank -%}
   <script>
@@ -11,7 +12,7 @@
       try {
         var url = new URL(window.location.href);
         if (!url.searchParams.has('sort_by')) {
-          url.searchParams.set('sort_by', 'created-descending');
+          url.searchParams.set('sort_by', 'best-selling');
           window.location.replace(url.toString());
         }
       } catch (e) {}

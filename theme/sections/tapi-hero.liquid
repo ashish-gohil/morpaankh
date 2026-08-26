@@ -511,6 +511,25 @@
     .tapi-hero__cta-secondary { width: 100%; justify-content: center; }
   }
 
+  /* ===== Phones + tablets (< 990px): image-only hero =====
+     Drop the eyebrow, lede, CTAs and trust strip so the hero is just the
+     photograph and products are a tap away (the brand story now lives in the
+     studio note near the bottom). The H1 stays a real, indexable heading —
+     visually hidden, not display:none — so the homepage keeps its sole H1 for
+     SEO and screen readers. The desktop overlay (>= 990px) is unchanged. */
+  @media (max-width: 989px) {
+    .tapi-hero__eyebrow,
+    .tapi-hero__lede,
+    .tapi-hero__cta-row,
+    .tapi-hero__trust { display: none !important; }
+    .tapi-hero__overlay { padding: 0 !important; background: transparent !important; }
+    .tapi-hero__title {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+    }
+    .tapi-hero { padding-bottom: 0 !important; }
+  }
+
   /* Reduced motion: no zoom, instant crossfade */
   @media (prefers-reduced-motion: reduce) {
     .tapi-hero__slide,

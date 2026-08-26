@@ -1,9 +1,8 @@
 {% doc %}
-  Tapi-branded product card with dual-image cross-fade hover, lift, quick-view CTA,
-  badge stack, compare-at savings %, color dots from tapi.color_options metafield,
-  and rating/GSM/low-stock meta.
+  Tapi-branded product card with dual-image cross-fade hover, quick-view CTA, one
+  glass status chip (bestseller/festive), compare-at savings %, an on-image glass
+  size bar (sold-out sizes dimmed), and color dots from tapi.color_options.
   @param {object} product - The product to render.
-  @param {boolean} [suppress_new] - Optional; when true, hides the "New" status tag (e.g. on a "New Arrivals" row where it would be redundant).
   @example
   {% render 'card-product-tapi', product: product %}
 {% enddoc %}
@@ -17,10 +16,33 @@
   {%- assign diff = compare | minus: price -%}
   {%- assign saving_pct = diff | times: 100.0 | divided_by: compare | round -%}
 {%- endif -%}
-{%- assign low_stock = false -%}
-{%- for v in product.variants -%}
-  {%- if v.inventory_quantity > 0 and v.inventory_quantity <= 3 -%}{%- assign low_stock = true -%}{%- endif -%}
+{%- comment -%} One status chip max (bestseller wins, else festive). "New" is
+    intentionally NOT shown as a badge anywhere: the "New in" heading already
+    signals it and the grids order newest-first. {%- endcomment -%}
+{%- assign status_label = '' -%}
+{%- if product.tags contains 'bestseller' -%}
+  {%- assign status_label = 'Bestseller' -%}
+{%- elsif product.tags contains 'festive' -%}
+  {%- assign status_label = 'Festive' -%}
+{%- endif -%}
+
+{%- comment -%} Size availability for the on-image size bar. Find the "Size"
+    option, then list which of its values have at least one in-stock variant so
+    the card can dim the sold-out sizes without a PDP visit. {%- endcomment -%}
+{%- assign size_opt = null -%}
+{%- for opt in product.options_with_values -%}
+  {%- assign oname = opt.name | downcase -%}
+  {%- if oname == 'size' -%}{%- assign size_opt = opt -%}{%- endif -%}
 {%- endfor -%}
+{%- assign avail_sizes = ',' -%}
+{%- if size_opt -%}
+  {%- assign size_pos = size_opt.position | minus: 1 -%}
+  {%- for v in product.variants -%}
+    {%- if v.available -%}
+      {%- assign avail_sizes = avail_sizes | append: v.options[size_pos] | append: ',' -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
 
 <article class="tapi-card">
   <a class="tapi-card__media" href="{{ product.url }}" aria-label="{{ product.title }}">
@@ -54,32 +76,35 @@
       <span class="tapi-card__quick-btn">Quick view <em>→</em></span>
     </div>
 
-    {%- comment -%} Status tags (new, bestseller, festive…) sit bottom-right of the image. They live inside the media so they anchor to the photo (not the card), and fade on hover so the Quick view CTA owns that space. {%- endcomment -%}
-    {%- capture status_tags -%}
-      {%- unless suppress_new -%}{%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}{%- endunless -%}
-      {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
-      {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
-    {%- endcapture -%}
-    {%- if status_tags != blank -%}
-    <div class="tapi-card__tags" aria-hidden="true">{{ status_tags }}</div>
+    {%- comment -%} Size bar: glass strip along the bottom of the photo listing
+        every size, sold-out ones dimmed + struck, so shoppers scan fit without
+        opening each PDP. Skipped when the whole product is sold out (the Sold
+        out chip covers that) or when there is no Size option. aria-hidden — the
+        PDP carries the accessible size picker. {%- endcomment -%}
+    {%- if product.available and size_opt and size_opt.values.size > 0 -%}
+      <div class="tapi-card__sizes" aria-hidden="true">
+        {%- for sv in size_opt.values -%}
+          {%- assign svkey = ',' | append: sv | append: ',' -%}
+          <span class="tapi-card__size{% unless avail_sizes contains svkey %} tapi-card__size--sold{% endunless %}">{{ sv }}</span>
+        {%- endfor -%}
+      </div>
     {%- endif -%}
 
-    {%- comment -%} Availability state rides bottom-left ON the photo (frosted
-        chip, same treatment as the wishlist heart) so the info block below
-        stays a fixed-height title + price unit and card bottoms align. {%- endcomment -%}
+    {%- comment -%} Sold out rides bottom-left ON the photo (frosted chip, same
+        treatment as the wishlist heart). {%- endcomment -%}
     {%- if product.available == false -%}
       <span class="tapi-card__state tapi-card__state--soldout">Sold out</span>
-    {%- elsif low_stock -%}
-      <span class="tapi-card__state tapi-card__state--low"><span class="tapi-card__pulse"></span>Selling fast</span>
     {%- endif -%}
   </a>
 
   {% render 'tapi-wishlist-button', product: product, variant: 'card' %}
 
-  {%- comment -%} Discount badge stays top-left. {%- endcomment -%}
-  {%- if saving_pct > 0 -%}
+  {%- comment -%} Top-left stack: one glass status chip (bestseller/festive) over
+      the discount badge. One relevant tag per image, matching the header glass. {%- endcomment -%}
+  {%- if status_label != blank or saving_pct > 0 -%}
   <div class="tapi-card__badges">
-    <span class="tapi-card__savings">–{{ saving_pct }}%</span>
+    {%- if status_label != blank -%}<span class="tapi-tag tapi-tag--glass">{{ status_label }}</span>{%- endif -%}
+    {%- if saving_pct > 0 -%}<span class="tapi-card__savings">–{{ saving_pct }}%</span>{%- endif -%}
   </div>
   {%- endif -%}
 
@@ -131,19 +156,26 @@
   .tapi-card:hover .tapi-card__img--front img { transform: scale(1.03); }
   .tapi-card:hover .tapi-card__img--back  { opacity: 1; transform: scale(1); }
 
-  .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; pointer-events: none; }
-  .tapi-card__tags { position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; z-index: 2; pointer-events: none; transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease); }
-  .tapi-card__media:hover .tapi-card__tags { opacity: 0; }
+  /* Top-left stack: one glass status chip over the (rare) discount badge. */
+  .tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; z-index: 2; pointer-events: none; }
   .tapi-card__savings {
-    align-self: flex-start;
-    display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
-    font-size: var(--fs-xs); letter-spacing: 0.06em; font-weight: 500; border-radius: var(--mor-radius-pill);
+    display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+    font-size: var(--fs-2xs); letter-spacing: 0.04em; font-weight: 600; border-radius: 2px;
     background: var(--mor-accent); color: var(--mor-cream); font-variant-numeric: tabular-nums;
   }
-  .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: var(--mor-radius-pill); }
-  .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }
-  .tapi-tag--sage       { background: var(--tapi-sage-wash); color: var(--tapi-sage-deep); }
-  .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
+  /* Very small, boxy, borderless glass chip — mirrors the frosted header
+     (translucent cream-2 + backdrop blur), a touch more see-through. */
+  .tapi-tag {
+    display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+    font-size: var(--fs-2xs); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+    border-radius: 2px;
+  }
+  .tapi-tag--glass {
+    background: rgba(239, 230, 212, 0.72);
+    -webkit-backdrop-filter: saturate(1.08) blur(12px);
+    backdrop-filter: saturate(1.08) blur(12px);
+    color: var(--mor-charcoal);
+  }
 
   .tapi-card__quick {
     position: absolute; inset: 0; z-index: 3;
@@ -210,20 +242,33 @@
     pointer-events: none;
     transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease);
   }
-  .tapi-card__state--low {
-    background: rgba(248, 244, 237, 0.92);
-    border: 1px solid var(--tapi-hairline-2);
-    color: var(--tapi-terracotta-deep);
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  }
   .tapi-card__state--soldout {
     background: var(--tapi-charcoal);
     color: var(--tapi-cream);
   }
   .tapi-card__media:hover .tapi-card__state { opacity: 0; }
-  .tapi-card__pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta); animation: tapi-pulse 2.2s ease-in-out infinite; }
-  @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.6; } }
-  @media (prefers-reduced-motion: reduce) { .tapi-card__pulse { animation: none; } }
+
+  /* Size bar — glass strip across the bottom of the photo (same frosted
+     treatment as the header, a touch more transparent). Sizes read at a glance;
+     sold-out ones dim + strike. Non-interactive (taps fall through to the PDP
+     link). Fades + drops on hover so the Quick view CTA owns the bottom on
+     desktop; on touch there is no Quick view, so it always shows. */
+  .tapi-card__sizes {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+    gap: 0.4rem 0.9rem; padding: 7px 10px;
+    background: rgba(239, 230, 212, 0.58);
+    -webkit-backdrop-filter: saturate(1.06) blur(10px);
+    backdrop-filter: saturate(1.06) blur(10px);
+    pointer-events: none;
+    transition: opacity var(--mor-dur-base, 240ms) var(--mor-ease), transform 480ms var(--mor-ease);
+  }
+  .tapi-card__size {
+    font-size: var(--fs-2xs); letter-spacing: 0.04em; font-weight: 600; line-height: 1;
+    color: var(--mor-charcoal); text-transform: uppercase; font-variant-numeric: tabular-nums;
+  }
+  .tapi-card__size--sold { opacity: 0.42; text-decoration: line-through; }
+  .tapi-card__media:hover .tapi-card__sizes { opacity: 0; transform: translateY(100%); }
 
   @media (hover: none) and (pointer: coarse) {
     .tapi-card__quick { display: none; }
@@ -245,23 +290,9 @@
     .tapi-card__price { gap: 0.6rem; }
     .tapi-card__price-now { font-size: var(--fs-base); }
     .tapi-card__price-was { font-size: var(--fs-xs); }
-    /* With room (tablet 2-up), keep the availability chip (left) and status
-       tags (right) on one bottom line, symmetrically inset from each edge. */
+    /* Tighter insets + a more compact size bar on small 2-up cards. */
     .tapi-card__state { bottom: 8px; left: 8px; }
-    .tapi-card__tags  { bottom: 8px; right: 8px; }
-  }
-
-  /* Phone 2-up cards are too narrow to seat a wide chip like "Selling fast" and
-     a status tag at opposite edges without them colliding across the middle. So
-     when BOTH are present, lift the tags to stack directly above the chip on the
-     left edge. When there's no availability chip, the tag keeps the bottom-right
-     corner (no collision to solve). */
-  @media (max-width: 480px) {
-    .tapi-card__media:has(.tapi-card__state) .tapi-card__tags {
-      left: 8px;
-      right: auto;
-      bottom: 38px;
-      align-items: flex-start;
-    }
+    .tapi-card__badges { top: 8px; left: 8px; }
+    .tapi-card__sizes { padding: 6px 8px; gap: 0.3rem 0.7rem; }
   }
 {% endstylesheet %}

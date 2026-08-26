@@ -38,7 +38,7 @@
           {%- for product in first_coll.products -%}
             {%- if shown >= max -%}{%- break -%}{%- endif -%}
             <div data-tapi-reveal>
-              {%- render 'card-product-tapi', product: product, suppress_new: true -%}
+              {%- render 'card-product-tapi', product: product -%}
             </div>
             {%- assign shown = shown | plus: 1 -%}
             {%- assign seen = seen | append: product.id | append: ',' -%}
@@ -50,7 +50,7 @@
             {%- assign pid = ',' | append: product.id | append: ',' -%}
             {%- unless seen contains pid -%}
               <div data-tapi-reveal>
-                {%- render 'card-product-tapi', product: product, suppress_new: true -%}
+                {%- render 'card-product-tapi', product: product -%}
               </div>
               {%- assign shown = shown | plus: 1 -%}
               {%- assign seen = seen | append: product.id | append: ',' -%}
