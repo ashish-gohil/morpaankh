@@ -1,0 +1,80 @@
+{%- comment -%}
+  PDP floating video bubble. Shows a small muted looping preview of the current
+  product's own video (first VIDEO in its media) fixed to the bottom-right of the
+  product page. Tapping it opens the shared story-style player
+  (snippets/tapi-story-player.liquid + assets/tapi-story.*) — the same player the
+  home Watch & Buy rail uses. Renders nothing when the product has no video, so
+  it self-populates as videos are added to products.
+{%- endcomment -%}
+{%- liquid
+  assign pvsrc = ''
+  assign pvpre = ''
+  for media in product.media
+    if media.media_type == 'video' and pvsrc == blank
+      for s in media.sources
+        if s.format == 'mp4'
+          assign pvsrc = s.url
+        endif
+      endfor
+      assign pvpre = media.preview_image
+    endif
+  endfor
+  assign spos = 0
+  assign size_found = false
+  for opt in product.options_with_values
+    assign onm = opt.name | downcase
+    if onm == 'size'
+      assign spos = opt.position | minus: 1
+      assign size_found = true
+    endif
+  endfor
+-%}
+
+{%- if section.settings.enable and pvsrc != blank -%}
+  {{ 'tapi-story.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'tapi-story.js' | asset_url }}" defer></script>
+
+  {%- assign vjson = '[]' -%}
+  {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
+
+  <div class="tapi-vbubble-scope" data-story-scope>
+    <button
+      type="button"
+      class="tapi-vbubble"
+      data-story-tile
+      data-video="{{ pvsrc }}"
+      data-url="{{ product.url }}"
+      data-title="{{ product.title | escape }}"
+      data-price="{{ product.price | money }}"
+      data-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
+      data-has-size="{{ size_found }}"
+      data-variants="{{ vjson | escape }}"
+      data-variant-count="{{ product.variants.size }}"
+      aria-label="Watch {{ product.title | escape }} in motion"
+    >
+      <video
+        class="tapi-vbubble__video"
+        data-vbubble-video
+        data-src="{{ pvsrc }}"
+        muted loop playsinline preload="none"
+        {% if pvpre != blank %}poster="{{ pvpre | image_url: width: 180 }}"{% endif %}
+      ></video>
+      <span class="tapi-vbubble__badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </span>
+    </button>
+    {%- render 'tapi-story-player' -%}
+  </div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "PDP video bubble",
+  "tag": "section",
+  "class": "section tapi-pdp-video-bubble",
+  "settings": [
+    { "type": "checkbox", "id": "enable", "label": "Show floating video bubble", "default": true, "info": "Appears bottom-right on product pages that have a product video. Opens the full-screen player." }
+  ],
+  "presets": [{ "name": "PDP video bubble" }]
+}
+{% endschema %}
