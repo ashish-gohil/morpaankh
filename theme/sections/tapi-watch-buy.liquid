@@ -1,10 +1,11 @@
 {%- comment -%}
-  Watch & Buy — a shoppable video rail. Each block is a short vertical clip tied
-  to a product. Tapping a tile opens the full-screen, story-style player
-  (assets/tapi-story.*), which the PDP video bubble reuses. Editor-driven: the
-  merchant uploads a clip and picks the product per block. Blocks with no video
-  are skipped on the live storefront; placeholders show in the theme editor so
-  empty slots are obvious.
+  Watch & Buy — a shoppable video carousel (bunaai-style coverflow). The centred
+  tile is larger and auto-plays its clip inline (muted loop); the side tiles are
+  smaller, dimmed and paused (poster only). Tapping any tile opens the same
+  full-screen, story-style player (assets/tapi-story.*) the PDP bubble reuses.
+  Editor-driven: the merchant uploads a clip and picks the product per block.
+  Blocks with no video are skipped on the live storefront; placeholders show in
+  the theme editor so empty slots are obvious.
 {%- endcomment -%}
 {%- liquid
   assign playable = 0
@@ -32,84 +33,97 @@
         {%- endif -%}
       </header>
 
-      <ul class="tapi-watchbuy__rail" data-story-rail role="list">
-        {%- for block in section.blocks -%}
-          {%- liquid
-            assign product = block.settings.product
-            assign vsrc = ''
-            assign vpre = ''
-            if block.settings.video != blank
-              for s in block.settings.video.sources
-                if s.format == 'mp4'
-                  assign vsrc = s.url
-                endif
-              endfor
-              assign vpre = block.settings.video.preview_image
-            endif
-            # Poster fallback chain: picked poster -> video's own frame -> product image
-            assign poster = block.settings.poster | default: vpre
-            if poster == blank and product != blank
-              assign poster = product.featured_image
-            endif
-            # Size option position for the player's size chips
-            assign spos = 0
-            assign size_found = false
-            if product != blank
-              for opt in product.options_with_values
-                assign onm = opt.name | downcase
-                if onm == 'size'
-                  assign spos = opt.position | minus: 1
-                  assign size_found = true
-                endif
-              endfor
-            endif
-          -%}
-          {%- assign vjson = '[]' -%}
-          {%- if product != blank -%}
-            {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
-          {%- endif -%}
-          {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
-          <li class="tapi-watchbuy__cell" {{ block.shopify_attributes }}>
-            <button
-              type="button"
-              class="tapi-watchbuy__tile"
-              {% if vsrc != blank %}data-story-tile{% endif %}
-              data-video="{{ vsrc }}"
-              {% if product != blank %}
-                data-handle="{{ product.handle }}"
-                data-url="{{ product.url }}"
-                data-title="{{ product.title | escape }}"
-                data-price="{{ product.price | money }}"
-                data-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
-                data-has-size="{{ size_found }}"
-                data-variants="{{ vjson | escape }}"
-                data-variant-count="{{ product.variants.size }}"
-              {% endif %}
-              aria-label="Play video{% if product != blank %} for {{ product.title | escape }}{% endif %}"
-            >
-              {%- if poster != blank -%}
-                {{ poster | image_url: width: 540 | image_tag:
-                   loading: 'lazy', widths: '270, 400, 540, 720',
-                   sizes: '(min-width: 750px) 22vw, 44vw',
-                   alt: '', class: 'tapi-watchbuy__poster' }}
-              {%- else -%}
-                <span class="tapi-watchbuy__poster tapi-watchbuy__poster--empty" aria-hidden="true"></span>
-              {%- endif -%}
-              <span class="tapi-watchbuy__play" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              </span>
-              {%- if product != blank -%}
-                <span class="tapi-watchbuy__cap">
-                  <span class="tapi-watchbuy__cap-title">{{ product.title }}</span>
-                  <span class="tapi-watchbuy__cap-price">{{ product.price | money }}</span>
+      <div class="tapi-watchbuy__stage" data-watchbuy>
+        <button type="button" class="tapi-watchbuy__arrow tapi-watchbuy__arrow--prev" data-wb-prev aria-label="Previous clip">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+
+        <ul class="tapi-watchbuy__rail" data-story-rail data-wb-rail role="list">
+          {%- for block in section.blocks -%}
+            {%- liquid
+              assign product = block.settings.product
+              assign vsrc = ''
+              assign vpre = ''
+              if block.settings.video != blank
+                for s in block.settings.video.sources
+                  if s.format == 'mp4'
+                    assign vsrc = s.url
+                  endif
+                endfor
+                assign vpre = block.settings.video.preview_image
+              endif
+              # Poster fallback chain: picked poster -> video's own frame -> product image
+              assign poster = block.settings.poster | default: vpre
+              if poster == blank and product != blank
+                assign poster = product.featured_image
+              endif
+              # Size option position for the player's size chips
+              assign spos = 0
+              assign size_found = false
+              if product != blank
+                for opt in product.options_with_values
+                  assign onm = opt.name | downcase
+                  if onm == 'size'
+                    assign spos = opt.position | minus: 1
+                    assign size_found = true
+                  endif
+                endfor
+              endif
+            -%}
+            {%- assign vjson = '[]' -%}
+            {%- if product != blank -%}
+              {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
+            {%- endif -%}
+            {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
+            <li class="tapi-watchbuy__cell" {{ block.shopify_attributes }}>
+              <button
+                type="button"
+                class="tapi-watchbuy__tile"
+                {% if vsrc != blank %}data-story-tile{% endif %}
+                data-video="{{ vsrc }}"
+                {% if product != blank %}
+                  data-handle="{{ product.handle }}"
+                  data-url="{{ product.url }}"
+                  data-title="{{ product.title | escape }}"
+                  data-price="{{ product.price | money }}"
+                  data-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
+                  data-has-size="{{ size_found }}"
+                  data-variants="{{ vjson | escape }}"
+                  data-variant-count="{{ product.variants.size }}"
+                {% endif %}
+                aria-label="Play video{% if product != blank %} for {{ product.title | escape }}{% endif %}"
+              >
+                {%- if poster != blank -%}
+                  {{ poster | image_url: width: 640 | image_tag:
+                     loading: 'lazy', widths: '320, 480, 640, 860',
+                     sizes: '(min-width: 750px) 34vw, 66vw',
+                     alt: '', class: 'tapi-watchbuy__poster' }}
+                {%- else -%}
+                  <span class="tapi-watchbuy__poster tapi-watchbuy__poster--empty" aria-hidden="true"></span>
+                {%- endif -%}
+                {%- if vsrc != blank -%}
+                  <video class="tapi-watchbuy__vid" data-wb-video muted loop playsinline preload="none" aria-hidden="true"></video>
+                {%- endif -%}
+                <span class="tapi-watchbuy__play" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </span>
-              {%- elsif request.design_mode -%}
-                <span class="tapi-watchbuy__cap"><span class="tapi-watchbuy__cap-title">Add a clip + product</span></span>
-              {%- endif -%}
-            </button>
-          </li>
-        {%- endfor -%}
-      </ul>
+                {%- if product != blank -%}
+                  <span class="tapi-watchbuy__cap">
+                    <span class="tapi-watchbuy__cap-title">{{ product.title }}</span>
+                    <span class="tapi-watchbuy__cap-price">{{ product.price | money }}</span>
+                  </span>
+                {%- elsif request.design_mode -%}
+                  <span class="tapi-watchbuy__cap"><span class="tapi-watchbuy__cap-title">Add a clip + product</span></span>
+                {%- endif -%}
+              </button>
+            </li>
+          {%- endfor -%}
+        </ul>
+
+        <button type="button" class="tapi-watchbuy__arrow tapi-watchbuy__arrow--next" data-wb-next aria-label="Next clip">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
     </div>
 
     {%- comment -%} Shared full-screen story player. One per section instance;
@@ -119,52 +133,194 @@
 {%- endif -%}
 
 {% stylesheet %}
-  .tapi-watchbuy { width: 100%; padding-block: var(--section-pad-md); background: var(--mor-cream-2); }
+  .tapi-watchbuy { width: 100%; padding-block: var(--section-pad-md); background: var(--mor-cream-2); overflow: hidden; }
   .tapi-watchbuy__inner { width: 100%; padding-inline: clamp(16px, 4vw, 48px); }
   .tapi-watchbuy__head { display: flex; justify-content: space-between; align-items: baseline; gap: 2.4rem; flex-wrap: wrap; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); }
   .tapi-watchbuy__head .tapi-eyebrow { margin-bottom: 1.2rem; display: inline-flex; }
   .tapi-watchbuy__heading { font-family: var(--font-heading-family); font-size: var(--mor-h2); line-height: var(--mor-leading-snug); letter-spacing: -0.01em; font-weight: 500; margin: 0; }
   .tapi-watchbuy__sub { color: var(--mor-text-muted); font-size: var(--mor-text-base); margin: 0; max-width: 42ch; }
 
-  /* Horizontal snap rail. Portrait 9:16 tiles, scroll-snap, hidden scrollbar. */
+  /* Coverflow stage: a centred horizontal carousel. The tile nearest the centre
+     is scaled up and auto-plays; the neighbours sit smaller + dimmed. */
+  .tapi-watchbuy__stage { position: relative; }
   .tapi-watchbuy__rail {
-    list-style: none; margin: 0; padding: 0 0 0.6rem;
+    list-style: none; margin: 0;
+    /* Big side padding so the first/last tile can still reach dead centre. */
+    padding: 1.2rem max(12px, calc(50% - 17vw)) 2rem;
     display: grid; grid-auto-flow: column;
-    grid-auto-columns: minmax(63vw, 1fr);
-    gap: clamp(10px, 1.4vw, 16px);
+    grid-auto-columns: 62vw;
+    gap: clamp(12px, 1.6vw, 22px);
     overflow-x: auto; scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(44, 40, 38, 0.22) transparent;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-  .tapi-watchbuy__rail::-webkit-scrollbar { height: 4px; }
-  .tapi-watchbuy__rail::-webkit-scrollbar-track { background: transparent; }
-  .tapi-watchbuy__rail::-webkit-scrollbar-thumb { background: rgba(44, 40, 38, 0.2); border-radius: 4px; }
-  @media (min-width: 750px) { .tapi-watchbuy__rail { grid-auto-columns: minmax(0, 1fr); grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); overflow: visible; } }
+  .tapi-watchbuy__rail::-webkit-scrollbar { display: none; height: 0; }
+  @media (min-width: 750px) {
+    .tapi-watchbuy__rail { grid-auto-columns: 30vw; padding: 1.6rem max(16px, calc(50% - 16vw)) 2.4rem; gap: clamp(18px, 2vw, 32px); }
+  }
+  @media (min-width: 1200px) {
+    .tapi-watchbuy__rail { grid-auto-columns: 22vw; padding-inline: calc(50% - 12rem); }
+  }
 
-  .tapi-watchbuy__cell { scroll-snap-align: start; }
+  .tapi-watchbuy__cell { scroll-snap-align: center; }
   .tapi-watchbuy__tile {
     position: relative; display: block; width: 100%; aspect-ratio: 9 / 16;
     overflow: hidden; border: 0; padding: 0; margin: 0; cursor: pointer;
-    background: var(--mor-charcoal-2); border-radius: var(--mor-radius-sm);
+    background: var(--mor-charcoal-2); border-radius: var(--mor-radius-md, 14px);
     -webkit-tap-highlight-color: transparent;
+    /* Resting state: smaller + dimmed (side card). */
+    transform: scale(0.84); opacity: 0.5;
+    filter: saturate(0.86);
+    box-shadow: 0 10px 30px rgba(20, 16, 12, 0.14);
+    transition: transform 620ms cubic-bezier(0.22,1,0.36,1), opacity 620ms cubic-bezier(0.22,1,0.36,1), filter 620ms cubic-bezier(0.22,1,0.36,1), box-shadow 620ms cubic-bezier(0.22,1,0.36,1);
   }
-  .tapi-watchbuy__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1200ms cubic-bezier(0.22,1,0.36,1); }
+  /* Active (centred) tile: full size, bright, lifted. */
+  .tapi-watchbuy__cell.is-active .tapi-watchbuy__tile {
+    transform: scale(1); opacity: 1; filter: none;
+    box-shadow: 0 26px 60px rgba(20, 16, 12, 0.34);
+  }
+  .tapi-watchbuy__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
   .tapi-watchbuy__poster--empty { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 10px), var(--mor-charcoal-2); }
-  .tapi-watchbuy__tile:hover .tapi-watchbuy__poster { transform: scale(1.05); }
-  .tapi-watchbuy__tile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18,16,14,0) 42%, rgba(18,16,14,0.66) 100%); pointer-events: none; }
+  .tapi-watchbuy__vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity 500ms ease; z-index: 1; }
+  .tapi-watchbuy__cell.is-active .tapi-watchbuy__vid.is-playing { opacity: 1; }
+  .tapi-watchbuy__tile::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(18,16,14,0) 46%, rgba(18,16,14,0.66) 100%); pointer-events: none; }
+
+  /* Play affordance: shown on the side tiles (they are paused), hidden on the
+     active tile because it is already playing. */
   .tapi-watchbuy__play {
-    position: absolute; top: 14px; left: 14px; z-index: 2;
-    width: 40px; height: 40px; border-radius: 50%;
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
+    width: 52px; height: 52px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
     color: var(--mor-charcoal); background: rgba(239, 230, 212, 0.82);
     -webkit-backdrop-filter: saturate(1.08) blur(10px); backdrop-filter: saturate(1.08) blur(10px);
-    padding-left: 2px; transition: transform 220ms cubic-bezier(0.22,1,0.36,1);
+    padding-left: 3px; opacity: 0.94;
+    transition: opacity 400ms ease, transform 220ms cubic-bezier(0.22,1,0.36,1);
   }
-  .tapi-watchbuy__tile:hover .tapi-watchbuy__play { transform: scale(1.08); }
-  .tapi-watchbuy__cap { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 2; display: flex; flex-direction: column; gap: 2px; text-align: left; pointer-events: none; }
-  .tapi-watchbuy__cap-title { font-family: var(--font-body-family); font-size: var(--fs-sm); font-weight: 600; color: var(--mor-cream); line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
-  .tapi-watchbuy__cap-price { font-size: var(--fs-xs); color: rgba(248,244,237,0.9); font-variant-numeric: tabular-nums; }
-  @media (prefers-reduced-motion: reduce) { .tapi-watchbuy__poster, .tapi-watchbuy__play { transition: none; } }
+  .tapi-watchbuy__cell.is-active .tapi-watchbuy__play { opacity: 0; }
+  .tapi-watchbuy__cell.is-active .tapi-watchbuy__tile:hover .tapi-watchbuy__play { opacity: 0.9; transform: translate(-50%, -50%) scale(1.06); }
+  .tapi-watchbuy__cap { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 2; display: flex; flex-direction: column; gap: 2px; text-align: left; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-watchbuy__cell.is-active .tapi-watchbuy__cap { opacity: 1; transform: none; }
+  .tapi-watchbuy__cap-title { font-family: var(--font-heading-family); font-size: var(--fs-base); font-weight: 500; color: var(--mor-cream); line-height: 1.25; letter-spacing: -0.006em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+  .tapi-watchbuy__cap-price { font-size: var(--fs-xs); color: rgba(248,244,237,0.92); font-variant-numeric: tabular-nums; }
+
+  /* Arrows — desktop nicety; hidden on touch where the carousel is swiped. */
+  .tapi-watchbuy__arrow {
+    position: absolute; top: 50%; transform: translateY(-50%); z-index: 4;
+    width: 46px; height: 46px; border-radius: 50%; border: 0; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    color: var(--mor-charcoal); background: rgba(248, 244, 237, 0.9);
+    -webkit-backdrop-filter: saturate(1.08) blur(10px); backdrop-filter: saturate(1.08) blur(10px);
+    box-shadow: 0 8px 24px rgba(20, 16, 12, 0.18);
+    transition: background 220ms ease, transform 220ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-watchbuy__arrow:hover { background: var(--mor-cream); transform: translateY(-50%) scale(1.06); }
+  .tapi-watchbuy__arrow:active { transform: translateY(-50%) scale(0.96); }
+  .tapi-watchbuy__arrow--prev { left: clamp(4px, 2vw, 24px); }
+  .tapi-watchbuy__arrow--next { right: clamp(4px, 2vw, 24px); }
+  .tapi-watchbuy__arrow:disabled { opacity: 0; pointer-events: none; }
+  @media (min-width: 750px) and (hover: hover) { .tapi-watchbuy__arrow { display: inline-flex; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-watchbuy__tile, .tapi-watchbuy__vid, .tapi-watchbuy__play, .tapi-watchbuy__cap, .tapi-watchbuy__arrow { transition: none; }
+    .tapi-watchbuy__tile { transform: none; opacity: 1; filter: none; }
+  }
 {% endstylesheet %}
+
+{% javascript %}
+  (function () {
+    // Coverflow controller: the tile whose centre is nearest the rail's centre
+    // becomes .is-active — scaled up, and its inline muted clip plays. All other
+    // clips pause and reset. Tapping still opens the full-screen story player
+    // (handled by tapi-story.js via [data-story-tile]); this only manages the
+    // resting/active look + inline autoplay. Scroll-driven so it needs no fixed
+    // index math and works for any clip count.
+    function initStage(stage) {
+      if (!stage || stage.__wbInit) return;
+      stage.__wbInit = true;
+      var rail = stage.querySelector('[data-wb-rail]');
+      if (!rail) return;
+      var cells = Array.prototype.slice.call(rail.querySelectorAll('.tapi-watchbuy__cell'));
+      if (!cells.length) return;
+      var prevBtn = stage.querySelector('[data-wb-prev]');
+      var nextBtn = stage.querySelector('[data-wb-next]');
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var active = -1;
+      var raf = 0;
+
+      function playCell(cell) {
+        var v = cell.querySelector('[data-wb-video]');
+        var tile = cell.querySelector('.tapi-watchbuy__tile');
+        if (!v || !tile) return;
+        var src = tile.getAttribute('data-video');
+        if (src && !v.getAttribute('src')) v.setAttribute('src', src);
+        v.muted = true;
+        var p = v.play();
+        if (p && p.catch) p.catch(function () {});
+        v.classList.add('is-playing');
+      }
+      function stopCell(cell) {
+        var v = cell.querySelector('[data-wb-video]');
+        if (!v) return;
+        v.classList.remove('is-playing');
+        try { v.pause(); } catch (e) {}
+      }
+
+      function update() {
+        raf = 0;
+        var r = rail.getBoundingClientRect();
+        var mid = r.left + r.width / 2;
+        var best = 0, bestDist = Infinity;
+        for (var i = 0; i < cells.length; i++) {
+          var c = cells[i].getBoundingClientRect();
+          var d = Math.abs((c.left + c.width / 2) - mid);
+          if (d < bestDist) { bestDist = d; best = i; }
+        }
+        if (best === active) return;
+        if (active > -1 && cells[active]) { cells[active].classList.remove('is-active'); stopCell(cells[active]); }
+        active = best;
+        cells[active].classList.add('is-active');
+        if (!reduce) playCell(cells[active]);
+        if (prevBtn) prevBtn.disabled = active <= 0;
+        if (nextBtn) nextBtn.disabled = active >= cells.length - 1;
+      }
+      function onScroll() { if (!raf) raf = requestAnimationFrame(update); }
+
+      function scrollToCell(i) {
+        i = Math.max(0, Math.min(i, cells.length - 1));
+        var target = cells[i];
+        var r = rail.getBoundingClientRect();
+        var c = target.getBoundingClientRect();
+        var delta = (c.left + c.width / 2) - (r.left + r.width / 2);
+        rail.scrollBy({ left: delta, behavior: reduce ? 'auto' : 'smooth' });
+      }
+
+      rail.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      if (prevBtn) prevBtn.addEventListener('click', function () { scrollToCell(active - 1); });
+      if (nextBtn) nextBtn.addEventListener('click', function () { scrollToCell(active + 1); });
+
+      // Pause every inline clip when the section scrolls out of view (perf).
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) { if (active > -1 && !reduce) playCell(cells[active]); }
+            else { cells.forEach(stopCell); }
+          });
+        }, { threshold: 0.2 }).observe(stage);
+      }
+
+      // Centre the first tile, then light up the active one.
+      requestAnimationFrame(function () { update(); });
+    }
+
+    function boot() {
+      document.querySelectorAll('[data-watchbuy]').forEach(initStage);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+    document.addEventListener('shopify:section:load', boot);
+  })();
+{% endjavascript %}
 
 {% schema %}
 {
@@ -181,7 +337,7 @@
       "type": "clip",
       "name": "Video",
       "settings": [
-        { "type": "video", "id": "video", "label": "Vertical clip", "info": "Portrait 9:16 works best. Plays muted, story-style, in the full-screen player." },
+        { "type": "video", "id": "video", "label": "Vertical clip", "info": "Portrait 9:16 works best. The centred tile auto-plays muted; tap for the full-screen player." },
         { "type": "image_picker", "id": "poster", "label": "Poster (optional)", "info": "Tile thumbnail. Falls back to the clip's first frame, then the product image." },
         { "type": "product", "id": "product", "label": "Shop this product" }
       ]
