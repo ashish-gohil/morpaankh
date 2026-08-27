@@ -69,6 +69,13 @@
 }
 
 /* ============================ Mini cards / actions ============================ */
+/* Price block hierarchy: the price + struck compare-at read as one tight unit,
+   set closer together than the name sits above the price. (Base card spaces
+   compare-at 0.9rem from the price — wider than the 0.3rem name->price gap —
+   which made the two prices look unrelated on the recently-viewed / wishlist
+   mini cards.) */
+.tapi-card--mini .tapi-card__row { gap: 0.5rem; }
+.tapi-card--mini .tapi-card__price { gap: 0.35rem; }
 .tapi-card--mini .tapi-card__actions { margin-top: 1rem; }
 .tapi-card--mini .tapi-card__actions .button { width: 100%; height: 4.4rem; min-height: 4.4rem; font-size: var(--fs-xs); }
 .tapi-card--mini .tapi-card__actions .button.is-loading { opacity: 0.7; pointer-events: none; }
