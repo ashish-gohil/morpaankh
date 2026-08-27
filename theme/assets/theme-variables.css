@@ -1423,9 +1423,25 @@ localization-form select,
 .tapi-tag--sage       { background: var(--tapi-sage-wash)        !important; color: var(--tapi-sage-deep)        !important; }
 .tapi-tag--terracotta { background: var(--tapi-terracotta-wash)  !important; color: var(--tapi-terracotta-deep)  !important; }
 
-/* Identical anchoring inside product cards */
-.tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; z-index: 2; }
+/* Anchoring inside product cards — discount badge sits FLUSH in the top-left
+   corner (was inset 12px, which read as a gap from the card edge). */
+.tapi-card__badges { position: absolute; top: 0; left: 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; z-index: 2; }
 .tapi-card__badges > .tapi-tag { margin: 0; }
+
+/* The card status chip (bestseller / festive) is its OWN tiny, boxy, glass
+   treatment — NOT the shared pill .tapi-tag above. That global is all
+   !important, so the chip override has to be higher-specificity + !important to
+   win. Only the card chip is retargeted; the PDP .tapi-tag pill is untouched. */
+.tapi-tag.tapi-card__tag {
+  height: 13px !important;
+  min-height: 13px !important;
+  padding: 0 3px !important;
+  gap: 0 !important;
+  font-size: 8px !important;
+  letter-spacing: 0.03em !important;
+  font-weight: 700 !important;
+  border-radius: 0 !important;
+}
 .tapi-pdp__tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 /* ============================================================
@@ -2628,6 +2644,11 @@ details[open] > summary .icon-caret {
 @media (max-width: 749px) {
   .tapi-collection-tiles { padding-top: 0 !important; }
   .tapi-collection-tiles__heading { margin-top: 0 !important; }
+  /* The wardrobe eyebrow sat as a faint label band directly under the image-only
+     hero — read as empty white space. Drop it on mobile and let the heading sit
+     tight under the hero (a small 8px breath, not flush-cramped). */
+  .tapi-collection-tiles .tapi-eyebrow { display: none !important; }
+  .tapi-collection-tiles__head { padding-top: 8px !important; }
 }
 .tapi-hero__trust,
 .tapi-collection-tiles > .page-width,
