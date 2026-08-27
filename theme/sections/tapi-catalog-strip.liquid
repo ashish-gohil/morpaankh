@@ -55,12 +55,12 @@
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
     scroll-padding-inline: 2rem;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(44, 40, 38, 0.3) rgba(44, 40, 38, 0.07);
+    /* Clean pill row: hide the scrollbar here (it stays on the wardrobe / RV /
+       Watch & Buy rails). Still fully swipeable. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  .tapi-catalog-strip__row::-webkit-scrollbar { height: 4px; }
-  .tapi-catalog-strip__row::-webkit-scrollbar-track { background: rgba(44, 40, 38, 0.07); }
-  .tapi-catalog-strip__row::-webkit-scrollbar-thumb { background: rgba(44, 40, 38, 0.3); border-radius: 4px; }
+  .tapi-catalog-strip__row::-webkit-scrollbar { display: none; height: 0; }
   .tapi-catalog-strip__item {
     flex: 0 0 auto;
     scroll-snap-align: start;

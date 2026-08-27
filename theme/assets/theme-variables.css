@@ -2620,6 +2620,15 @@ details[open] > summary .icon-caret {
 .tapi-press {
   padding-block: var(--section-pad-sm) !important;
 }
+/* Homepage mobile: the hero is image-only with 0 bottom padding, so the
+   wardrobe (the only place .tapi-collection-tiles renders) should sit flush
+   right under it. This overrides the md padding-block !important above (which
+   would otherwise leave a 36px band) and the section file's own top padding —
+   both are zeroed so neither wins on load order. */
+@media (max-width: 749px) {
+  .tapi-collection-tiles { padding-top: 0 !important; }
+  .tapi-collection-tiles__heading { margin-top: 0 !important; }
+}
 .tapi-hero__trust,
 .tapi-collection-tiles > .page-width,
 .tapi-featured__inner,

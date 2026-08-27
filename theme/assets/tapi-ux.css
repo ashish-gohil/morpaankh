@@ -435,22 +435,20 @@
    breakpoints (Android/desktop render styled webkit scrollbars; iOS uses
    overlay). Faint track so the bar reads whenever content overflows; native
    overflow:auto keeps it hidden when it does not. */
+   The catalog strip (mobile category avatars) is intentionally EXCLUDED — it
+   reads as a clean pill row, so its scrollbar is hidden in its own section. */
 .tapi-collection-tiles__grid,
 .tapi-rv__grid,
-.tapi-watchbuy__rail,
-.tapi-catalog-strip__row {
+.tapi-watchbuy__rail {
   scrollbar-width: thin !important;
   scrollbar-color: rgba(44, 40, 38, 0.3) rgba(44, 40, 38, 0.07) !important;
 }
 .tapi-collection-tiles__grid::-webkit-scrollbar,
 .tapi-rv__grid::-webkit-scrollbar,
-.tapi-watchbuy__rail::-webkit-scrollbar,
-.tapi-catalog-strip__row::-webkit-scrollbar { height: 4px !important; }
+.tapi-watchbuy__rail::-webkit-scrollbar { height: 4px !important; }
 .tapi-collection-tiles__grid::-webkit-scrollbar-track,
 .tapi-rv__grid::-webkit-scrollbar-track,
-.tapi-watchbuy__rail::-webkit-scrollbar-track,
-.tapi-catalog-strip__row::-webkit-scrollbar-track { background: rgba(44, 40, 38, 0.07) !important; }
+.tapi-watchbuy__rail::-webkit-scrollbar-track { background: rgba(44, 40, 38, 0.07) !important; }
 .tapi-collection-tiles__grid::-webkit-scrollbar-thumb,
 .tapi-rv__grid::-webkit-scrollbar-thumb,
-.tapi-watchbuy__rail::-webkit-scrollbar-thumb,
-.tapi-catalog-strip__row::-webkit-scrollbar-thumb { background: rgba(44, 40, 38, 0.3) !important; border-radius: 4px !important; }
+.tapi-watchbuy__rail::-webkit-scrollbar-thumb { background: rgba(44, 40, 38, 0.3) !important; border-radius: 4px !important; }

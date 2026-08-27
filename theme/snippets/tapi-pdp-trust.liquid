@@ -18,6 +18,23 @@
   if wa == blank
     assign show_concierge = false
   endif
+
+  comment
+    Prefill the WhatsApp message with the product name + this page URL so we
+    know which piece the enquiry is about. url_encode ONLY the message, then
+    append as a query param (never encode the whole href). Falls back to the
+    bare link if there is no product in scope.
+  endcomment
+  assign wa_href = wa
+  if show_concierge and product != blank
+    assign wa_msg = 'Hi Morpaankh, I would like to know more about ' | append: product.title | append: '. ' | append: canonical_url | append: ' Could you help me with size and fabric?'
+    assign wa_msg_enc = wa_msg | url_encode
+    assign wa_sep = '?'
+    if wa contains '?'
+      assign wa_sep = '&'
+    endif
+    assign wa_href = wa | append: wa_sep | append: 'text=' | append: wa_msg_enc
+  endif
 -%}
 {%- if show_promise or show_concierge -%}
   <div class="tapi-pdp__trust" data-tapi-stagger="90">
@@ -58,7 +75,7 @@
         {%- if s.concierge_text != blank -%}
           <p class="tapi-concierge__text">{{ s.concierge_text }}</p>
         {%- endif -%}
-        <a class="tapi-concierge__btn" href="{{ wa }}" target="_blank" rel="noopener">
+        <a class="tapi-concierge__btn" href="{{ wa_href }}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm-3 6.3h.4c.2 0 .4 0 .6.4.2.5.8 1.8.8 1.9.1.2.1.3 0 .5-.1.2-.2.3-.3.5l-.4.5c-.1.1-.2.2-.1.5.1.2.6 1 1.4 1.7.9.8 1.7 1.1 2 1.2.2.2.4.1.5 0 .2-.2.6-.7.8-1 .2-.2.4-.1.6-.1.2.1 1.4.7 1.7.8.3.2.5.3.5.4.1.1.1.6-.1 1.2-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .2-3.2-.6-2.7-1-4.3-3.7-4.5-3.9-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.4.5-.4.7-.4z"/></svg>
           {{ s.concierge_btn | default: 'Chat on WhatsApp' }}
         </a>

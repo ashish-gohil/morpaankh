@@ -84,7 +84,7 @@
     this.items = [];
     this.index = 0;
     this.pending = null;
-    this.muted = true;
+    this.muted = false;
     this.lastFocus = null;
     this._bind();
   }
@@ -186,12 +186,19 @@
     }
   };
 
+  // Toggle the SVG icons via the content attribute (NOT the .hidden
+  // property — SVGElement doesn't reflect .hidden to the attribute, so the
+  // `svg[hidden]` CSS never fires and the icon looks stuck).
+  Player.prototype._syncMute = function () {
+    if (this.icMuted) this.icMuted.toggleAttribute('hidden', !this.muted);
+    if (this.icSound) this.icSound.toggleAttribute('hidden', this.muted);
+    if (this.muteBtn) this.muteBtn.setAttribute('aria-label', this.muted ? 'Unmute' : 'Mute');
+  };
+
   Player.prototype.setMuted = function (m) {
     this.muted = m;
     this.video.muted = m;
-    if (this.icMuted) this.icMuted.hidden = !m;
-    if (this.icSound) this.icSound.hidden = m;
-    this.muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+    this._syncMute();
     if (!m) { this.video.play().catch(function () {}); }
   };
 
@@ -210,12 +217,20 @@
       else if (fill) fill.style.width = '0';
     }
 
-    // Video.
+    // Video. Default is unmuted; if the browser blocks sound-autoplay,
+    // fall back to muted so the clip still plays (and flip the icon).
     this.video.muted = this.muted;
+    this._syncMute();
     this.video.src = item.video;
     this.video.currentTime = 0;
     this.video.load();
-    this.video.play().catch(function () {});
+    var selfp = this;
+    var pp = this.video.play();
+    if (pp && pp.catch) {
+      pp.catch(function () {
+        if (!selfp.muted) { selfp.setMuted(true); }
+      });
+    }
 
     // Card.
     this.titleEl.textContent = item.title;
