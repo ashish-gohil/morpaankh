@@ -55,6 +55,15 @@
   if section.settings.enable_show_all and collection.all_products_count <= section.settings.products_per_page
     assign tapi_use_fold = true
   endif
+
+  # Skeleton placeholder count. Reserve the footprint of the cards actually about
+  # to appear (never more than are on the page, so a small collection is not
+  # over-reserved), so the grid holds its height while it streams in and nothing
+  # below shifts. Falls back to the fold size for the initial paint.
+  assign skel_count = section.settings.initial_products | default: 12
+  if collection.products.size > 0 and collection.products.size < skel_count
+    assign skel_count = collection.products.size
+  endif
 -%}
 
 {%- style -%}
@@ -200,6 +209,26 @@
             </div>
           </div>
         {%- else -%}
+          {%- comment -%} Skeleton grid: mirrors the real card footprint (3:4 media +
+            title line + price line) with the same shimmer used for card images, so the
+            grid holds its height while it streams in on first paint — and re-appears as
+            an opaque overlay while a facet/sort fetch is in flight. It reuses the exact
+            grid classes so columns and gaps match the real grid, and is hidden the
+            instant the real #product-grid is in the DOM (rules in collection-stitch.css).
+            aria-hidden — it is a visual placeholder, not content. {%- endcomment -%}
+          <div class="tapi-grid-skeleton{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}" aria-hidden="true">
+            <ul class="grid product-grid grid--{{ section.settings.columns_mobile }}-col-tablet-down grid--{{ section.settings.columns_desktop }}-col-desktop">
+              {%- for i in (1..skel_count) -%}
+                <li class="grid__item">
+                  <div class="tapi-skel">
+                    <div class="tapi-skel__media"></div>
+                    <div class="tapi-skel__line tapi-skel__line--title"></div>
+                    <div class="tapi-skel__line tapi-skel__line--price"></div>
+                  </div>
+                </li>
+              {%- endfor -%}
+            </ul>
+          </div>
           <div
             class="collection{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}"
           >
@@ -213,12 +242,7 @@
                 {% if section.settings.quick_add == 'bulk' %} collection-quick-add-bulk{% endif %}
               "
             >
-              {% assign skip_card_product_styles = false %}
               {%- for product in collection.products -%}
-                {% assign lazy_load = false %}
-                {%- if forloop.index > 2 -%}
-                  {%- assign lazy_load = true -%}
-                {%- endif -%}
                 <li
                   class="grid__item{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
                   {% if settings.animations_reveal_on_scroll %}
@@ -231,7 +255,6 @@
                     (overlay pill + label below) is gone. Dawn's responsive grid wrapper is kept. {%- endcomment -%}
                   {% render 'card-product-tapi', product: product %}
                 </li>
-                {%- assign skip_card_product_styles = true -%}
               {%- endfor -%}
             </ul>
 

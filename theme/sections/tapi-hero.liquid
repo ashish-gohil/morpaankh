@@ -32,6 +32,11 @@
                 assign img_m = b.settings.image_mobile
                 # Mobile image falls back to the desktop one, so a mobile viewport is never left blank.
                 assign img_m_eff = img_m | default: img_d
+                # Per-viewport destinations. Independent: each viewport's image links only
+                # to its own URL, and an empty setting leaves that image non-clickable (no
+                # fallback between the two, unlike the image fallback above).
+                assign link_d = b.settings.link
+                assign link_m = b.settings.link_mobile
                 # Pull the mp4 source out of each (optional) hosted video for lazy, JS-driven loading.
                 assign vd_src = ''
                 if b.settings.video != blank
@@ -110,6 +115,20 @@
                 <div class="tapi-hero__placeholder" style="--p-color: {{ tint }};">
                   <span class="tapi-hero__placeholder-mono">{{ mono }}</span>
                 </div>
+              {%- endif -%}
+              {%- comment -%}
+                Optional clickable image. Two transparent overlay links, one per
+                viewport, shown by CSS media query — so the desktop and mobile crops
+                each link to their OWN URL. Rendered only when that viewport's link
+                is set, so an empty setting means the image stays non-clickable. Sits
+                above the media/video but below the copy overlay and dots, so the CTAs
+                and slide controls keep working.
+              {%- endcomment -%}
+              {%- if link_d != blank -%}
+                <a class="tapi-hero__link tapi-hero__link--desktop" href="{{ link_d }}" aria-label="{{ slide_alt | escape }}"></a>
+              {%- endif -%}
+              {%- if link_m != blank -%}
+                <a class="tapi-hero__link tapi-hero__link--mobile" href="{{ link_m }}" aria-label="{{ slide_alt | escape }}"></a>
               {%- endif -%}
             </div>
             {%- if b.settings.caption != blank -%}
@@ -243,6 +262,16 @@
   }
   /* <picture> wrapper must fill the media box so the <img>'s 100%/cover applies. */
   .tapi-hero__picture { display: block; width: 100%; height: 100%; }
+  /* Clickable image: transparent overlay link over the whole media box. z-index 2
+     keeps it above the picture/video but below the copy overlay (z 3) and dots
+     (z 4). Only the active slide is clickable — inactive slides are visibility:
+     hidden. One anchor per viewport; CSS shows the matching one. */
+  .tapi-hero__link { position: absolute; inset: 0; z-index: 2; display: block; }
+  .tapi-hero__link--desktop { display: none; }
+  @media (min-width: 990px) {
+    .tapi-hero__link--desktop { display: block; }
+    .tapi-hero__link--mobile { display: none; }
+  }
   /* Optional video layer: sits over the picture (its poster/fallback) and fades in
      only while playing. object-fit: cover so the uploaded per-viewport crop fills. */
   .tapi-hero__video {
@@ -913,9 +942,11 @@
       "settings": [
         { "type": "header", "content": "Desktop media (≥ 990px)" },
         { "type": "image_picker", "id": "image", "label": "Desktop image", "info": "Wide / landscape crop. This is the LCP image and the fallback for everything below." },
+        { "type": "url", "id": "link", "label": "Desktop image link", "info": "Where the desktop image links when clicked. Leave empty to keep it non-clickable." },
         { "type": "video", "id": "video", "label": "Desktop video (optional)", "info": "Plays muted on a loop over the desktop image. Needs the desktop image set as its still fallback." },
         { "type": "header", "content": "Mobile media (< 990px)" },
         { "type": "image_picker", "id": "image_mobile", "label": "Mobile image", "info": "Taller / portrait crop so phones aren't cropped. Falls back to the desktop image if left empty." },
+        { "type": "url", "id": "link_mobile", "label": "Mobile image link", "info": "Where the mobile image links when clicked. Independent of the desktop link. Leave empty to keep it non-clickable." },
         { "type": "video", "id": "video_mobile", "label": "Mobile video (optional)", "info": "Plays muted on a loop on phones. Falls back to the mobile image if left empty." },
         { "type": "header", "content": "Other" },
         { "type": "text", "id": "caption", "label": "Caption (overlay chip)" },

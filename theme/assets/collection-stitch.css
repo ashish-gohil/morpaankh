@@ -42,6 +42,48 @@
   padding-bottom: var(--section-pad-sm) !important;
 }
 
+/* ============================ Grid skeleton ============================
+   Shimmering placeholder that mirrors the product card footprint (3:4 media +
+   title line + price line) so the grid reserves its height while it loads and
+   nothing below it shifts. Two loading windows:
+     1. First paint — the skeleton streams in and holds the space until the real
+        #product-grid parses, then :has() hides it (no flash on a fast load, since
+        both arrive together and the hide matches before first paint).
+     2. Facet / sort fetch — facets.js sets .collection.loading on the outgoing
+        grid; the skeleton returns as an opaque overlay over it (wins via
+        !important) and clears when the fresh grid swaps in.
+   Reuses the tapi-shimmer keyframes from tapi-ux.css (same sweep as card images). */
+#ProductGridContainer { position: relative; }
+.tapi-grid-skeleton { display: block; }
+#ProductGridContainer:has(#product-grid) .tapi-grid-skeleton { display: none; }
+#ProductGridContainer:has(.collection.loading) .tapi-grid-skeleton {
+  display: block !important;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--mor-cream, #f8f4ed);
+}
+.tapi-skel { display: flex; flex-direction: column; }
+.tapi-skel__media,
+.tapi-skel__line {
+  background-image: linear-gradient(100deg, transparent 28%, rgba(255, 255, 255, 0.5) 50%, transparent 72%);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: tapi-shimmer 1.5s ease-in-out infinite;
+}
+/* media → 1.2rem → title → 0.4rem → price, mirroring the real card's rhythm. */
+.tapi-skel__media { aspect-ratio: 3 / 4; margin-bottom: 1.2rem; background-color: var(--mor-cream-2, #efe6d4); }
+.tapi-skel__line { height: 1.1rem; border-radius: 2px; background-color: var(--mor-cream-2, #efe6d4); }
+.tapi-skel__line--title { width: 68%; margin-bottom: 0.4rem; }
+.tapi-skel__line--price { width: 40%; height: 1rem; }
+@media (max-width: 749px) {
+  .tapi-skel__media { margin-bottom: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tapi-skel__media,
+  .tapi-skel__line { animation: none; }
+}
+
 /* Mobile catalog strip on collection pages.
    The strip section carries its own visibility CSS (nav hidden by default,
    shown at <=989px), so it already reads as mobile-only. This is a
