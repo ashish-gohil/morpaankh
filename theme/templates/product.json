@@ -14,7 +14,7 @@
       "settings": {
         "enable_sticky_info": true,
         "show_dynamic_checkout": true,
-        "payment_perks": "Pay online: free delivery + 5% off · Cash on Delivery available",
+        "payment_perks": "Pay online: free delivery · Cash on Delivery available",
         "show_trust_badges": true,
         "show_offers": true,
         "color_scheme": "background-1",

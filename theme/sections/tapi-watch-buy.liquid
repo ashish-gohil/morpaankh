@@ -19,7 +19,7 @@
 {%- if playable > 0 or request.design_mode -%}
   {{ 'tapi-story.css' | asset_url | stylesheet_tag }}
   <script src="{{ 'tapi-story.js' | asset_url }}" defer></script>
-  <section class="tapi-watchbuy" data-story-scope>
+  <section id="watch-buy" class="tapi-watchbuy" data-story-scope>
     <div class="tapi-watchbuy__inner">
       <header class="tapi-watchbuy__head" data-tapi-reveal>
         <div>
@@ -133,7 +133,7 @@
 {%- endif -%}
 
 {% stylesheet %}
-  .tapi-watchbuy { width: 100%; padding-block: var(--section-pad-md); background: var(--mor-cream-2); overflow: hidden; }
+  .tapi-watchbuy { width: 100%; padding-block: var(--section-pad-md); background: var(--mor-cream-2); overflow: hidden; scroll-margin-top: clamp(72px, 12vh, 112px); }
   .tapi-watchbuy__inner { width: 100%; padding-inline: clamp(16px, 4vw, 48px); }
   .tapi-watchbuy__head { display: flex; justify-content: space-between; align-items: baseline; gap: 2.4rem; flex-wrap: wrap; margin-bottom: clamp(2.4rem, 3.4vw, 4rem); }
   .tapi-watchbuy__head .tapi-eyebrow { margin-bottom: 1.2rem; display: inline-flex; }
