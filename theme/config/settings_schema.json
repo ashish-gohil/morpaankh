@@ -1636,18 +1636,20 @@
         "type": "checkbox",
         "id": "tapi_offer3_enable",
         "label": "Enable",
-        "default": false
+        "default": true
       },
       {
         "type": "text",
         "id": "tapi_offer3_code",
         "label": "Discount code",
+        "default": "WELCOME150",
         "info": "Exactly as it exists in Discounts."
       },
       {
         "type": "text",
         "id": "tapi_offer3_label",
-        "label": "Label"
+        "label": "Label",
+        "default": "New here · ₹150 off orders from ₹1,199"
       },
       {
         "type": "select",
@@ -1663,7 +1665,7 @@
         "type": "number",
         "id": "tapi_offer3_value",
         "label": "Value (percent or ₹)",
-        "default": 200
+        "default": 150
       },
       {
         "type": "number",
@@ -1675,7 +1677,7 @@
         "type": "number",
         "id": "tapi_offer3_min_subtotal",
         "label": "Minimum subtotal (₹)",
-        "default": 1000
+        "default": 1199
       },
       {
         "type": "checkbox",
