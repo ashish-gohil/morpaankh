@@ -20,14 +20,76 @@
   }
 {%- endstyle -%}
 
-<div class="color-{{ section.settings.color_scheme }} gradient">
-  <product-recommendations
-    class="related-products page-width section-{{ section.id }}-padding isolate{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
-    data-url="{{ routes.product_recommendations_url }}?limit={{ section.settings.products_to_show }}"
-    data-section-id="{{ section.id }}"
-    data-product-id="{{ product.id }}"
-  >
-    {% if recommendations.performed and recommendations.products_count > 0 %}
+{%- comment -%}
+  "You may also like" is scoped to the CURRENT product's own category
+  collection, best-selling first, so it only ever shows pieces from the same
+  section (e.g. other Festive Edit pieces on a festive product) — never a
+  cross-category best-seller pulled in by Shopify's global recommendations
+  engine. Utility lists (best sellers, new arrivals, home page, bundle) are
+  skipped so the rail lands on a real category. Server-rendered (no async
+  product-recommendations fetch), and rendered ONLY when at least one sibling
+  exists, so an empty state collapses to nothing instead of a bare band.
+{%- endcomment -%}
+{%- liquid
+  assign util = ',best-sellers,new-arrivals,frontpage,bundle-offer-eligible,'
+  assign rel_coll = ''
+
+  comment
+    1) The collection the shopper is browsing in, when it is a real category.
+  endcomment
+  if collection != blank and collection.handle != blank
+    assign ch = ',' | append: collection.handle | append: ','
+    unless util contains ch
+      assign rel_coll = collection
+    endunless
+  endif
+
+  comment
+    2) Else the first non-utility category the product belongs to.
+  endcomment
+  if rel_coll == blank
+    for c in product.collections
+      assign ch = ',' | append: c.handle | append: ','
+      unless util contains ch
+        assign rel_coll = c
+        break
+      endunless
+    endfor
+  endif
+
+  comment
+    3) Final fallback: any collection the product is in.
+  endcomment
+  if rel_coll == blank
+    assign rel_coll = product.collections.first
+  endif
+
+  assign rel_limit = section.settings.products_to_show | default: 4
+
+  comment
+    Count showable siblings (excludes the current product) so an empty rail
+    renders nothing at all.
+  endcomment
+  assign rel_count = 0
+  if rel_coll != blank
+    for p in rel_coll.products
+      if p.id == product.id
+        continue
+      endif
+      assign rel_count = rel_count | plus: 1
+      if rel_count >= rel_limit
+        break
+      endif
+    endfor
+  endif
+-%}
+
+{%- if rel_count > 0 -%}
+  <div class="color-{{ section.settings.color_scheme }} gradient">
+    <div
+      class="related-products page-width section-{{ section.id }}-padding isolate{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
+      data-product-id="{{ product.id }}"
+    >
       <h2 class="related-products__heading inline-richtext {{ section.settings.heading_size }}">
         {{ section.settings.heading }}
       </h2>
@@ -35,22 +97,23 @@
         class="grid product-grid grid--{{ section.settings.columns_desktop }}-col-desktop grid--{{ section.settings.columns_mobile }}-col-tablet-down"
         role="list"
       >
-        {% assign skip_card_product_styles = false %}
-        {%- comment -%} Hard cap at the configured count (max 4) even if the recommendations API returns more. {%- endcomment -%}
-        {% for recommendation in recommendations.products limit: section.settings.products_to_show %}
+        {%- assign shown = 0 -%}
+        {%- for p in rel_coll.products -%}
+          {%- if p.id == product.id -%}{%- continue -%}{%- endif -%}
+          {%- if shown >= rel_limit -%}{%- break -%}{%- endif -%}
           <li class="grid__item">
-            {%- comment -%} Unified to the premium tapi card (one card system across the store). {%- endcomment -%}
-            {% render 'card-product-tapi', product: recommendation %}
+            {%- comment -%} One card system across the store. {%- endcomment -%}
+            {% render 'card-product-tapi', product: p %}
           </li>
-          {%- assign skip_card_product_styles = true -%}
-        {% endfor %}
+          {%- assign shown = shown | plus: 1 -%}
+        {%- endfor -%}
       </ul>
-    {% endif %}
-  </product-recommendations>
-  {% if section.settings.image_shape == 'arch' %}
-    {{ 'mask-arch.svg' | inline_asset_content }}
-  {%- endif -%}
-</div>
+    </div>
+    {% if section.settings.image_shape == 'arch' %}
+      {{ 'mask-arch.svg' | inline_asset_content }}
+    {%- endif -%}
+  </div>
+{%- endif -%}
 
 {% schema %}
 {
@@ -128,7 +191,7 @@
           "value": "2",
           "label": "t:sections.related-products.settings.columns_mobile.options__2.label"
         }
-      ]    
+      ]
     },
     {
       "type": "color_scheme",
