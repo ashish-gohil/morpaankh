@@ -1,0 +1,7 @@
+# Never commit secrets or local state.
+.env
+.env.*
+!.env.example
+data/
+node_modules/
+*.log

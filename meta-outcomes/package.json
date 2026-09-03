@@ -1,0 +1,16 @@
+{
+  "name": "meta-outcomes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Send real Morpaankh order outcomes (delivered-and-paid, cancelled, RTO) back to Meta so ad optimisation tracks money received, not orders placed.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "backfill": "node src/backfill.mjs",
+    "start": "node src/server.mjs"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}
