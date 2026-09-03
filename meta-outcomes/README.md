@@ -99,6 +99,45 @@ node src/server.mjs
 
 Flip `DRY_RUN=false` only after a dry-run looks right and the Meta token is in.
 
+## Won't-break guarantees (do-no-harm review)
+
+- **Nothing on the storefront changes.** No theme, pixel, or tag edits. The
+  browser Purchase and the Facebook & Instagram channel's server Purchase are
+  untouched. This service only *reads* Shopify and *adds* a new Meta event.
+- **New, distinct event.** `DeliveredPurchase` is a custom event, never
+  `Purchase`. Different event_name means it can't merge with, dedupe against, or
+  inflate Purchase, and it doesn't touch any campaign currently optimising for
+  Purchase. Sharing event_id with the order only dedupes DeliveredPurchase
+  against itself.
+- **Read-only on Shopify.** Scopes are all `read_*`. The app cannot cancel,
+  refund, tag, fulfil, or alter any order. Worst case of a bug is a wrong Meta
+  event, never a change to store data or other apps.
+- **No order counted twice.** Three independent guards: the per-order ledger
+  (`deliveredSent`), a per-order in-process lock (`lock.mjs`, serialises
+  concurrent webhooks for the same order), and Meta's own event_id dedupe.
+- **No false revenue.** A DELIVERED scan whose courier note says returned
+  classifies as RTO, not DELIVERED_PAID (verified on real orders #1071 and
+  #1064). Value is the real collected amount only.
+- **Backfill can't spike optimisation.** Historical deliveries older than
+  `BACKFILL_CAPI_MAX_AGE_DAYS` (7) seed the audience but do NOT emit a
+  mis-dated conversion event.
+- **Additive on Meta.** The new `meta-outcomes` system user was granted access
+  alongside existing users (COD King, etc.); nothing was revoked or reconfigured.
+- **Independent of the Job 1 duplicate-Purchase issue.** This service neither
+  causes nor worsens it.
+
+### Operational must-dos for a safe go-live
+
+1. Keep `DRY_RUN=true` for the first `node src/backfill.mjs`, read the output.
+2. Set `META_TEST_EVENT_CODE` so the first live DeliveredPurchase lands in
+   Events Manager → Test Events, not in live data. Remove it once verified.
+3. **Persist `data/state.json` on durable storage** (EBS/EFS/DB). If it lives on
+   an ephemeral container disk and is lost on redeploy, the idempotency memory
+   resets. Meta's event_id dedupe still covers re-sends within its window, but
+   the ledger is the real guarantee.
+4. Run `backfill` to completion *before* starting the webhook server (the lock
+   is per-process; don't run both against the same data at once).
+
 ## Status
 
 - **Done:** the app `Meta Outcomes Sync` was created and installed on the store

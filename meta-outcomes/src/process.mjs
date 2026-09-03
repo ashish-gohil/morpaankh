@@ -12,6 +12,7 @@ import { classifyOrder, normaliseFromGraphql, extractContact, STATES } from './c
 import { buildUserData } from './hash.mjs';
 import { sendDeliveredPurchase, ensureAudience, audienceAddUsers, audienceRemoveUsers } from './meta.mjs';
 import { getRecord, setRecord } from './store.mjs';
+import { withKeyLock } from './lock.mjs';
 
 // Which audience a terminal state maps to. PLACED / IN_TRANSIT are undecided.
 function audienceFor(state) {
@@ -22,9 +23,15 @@ function audienceFor(state) {
 
 /**
  * Process one order by numeric id. Returns a summary of what happened.
+ * Serialised per order id so concurrent webhooks for the same order can never
+ * race the deliveredSent / audience guards.
  * @param {string|number} numericId
  */
-export async function processOrder(numericId) {
+export function processOrder(numericId) {
+  return withKeyLock(numericId, () => processOrderInner(numericId));
+}
+
+async function processOrderInner(numericId) {
   const order = await getOrderByNumericId(numericId);
   if (!order) return { orderId: String(numericId), skipped: 'order-not-found' };
 

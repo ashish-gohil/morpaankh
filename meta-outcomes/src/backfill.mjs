@@ -30,16 +30,27 @@ async function reconcile(order) {
   const actions = [];
 
   if (result.state === STATES.DELIVERED_PAID && !record.deliveredSent) {
-    await sendDeliveredPurchase({
-      eventId: result.eventId,
-      eventTime: Math.floor(Date.now() / 1000),
-      value: result.value,
-      currency: result.currency,
-      userData,
-      sourceUrl: 'https://www.morpaankh.in',
-    });
-    record.deliveredSent = true;
-    actions.push('sent-DeliveredPurchase');
+    // Age guard: only emit the CAPI conversion for recent deliveries. createdAt
+    // <= deliveredAt, so a fresh createdAt guarantees a valid, roughly-dated
+    // event_time; stale orders are marked handled (never emitted by backfill OR
+    // the live path) but still seed the Delivered audience below.
+    const ageDays = order.createdAt
+      ? (Date.now() - new Date(order.createdAt).getTime()) / 86400000
+      : Infinity;
+    if (ageDays <= config.backfillCapiMaxAgeDays) {
+      await sendDeliveredPurchase({
+        eventId: result.eventId,
+        eventTime: Math.floor(Date.now() / 1000),
+        value: result.value,
+        currency: result.currency,
+        userData,
+        sourceUrl: 'https://www.morpaankh.in',
+      });
+      actions.push('sent-DeliveredPurchase');
+    } else {
+      actions.push(`skipped-DeliveredPurchase(age ${Math.round(ageDays)}d, audience-only)`);
+    }
+    record.deliveredSent = true; // handled either way; live path won't re-fire
   }
 
   const target = audienceFor(result.state);

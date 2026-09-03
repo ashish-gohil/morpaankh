@@ -64,6 +64,12 @@ export const config = {
     : undefined,
 
   backfillSince: process.env.BACKFILL_SINCE || '2026-08-01',
+  // During backfill, only emit the DeliveredPurchase CAPI event for orders this
+  // recent. Meta requires event_time within 7 days, and firing a burst of
+  // mis-dated historical "conversions" would distort optimisation. Older
+  // delivered orders are still added to the Delivered audience. The live
+  // webhook path is always real-time, so this only constrains backfill.
+  backfillCapiMaxAgeDays: Number(process.env.BACKFILL_CAPI_MAX_AGE_DAYS || 7),
   stateDbPath: process.env.STATE_DB_PATH || './data/state.json',
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, ''),
   port: Number(process.env.PORT || 8080),
