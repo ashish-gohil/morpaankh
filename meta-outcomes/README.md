@@ -87,19 +87,33 @@ Webhook topics subscribed: `orders/create`, `orders/updated`, `orders/cancelled`
 - **Dry-run.** `DRY_RUN=true` (the default) prints every Meta call it would make
   and writes nothing. Flip to `false` to go live.
 
-## How to run
+## How it runs (deployment model = scheduled poll)
+
+Primary path is a **scheduled poll**, deployed as an **AWS Lambda** on an
+**EventBridge** timer (twice a day, daytime IST). Each run
+(`src/handler.mjs` → `runPoll`):
+
+1. loads state from S3 (ledger + last checkpoint),
+2. fetches orders **updated** since the last checkpoint (first run: since
+   `BACKFILL_SINCE`), minus a small overlap,
+3. reconciles each idempotently (classify → CAPI when fresh → audiences),
+4. advances the checkpoint and writes state back to S3 (once).
+
+Lambda uses `STATE_BACKEND=s3` (its disk is ephemeral) and **reserved
+concurrency = 1** so two runs never touch the state object at once.
+`@aws-sdk/client-s3` is provided by the Node 20 Lambda runtime (nothing to
+bundle). An optional always-on webhook path (`src/server.mjs`) also exists.
 
 ```bash
-# 1) Tests (offline, no credentials)
+# Tests (offline, no credentials)
 bunx vitest run
 
-# 2) Backfill in dry-run: classify every order since BACKFILL_SINCE and print
-#    exactly what it WOULD send to Meta. Writes nothing to Meta.
-node src/backfill.mjs
+# One poll run locally in dry-run: real Shopify reads, prints what it WOULD
+# send to Meta, writes nothing. First run also backfills from BACKFILL_SINCE.
+node src/poll.mjs
 
-# 3) Live webhook server (needs PUBLIC_BASE_URL). Registers the 5 topics,
-#    verifies HMAC, processes each order idempotently.
-node src/server.mjs
+# Manual full re-seed since BACKFILL_SINCE (ignores the checkpoint)
+node src/backfill.mjs
 ```
 
 Flip `DRY_RUN=false` only after a dry-run looks right and the Meta token is in.

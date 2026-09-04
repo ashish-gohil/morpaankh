@@ -1,99 +1,35 @@
 /*
- * backfill.mjs — replay orders from BACKFILL_SINCE (default 2026-08-01).
- *
- * On first run this walks every order created on/after the cutoff, classifies
- * each, and applies the same idempotent side effects the live webhook path
- * uses. Safe to re-run: the ledger means nothing is sent or added twice.
+ * backfill.mjs — manual full re-seed from BACKFILL_SINCE (created_at based),
+ * ignoring the poll checkpoint. The scheduled poll already backfills on its
+ * first run; use this only to deliberately re-scan all history.
  *
  *   node src/backfill.mjs            # uses BACKFILL_SINCE
  *   node src/backfill.mjs 2026-08-15 # override the cutoff
  */
 import { config, assertConfig, redact } from './config.mjs';
 import { iterateOrdersSince } from './shopify.mjs';
-import { classifyOrder, normaliseFromGraphql, extractContact, STATES } from './classify.mjs';
-import { buildUserData } from './hash.mjs';
-import { sendDeliveredPurchase, ensureAudience, audienceAddUsers, audienceRemoveUsers } from './meta.mjs';
-import { getRecord, setRecord, flush } from './store.mjs';
-
-function audienceFor(state) {
-  if (state === STATES.DELIVERED_PAID) return 'delivered';
-  if (state === STATES.CANCELLED_ON_CALL || state === STATES.RTO) return 'lost';
-  return null;
-}
-
-// Same reconciliation as process.mjs, but takes an already-fetched order node so
-// the backfill does one bulk read instead of a per-order round trip.
-async function reconcile(order) {
-  const result = classifyOrder(normaliseFromGraphql(order));
-  const record = getRecord(result.orderId) || {};
-  const userData = buildUserData(extractContact(order));
-  const actions = [];
-
-  if (result.state === STATES.DELIVERED_PAID && !record.deliveredSent) {
-    // Age guard: only emit the CAPI conversion for recent deliveries. createdAt
-    // <= deliveredAt, so a fresh createdAt guarantees a valid, roughly-dated
-    // event_time; stale orders are marked handled (never emitted by backfill OR
-    // the live path) but still seed the Delivered audience below.
-    const ageDays = order.createdAt
-      ? (Date.now() - new Date(order.createdAt).getTime()) / 86400000
-      : Infinity;
-    if (ageDays <= config.backfillCapiMaxAgeDays) {
-      await sendDeliveredPurchase({
-        eventId: result.eventId,
-        eventTime: Math.floor(Date.now() / 1000),
-        value: result.value,
-        currency: result.currency,
-        userData,
-        sourceUrl: 'https://www.morpaankh.in',
-      });
-      actions.push('sent-DeliveredPurchase');
-    } else {
-      actions.push(`skipped-DeliveredPurchase(age ${Math.round(ageDays)}d, audience-only)`);
-    }
-    record.deliveredSent = true; // handled either way; live path won't re-fire
-  }
-
-  const target = audienceFor(result.state);
-  if (target && target !== record.audience) {
-    const targetName = target === 'delivered' ? config.meta.audienceDelivered : config.meta.audienceLost;
-    await audienceAddUsers(await ensureAudience(targetName), [userData]);
-    actions.push(`audience-add:${target}`);
-    if (record.audience && record.audience !== target) {
-      const oldName = record.audience === 'delivered' ? config.meta.audienceDelivered : config.meta.audienceLost;
-      await audienceRemoveUsers(await ensureAudience(oldName), [userData]);
-      actions.push(`audience-remove:${record.audience}`);
-    }
-    record.audience = target;
-  }
-
-  await setRecord(result.orderId, {
-    state: result.state,
-    deliveredSent: !!record.deliveredSent,
-    audience: record.audience ?? null,
-  });
-  return { state: result.state, actions };
-}
+import { initStore, flush } from './store.mjs';
+import { reconcileOrder } from './reconcile.mjs';
 
 async function main() {
   const since = process.argv[2] || config.backfillSince;
   assertConfig();
-  console.log(
-    `backfill from ${since}: dryRun=${config.dryRun} store=${config.shopify.domain} token=${redact(config.shopify.token)}`,
-  );
+  await initStore();
+  console.log(`backfill from ${since}: dryRun=${config.dryRun} store=${config.stateBackend} token=${redact(config.shopify.token)}`);
 
   const tally = {};
   let n = 0;
   for await (const order of iterateOrdersSince(since)) {
-    const { state, actions } = await reconcile(order);
-    tally[state] = (tally[state] || 0) + 1;
+    const r = await reconcileOrder(order);
+    tally[r.state] = (tally[r.state] || 0) + 1;
     n += 1;
-    if (actions.some((a) => a !== 'no-op')) {
-      console.log(`  ${order.name} -> ${state} [${actions.join(', ')}]`);
+    if (!(r.actions.length === 1 && r.actions[0] === 'no-op')) {
+      console.log(`  ${r.name} -> ${r.state} [${r.actions.join(', ')}]`);
     }
   }
   await flush();
   console.log(`\nbackfill done: ${n} orders`);
-  for (const [state, count] of Object.entries(tally)) console.log(`  ${state}: ${count}`);
+  for (const [s, c] of Object.entries(tally)) console.log(`  ${s}: ${c}`);
   if (config.dryRun) console.log('\n(dry-run: nothing was sent to Meta)');
 }
 

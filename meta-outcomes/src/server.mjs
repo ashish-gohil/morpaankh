@@ -10,6 +10,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config, assertConfig, redact } from './config.mjs';
 import { processOrder } from './process.mjs';
 import { ensureWebhooks } from './shopify.mjs';
+import { initStore } from './store.mjs';
 
 function verifyHmac(rawBody, headerHmac) {
   if (!headerHmac) return false;
@@ -79,6 +80,7 @@ const server = createServer(async (req, res) => {
 
 async function main() {
   assertConfig(); // Meta required only when not dry-run
+  await initStore();
   console.log(
     `meta-outcomes server starting: dryRun=${config.dryRun} store=${config.shopify.domain} ` +
       `token=${redact(config.shopify.token)} dataset=${config.meta.datasetId}`,

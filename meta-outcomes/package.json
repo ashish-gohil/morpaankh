@@ -7,6 +7,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "poll": "node src/poll.mjs",
     "backfill": "node src/backfill.mjs",
     "start": "node src/server.mjs"
   },

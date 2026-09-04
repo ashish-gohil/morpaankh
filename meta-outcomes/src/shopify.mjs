@@ -40,6 +40,7 @@ const ORDER_FIELDS = `
   tags
   cancelledAt
   createdAt
+  updatedAt
   currencyCode
   displayFinancialStatus
   netPaymentSet { shopMoney { amount currencyCode } }
@@ -60,20 +61,32 @@ export async function getOrderByNumericId(numericId) {
 
 /**
  * Async-iterate every order created on/after `sinceISO`, oldest first.
- * Yields raw GraphQL order nodes.
+ * Used by the one-time backfill. Yields raw GraphQL order nodes.
  */
 export async function* iterateOrdersSince(sinceISO) {
+  yield* iterateOrders(`created_at:>='${sinceISO}'`, 'CREATED_AT');
+}
+
+/**
+ * Async-iterate every order *updated* on/after `sinceISO`, oldest-updated first.
+ * This is what the scheduled poll uses: an order created days ago whose outcome
+ * changes today (delivered / RTO tag added) reappears because its updatedAt moved.
+ */
+export async function* iterateOrdersUpdatedSince(sinceISO) {
+  yield* iterateOrders(`updated_at:>='${sinceISO}'`, 'UPDATED_AT');
+}
+
+async function* iterateOrders(queryStr, sortKey) {
   let cursor = null;
-  const q = `created_at:>='${sinceISO}'`;
   for (;;) {
     const data = await adminGraphql(
-      `query Backfill($q: String!, $after: String) {
-         orders(first: 50, after: $after, query: $q, sortKey: CREATED_AT) {
+      `query Iter($q: String!, $after: String) {
+         orders(first: 50, after: $after, query: $q, sortKey: ${sortKey}) {
            edges { cursor node { ${ORDER_FIELDS} } }
            pageInfo { hasNextPage endCursor }
          }
        }`,
-      { q, after: cursor },
+      { q: queryStr, after: cursor },
     );
     for (const edge of data.orders.edges) yield edge.node;
     if (!data.orders.pageInfo.hasNextPage) break;

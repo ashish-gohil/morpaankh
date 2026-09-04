@@ -60,13 +60,24 @@ export const config = {
   },
 
   backfillSince: process.env.BACKFILL_SINCE || '2026-08-01',
-  // During backfill, only emit the DeliveredPurchase CAPI event for orders this
-  // recent. Meta requires event_time within 7 days, and firing a burst of
-  // mis-dated historical "conversions" would distort optimisation. Older
-  // delivered orders are still added to the Delivered audience. The live
-  // webhook path is always real-time, so this only constrains backfill.
-  backfillCapiMaxAgeDays: Number(process.env.BACKFILL_CAPI_MAX_AGE_DAYS || 7),
+  // Only emit the DeliveredPurchase CAPI event when the order's outcome is this
+  // recent (based on updatedAt). Meta requires event_time within 7 days, and
+  // firing mis-dated historical "conversions" would distort optimisation. Older
+  // delivered orders still seed the Delivered audience, just no event.
+  capiMaxAgeDays: Number(process.env.CAPI_MAX_AGE_DAYS || process.env.BACKFILL_CAPI_MAX_AGE_DAYS || 7),
+
+  // Each scheduled poll re-scans a small overlap before the last checkpoint so a
+  // late-arriving update near a run boundary is never missed (idempotency makes
+  // the overlap harmless).
+  pollOverlapMinutes: Number(process.env.POLL_OVERLAP_MINUTES || 180),
+
+  // State store: 'file' for local dry-runs, 's3' for Lambda (its disk resets).
+  stateBackend: (process.env.STATE_BACKEND || 'file').toLowerCase(),
   stateDbPath: process.env.STATE_DB_PATH || './data/state.json',
+  s3Bucket: process.env.STATE_S3_BUCKET || '',
+  s3Key: process.env.STATE_S3_KEY || 'meta-outcomes/state.json',
+  awsRegion: process.env.AWS_REGION || 'ap-south-1',
+
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, ''),
   port: Number(process.env.PORT || 8080),
 };
