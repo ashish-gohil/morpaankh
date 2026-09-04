@@ -17,6 +17,7 @@
 set -euo pipefail
 
 REGION="${AWS_REGION:-ap-south-1}"     # Mumbai
+export AWS_DEFAULT_REGION="$REGION"     # pin every aws call to this region
 FN="meta-outcomes"
 ROLE="meta-outcomes-lambda-role"
 RULE="meta-outcomes-twice-daily"
