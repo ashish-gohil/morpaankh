@@ -97,6 +97,15 @@ export function classifyOrder(order, opts = {}) {
   const delivered = statuses.includes('DELIVERED');
   const shipped = statuses.some((s) => SHIPPED_STATUSES.has(s));
 
+  // Genuine return-to-origin, marked either manually by the merchant (exact tag
+  // "RTO", applied at day-end) or automatically by Shiprocket ("RTO Initiated
+  // via Shiprocket"). MUST match precisely: the risk-score tags "HIGH/MEDIUM/LOW
+  // RTO Risk" contain "RTO" but are NOT actual RTOs and must never trigger it.
+  const rtoTagged = tags.some((t) => {
+    const s = t.trim().toLowerCase();
+    return s === 'rto' || s.includes('rto initiated');
+  });
+
   const cancelled =
     Boolean(order.cancelledAt) ||
     tags.some((t) => t.toLowerCase() === 'cod-cancelled');
@@ -109,10 +118,11 @@ export function classifyOrder(order, opts = {}) {
     currency,
   });
 
-  // 1) Genuine failed delivery = a real loss (RTO). A "return"/"returned"
-  //    courier NOTE is deliberately NOT treated as a loss here (see policy note
-  //    above): those are customer-requested replacements and the buyer paid.
-  if (attempted) return out(STATES.RTO);
+  // 1) Genuine return-to-origin = a real loss (RTO): a courier failed-delivery
+  //    status, or an explicit RTO tag (merchant "RTO", or Shiprocket's). The
+  //    free-text "return" NOTE is deliberately NOT used (see policy note above):
+  //    those are paid customer replacements, not losses.
+  if (attempted || rtoTagged) return out(STATES.RTO);
 
   // 2) Delivered AND money actually collected. A replacement/return note does
   //    not demote this: if the cash was collected, it counts as paid.

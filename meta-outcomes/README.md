@@ -28,8 +28,10 @@ Every order is reduced to exactly one state:
 | `PLACED` | created, nothing has happened | default |
 | `CANCELLED_ON_CALL` | cancelled before dispatch | `cancelledAt`, or `COD-Cancelled` tag |
 | `IN_TRANSIT` | dispatched, outcome open | a shipped fulfillment displayStatus |
-| `RTO` | genuine failed delivery (courier could not deliver) | displayStatus `ATTEMPTED_DELIVERY` |
+| `RTO` | genuine return-to-origin (a real loss) | displayStatus `ATTEMPTED_DELIVERY`, OR an exact `RTO` tag (merchant applies at day-end) / `RTO Initiated via Shiprocket` tag |
 | `DELIVERED_PAID` | delivered AND money collected | displayStatus `DELIVERED` **and** net payment > 0 |
+
+**RTO tag matching is precise on purpose.** The risk-score tags `HIGH/MEDIUM/LOW RTO Risk` contain the letters "RTO" but are only predictions, not real RTOs — they never trigger RTO. Only an exact `RTO` tag or a `…RTO Initiated…` tag does. The merchant gets **replacements only** (damaged / wrong size, customer pays), never change-of-mind refunds, so a replacement is a paid sale: it counts as `DELIVERED_PAID` once the cash shows in Shopify, and genuine losses are marked with the `RTO` tag.
 
 **Merchant policy: a courier "return" note is NOT a loss.** For this store,
 "return"/"returned" notes are almost always customer-requested *replacements*,

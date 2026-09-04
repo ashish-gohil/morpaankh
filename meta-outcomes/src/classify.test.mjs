@@ -47,6 +47,21 @@ describe('classifyOrder', () => {
     expect(r.state).toBe(STATES.RTO);
   });
 
+  it('treats an exact "RTO" tag (merchant-applied) as a genuine loss', () => {
+    const r = classifyOrder({ id: 5014, tags: ['MEDIUM RTO Risk', 'RTO'], fulfillments: [{ displayStatus: 'IN_TRANSIT' }] });
+    expect(r.state).toBe(STATES.RTO);
+  });
+
+  it('treats the Shiprocket "RTO Initiated via Shiprocket" tag as RTO', () => {
+    const r = classifyOrder({ id: 5015, tags: ['HIGH RTO Risk', 'RTO Initiated via Shiprocket'], fulfillments: [{ displayStatus: 'NOT_DELIVERED' }] });
+    expect(r.state).toBe(STATES.RTO);
+  });
+
+  it('does NOT mistake the "HIGH RTO Risk" score tag for a real RTO', () => {
+    const r = classifyOrder({ id: 5016, tags: ['HIGH RTO Risk', '✅ COD-Verified'], netPayment: 1499, fulfillments: [{ displayStatus: 'DELIVERED' }] });
+    expect(r.state).toBe(STATES.DELIVERED_PAID); // risk tag ignored; cash decides
+  });
+
   // Merchant policy: a courier "return" note is a customer-requested
   // replacement, NOT a lost sale. It must never force RTO.
   it('does NOT treat a return/replacement note as a loss: in-transit stays IN_TRANSIT', () => {
