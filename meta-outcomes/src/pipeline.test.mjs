@@ -10,6 +10,7 @@ process.env.DRY_RUN = 'true';
 
 const store = await import('./store.mjs');
 const { reconcileOrder } = await import('./reconcile.mjs');
+const { config } = await import('./config.mjs');
 
 const deliveredOrder = (over = {}) => ({
   id: 'gid://shopify/Order/9001',
@@ -28,14 +29,30 @@ const deliveredOrder = (over = {}) => ({
 
 describe('store (file backend)', () => {
   it('persists records + checkpoint across a reload', async () => {
-    await store.initStore();
-    store.setRecord('1', { state: 'PLACED' });
-    store.setCheckpoint('2026-09-04T00:00:00Z');
-    await store.flush();
+    const prev = config.dryRun;
+    config.dryRun = false; // persistence only happens on live runs
+    try {
+      await store.initStore();
+      store.setRecord('1', { state: 'PLACED' });
+      store.setCheckpoint('2026-09-04T00:00:00Z');
+      await store.flush();
+      store._reset();
+      await store.initStore();
+      expect(store.getRecord('1').state).toBe('PLACED');
+      expect(store.getCheckpoint()).toBe('2026-09-04T00:00:00Z');
+    } finally {
+      config.dryRun = prev;
+    }
+  });
+
+  it('flush is a no-op under dry-run (nothing persisted)', async () => {
     store._reset();
     await store.initStore();
-    expect(store.getRecord('1').state).toBe('PLACED');
-    expect(store.getCheckpoint()).toBe('2026-09-04T00:00:00Z');
+    store.setRecord('zzz', { state: 'RTO' });
+    await store.flush(); // dry-run: should not write
+    store._reset();
+    await store.initStore();
+    expect(store.getRecord('zzz')).toBeNull();
   });
 });
 

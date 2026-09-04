@@ -110,6 +110,9 @@ export function allRecords() {
 }
 
 export async function flush() {
+  // Dry-run is fully read-only: never persist the ledger/checkpoint, so a
+  // preview run cannot make a later live run think work was already done.
+  if (config.dryRun) return;
   if (!db || !dirty) return;
   if (config.stateBackend === 's3') {
     await s3Save();
