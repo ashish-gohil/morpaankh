@@ -168,12 +168,13 @@ export function normaliseFromGraphql(order) {
 export function extractContact(order) {
   const gidTail = (gid) => String(gid || '').split('/').pop();
   const addr = order.shippingAddress || {};
+  // email/phone come from the ORDER (covered by read_orders + protected customer
+  // data); the nested customer object is intentionally not fetched (it would
+  // need read_customers). external_id falls back to the order id.
   return {
     email: order.email || null,
     phone: order.phone || addr.phone || null,
-    externalId: gidTail(order.customer?.id) || gidTail(order.id),
-    firstName: order.customer?.firstName || null,
-    lastName: order.customer?.lastName || null,
+    externalId: gidTail(order.id),
     city: addr.city || null,
     state: addr.province || null,
     zip: addr.zip || null,

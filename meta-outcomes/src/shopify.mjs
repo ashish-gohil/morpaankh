@@ -46,7 +46,6 @@ const ORDER_FIELDS = `
   netPaymentSet { shopMoney { amount currencyCode } }
   email
   phone
-  customer { id firstName lastName }
   shippingAddress { city province zip countryCodeV2 phone }
   fulfillments(first: 20) { displayStatus }
 `;
