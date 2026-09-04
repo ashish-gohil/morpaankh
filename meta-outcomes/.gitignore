@@ -5,3 +5,5 @@
 data/
 node_modules/
 *.log
+deploy/function.zip
+deploy/out.json
