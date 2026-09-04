@@ -24,7 +24,7 @@ function audienceFor(state) {
 // Same reconciliation as process.mjs, but takes an already-fetched order node so
 // the backfill does one bulk read instead of a per-order round trip.
 async function reconcile(order) {
-  const result = classifyOrder(normaliseFromGraphql(order), { returnRegex: config.returnRegex });
+  const result = classifyOrder(normaliseFromGraphql(order));
   const record = getRecord(result.orderId) || {};
   const userData = buildUserData(extractContact(order));
   const actions = [];

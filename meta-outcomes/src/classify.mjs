@@ -52,14 +52,14 @@ const SHIPPED_STATUSES = new Set([
 ]);
 
 /*
- * Default "this came back" matcher. The courier integration writes the shipment
- * status into the order note as free text, and the exact wording changes. Both
- * observed strings, "This shipment has been Returned" and "In Transit For
- * Return", contain the substring "return", so /return/i catches them. Kept
- * deliberately broad and overridable (META_RETURN_REGEX) so a future wording
- * such as "RTO initiated" can be added without a code change.
+ * IMPORTANT policy (per the merchant): a courier "return"/"returned" note is NOT
+ * a lost sale. For this store those are almost always customer-requested
+ * REPLACEMENTS, and since change-of-mind returns are not accepted, the buyer has
+ * kept and paid for the item. So the free-text note is NOT used to decide the
+ * outcome. Only two things matter: a genuine failed delivery (fulfillment
+ * displayStatus ATTEMPTED_DELIVERY) is a real loss (RTO), and money actually
+ * collected (net > 0 on a DELIVERED order) is what counts as paid.
  */
-export const DEFAULT_RETURN_REGEX = /return|\brto\b|\brts\b|sent back/i;
 
 function normaliseTags(tags) {
   if (Array.isArray(tags)) return tags.map((t) => String(t).trim()).filter(Boolean);
@@ -81,14 +81,10 @@ function normaliseTags(tags) {
  * @param {number}        [order.netPayment]  money actually received, shop currency
  * @param {string}        [order.currency]    ISO currency, defaults INR
  * @param {Array<{displayStatus:string}>} [order.fulfillments]
- * @param {object} [opts]
- * @param {RegExp} [opts.returnRegex]         override the return matcher
+ * @param {object} [opts]                      reserved; the courier note is not used
  * @returns {{state:string, orderId:string, eventId:string, value:number, currency:string}}
  */
 export function classifyOrder(order, opts = {}) {
-  const returnRegex = opts.returnRegex || DEFAULT_RETURN_REGEX;
-
-  const note = typeof order.note === 'string' ? order.note : '';
   const tags = normaliseTags(order.tags);
   const netPayment = Number.isFinite(Number(order.netPayment)) ? Number(order.netPayment) : 0;
   const currency = order.currency || 'INR';
@@ -97,7 +93,6 @@ export function classifyOrder(order, opts = {}) {
     .map((f) => (f && f.displayStatus ? String(f.displayStatus).toUpperCase() : ''))
     .filter(Boolean);
 
-  const noteSaysReturn = returnRegex.test(note);
   const attempted = statuses.includes('ATTEMPTED_DELIVERY');
   const delivered = statuses.includes('DELIVERED');
   const shipped = statuses.some((s) => SHIPPED_STATUSES.has(s));
@@ -114,11 +109,13 @@ export function classifyOrder(order, opts = {}) {
     currency,
   });
 
-  // 1) RTO beats everything, including a DELIVERED scan and a later cancel.
-  //    A returned parcel is not money received.
-  if (noteSaysReturn || attempted) return out(STATES.RTO);
+  // 1) Genuine failed delivery = a real loss (RTO). A "return"/"returned"
+  //    courier NOTE is deliberately NOT treated as a loss here (see policy note
+  //    above): those are customer-requested replacements and the buyer paid.
+  if (attempted) return out(STATES.RTO);
 
-  // 2) Delivered AND money actually collected.
+  // 2) Delivered AND money actually collected. A replacement/return note does
+  //    not demote this: if the cash was collected, it counts as paid.
   if (delivered && netPayment > 0) return out(STATES.DELIVERED_PAID);
 
   // 3) Cancelled on the confirmation call (never shipped, or app-tagged).

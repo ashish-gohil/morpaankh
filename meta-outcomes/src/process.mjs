@@ -35,7 +35,7 @@ async function processOrderInner(numericId) {
   const order = await getOrderByNumericId(numericId);
   if (!order) return { orderId: String(numericId), skipped: 'order-not-found' };
 
-  const result = classifyOrder(normaliseFromGraphql(order), { returnRegex: config.returnRegex });
+  const result = classifyOrder(normaliseFromGraphql(order));
   const record = getRecord(result.orderId) || {};
   const actions = [];
 

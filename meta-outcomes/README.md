@@ -28,16 +28,19 @@ Every order is reduced to exactly one state:
 | `PLACED` | created, nothing has happened | default |
 | `CANCELLED_ON_CALL` | cancelled before dispatch | `cancelledAt`, or `COD-Cancelled` tag |
 | `IN_TRANSIT` | dispatched, outcome open | a shipped fulfillment displayStatus |
-| `RTO` | shipped and returned | note matches `/return/i`, or displayStatus `ATTEMPTED_DELIVERY` |
+| `RTO` | genuine failed delivery (courier could not deliver) | displayStatus `ATTEMPTED_DELIVERY` |
 | `DELIVERED_PAID` | delivered AND money collected | displayStatus `DELIVERED` **and** net payment > 0 |
 
-**RTO is checked before DELIVERED_PAID on purpose.** An order that Shopify shows
-as `DELIVERED` but whose courier note says it was returned classifies as `RTO`,
-never `DELIVERED_PAID`. That case is real in the data and is covered by a test.
-
-The note is read defensively (it is free text from a courier integration). The
-matcher defaults to `/return|\brto\b|\brts\b|sent back/i` and is overridable via
-`META_RETURN_REGEX` with no code change.
+**Merchant policy: a courier "return" note is NOT a loss.** For this store,
+"return"/"returned" notes are almost always customer-requested *replacements*,
+and change-of-mind returns are not accepted, so the buyer has kept and paid for
+the item. The free-text note is therefore **ignored** for classification. Only
+two things decide the money-relevant outcome: `ATTEMPTED_DELIVERY` (a genuine
+failed delivery) is the only RTO trigger, and cash actually collected
+(`net > 0` on a `DELIVERED` order) is the only "paid" trigger. A delivered order
+with a return note still counts as `DELIVERED_PAID` if the cash was collected;
+one with no cash yet stays `IN_TRANSIT` until it is (never falsely paid, never
+falsely lost).
 
 Run the tests:
 
@@ -115,9 +118,9 @@ Flip `DRY_RUN=false` only after a dry-run looks right and the Meta token is in.
 - **No order counted twice.** Three independent guards: the per-order ledger
   (`deliveredSent`), a per-order in-process lock (`lock.mjs`, serialises
   concurrent webhooks for the same order), and Meta's own event_id dedupe.
-- **No false revenue.** A DELIVERED scan whose courier note says returned
-  classifies as RTO, not DELIVERED_PAID (verified on real orders #1071 and
-  #1064). Value is the real collected amount only.
+- **No false revenue.** "Paid" requires cash actually collected (`net > 0` on a
+  DELIVERED order); the value sent is that real collected amount. A "return"
+  note never fabricates or removes revenue on its own.
 - **Backfill can't spike optimisation.** Historical deliveries older than
   `BACKFILL_CAPI_MAX_AGE_DAYS` (7) seed the audience but do NOT emit a
   mis-dated conversion event.

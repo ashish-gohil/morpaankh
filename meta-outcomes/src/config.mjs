@@ -59,10 +59,6 @@ export const config = {
     audienceLost: process.env.META_AUDIENCE_LOST || 'MP - Cancelled or RTO',
   },
 
-  returnRegex: process.env.META_RETURN_REGEX
-    ? new RegExp(process.env.META_RETURN_REGEX, 'i')
-    : undefined,
-
   backfillSince: process.env.BACKFILL_SINCE || '2026-08-01',
   // During backfill, only emit the DeliveredPurchase CAPI event for orders this
   // recent. Meta requires event_time within 7 days, and firing a burst of

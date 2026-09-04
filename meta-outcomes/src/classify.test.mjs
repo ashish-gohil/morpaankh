@@ -47,45 +47,38 @@ describe('classifyOrder', () => {
     expect(r.state).toBe(STATES.RTO);
   });
 
-  it('classifies an in-transit-for-return note as RTO', () => {
+  // Merchant policy: a courier "return" note is a customer-requested
+  // replacement, NOT a lost sale. It must never force RTO.
+  it('does NOT treat a return/replacement note as a loss: in-transit stays IN_TRANSIT', () => {
     const r = classifyOrder({ id: 5009, note: 'In Transit For Return', fulfillments: [{ displayStatus: 'IN_TRANSIT' }] });
-    expect(r.state).toBe(STATES.RTO);
+    expect(r.state).toBe(STATES.IN_TRANSIT);
+    expect(r.state).not.toBe(STATES.RTO);
   });
 
-  // The case the merchant explicitly flagged: DELIVERED in Shopify, but the
-  // courier note says it was returned. Must be RTO, never DELIVERED_PAID.
-  it('classifies DELIVERED-in-Shopify-but-note-says-returned as RTO, not DELIVERED_PAID', () => {
+  it('does NOT demote a paid order because the note mentions a return', () => {
     const r = classifyOrder({
       id: 5010,
       note: 'This shipment has been Returned',
       netPayment: 1799,
       fulfillments: [{ displayStatus: 'DELIVERED' }],
     });
-    expect(r.state).toBe(STATES.RTO);
-    expect(r.state).not.toBe(STATES.DELIVERED_PAID);
+    expect(r.state).toBe(STATES.DELIVERED_PAID);
+    expect(r.value).toBe(1799);
   });
 
-  it('RTO wins even if the order was later cancelled/restocked', () => {
+  it('a DELIVERED scan with a return note but no cash collected is IN_TRANSIT (not RTO, not paid)', () => {
     const r = classifyOrder({
       id: 5011,
-      cancelledAt: '2026-08-29T12:00:00Z',
-      note: 'Shipment has been Returned to origin',
+      note: 'This shipment has been Returned',
+      netPayment: 0,
       fulfillments: [{ displayStatus: 'DELIVERED' }],
     });
-    expect(r.state).toBe(STATES.RTO);
+    expect(r.state).toBe(STATES.IN_TRANSIT);
   });
 
   it('is defensive against a null note and missing fulfillments', () => {
     const r = classifyOrder({ id: 5012, note: null });
     expect(r.state).toBe(STATES.PLACED);
-  });
-
-  it('honours a custom return regex from config', () => {
-    const r = classifyOrder(
-      { id: 5013, note: 'parcel undelivered - RTO initiated', fulfillments: [{ displayStatus: 'IN_TRANSIT' }] },
-      { returnRegex: /rto initiated/i },
-    );
-    expect(r.state).toBe(STATES.RTO);
   });
 
   it('eventId is always the numeric order id as a string', () => {
@@ -108,7 +101,8 @@ describe('normaliseFromGraphql', () => {
     expect(n.id).toBe('5555');
     expect(n.netPayment).toBe(2100);
     const r = classifyOrder(n);
-    expect(r.state).toBe(STATES.RTO); // delivered + returned note -> RTO
+    // delivered + cash collected -> paid; the "Returned" note (a replacement) does not demote it
+    expect(r.state).toBe(STATES.DELIVERED_PAID);
     expect(r.eventId).toBe('5555');
   });
 });
