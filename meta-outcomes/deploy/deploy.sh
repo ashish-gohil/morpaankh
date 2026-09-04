@@ -78,7 +78,10 @@ if ! aws iam get-role --role-name "$ROLE" >/dev/null 2>&1; then
   echo ">> created role $ROLE (waiting ~12s for IAM propagation)"; sleep 12
 fi
 aws iam put-role-policy --role-name "$ROLE" --policy-name s3-state \
-  --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],"Resource":"arn:aws:s3:::'"$BUCKET"'/meta-outcomes/*"}]}' >/dev/null
+  --policy-document '{"Version":"2012-10-17","Statement":[
+    {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],"Resource":"arn:aws:s3:::'"$BUCKET"'/meta-outcomes/*"},
+    {"Effect":"Allow","Action":["s3:ListBucket"],"Resource":"arn:aws:s3:::'"$BUCKET"'"}
+  ]}' >/dev/null
 ROLE_ARN="$(aws iam get-role --role-name "$ROLE" --query Role.Arn --output text)"
 
 # ---------- package the code (no deps; @aws-sdk is in the Lambda runtime) ----------
