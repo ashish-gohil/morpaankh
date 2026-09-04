@@ -128,7 +128,14 @@ else
   echo ">> created function $FN"
 fi
 aws lambda wait function-updated --function-name "$FN"
-aws lambda put-function-concurrency --function-name "$FN" --reserved-concurrent-executions 1 >/dev/null
+# Best-effort: reserve concurrency 1 so two runs can never overlap the state
+# object. New accounts cap total concurrency at 10 and won't allow any
+# reservation; that's fine here (twice-daily, seconds-long runs never overlap).
+if aws lambda put-function-concurrency --function-name "$FN" --reserved-concurrent-executions 1 >/dev/null 2>&1; then
+  echo ">> reserved concurrency = 1"
+else
+  echo ">> NOTE: could not reserve concurrency (account limit 10). Safe at this cadence; skipping."
+fi
 FN_ARN="$(aws lambda get-function --function-name "$FN" --query Configuration.FunctionArn --output text)"
 
 # ---------- schedule: 11:00 & 17:00 IST == 05:30 & 11:30 UTC, twice daily ----------
