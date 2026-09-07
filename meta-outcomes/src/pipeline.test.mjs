@@ -94,3 +94,57 @@ describe('reconcile idempotency (dry-run)', () => {
     expect(r.actions).toContain('audience-add:delivered');
   });
 });
+
+// The "whom NOT to target" path: a genuine loss must never send a conversion
+// event, and the buyer must land in the exclusion ("lost") audience so Meta can
+// stop chasing them and people like them.
+describe('lost outcomes feed the exclusion audience, never a conversion (dry-run)', () => {
+  it('an RTO-tagged order sends no DeliveredPurchase and joins the lost audience', async () => {
+    await store.initStore();
+    const o = deliveredOrder({
+      id: 'gid://shopify/Order/9101',
+      name: '#9101',
+      tags: ['RTO'], // the manual day-end tag
+      netPaymentSet: { shopMoney: { amount: '0.0', currencyCode: 'INR' } },
+      fulfillments: [{ displayStatus: 'OUT_FOR_DELIVERY' }],
+    });
+    const r = await reconcileOrder(o);
+    expect(r.state).toBe('RTO');
+    expect(r.actions).toContain('audience-add:lost');
+    expect(r.actions.some((a) => a.startsWith('sent-DeliveredPurchase'))).toBe(false);
+  });
+
+  it('a cod-cancelled order joins the lost audience (no conversion)', async () => {
+    await store.initStore();
+    const o = deliveredOrder({
+      id: 'gid://shopify/Order/9102',
+      name: '#9102',
+      tags: ['cod-cancelled'],
+      cancelledAt: null,
+      netPaymentSet: { shopMoney: { amount: '0.0', currencyCode: 'INR' } },
+      fulfillments: [],
+    });
+    const r = await reconcileOrder(o);
+    expect(r.state).toBe('CANCELLED_ON_CALL');
+    expect(r.actions).toContain('audience-add:lost');
+    expect(r.actions.some((a) => a.startsWith('sent-DeliveredPurchase'))).toBe(false);
+  });
+
+  it('a delivered buyer who is later RTO-tagged is moved OUT of delivered and INTO lost', async () => {
+    await store.initStore();
+    const id = 'gid://shopify/Order/9103';
+    // First: delivered and paid -> delivered audience.
+    const r1 = await reconcileOrder(deliveredOrder({ id, name: '#9103' }));
+    expect(r1.state).toBe('DELIVERED_PAID');
+    expect(r1.actions).toContain('audience-add:delivered');
+    // Later: same order comes back, tagged RTO (a stray DELIVERED scan remains).
+    // RTO is checked before DELIVERED_PAID, so it flips, and the buyer is pulled
+    // from the lookalike seed into the exclusion list.
+    const r2 = await reconcileOrder(
+      deliveredOrder({ id, name: '#9103', tags: ['RTO'], fulfillments: [{ displayStatus: 'DELIVERED' }] }),
+    );
+    expect(r2.state).toBe('RTO');
+    expect(r2.actions).toContain('audience-add:lost');
+    expect(r2.actions).toContain('audience-remove:delivered');
+  });
+});

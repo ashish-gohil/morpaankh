@@ -50,6 +50,7 @@ META_DELIVERED_EVENT_NAME="$(getenv META_DELIVERED_EVENT_NAME)"
 META_AUDIENCE_DELIVERED="$(getenv META_AUDIENCE_DELIVERED)"
 META_AUDIENCE_LOST="$(getenv META_AUDIENCE_LOST)"
 BACKFILL_SINCE="$(getenv BACKFILL_SINCE)"
+ALERT_EMAIL="$(getenv ALERT_EMAIL)"
 
 [ -n "$SHOPIFY_ADMIN_TOKEN" ] || { echo "ERROR: SHOPIFY_ADMIN_TOKEN missing in .env"; exit 1; }
 [ -n "$META_ACCESS_TOKEN" ]   || { echo "ERROR: META_ACCESS_TOKEN missing in .env"; exit 1; }
@@ -148,6 +149,40 @@ aws lambda add-permission --function-name "$FN" --statement-id "eventbridge-$RUL
   --action lambda:InvokeFunction --principal events.amazonaws.com --source-arn "$RULE_ARN" >/dev/null 2>&1 || true
 aws events put-targets --rule "$RULE" --targets "Id=1,Arn=$FN_ARN" >/dev/null
 echo ">> scheduled $RULE (11:00 & 17:00 IST)"
+
+# ---------- alerting: email if a run errors or the schedule stops ----------
+# Optional; turned on by setting ALERT_EMAIL in .env. This closes the two
+# silent-failure risks: (1) a Meta/Shopify token expiring makes a run throw ->
+# the Errors alarm fires; (2) the schedule silently stops -> the "not-running"
+# alarm fires when a whole day passes with no invocation. Best-effort: a failure
+# here warns but never aborts the deploy.
+if [ -n "$ALERT_EMAIL" ]; then
+  TOPIC_ARN="$(aws sns create-topic --name meta-outcomes-alerts --query TopicArn --output text 2>/dev/null || true)"
+  if [ -n "$TOPIC_ARN" ]; then
+    # Subscribe once. Amazon emails a confirmation link the user must click.
+    if ! aws sns list-subscriptions-by-topic --topic-arn "$TOPIC_ARN" \
+          --query "Subscriptions[?Endpoint=='$ALERT_EMAIL'].Endpoint" --output text 2>/dev/null | grep -q "$ALERT_EMAIL"; then
+      aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol email --notification-endpoint "$ALERT_EMAIL" >/dev/null 2>&1 \
+        && echo ">> SNS: confirmation email sent to $ALERT_EMAIL — CLICK the link once to activate alerts" \
+        || echo ">> WARN: could not create SNS email subscription (non-fatal)"
+    fi
+    aws cloudwatch put-metric-alarm --alarm-name meta-outcomes-errors \
+      --alarm-description "meta-outcomes Lambda errored (likely an expired Meta/Shopify token) - check CloudWatch logs" \
+      --namespace AWS/Lambda --metric-name Errors --dimensions Name=FunctionName,Value="$FN" \
+      --statistic Sum --period 86400 --evaluation-periods 1 --threshold 1 \
+      --comparison-operator GreaterThanOrEqualToThreshold --treat-missing-data notBreaching \
+      --alarm-actions "$TOPIC_ARN" >/dev/null 2>&1 || echo ">> WARN: could not create errors alarm (non-fatal)"
+    aws cloudwatch put-metric-alarm --alarm-name meta-outcomes-not-running \
+      --alarm-description "meta-outcomes Lambda has not run in over a day - the twice-daily schedule may be broken" \
+      --namespace AWS/Lambda --metric-name Invocations --dimensions Name=FunctionName,Value="$FN" \
+      --statistic Sum --period 86400 --evaluation-periods 1 --threshold 1 \
+      --comparison-operator LessThanThreshold --treat-missing-data breaching \
+      --alarm-actions "$TOPIC_ARN" >/dev/null 2>&1 || echo ">> WARN: could not create not-running alarm (non-fatal)"
+    echo ">> alerting ON: 2 CloudWatch alarms -> SNS -> $ALERT_EMAIL"
+  fi
+else
+  echo ">> NOTE: ALERT_EMAIL not set in .env - no failure alerts. Add ALERT_EMAIL=you@example.com to be emailed if a run fails."
+fi
 
 # ---------- verify: invoke once now, show response + logs ----------
 echo ">> invoking once for verification (DRY_RUN=$DRY_RUN)..."
