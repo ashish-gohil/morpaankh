@@ -122,12 +122,12 @@ if aws lambda get-function --function-name "$FN" >/dev/null 2>&1; then
   aws lambda update-function-code --function-name "$FN" --zip-file "fileb://$HERE/function.zip" >/dev/null
   aws lambda wait function-updated --function-name "$FN"
   aws lambda update-function-configuration --function-name "$FN" \
-    --handler src/handler.handler --runtime nodejs20.x --timeout 120 --memory-size 256 \
+    --handler src/handler.handler --runtime nodejs20.x --timeout 900 --memory-size 256 \
     --environment "file://$ENVJSON" >/dev/null
   echo ">> updated function $FN"
 else
   aws lambda create-function --function-name "$FN" --runtime nodejs20.x --role "$ROLE_ARN" \
-    --handler src/handler.handler --timeout 120 --memory-size 256 \
+    --handler src/handler.handler --timeout 900 --memory-size 256 \
     --zip-file "fileb://$HERE/function.zip" --environment "file://$ENVJSON" >/dev/null
   echo ">> created function $FN"
 fi
@@ -185,10 +185,16 @@ else
 fi
 
 # ---------- verify: invoke once now, show response + logs ----------
-echo ">> invoking once for verification (DRY_RUN=$DRY_RUN)..."
-aws lambda invoke --function-name "$FN" --payload '{}' --cli-binary-format raw-in-base64-out "$HERE/out.json" >/dev/null || true
+# One SYNCHRONOUS invoke that WAITS for the whole run (the first run is a full
+# backfill and can take a few minutes). --cli-read-timeout 0 = wait, don't give
+# up; AWS_MAX_ATTEMPTS=1 = never retry — a retried sync invoke would spawn a
+# second, overlapping execution over the same S3 state. Both are essential.
+echo ">> invoking once for verification (DRY_RUN=$DRY_RUN); the first run backfills and may take a few minutes..."
+AWS_MAX_ATTEMPTS=1 aws lambda invoke --function-name "$FN" --payload '{}' \
+  --cli-binary-format raw-in-base64-out --cli-read-timeout 0 --cli-connect-timeout 15 \
+  "$HERE/out.json" >/dev/null 2>&1 || true
 echo "----- response -----"; cat "$HERE/out.json"; echo
 echo "----- recent logs (wait a few seconds) -----"; sleep 8
-aws logs tail "/aws/lambda/$FN" --since 3m 2>/dev/null || echo "(logs not ready yet; open CloudWatch Logs group /aws/lambda/$FN)"
+aws logs tail "/aws/lambda/$FN" --since 15m 2>/dev/null || echo "(logs not ready yet; open CloudWatch Logs group /aws/lambda/$FN)"
 echo
 echo ">> DONE. DRY_RUN=$DRY_RUN. Re-run with --live to send for real (after Test Events check)."
