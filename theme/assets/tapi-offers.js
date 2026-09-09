@@ -16,6 +16,7 @@
   'use strict';
 
   var DISMISS_KEY = 'tapi:offer-dismissed';
+  var MANUAL_KEY = 'tapi:offer-manual';
   var busy = false;
   var autoTried = false;
 
@@ -31,6 +32,20 @@
     try {
       if (on) sessionStorage.setItem(DISMISS_KEY, '1');
       else sessionStorage.removeItem(DISMISS_KEY);
+    } catch (e) { /* private mode */ }
+  }
+
+  // The code the shopper picked by hand this session. A deliberate choice is
+  // respected; a stale or link-supplied code is not, so it can be upgraded to
+  // the biggest saving.
+  function manualChoice() {
+    try { return sessionStorage.getItem(MANUAL_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function setManual(code) {
+    try {
+      if (code) sessionStorage.setItem(MANUAL_KEY, code);
+      else sessionStorage.removeItem(MANUAL_KEY);
     } catch (e) { /* private mode */ }
   }
 
@@ -101,7 +116,7 @@
           }
           if (!opts.silent) {
             if (code === '') setStatus('Code removed.');
-            else setStatus('Code ' + code + ' applied. You save ' + rupees(cart.total_discount) + ' on this order.');
+            else setStatus('Code ' + code + ' applied. You’re saving ' + rupees(cart.total_discount) + ' on this order.');
           }
           busy = false;
           if (opts.after) opts.after();
@@ -135,10 +150,15 @@
     // bigger quantity break. Fall back to the best general code if best-code
     // is ever blank. Checkout stays the final enforcer of one-use-per-customer.
     var best = p.getAttribute('data-best-code') || p.getAttribute('data-best-general') || '';
-    if (applied === '' && best !== '' && !dismissed()) {
-      autoTried = true;
-      postDiscount(best, { silent: true });
-    }
+    if (best === '') return;
+    if (dismissed()) return;                 // shopper opted out this session
+    if (applied === best) return;            // already on the biggest saving
+    // Respect a code the shopper chose by hand; otherwise apply the best, which
+    // also UPGRADES a stale or link-supplied lesser code (e.g. someone lands on
+    // WELCOME150, adds two pieces, and should get the larger BUY2 instead).
+    if (applied !== '' && manualChoice() === applied) return;
+    autoTried = true;
+    postDiscount(best, { silent: true });
   }
 
   function copyChip(btn) {
@@ -172,12 +192,15 @@
     var apply = e.target.closest('[data-tapi-offer-apply]');
     if (apply) {
       setDismissed(false);
-      postDiscount(apply.getAttribute('data-code'));
+      var chosen = apply.getAttribute('data-code');
+      setManual(chosen);
+      postDiscount(chosen);
       return;
     }
     var remove = e.target.closest('[data-tapi-offer-remove]');
     if (remove) {
       setDismissed(true);
+      setManual('');
       postDiscount('');
       return;
     }

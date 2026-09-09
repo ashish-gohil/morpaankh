@@ -405,37 +405,33 @@
       </script>
       <script src="{{ 'tapi-analytics.js' | asset_url }}" defer></script>
     {%- endif -%}
-    {%- if settings.clarity_project_id != blank -%}
-      {%- comment -%}
-        Microsoft Clarity: session recording + heatmaps, plus custom tags that
-        mark the cart funnel so the "added to cart, no checkout_click" segment
-        can be built in the Clarity dashboard. Checkout pages are Shopify-hosted
-        (no custom scripts on this plan), so checkout_click is the CLICK on the
-        cart's checkout button, fired on the storefront just before the redirect.
-      {%- endcomment -%}
-      <script>
-        (function (c, l, a, r, i, t, y) {
-          c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); };
-          t = l.createElement(r); t.async = 1;
-          t.src = 'https://www.clarity.ms/tag/' + i;
-          y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
-        })(window, document, 'clarity', 'script', {{ settings.clarity_project_id | json }});
-      </script>
-      <script>
-        (function () {
-          function tag(k, v) { try { if (window.clarity) window.clarity('set', k, v || 'true'); } catch (e) { /* never break the store */ } }
-          if (/\/cart\/?$/.test(location.pathname)) tag('cart_view');
-          document.addEventListener('submit', function (e) {
-            var f = e.target;
-            if (f && f.action && f.action.indexOf('/cart/add') !== -1) tag('add_to_cart');
-          }, true);
-          document.addEventListener('click', function (e) {
-            var t = e.target.closest && e.target.closest('[name="checkout"], #checkout, .tapi-cart-aside__btn, .shopify-payment-button__button');
-            if (t) tag('checkout_click');
-          }, true);
-        })();
-      </script>
-    {%- endif -%}
+    {%- comment -%}
+      Microsoft Clarity is loaded by the Clarity app embed (Online store ->
+      app embeds), so we do NOT load it here (that would double-count). We only
+      add the cart-funnel custom tags so the "added to cart, no checkout_click"
+      segment can be built in Clarity. Every call is guarded on window.clarity,
+      so if the app is ever removed these simply no-op. Checkout runs off-theme,
+      so checkout_click is the CLICK on the cart's checkout button.
+    {%- endcomment -%}
+    <script>
+      (function () {
+        function tag(k, v) { try { if (window.clarity) window.clarity('set', k, v || 'true'); } catch (e) { /* never break the store */ } }
+        function tagWhenReady(k, v, n) {
+          if (window.clarity) { tag(k, v); return; }
+          if ((n || 0) > 30) return; // give the app embed ~3s to define clarity
+          setTimeout(function () { tagWhenReady(k, v, (n || 0) + 1); }, 100);
+        }
+        if (/\/cart\/?$/.test(location.pathname)) tagWhenReady('cart_view');
+        document.addEventListener('submit', function (e) {
+          var f = e.target;
+          if (f && f.action && f.action.indexOf('/cart/add') !== -1) tag('add_to_cart');
+        }, true);
+        document.addEventListener('click', function (e) {
+          var t = e.target.closest && e.target.closest('[name="checkout"], #checkout, .tapi-cart-aside__btn, .shopify-payment-button__button');
+          if (t) tag('checkout_click');
+        }, true);
+      })();
+    </script>
     {%- comment -%}
       tapi-pdp.js removed: it was a legacy size-only variant script that
       expected data-variant-available attributes the current Size×Color matrix markup

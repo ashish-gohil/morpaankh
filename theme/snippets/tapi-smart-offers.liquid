@@ -116,13 +116,13 @@
     {%- if applied_code != blank and applied_amount > 0 -%}
       <p class="tapi-offers__saving">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        You save {{ applied_amount | money }} on this order
+        You&rsquo;re saving {{ applied_amount | money }} on this order
       </p>
     {%- endif -%}
     {%- if next_need > 0 and next_pct > 0 -%}
       <p class="tapi-offers__nudge">
         <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true" focusable="false"><path d="M8 3.3v9.4M3.3 8h9.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        Add {{ next_need }} more piece{% if next_need > 1 %}s{% endif %} and save {{ next_pct }}% on your order
+        Add {{ next_need }} more piece{% if next_need > 1 %}s{% endif %} to unlock {{ next_pct }}% off
       </p>
     {%- endif -%}
     <ul class="tapi-offers__list" role="list">

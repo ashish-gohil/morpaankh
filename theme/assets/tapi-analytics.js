@@ -91,6 +91,57 @@
   }
   cfg.track = track;
 
+  /* ---- surviving a page unload ------------------------------------------
+   * The PDP "Add to bag" is a native form POST that navigates straight to
+   * /cart, and the vendor scripts load lazily (idle, or first interaction).
+   * A shopper who taps add within a few seconds of landing fires the event
+   * while gtag.js is still downloading, so it dies in the dataLayer queue
+   * when the page unloads and GA4 never sees it. That is why add_to_cart was
+   * running roughly a third of view_cart.
+   *
+   * Fix: if gtag is already live, send immediately as before. If it is not,
+   * park the event in sessionStorage and replay it on the next page, keeping
+   * the original page_location so GA4 still credits the product page. The two
+   * paths are mutually exclusive, so nothing is ever counted twice.
+   * --------------------------------------------------------------------- */
+  var PENDING_KEY = 'tapi_pending_event';
+  var PENDING_MAX_AGE = 5 * 60 * 1000;
+
+  function ga4Ready() {
+    return !!(cfg.ga4Id && window.google_tag_manager && window.google_tag_manager[cfg.ga4Id]);
+  }
+
+  function parkEvent(name, params) {
+    try {
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify({
+        name: name,
+        params: params,
+        page_location: location.href,
+        page_title: document.title,
+        ts: Date.now()
+      }));
+    } catch (e) { /* private mode or quota — nothing else we can do */ }
+  }
+
+  function flushParkedEvent() {
+    var raw = null;
+    try {
+      raw = sessionStorage.getItem(PENDING_KEY);
+      if (raw) sessionStorage.removeItem(PENDING_KEY);
+    } catch (e) { return; }
+    if (!raw) return;
+    try {
+      var p = JSON.parse(raw);
+      if (!p || !p.name || (Date.now() - p.ts) > PENDING_MAX_AGE) return;
+      var params = p.params || {};
+      params.page_location = p.page_location;
+      params.page_title = p.page_title;
+      loadVendors(); // shopper is mid-funnel, do not wait for idle
+      track(p.name, params);
+    } catch (e) { /* analytics must never break the store */ }
+  }
+  flushParkedEvent();
+
   /* ---- product context from the page's JSON-LD ---- */
   function productLd() {
     var scripts = document.querySelectorAll('script[type="application/ld+json"]');
@@ -105,11 +156,36 @@
     }
     return null;
   }
+  /* Shopify's product JSON-LD on this store carries neither sku nor productID,
+     so item_id was falling back to the product NAME ("Tulsi"). view_cart and
+     the checkout pixel both key on the variant, so the same product arrived in
+     GA4 under two different ids and the item funnel never joined up. Read the
+     real ids off the page instead: the cart form's [name="id"] holds the
+     currently selected variant and updates when size or colour changes. */
+  function pdpIds() {
+    var ids = { sku: '', variantId: '', productId: '' };
+    try {
+      var f = document.querySelector('form[action*="/cart/add"]');
+      var idInput = f && f.querySelector('[name="id"]');
+      if (idInput && idInput.value) ids.variantId = String(idInput.value);
+      var prod = ((window.ShopifyAnalytics && window.ShopifyAnalytics.meta) || {}).product || {};
+      if (prod.id) ids.productId = String(prod.id);
+      var vars = prod.variants || [];
+      for (var i = 0; i < vars.length; i++) {
+        if (String(vars[i].id) === ids.variantId && vars[i].sku) { ids.sku = String(vars[i].sku); break; }
+      }
+      if (ids.sku === 'null' || ids.sku === 'undefined') ids.sku = '';
+    } catch (e) { /* fall through to whatever the JSON-LD offers */ }
+    return ids;
+  }
+
   function itemFromLd(ld) {
     var offers = ld.offers || {};
     var offer = Array.isArray(offers) ? (offers[0] || {}) : offers;
+    var ids = pdpIds();
     return {
-      item_id: String(ld.sku || ld.productID || ld.name || ''),
+      // same precedence view_cart already uses: sku, then variant, then product
+      item_id: String(ids.sku || ids.variantId || ids.productId || ld.sku || ld.productID || ld.name || ''),
       item_name: String(ld.name || ''),
       item_brand: 'Morpaankh',
       price: Number(offer.price || offer.lowPrice || 0)
@@ -122,7 +198,9 @@
     track('view_item', { currency: 'INR', value: it.price, items: [it] });
   }
 
-  /* add_to_cart — Dawn's AJAX add still dispatches the form submit */
+  /* add_to_cart — catches both an AJAX add and the native form POST that
+     navigates to /cart. In the navigating case the event has to outlive the
+     page, so it goes through the park-and-replay path above. */
   document.addEventListener('submit', function (e) {
     var f = e.target;
     if (!f || !f.action || f.action.indexOf('/cart/add') === -1) return;
@@ -135,7 +213,12 @@
       params.items = [item];
       params.value = item.price * qty;
     }
-    track('add_to_cart', params);
+    if (ga4Ready()) {
+      track('add_to_cart', params);
+    } else {
+      loadVendors();
+      parkEvent('add_to_cart', params);
+    }
   }, true);
 
   /* view_cart — the cart page is in theme scope (checkout pages are not), so

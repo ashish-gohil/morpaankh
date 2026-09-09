@@ -1503,16 +1503,6 @@
         "id": "meta_pixel_id",
         "label": "Meta Pixel ID",
         "info": "Numeric ID from Meta Events Manager. Sends PageView, ViewContent, AddToCart, InitiateCheckout. If you later install the Facebook & Instagram sales channel, clear this field. The channel injects its own pixel and both together double-fire."
-      },
-      {
-        "type": "header",
-        "content": "Microsoft Clarity"
-      },
-      {
-        "type": "text",
-        "id": "clarity_project_id",
-        "label": "Clarity project ID",
-        "info": "Free at clarity.microsoft.com. Records cart sessions and sets custom tags (add_to_cart, cart_view, checkout_click, discount_applied) so you can build the 'added to cart, no checkout' segment. Leave empty to disable."
       }
     ]
   },
