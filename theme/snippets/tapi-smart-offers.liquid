@@ -9,13 +9,21 @@
   Applied state is read from cart.cart_level_discount_applications —
   the code is attached to the CART (via /cart/update.js in
   tapi-offers.js), so the cart total and checkout reflect it instantly,
-  no cookies, no refresh. All public codes are listed for everyone;
-  first-order codes are labelled and never auto-applied (checkout is
-  the enforcer of one-use-per-customer).
+  no cookies, no refresh. The cart auto-applies whichever ENABLED code
+  gives the biggest saving for this cart (best_code). First-order codes
+  (e.g. WELCOME150) count for everyone EXCEPT a logged-in returning
+  customer, who never sees them — checkout stays the final enforcer of
+  one-use-per-customer. All public codes are listed; the shopper can
+  switch or remove freely.
 {%- endcomment -%}
 {%- liquid
   assign o_total = cart.original_total_price | default: cart.total_price
   assign o_items = cart.item_count
+
+  assign is_returning = false
+  if customer and customer.orders_count > 0
+    assign is_returning = true
+  endif
 
   assign applied_code = ''
   assign applied_amount = 0
@@ -29,6 +37,8 @@
   assign best_save = 0
   assign best_general_code = ''
   assign best_general_save = 0
+  assign next_need = 0
+  assign next_pct = 0
 
   for i in (1..4)
     assign base = 'tapi_offer' | append: i
@@ -41,19 +51,23 @@
     if o_code == blank
       continue
     endif
-    assign shown = shown | plus: 1
     assign key = base | append: '_first_order'
     assign o_first = settings[key]
+    if o_first and is_returning
+      continue
+    endif
+    assign shown = shown | plus: 1
 
     assign key = base | append: '_min_qty'
     assign o_minq = settings[key] | default: 0 | plus: 0
     assign key = base | append: '_min_subtotal'
     assign o_mins = settings[key] | default: 0 | times: 100
+    assign key = base | append: '_kind'
+    assign o_kind = settings[key]
+    assign key = base | append: '_value'
+    assign o_val = settings[key] | default: 0 | plus: 0
+
     if o_items >= o_minq and o_total >= o_mins
-      assign key = base | append: '_kind'
-      assign o_kind = settings[key]
-      assign key = base | append: '_value'
-      assign o_val = settings[key] | default: 0 | plus: 0
       if o_kind == 'amount'
         assign o_save = o_val | times: 100 | at_most: o_total
       else
@@ -70,12 +84,26 @@
         endif
       endunless
     endif
+
+    comment
+      Next quantity tier still within reach (percentage offers only): the
+      smallest min-items above what is in the bag. Powers the "add one more
+      piece" nudge so the shopper sees the upside of the next tier.
+    endcomment
+    if o_kind != 'amount' and o_minq > o_items and o_total >= o_mins
+      assign this_need = o_minq | minus: o_items
+      if next_need == 0 or this_need < next_need
+        assign next_need = this_need
+        assign next_pct = o_val
+      endif
+    endif
   endfor
 -%}
 {%- if shown > 0 -%}
   <div
     class="tapi-offers"
     data-tapi-offers
+    data-best-code="{{ best_code }}"
     data-best-general="{{ best_general_code }}"
     data-applied-code="{{ applied_code }}"
     role="group"
@@ -91,6 +119,12 @@
         You save {{ applied_amount | money }} on this order
       </p>
     {%- endif -%}
+    {%- if next_need > 0 and next_pct > 0 -%}
+      <p class="tapi-offers__nudge">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true" focusable="false"><path d="M8 3.3v9.4M3.3 8h9.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Add {{ next_need }} more piece{% if next_need > 1 %}s{% endif %} and save {{ next_pct }}% on your order
+      </p>
+    {%- endif -%}
     <ul class="tapi-offers__list" role="list">
       {%- for i in (1..4) -%}
         {%- liquid
@@ -104,10 +138,13 @@
           if o_code == blank
             continue
           endif
-          assign key = base | append: '_label'
-          assign o_label = settings[key]
           assign key = base | append: '_first_order'
           assign o_first = settings[key]
+          if o_first and is_returning
+            continue
+          endif
+          assign key = base | append: '_label'
+          assign o_label = settings[key]
           assign key = base | append: '_min_qty'
           assign o_minq = settings[key] | default: 0 | plus: 0
           assign key = base | append: '_min_subtotal'

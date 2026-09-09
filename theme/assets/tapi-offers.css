@@ -48,6 +48,23 @@
   color: var(--mor-primary, #2e4b3c);
 }
 
+/* "Add one more piece and save X%": a quiet upsell, warm accent so it
+   reads as opportunity, not as another applied saving. */
+.tapi-offers__nudge {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1.2rem;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--mor-secondary, #b7472a);
+}
+
+.tapi-offers__nudge svg {
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
 .tapi-offers__list {
   list-style: none;
   margin: 0;

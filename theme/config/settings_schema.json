@@ -1503,6 +1503,16 @@
         "id": "meta_pixel_id",
         "label": "Meta Pixel ID",
         "info": "Numeric ID from Meta Events Manager. Sends PageView, ViewContent, AddToCart, InitiateCheckout. If you later install the Facebook & Instagram sales channel, clear this field. The channel injects its own pixel and both together double-fire."
+      },
+      {
+        "type": "header",
+        "content": "Microsoft Clarity"
+      },
+      {
+        "type": "text",
+        "id": "clarity_project_id",
+        "label": "Clarity project ID",
+        "info": "Free at clarity.microsoft.com. Records cart sessions and sets custom tags (add_to_cart, cart_view, checkout_click, discount_applied) so you can build the 'added to cart, no checkout' segment. Leave empty to disable."
       }
     ]
   },
@@ -1739,6 +1749,28 @@
         "id": "tapi_offer4_first_order",
         "label": "First order only",
         "default": false
+      }
+    ]
+  },
+  {
+    "name": "Cart",
+    "settings": [
+      {
+        "type": "paragraph",
+        "content": "Shows the prepaid-vs-COD line on the cart so the Cash on Delivery fee is never a first-time surprise at checkout."
+      },
+      {
+        "type": "checkbox",
+        "id": "show_cod_prepaid_note",
+        "label": "Show prepaid vs COD note on cart",
+        "default": true
+      },
+      {
+        "type": "number",
+        "id": "cod_fee",
+        "label": "Cash on Delivery fee (₹)",
+        "default": 50,
+        "info": "Match this to the fee set in your COD app. Shown on the cart as the amount saved by paying online."
       }
     ]
   }

@@ -96,6 +96,9 @@
         var applicable = code === '' || (entry && entry.applicable === true);
         swapSections(cart.sections);
         if (applicable) {
+          if (code !== '') {
+            try { if (window.clarity) window.clarity('set', 'discount_applied', code); } catch (e) { /* analytics must never break the cart */ }
+          }
           if (!opts.silent) {
             if (code === '') setStatus('Code removed.');
             else setStatus('Code ' + code + ' applied. You save ' + rupees(cart.total_discount) + ' on this order.');
@@ -125,7 +128,13 @@
     var p = panel();
     if (!p || autoTried) return;
     var applied = p.getAttribute('data-applied-code') || '';
-    var best = p.getAttribute('data-best-general') || '';
+    // Apply whichever enabled code saves the most on THIS cart. best-code
+    // already accounts for first-order eligibility (the server hides
+    // first-order offers like WELCOME150 from logged-in returning customers),
+    // so new shoppers get the welcome amount and multi-piece carts get the
+    // bigger quantity break. Fall back to the best general code if best-code
+    // is ever blank. Checkout stays the final enforcer of one-use-per-customer.
+    var best = p.getAttribute('data-best-code') || p.getAttribute('data-best-general') || '';
     if (applied === '' && best !== '' && !dismissed()) {
       autoTried = true;
       postDiscount(best, { silent: true });
