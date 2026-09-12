@@ -77,12 +77,12 @@
         }
       },
       "block_order": [
+        "festive",
         "coord",
         "three_piece",
         "one_piece",
-        "short_kurti",
-        "festive",
-        "newin"
+        "newin",
+        "short_kurti"
       ],
       "settings": {
         "aria_label": "Shop by category"
