@@ -1,24 +1,9 @@
 {%- comment -%}
-  /collections/all is Shopify's virtual "all" collection, whose default sort order
-  cannot be set from the admin. So when a shopper lands on it with no explicit sort,
-  send them to best-selling so proven sellers lead the all-products page. (New arrivals
-  still lead the HOME grid, which is a separate section and unaffected.) Any real sort
-  chosen from the dropdown carries its own sort_by param and is left alone, so there is
-  no redirect loop and the shopper's choice always wins.
+  Default product order (when the shopper has not chosen a sort): best sellers first,
+  then new arrivals, then everything else, each newest-created first. Built in the grid
+  loop below, so it applies to every collection including /collections/all with no admin
+  sort or redirect needed. A sort the shopper picks from the dropdown always bypasses it.
 {%- endcomment -%}
-{%- if collection.handle == 'all' and collection.sort_by == blank -%}
-  <script>
-    (function () {
-      try {
-        var url = new URL(window.location.href);
-        if (!url.searchParams.has('sort_by')) {
-          url.searchParams.set('sort_by', 'best-selling');
-          window.location.replace(url.toString());
-        }
-      } catch (e) {}
-    })();
-  </script>
-{%- endif -%}
 {{ 'template-collection.css' | asset_url | stylesheet_tag }}
 {{ 'component-card.css' | asset_url | stylesheet_tag }}
 {{ 'component-price.css' | asset_url | stylesheet_tag }}
@@ -242,20 +227,53 @@
                 {% if section.settings.quick_add == 'bulk' %} collection-quick-add-bulk{% endif %}
               "
             >
-              {%- for product in collection.products -%}
-                <li
-                  class="grid__item{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
-                  {% if settings.animations_reveal_on_scroll %}
-                    data-cascade
-                    style="--animation-order: {{ forloop.index }};"
-                  {% endif %}
-                >
-                  {%- comment -%} Unified to the premium tapi card (same as home/search) so the
-                    main shopping surface is consistent and the Dawn card's double-rendered name
-                    (overlay pill + label below) is gone. Dawn's responsive grid wrapper is kept. {%- endcomment -%}
-                  {% render 'card-product-tapi', product: product %}
-                </li>
-              {%- endfor -%}
+              {%- comment -%} Default order: best sellers, then new arrivals, then the rest, each
+                newest-created first. Only when the shopper has not chosen a sort (sort_by blank);
+                their dropdown choice wins otherwise. Card is the premium tapi card (same as
+                home/search) so the main shopping surface is consistent.
+                ponytail: buckets within one paginated page (products_per_page, max 50). A collection
+                larger than that falls back to the native pager, where ordering is per-page only. {%- endcomment -%}
+              {%- liquid
+                assign tapi_default_order = false
+                if collection.sort_by == blank
+                  assign tapi_default_order = true
+                  assign tapi_sorted = collection.products | sort: 'created_at' | reverse
+                endif
+                assign tapi_card_i = 0
+              -%}
+              {%- if tapi_default_order -%}
+                {%- for pass in (1..3) -%}
+                  {%- for product in tapi_sorted -%}
+                    {%- assign tapi_is_best = false -%}
+                    {%- if product.tags contains 'bestseller' -%}{%- assign tapi_is_best = true -%}{%- endif -%}
+                    {%- assign tapi_is_new = false -%}
+                    {%- if product.tags contains 'new' -%}{%- assign tapi_is_new = true -%}{%- endif -%}
+                    {%- assign tapi_show = false -%}
+                    {%- if pass == 1 and tapi_is_best -%}{%- assign tapi_show = true -%}
+                    {%- elsif pass == 2 and tapi_is_new and tapi_is_best == false -%}{%- assign tapi_show = true -%}
+                    {%- elsif pass == 3 and tapi_is_best == false and tapi_is_new == false -%}{%- assign tapi_show = true -%}
+                    {%- endif -%}
+                    {%- if tapi_show -%}
+                      {%- assign tapi_card_i = tapi_card_i | plus: 1 -%}
+                      <li
+                        class="grid__item{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
+                        {% if settings.animations_reveal_on_scroll %}data-cascade style="--animation-order: {{ tapi_card_i }};"{% endif %}
+                      >
+                        {% render 'card-product-tapi', product: product %}
+                      </li>
+                    {%- endif -%}
+                  {%- endfor -%}
+                {%- endfor -%}
+              {%- else -%}
+                {%- for product in collection.products -%}
+                  <li
+                    class="grid__item{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
+                    {% if settings.animations_reveal_on_scroll %}data-cascade style="--animation-order: {{ forloop.index }};"{% endif %}
+                  >
+                    {% render 'card-product-tapi', product: product %}
+                  </li>
+                {%- endfor -%}
+              {%- endif -%}
             </ul>
 
             {%- comment -%} Show-all replaces numbered pagination: collapse to the first
