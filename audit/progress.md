@@ -22,12 +22,12 @@ Named but NOT installed (dropped per instruction): engineering:debug, engineerin
 - [ ] Phase 5 Flows: user chose Chrome session; BLOCKED on extension connection. Clarity cross-check blocked (not connected).
 - [~] Phase 6 RCA table done (audit/rca.md) for Phases 1/2/4-static + P0. Perf-timing + flows rows pending Chrome.
 - [x] Phase 7 Fixes (code): C1 og:price DEPLOYED LIVE (theme 189198631284) + verified (renders 1349.00 on bandhan/taana/morani). Committed 2bf7991, branch pushed to origin. Preview theme AUDIT-C1-preview id 193424687476 created for verify (safe to delete). C2 cart-H1 HELD per user. Watch&Buy: verified already shoppable (View-product link + ATC + size chips in tapi-story-player + tapi-story.js) — NO change needed.
-- [ ] Store-data fixes (partial-payment->Draft, ghera type, 38 meta descs, toran/haldi SEO, 5 alt backfills, best-sellers title, collection descs): HELD per Phase 7 (ask before writing outside theme). Listed in audit/manual-actions.md. Awaiting user "apply the store fixes".
+- [ ] Store-data fixes (ghera type, 38 meta descs, toran/haldi SEO, 5 alt backfills, best-sellers title, collection descs): HELD per Phase 7 (ask before writing outside theme). Listed in audit/manual-actions.md. Awaiting user "apply the store fixes". NOTE: partial-payment EXCLUDED — leave it alone (COD King dependency).
 
 ## Phase 3 content findings (from live data, 52 products / 12 collections)
 - SYSTEMIC: 38/49 active products have meta description >155 chars (158-207) -> SERP truncation. CSV provides tightened <=155 versions (wording preserved, facts only, no em dashes).
 - toran + haldi: shipped with NO seo title/desc + NO image alts (newest products; matches periodic-upkeep pattern). CSV has full new copy.
-- partial-payment: COD deposit UTILITY SKU is ACTIVE on storefront with no SEO -> recommend set Draft/unpublish (not merchandise). (Also flagged in [[audit-2026-06-16]].)
+- partial-payment: DO NOT TOUCH. Required COD King product powering the partial-payment / COD deposit flow (user confirmed 2026-09-13). Setting it Draft would break COD collection. Earlier "set to Draft" recommendation RETRACTED. Not an SEO/merchandising item.
 - ghera: productType is EMPTY -> set to "Festival Set"/anarkali. 34 products have body <120w (flagged EXPAND, NOT auto-padded — expansion optional, only with true detail, low priority pre-indexing).
 - 5 products need image-alt backfill (toran, haldi, nazakat, anaar, ghera: 0 alts). 8 products fully clean.
 - Collections: category collections already have strong SEO. Gaps: anarkali/co-ord/festive/one-piece desc 156-160 (tighten); best-sellers title thin ("Best Sellers", 12ch); bundle-offer-eligible + frontpage = utility (keep noindex, no SEO). Collection H1 "Collection: X" prefix = visually-hidden a11y span (NOT a defect).

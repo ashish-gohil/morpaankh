@@ -26,13 +26,14 @@ Verify success: GSC Pages shows URLs moving to "Indexed", and `site:morpaankh.in
 
 These are Shopify **data** writes, not theme code. Your earlier instruction was "do not write to the store," so I've prepared but not applied them. Say "apply the store fixes" and I'll do them via the Admin API (all reversible). Or do them by hand:
 
-1. **partial-payment → Draft.** The COD deposit utility SKU is live on the storefront as a product. Admin → Products → "Partial Payment" → set **Status: Draft** (or remove from the Online Store sales channel). It is not merchandise and should not be browseable/indexable.
-2. **ghera productType.** Admin → Products → Ghera → set **Product type = Festival Set** (currently empty). Also affects its collection membership logic.
-3. **Meta descriptions (38 products).** All the tightened <=155-char versions are in `audit/seo-import.csv` (column `meta_description`). Apply per product: Admin → product → Search engine listing → Edit → paste. (Or I batch them via API.)
-4. **toran + haldi SEO.** Full new SEO title + meta description + featured-image alt are in the CSV (they shipped with none). Apply via product → Search engine listing + image alt.
-5. **Image alt backfill (5 products): toran, haldi, nazakat, anaar, ghera** (0 alts each). Suggested featured-image alt is in the CSV; set per image under the product's Media.
-6. **best-sellers collection title** is thin ("Best Sellers", 12 chars). New title in `audit/seo-import-collections.csv`. Apply: Admin → Collections → Best Sellers → Search engine listing.
-7. **Collection meta descriptions** slightly over 155 (anarkali-sets, co-ord-sets, festive, one-piece) — tightened versions in the collections CSV.
+> **DO NOT TOUCH `partial-payment`.** It is a required COD King product that powers the partial-payment / COD deposit flow. Changing its status, price, or anything else would break COD collection. Leave it exactly as-is. (Earlier draft wrongly suggested setting it to Draft — that advice is retracted.)
+
+1. **ghera productType.** Admin → Products → Ghera → set **Product type = Festival Set** (currently empty). Also affects its collection membership logic.
+2. **Meta descriptions (38 products).** All the tightened <=155-char versions are in `audit/seo-import.csv` (column `meta_description`). Apply per product: Admin → product → Search engine listing → Edit → paste. (Or I batch them via API.)
+3. **toran + haldi SEO.** Full new SEO title + meta description + featured-image alt are in the CSV (they shipped with none). Apply via product → Search engine listing + image alt.
+4. **Image alt backfill (5 products): toran, haldi, nazakat, anaar, ghera** (0 alts each). Suggested featured-image alt is in the CSV; set per image under the product's Media.
+5. **best-sellers collection title** is thin ("Best Sellers", 12 chars). New title in `audit/seo-import-collections.csv`. Apply: Admin → Collections → Best Sellers → Search engine listing.
+6. **Collection meta descriptions** slightly over 155 (anarkali-sets, co-ord-sets, festive, one-piece) — tightened versions in the collections CSV.
 
 ---
 
