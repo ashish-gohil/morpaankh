@@ -21,7 +21,8 @@ Named but NOT installed (dropped per instruction): engineering:debug, engineerin
 - [~] Phase 4 Performance: static analysis done. Field/lab CWV timing BLOCKED (needs Chrome/PSI). User chose "Run a Chrome session" but extension NOT connected — waiting on user to connect claude.ai/chrome.
 - [ ] Phase 5 Flows: user chose Chrome session; BLOCKED on extension connection. Clarity cross-check blocked (not connected).
 - [~] Phase 6 RCA table done (audit/rca.md) for Phases 1/2/4-static + P0. Perf-timing + flows rows pending Chrome.
-- [~] Phase 7 Fixes: C1 og:price applied + committed (2bf7991). C2 cart-H1 HELD per user (UI-visible + noindex, no SEO value).
+- [x] Phase 7 Fixes (code): C1 og:price DEPLOYED LIVE (theme 189198631284) + verified (renders 1349.00 on bandhan/taana/morani). Committed 2bf7991, branch pushed to origin. Preview theme AUDIT-C1-preview id 193424687476 created for verify (safe to delete). C2 cart-H1 HELD per user. Watch&Buy: verified already shoppable (View-product link + ATC + size chips in tapi-story-player + tapi-story.js) — NO change needed.
+- [ ] Store-data fixes (partial-payment->Draft, ghera type, 38 meta descs, toran/haldi SEO, 5 alt backfills, best-sellers title, collection descs): HELD per Phase 7 (ask before writing outside theme). Listed in audit/manual-actions.md. Awaiting user "apply the store fixes".
 
 ## Phase 3 content findings (from live data, 52 products / 12 collections)
 - SYSTEMIC: 38/49 active products have meta description >155 chars (158-207) -> SERP truncation. CSV provides tightened <=155 versions (wording preserved, facts only, no em dashes).
