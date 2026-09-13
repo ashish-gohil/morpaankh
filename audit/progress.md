@@ -1,0 +1,57 @@
+# SEO + Performance Audit — progress checkpoint
+
+Branch: `audit/seo-perf` (off `main`). Never edit live theme / checkout. Shopify MCP read-only until fix phase.
+Started: 2026-09-13. Store: https://www.morpaankh.in (theme id 189198631284, store sawri-bawri.myshopify.com).
+
+## Tooling reality (verified this session)
+- **PageSpeed Insights API**: keyless shared quota EXHAUSTED (HTTP 429). No Google API key in env. Local headless Lighthouse is sandbox-blocked (prior finding). => Lighthouse category SCORES not obtainable without a PSI key or a Chrome session. Will NOT fabricate scores.
+- **Clarity MCP**: NOT connected to this session (no `mcp__*clarity*` tool available). Phase 5 rage/dead-click cross-check BLOCKED until connected.
+- **GSC**: no credentials. Needed to diagnose the indexing P0 (coverage, manual actions, sitemap submission).
+- Available & used: curl (live HTML), WebSearch (index check), Shopify MCP (read), Chrome extension (available, not yet used), accesslint, claude-seo (no google creds).
+
+## Plugins (named by user vs installed)
+Installed & usable: code-review, feature-dev, code-simplifier, accesslint (=accessibility-review), frontend-design, humanizer, claude-seo, designer-skills, ui-ux-pro-max.
+Named but NOT installed (dropped per instruction): engineering:debug, engineering:tech-debt, engineering:testing-strategy, engineering:documentation, design:ux-copy.
+
+## Phase status
+- [x] Setup: branch + audit/ dirs
+- [~] Phase 1 Baseline: asset inventory DONE (audit/baseline/product-page-assets.md). Lighthouse scores BLOCKED (no PSI key / Chrome).
+- [~] Phase 2 Technical SEO: on-page done from live HTML (below). Theme file:line tracing pending for a few items.
+- [x] Phase 3 Content SEO: CSVs BUILT per user ("build it now"). audit/seo-import.csv (52 products) + audit/seo-import-collections.csv (12 colls). Keyword map is FACT-DERIVED (category+fabric+tags), NOT autocomplete/PAA/competitor-scraped (honest limitation; no volumes invented). No writes to store.
+- [~] Phase 4 Performance: static analysis done. Field/lab CWV timing BLOCKED (needs Chrome/PSI). User chose "Run a Chrome session" but extension NOT connected — waiting on user to connect claude.ai/chrome.
+- [ ] Phase 5 Flows: user chose Chrome session; BLOCKED on extension connection. Clarity cross-check blocked (not connected).
+- [~] Phase 6 RCA table done (audit/rca.md) for Phases 1/2/4-static + P0. Perf-timing + flows rows pending Chrome.
+- [~] Phase 7 Fixes: C1 og:price applied + committed (2bf7991). C2 cart-H1 HELD per user (UI-visible + noindex, no SEO value).
+
+## Phase 3 content findings (from live data, 52 products / 12 collections)
+- SYSTEMIC: 38/49 active products have meta description >155 chars (158-207) -> SERP truncation. CSV provides tightened <=155 versions (wording preserved, facts only, no em dashes).
+- toran + haldi: shipped with NO seo title/desc + NO image alts (newest products; matches periodic-upkeep pattern). CSV has full new copy.
+- partial-payment: COD deposit UTILITY SKU is ACTIVE on storefront with no SEO -> recommend set Draft/unpublish (not merchandise). (Also flagged in [[audit-2026-06-16]].)
+- ghera: productType is EMPTY -> set to "Festival Set"/anarkali. 34 products have body <120w (flagged EXPAND, NOT auto-padded — expansion optional, only with true detail, low priority pre-indexing).
+- 5 products need image-alt backfill (toran, haldi, nazakat, anaar, ghera: 0 alts). 8 products fully clean.
+- Collections: category collections already have strong SEO. Gaps: anarkali/co-ord/festive/one-piece desc 156-160 (tighten); best-sellers title thin ("Best Sellers", 12ch); bundle-offer-eligible + frontpage = utility (keep noindex, no SEO). Collection H1 "Collection: X" prefix = visually-hidden a11y span (NOT a defect).
+
+## P0 (Phase 3 gate) — SITE NOT INDEXED BY GOOGLE
+- `site:morpaankh.in` (WebSearch) returns ZERO results from the real domain (only similarly-named competitors: morpankhi.in, morpankh.com, morpankhofficial.in...).
+- On-site indexability is CLEAN: robots `index, follow`; canonical correct; title/desc/OG/Twitter present; sitemap.xml valid (products/pages/collections/blogs + agentic_discovery). => cause is OFF-SITE, not a theme block. Matches June-2026 audit note ("on-site clean, cause off-site, need GSC access").
+- Likely causes: new domain, no backlinks, GSC not verified / sitemap not submitted / URL-inspect + request-indexing not done, or a manual action. REQUIRES GSC access to confirm. This is admin-only; not fixable in theme code.
+
+## Verified findings so far (evidence)
+### Technical SEO (live HTML)
+- Home `<title>`: "Morpaankh | Women's Indian Ethnic Wear & Kurta Sets"; meta desc present. robots index,follow. canonical https://www.morpaankh.in/.
+- PDP (bandhan): canonical, robots index,follow, full OG + Twitter card. JSON-LD: Organization + Product + BreadcrumbList + WebSite(@graph). Product schema has NO aggregateRating / NO review (correct — no fabricated ratings).
+- H1: home=1, collection=1, product=1 (GOOD). cart=2 ("Your cart" + empty-state "Nothing in your cart yet") — cart is noindex so low SEO impact; a11y/semantics nit.
+- PDP OG price: `og:price:amount = "1,349.00"` — has a thousands-separator comma; OG product spec wants "1349.00". Minor.
+- ALT coverage: theme handles alt CORRECTLY (verified). `card-product-tapi.liquid:61` = `alt: img1.alt | default: product.title` (primary, good); `:71` = `alt: ''` on hover duplicate (correct a11y); PDP thumbnails `main-product-tapi.liquid:770` = `alt: ''` (correct); gallery mains `:148` use alt+default. The empty-alts in HTML are all intentional decorative duplicates. REFUTED earlier "theme bug" hypothesis. Only real gap: a few products (Anaar, Nazakat...) have BLANK image alt field in admin -> bare product-name fallback. Admin content task, not theme. (Matches periodic alt-backfill note.)
+- 404: returns proper 404 status. Duplicate URL path /collections/x/products/y canonicals correctly to /products/y (no dup-content issue). Sitemaps well-formed. agentic_discovery -> /agents.md. Technical on-page is genuinely strong.
+
+### Performance (static)
+- PDP render path: 23 unique stylesheets (28 <link rel=stylesheet>, mostly Dawn per-component CSS + a compiled bundle) + 42 inline <script> blocks totaling ~179KB inline JS. Both are weight/parse concerns.
+- LCP image: featured product image, width=1200, loading=eager + fetchpriority=high (CORRECT). Not preloaded but fetchpriority covers it.
+- Images: 48/52 lazy, 40/52 srcset. No `.webp` in tags = EXPECTED (Shopify serves WebP via `?width=` CDN negotiation; do NOT flag, do NOT force pjpg).
+- Fonts: Cormorant Garamond + Marcellus + Inter via Google Fonts, `display=swap` + preload-as-style (GOOD).
+- Third-party JS: COD King (cod-king-payment), Shopify portable-wallets/accelerated-checkout (~74KB/page, not theme-removable per prior note), Shopify analytics.
+
+## Local artifacts
+- scratchpad html snapshots: home.html, product-bandhan.html, collection-kurta.html, cart.html
+- audit/baseline/product-page-assets.md (Phase 1 inventory)
