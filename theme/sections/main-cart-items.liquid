@@ -712,17 +712,21 @@
       z-index: 80;
       padding: 1rem 1.6rem;
       padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-      background: var(--tapi-cream, #f6efe1);
+      background-color: #f5efe1;
+      background-color: var(--tapi-cream, #f5efe1);
       isolation: isolate;
       border-top: 1px solid var(--tapi-hairline-2, rgba(44, 40, 38, 0.12));
       box-shadow: 0 -10px 30px rgba(44, 40, 38, 0.10);
-      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease, visibility 0.42s;
+      /* Slide-only reveal/retract — NEVER fade opacity, or the bar goes
+         semi-transparent mid-transition and cart text shows through it. The bar
+         stays fully opaque at all times; it is hidden purely by sliding off-screen. */
+      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 0.42s;
       will-change: transform;
     }
-    /* Retracts once the real footer checkout button is on screen (tapi-cart-sticky.js). */
+    /* Retracts once the real footer checkout button is on screen (tapi-cart-sticky.js).
+       Hidden by sliding down + visibility only — opacity stays 1 so it is always opaque. */
     .tapi-cart-stickybar.is-hidden {
       transform: translateY(130%);
-      opacity: 0;
       visibility: hidden;
       pointer-events: none;
     }
@@ -813,8 +817,9 @@
   }
 
   @media (max-width: 989px) and (prefers-reduced-motion: reduce) {
-    .tapi-cart-stickybar { transition: opacity 0.2s ease, visibility 0.2s; }
-    .tapi-cart-stickybar.is-hidden { transform: none; }
+    /* No motion: snap in/out via the same off-screen slide (still fully opaque),
+       just with no transition. Never fade opacity. */
+    .tapi-cart-stickybar { transition: none; }
     .tapi-cart-stickybar__btn:active { transform: none; }
   }
 {% endstylesheet %}
