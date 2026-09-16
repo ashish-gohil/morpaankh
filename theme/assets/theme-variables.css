@@ -3226,3 +3226,18 @@ body.gradient { background-image: var(--mor-pattern); background-attachment: scr
    theme; CSS catches it even if re-injected. To stop it at source, disable the
    Customer Reviews badge in Google Merchant Center / the Google sales channel. */
 #google-merchantwidget-iframe-wrapper { display: none !important; }
+
+/* Force the mobile sticky checkout bar to be FULLY OPAQUE at all times — override
+   for Shopify's cached {% stylesheet %} bundle (styles.css), which can keep serving
+   an older compiled copy of the section CSS that faded the bar's opacity mid-scroll
+   (cart text showed through the checkout button). This lives in a directly-linked
+   asset that always updates on push, and uses body.template-cart specificity +
+   !important so it wins over the stale bundle regardless of load order. The bar still
+   retracts by sliding (transform); only the opacity fade is neutralised. */
+@media (max-width: 989px) {
+  body.template-cart .tapi-cart-stickybar,
+  body.template-cart .tapi-cart-stickybar.is-hidden {
+    opacity: 1 !important;
+    background-color: var(--tapi-cream, #f5efe1) !important;
+  }
+}
