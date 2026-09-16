@@ -73,6 +73,11 @@
       var freshAside = doc.querySelector('.tapi-cart-aside');
       var liveAside = host.querySelector('.tapi-cart-aside');
       if (freshAside && liveAside) liveAside.innerHTML = freshAside.innerHTML;
+      // Mobile sticky checkout bar (amount + savings badge) also sits outside
+      // .js-contents; swap it so a promo-code switch updates it live too.
+      var freshBar = doc.querySelector('.tapi-cart-stickybar');
+      var liveBar = host.querySelector('.tapi-cart-stickybar');
+      if (freshBar && liveBar) liveBar.innerHTML = freshBar.innerHTML;
     });
   }
 
