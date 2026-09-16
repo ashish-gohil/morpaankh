@@ -710,9 +710,10 @@
       right: 0;
       bottom: 0;
       z-index: 80;
-      padding: 1rem var(--tapi-gutter, 16px);
+      padding: 1rem 1.6rem;
       padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
       background: var(--tapi-cream, #f6efe1);
+      isolation: isolate;
       border-top: 1px solid var(--tapi-hairline-2, rgba(44, 40, 38, 0.12));
       box-shadow: 0 -10px 30px rgba(44, 40, 38, 0.10);
       transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease, visibility 0.42s;
@@ -726,26 +727,35 @@
       pointer-events: none;
     }
 
-    .tapi-cart-stickybar__form { position: relative; margin: 0; }
+    /* Stack the save tag ABOVE the button, both in normal flow inside the bar's
+       opaque background. The tag never straddles above the bar and is never
+       absolutely positioned over the button, so page content scrolling underneath
+       is fully occluded — no bleed-through, no text overlapping the button. */
+    .tapi-cart-stickybar__form {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.7rem;
+    }
 
-    /* Save badge — a small tag straddling the top-right of the button. */
+    /* Save tag — a compact pill sitting on its own line above the button. */
     .tapi-cart-stickybar__badge {
-      position: absolute;
-      top: -1.1rem;
-      right: 1.2rem;
-      z-index: 1;
+      align-self: flex-end;
+      max-width: 100%;
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      padding: 0.3rem 0.8rem;
+      padding: 0.3rem 0.9rem;
       background: var(--tapi-ivory, #fcfaf4);
       color: var(--mor-primary, #2E4B3C);
       border: 1px solid var(--tapi-hairline, #e5ddc8);
-      box-shadow: 0 2px 10px rgba(44, 40, 38, 0.12);
       font-size: var(--fs-xs);
       font-weight: 600;
       letter-spacing: 0.01em;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .tapi-cart-stickybar__badge svg { flex: 0 0 auto; color: var(--tapi-terracotta, #b7472a); }
 
@@ -791,9 +801,15 @@
        one clean CTA, not two stacked bars. */
     .template-cart .tapi-botnav { display: none !important; }
 
+    /* The "Shop with AI" assistant pill (#ads-agent-host, a fixed shadow-DOM widget
+       pinned bottom-centre) sat directly on top of the checkout bar, its text
+       overlapping the button. Hide it on the cart so the checkout CTA is clean — it
+       still shows on every other page. */
+    .template-cart #ads-agent-host { display: none !important; }
+
     /* Reserve space so the fixed bar never covers the last section (featured rail).
        Overrides the bottom nav's body padding (the nav is hidden here). */
-    body.template-cart { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
+    body.template-cart { padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px)) !important; }
   }
 
   @media (max-width: 989px) and (prefers-reduced-motion: reduce) {
