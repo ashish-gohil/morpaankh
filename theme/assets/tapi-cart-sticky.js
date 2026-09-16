@@ -30,16 +30,6 @@
     );
     io.observe(target);
     bar.__tapiStickyIO = io;
-
-    // Best-effort: lift the Google merchant review badge above the bar on mobile.
-    // It sets its own bottom via an inline style that beats stylesheet !important,
-    // so nudge it from JS (overwrites the inline property). Harmless if absent.
-    try {
-      var g = document.getElementById('google-merchantwidget-iframe-wrapper');
-      if (g && window.matchMedia('(max-width: 989px)').matches) {
-        g.style.setProperty('bottom', 'calc(108px + env(safe-area-inset-bottom, 0px))', 'important');
-      }
-    } catch (e) {}
   }
 
   if (document.readyState === 'loading') {

@@ -783,12 +783,6 @@
     /* Reserve space so the fixed bar never covers the last section (featured rail).
        Overrides the bottom nav's body padding (the nav is hidden here). */
     body.template-cart { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
-
-    /* Lift the Google merchant review badge above the bar so it does not sit over
-       the checkout button. (Corner app widget; COD King's helper is left as-is.) */
-    .template-cart #google-merchantwidget-iframe-wrapper {
-      bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
-    }
   }
 
   @media (max-width: 989px) and (prefers-reduced-motion: reduce) {

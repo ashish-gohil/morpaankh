@@ -3220,3 +3220,9 @@ body.gradient { background-image: var(--mor-pattern); background-attachment: scr
 
 /* Pressed wash for nav flyout entries (hover = cream-2, press = hairline) */
 .tapi-nav-flyout__link:active { background: var(--mor-hairline); }
+
+/* Hide the Google Merchant Center "Customer Reviews" badge site-wide (merchant
+   does not want it shown). It is injected by the Google & YouTube channel, not the
+   theme; CSS catches it even if re-injected. To stop it at source, disable the
+   Customer Reviews badge in Google Merchant Center / the Google sales channel. */
+#google-merchantwidget-iframe-wrapper { display: none !important; }
