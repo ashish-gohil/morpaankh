@@ -151,6 +151,14 @@ class CartItems extends HTMLElement {
         selector: '.tapi-cart-aside',
       });
     }
+    // Same for the mobile sticky checkout bar's total.
+    if (document.getElementById('tapi-cart-stickybar')) {
+      sections.push({
+        id: 'tapi-cart-stickybar',
+        section: document.getElementById('main-cart-items').dataset.id,
+        selector: '.tapi-cart-stickybar',
+      });
+    }
     return sections;
   }
 
