@@ -8,12 +8,29 @@
   the theme editor so empty slots are obvious.
 {%- endcomment -%}
 {%- liquid
+  # Primary source: featured products' OWN video media (auto — "gather all product
+  # videos"). Fallback: manual clip blocks (uploaded video files).
+  assign use_products = false
+  if section.settings.products.count > 0
+    assign use_products = true
+  endif
   assign playable = 0
-  for block in section.blocks
-    if block.settings.video != blank
-      assign playable = playable | plus: 1
-    endif
-  endfor
+  if use_products
+    for product in section.settings.products
+      for m in product.media
+        if m.media_type == 'video'
+          assign playable = playable | plus: 1
+          break
+        endif
+      endfor
+    endfor
+  else
+    for block in section.blocks
+      if block.settings.video != blank
+        assign playable = playable | plus: 1
+      endif
+    endfor
+  endif
 -%}
 
 {%- if playable > 0 or request.design_mode -%}
@@ -39,85 +56,51 @@
         </button>
 
         <ul class="tapi-watchbuy__rail" data-story-rail data-wb-rail role="list">
-          {%- for block in section.blocks -%}
-            {%- liquid
-              assign product = block.settings.product
-              assign vsrc = ''
-              assign vpre = ''
-              if block.settings.video != blank
-                for s in block.settings.video.sources
-                  if s.format == 'mp4'
-                    assign vsrc = s.url
+          {%- if use_products -%}
+            {%- for product in section.settings.products -%}
+              {%- liquid
+                assign vsrc = ''
+                assign poster = blank
+                for m in product.media
+                  if m.media_type == 'video' and vsrc == blank
+                    # Shopify lists mp4 sources smallest-first; take the first (lightest,
+                    # ~480p) for fast, premium inline autoplay.
+                    for s in m.sources
+                      if s.format == 'mp4' and vsrc == blank
+                        assign vsrc = s.url
+                      endif
+                    endfor
+                    assign poster = m.preview_image
                   endif
                 endfor
-                assign vpre = block.settings.video.preview_image
-              endif
-              # Poster fallback chain: picked poster -> video's own frame -> product image
-              assign poster = block.settings.poster | default: vpre
-              if poster == blank and product != blank
-                assign poster = product.featured_image
-              endif
-              # Size option position for the player's size chips
-              assign spos = 0
-              assign size_found = false
-              if product != blank
-                for opt in product.options_with_values
-                  assign onm = opt.name | downcase
-                  if onm == 'size'
-                    assign spos = opt.position | minus: 1
-                    assign size_found = true
-                  endif
-                endfor
-              endif
-            -%}
-            {%- assign vjson = '[]' -%}
-            {%- if product != blank -%}
-              {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
-            {%- endif -%}
-            {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
-            <li class="tapi-watchbuy__cell" {{ block.shopify_attributes }}>
-              <button
-                type="button"
-                class="tapi-watchbuy__tile"
-                {% if vsrc != blank %}data-story-tile{% endif %}
-                data-video="{{ vsrc }}"
-                {% if product != blank %}
-                  data-handle="{{ product.handle }}"
-                  data-url="{{ product.url }}"
-                  data-title="{{ product.title | escape }}"
-                  data-price="{{ product.price | money }}"
-                  data-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
-                  data-has-size="{{ size_found }}"
-                  data-variants="{{ vjson | escape }}"
-                  data-variant-count="{{ product.variants.size }}"
-                {% endif %}
-                aria-label="Play video{% if product != blank %} for {{ product.title | escape }}{% endif %}"
-              >
-                {%- if poster != blank -%}
-                  {{ poster | image_url: width: 640 | image_tag:
-                     loading: 'lazy', widths: '320, 480, 640, 860',
-                     sizes: '(min-width: 750px) 34vw, 66vw',
-                     alt: '', class: 'tapi-watchbuy__poster' }}
-                {%- else -%}
-                  <span class="tapi-watchbuy__poster tapi-watchbuy__poster--empty" aria-hidden="true"></span>
-                {%- endif -%}
-                {%- if vsrc != blank -%}
-                  <video class="tapi-watchbuy__vid" data-wb-video muted loop playsinline preload="none" aria-hidden="true"></video>
-                {%- endif -%}
-                <span class="tapi-watchbuy__play" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </span>
-                {%- if product != blank -%}
-                  <span class="tapi-watchbuy__cap">
-                    <span class="tapi-watchbuy__cap-title">{{ product.title }}</span>
-                    <span class="tapi-watchbuy__cap-price">{{ product.price | money }}</span>
-                  </span>
-                {%- elsif request.design_mode -%}
-                  <span class="tapi-watchbuy__cap"><span class="tapi-watchbuy__cap-title">Add a clip + product</span></span>
-                {%- endif -%}
-              </button>
-            </li>
-          {%- endfor -%}
+                if poster == blank
+                  assign poster = product.featured_image
+                endif
+              -%}
+              {%- if vsrc != blank -%}
+                {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: product, design_mode: request.design_mode -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- else -%}
+            {%- for block in section.blocks -%}
+              {%- liquid
+                assign vsrc = ''
+                if block.settings.video != blank
+                  for s in block.settings.video.sources
+                    if s.format == 'mp4' and vsrc == blank
+                      assign vsrc = s.url
+                    endif
+                  endfor
+                endif
+                assign poster = block.settings.poster | default: block.settings.video.preview_image
+                if poster == blank and block.settings.product != blank
+                  assign poster = block.settings.product.featured_image
+                endif
+              -%}
+              {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
+              {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: block.settings.product, shopify_attrs: block.shopify_attributes, design_mode: request.design_mode -%}
+            {%- endfor -%}
+          {%- endif -%}
         </ul>
 
         <button type="button" class="tapi-watchbuy__arrow tapi-watchbuy__arrow--next" data-wb-next aria-label="Next clip">
@@ -330,7 +313,9 @@
   "settings": [
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "In motion" },
     { "type": "text", "id": "heading", "label": "Heading", "default": "Watch and buy" },
-    { "type": "text", "id": "subtitle", "label": "Subtitle", "default": "See the drape, the fall, the real colour. Tap to shop the look." }
+    { "type": "text", "id": "subtitle", "label": "Subtitle", "default": "See the drape, the fall, the real colour. Tap to shop the look." },
+    { "type": "header", "content": "Videos" },
+    { "type": "product_list", "id": "products", "label": "Products to feature", "limit": 12, "info": "Each product's own uploaded video is used automatically (portrait 9:16 works best). Leave empty to use the manual clip blocks below instead." }
   ],
   "blocks": [
     {

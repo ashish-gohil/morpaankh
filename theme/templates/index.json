@@ -295,39 +295,18 @@
     },
     "tapi_watch_buy": {
       "type": "tapi-watch-buy",
-      "blocks": {
-        "clip_1": {
-          "type": "clip",
-          "settings": {
-            "product": ""
-          }
-        },
-        "clip_2": {
-          "type": "clip",
-          "settings": {
-            "product": ""
-          }
-        },
-        "clip_3": {
-          "type": "clip",
-          "settings": {
-            "product": ""
-          }
-        },
-        "clip_4": {
-          "type": "clip",
-          "settings": {
-            "product": ""
-          }
-        }
-      },
-      "block_order": [
-        "clip_1",
-        "clip_2",
-        "clip_3",
-        "clip_4"
-      ],
       "settings": {
+        "products": [
+          "bagh-bahar",
+          "anaar",
+          "haldi",
+          "morani",
+          "toran",
+          "rangoli",
+          "chandni",
+          "sarson",
+          "ghera"
+        ],
         "eyebrow": "In motion",
         "heading": "Watch and buy",
         "subtitle": "See the drape, the fall, the real colour. Tap to shop the look."
