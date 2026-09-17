@@ -63,10 +63,11 @@
                 assign poster = blank
                 for m in product.media
                   if m.media_type == 'video' and vsrc == blank
-                    # Shopify lists mp4 sources smallest-first; take the first (lightest,
-                    # ~480p) for fast, premium inline autoplay.
+                    # Pick the smallest-height mp4 (~480p) for fast, premium inline autoplay.
+                    assign vmin = 99999
                     for s in m.sources
-                      if s.format == 'mp4' and vsrc == blank
+                      if s.format == 'mp4' and s.height < vmin
+                        assign vmin = s.height
                         assign vsrc = s.url
                       endif
                     endfor
@@ -86,8 +87,10 @@
               {%- liquid
                 assign vsrc = ''
                 if block.settings.video != blank
+                  assign vmin = 99999
                   for s in block.settings.video.sources
-                    if s.format == 'mp4' and vsrc == blank
+                    if s.format == 'mp4' and s.height < vmin
+                      assign vmin = s.height
                       assign vsrc = s.url
                     endif
                   endfor
