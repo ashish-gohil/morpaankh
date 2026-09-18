@@ -295,7 +295,26 @@
         }, { threshold: 0.2 }).observe(stage);
       }
 
-      // Centre the first tile, then light up the active one.
+      // Initial position: DON'T centre the first clip (that leaves a big empty gap
+      // beside it on wide screens, where the coverflow's side padding sits). Instead
+      // centre the clip that has just enough tiles to its left to fill the start, so
+      // the row reads full from the left edge. Earlier clips stay reachable — scroll
+      // left to bring the first clip to centre (the empty space beside it then is
+      // expected) or tap any tile for the full-screen player. Clamped so small clip
+      // counts still keep a tile on the right.
+      function initPosition() {
+        var colW = cells[0].getBoundingClientRect().width || 1;
+        var gap = parseFloat(getComputedStyle(rail).columnGap) || 0;
+        var fitLeft = Math.round((rail.clientWidth / 2) / (colW + gap));
+        var startIndex = Math.max(0, Math.min(fitLeft, Math.max(0, cells.length - 2)));
+        if (startIndex <= 0) { update(); return; }
+        var rr = rail.getBoundingClientRect();
+        var cr = cells[startIndex].getBoundingClientRect();
+        rail.scrollLeft += (cr.left + cr.width / 2) - (rr.left + rr.width / 2);
+        update();
+      }
+      initPosition();
+      // Re-run after paint in case fonts/layout shift the measurements.
       requestAnimationFrame(function () { update(); });
     }
 
