@@ -945,6 +945,41 @@
     });
   }
 
+  // Same-page anchor links in the mobile menu drawer (e.g. "/#watch-buy"):
+  // close the drawer so its body scroll-lock releases and it stops covering the
+  // page, then smooth-scroll to the target below the sticky header. Cross-page
+  // links (a different path) fall through to normal navigation, which closes the
+  // drawer on unload anyway. Delegated on document so one listener covers editor
+  // re-renders of the header.
+  function setupDrawerAnchorLinks() {
+    if (document.__tapiDrawerAnchors) return; document.__tapiDrawerAnchors = true;
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest ? e.target.closest('#menu-drawer a[href]') : null;
+      if (!link) return;
+      var url;
+      try { url = new URL(link.href, location.href); } catch (_) { return; }
+      // Only intercept a hash link pointing at an element on THIS page.
+      if (!url.hash || url.pathname !== location.pathname || url.search !== location.search) return;
+      var target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      if (!target) return;
+      e.preventDefault();
+      var drawer = link.closest('header-drawer, menu-drawer');
+      if (drawer && typeof drawer.closeMenuDrawer === 'function') {
+        // elementToFocus is required: HeaderDrawer.closeMenuDrawer no-ops without it.
+        drawer.closeMenuDrawer(e, drawer.querySelector('summary'));
+      }
+      // Wait out the drawer's 400ms close animation before scrolling so the
+      // motion is visible and nothing overlays the target.
+      setTimeout(function () {
+        try { history.replaceState(null, '', url.hash); } catch (_) {}
+        var sticky = document.querySelector('sticky-header');
+        var offset = sticky ? sticky.getBoundingClientRect().height : 0;
+        var y = target.getBoundingClientRect().top + window.pageYOffset - offset - 8;
+        window.scrollTo({ top: y < 0 ? 0 : y, behavior: reduce ? 'auto' : 'smooth' });
+      }, reduce ? 0 : 420);
+    });
+  }
+
   function boot() {
     setupReveal(document);
     setupCountUp(document);
@@ -954,6 +989,7 @@
     setupCustomSelect(document);
     setupSelectOutsideClose();
     setupTapiSearch(document);
+    setupDrawerAnchorLinks();
   }
 
   if (document.readyState === 'loading') {
