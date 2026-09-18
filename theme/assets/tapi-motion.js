@@ -945,12 +945,39 @@
     });
   }
 
-  // Same-page anchor links in the mobile menu drawer (e.g. "/#watch-buy"):
-  // close the drawer so its body scroll-lock releases and it stops covering the
-  // page, then smooth-scroll to the target below the sticky header. Cross-page
-  // links (a different path) fall through to normal navigation, which closes the
-  // drawer on unload anyway. Delegated on document so one listener covers editor
-  // re-renders of the header.
+  // Fully close the mobile menu drawer. Dawn's own closeMenuDrawer starts a
+  // requestAnimationFrame loop to drop the [open] attribute after 400ms; if that
+  // rAF is throttled or interrupted, [open] lingers and the dim backdrop
+  // (summary::before, shown while details[open]) keeps covering the page. So we
+  // call Dawn's close for focus/a11y, then FORCE the teardown ourselves —
+  // independent of any animation frame — so the backdrop and scroll-lock can
+  // never get stuck.
+  function forceCloseDrawer(drawer) {
+    if (!drawer) return;
+    var details = drawer.querySelector('details');
+    if (typeof drawer.closeMenuDrawer === 'function') {
+      // elementToFocus is required: HeaderDrawer.closeMenuDrawer no-ops without it.
+      try { drawer.closeMenuDrawer(new Event('click'), drawer.querySelector('summary')); } catch (_) {}
+    }
+    if (details) {
+      details.classList.remove('menu-opening');
+      details.querySelectorAll('.menu-opening').forEach(function (el) { el.classList.remove('menu-opening'); });
+      details.querySelectorAll('details[open]').forEach(function (d) { d.removeAttribute('open'); });
+      // Let the panel slide out, then guarantee [open] is gone regardless of rAF.
+      setTimeout(function () { details.removeAttribute('open'); }, 380);
+    }
+    document.body.className = document.body.className.replace(/\boverflow-hidden-[\w-]+\b/g, '').replace(/\s{2,}/g, ' ').trim();
+    var sh = document.querySelector('.section-header');
+    if (sh) sh.classList.remove('menu-open');
+  }
+
+  // Same-page anchor links in the mobile menu drawer (e.g. "/#watch-buy"): close
+  // the drawer so its scroll-lock + dim backdrop go away and it stops covering
+  // the page, then smooth-scroll to the target below the sticky header. Matching
+  // is by PATH only (query strings like ?fbclid / ?utm are ignored, so ad and
+  // campaign traffic still gets the close). Cross-page links fall through to
+  // normal navigation. Delegated on document so one listener covers header
+  // re-renders in the editor.
   function setupDrawerAnchorLinks() {
     if (document.__tapiDrawerAnchors) return; document.__tapiDrawerAnchors = true;
     document.addEventListener('click', function (e) {
@@ -958,18 +985,14 @@
       if (!link) return;
       var url;
       try { url = new URL(link.href, location.href); } catch (_) { return; }
-      // Only intercept a hash link pointing at an element on THIS page.
-      if (!url.hash || url.pathname !== location.pathname || url.search !== location.search) return;
+      // A hash link pointing at an element on THIS page (ignore the query string).
+      if (!url.hash || url.pathname !== location.pathname) return;
       var target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
       if (!target) return;
       e.preventDefault();
-      var drawer = link.closest('header-drawer, menu-drawer');
-      if (drawer && typeof drawer.closeMenuDrawer === 'function') {
-        // elementToFocus is required: HeaderDrawer.closeMenuDrawer no-ops without it.
-        drawer.closeMenuDrawer(e, drawer.querySelector('summary'));
-      }
-      // Wait out the drawer's 400ms close animation before scrolling so the
-      // motion is visible and nothing overlays the target.
+      forceCloseDrawer(link.closest('header-drawer, menu-drawer'));
+      // Wait out the drawer's close animation before scrolling so the motion is
+      // visible and nothing overlays the target.
       setTimeout(function () {
         try { history.replaceState(null, '', url.hash); } catch (_) {}
         var sticky = document.querySelector('sticky-header');
