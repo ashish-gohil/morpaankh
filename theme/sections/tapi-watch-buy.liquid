@@ -61,9 +61,12 @@
               {%- liquid
                 assign vsrc = ''
                 assign poster = blank
+                assign vsources = '[]'
+                assign vmedia = null
                 for m in product.media
                   if m.media_type == 'video' and vsrc == blank
-                    # Pick the smallest-height mp4 (~480p) for fast, premium inline autoplay.
+                    # Inline preview uses the smallest-height mp4 (~480p): fast start, low data.
+                    assign vmedia = m
                     assign vmin = 99999
                     for s in m.sources
                       if s.format == 'mp4' and s.height < vmin
@@ -78,14 +81,17 @@
                   assign poster = product.featured_image
                 endif
               -%}
+              {%- comment -%} All renditions (mp4 tiers + HLS) so the full-screen player adapts to bandwidth. {%- endcomment -%}
               {%- if vsrc != blank -%}
-                {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: product, design_mode: request.design_mode -%}
+                {%- capture vsources -%}[{% for s in vmedia.sources %}{% unless forloop.first %},{% endunless %}{"f":{{ s.format | json }},"h":{{ s.height | default: 0 }},"u":{{ s.url | json }}}{% endfor %}]{%- endcapture -%}
+                {%- render 'tapi-watchbuy-tile', vsrc: vsrc, vsources: vsources, poster: poster, product: product, design_mode: request.design_mode -%}
               {%- endif -%}
             {%- endfor -%}
           {%- else -%}
             {%- for block in section.blocks -%}
               {%- liquid
                 assign vsrc = ''
+                assign vsources = '[]'
                 if block.settings.video != blank
                   assign vmin = 99999
                   for s in block.settings.video.sources
@@ -101,7 +107,10 @@
                 endif
               -%}
               {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
-              {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: block.settings.product, shopify_attrs: block.shopify_attributes, design_mode: request.design_mode -%}
+              {%- if block.settings.video != blank -%}
+                {%- capture vsources -%}[{% for s in block.settings.video.sources %}{% unless forloop.first %},{% endunless %}{"f":{{ s.format | json }},"h":{{ s.height | default: 0 }},"u":{{ s.url | json }}}{% endfor %}]{%- endcapture -%}
+              {%- endif -%}
+              {%- render 'tapi-watchbuy-tile', vsrc: vsrc, vsources: vsources, poster: poster, product: block.settings.product, shopify_attrs: block.shopify_attributes, design_mode: request.design_mode -%}
             {%- endfor -%}
           {%- endif -%}
         </ul>
@@ -184,6 +193,9 @@
   }
   .tapi-watchbuy__cell.is-active .tapi-watchbuy__play { opacity: 0; }
   .tapi-watchbuy__cell.is-active .tapi-watchbuy__tile:hover .tapi-watchbuy__play { opacity: 0.9; transform: translate(-50%, -50%) scale(1.06); }
+  /* Constrained connection / reduced motion: no inline autoplay, so keep the play
+     affordance visible on the active tile to invite a tap (opens the player). */
+  .tapi-watchbuy__stage.wb-nodata .tapi-watchbuy__cell.is-active .tapi-watchbuy__play { opacity: 0.92; }
   .tapi-watchbuy__cap { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 2; display: flex; flex-direction: column; gap: 2px; text-align: left; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-watchbuy__cell.is-active .tapi-watchbuy__cap { opacity: 1; transform: none; }
   .tapi-watchbuy__cap-title { font-family: var(--font-heading-family); font-size: var(--fs-base); font-weight: 500; color: var(--mor-cream); line-height: 1.25; letter-spacing: -0.006em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
@@ -230,6 +242,27 @@
       var prevBtn = stage.querySelector('[data-wb-prev]');
       var nextBtn = stage.querySelector('[data-wb-next]');
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Bandwidth tier from the Network Information API (where supported):
+      //   'save' = Data Saver on, or 2g -> no inline autoplay (poster + tap to open)
+      //   'lite' = 3g                    -> autoplay the light 480p clip, no preloading
+      //   'full' = 4g / unknown          -> autoplay + preload neighbours for instant snaps
+      function netTier() {
+        var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (!c) return 'full';
+        if (c.saveData) return 'save';
+        var t = c.effectiveType || '';
+        if (t === 'slow-2g' || t === '2g') return 'save';
+        if (t === '3g') return 'lite';
+        return 'full';
+      }
+      var tier = netTier();
+      // Inline preview only has the one heavy mp4 rendition Liquid exposes, so
+      // autoplay it only on a fast link. On 3g/2g/Save-Data the active tile stays a
+      // poster with a visible play button; tapping opens the adaptive HLS player.
+      var noAuto = reduce || tier !== 'full';
+      if (noAuto) stage.classList.add('wb-nodata');
+      var keepRadius = tier === 'full' ? 1 : 0;  // how many neighbours keep their buffer
+
       var active = -1;
       var raf = 0;
 
@@ -238,17 +271,44 @@
         var tile = cell.querySelector('.tapi-watchbuy__tile');
         if (!v || !tile) return;
         var src = tile.getAttribute('data-video');
-        if (src && !v.getAttribute('src')) v.setAttribute('src', src);
+        if (src && !v.getAttribute('src')) { v.setAttribute('preload', 'auto'); v.setAttribute('src', src); }
         v.muted = true;
+        // Cross-fade the clip in only once real frames are ready, so the poster
+        // holds instead of flashing black — smooth and premium.
+        var reveal = function () { v.classList.add('is-playing'); };
+        v.addEventListener('playing', reveal, { once: true });
         var p = v.play();
-        if (p && p.catch) p.catch(function () {});
-        v.classList.add('is-playing');
+        if (p && p.catch) p.catch(function () { v.removeEventListener('playing', reveal); });
       }
       function stopCell(cell) {
         var v = cell.querySelector('[data-wb-video]');
         if (!v) return;
         v.classList.remove('is-playing');
         try { v.pause(); } catch (e) {}
+      }
+      // Free the buffer of clips far from the active one: mobile browsers cap how
+      // many videos can hold data at once, and 9 buffered clips turns janky. Only
+      // the active clip (+ neighbours on fast links) keeps its src.
+      function releaseCell(cell) {
+        var v = cell.querySelector('[data-wb-video]');
+        if (!v) return;
+        v.classList.remove('is-playing');
+        try { v.pause(); } catch (e) {}
+        if (v.getAttribute('src')) { v.removeAttribute('src'); try { v.load(); } catch (e) {} }
+      }
+      function preloadNeighbour(i) {
+        if (tier !== 'full' || i < 0 || i >= cells.length) return;
+        var cell = cells[i];
+        var v = cell.querySelector('[data-wb-video]');
+        var tile = cell.querySelector('.tapi-watchbuy__tile');
+        if (!v || !tile) return;
+        var src = tile.getAttribute('data-video');
+        if (src && !v.getAttribute('src')) { v.setAttribute('preload', 'metadata'); v.setAttribute('src', src); }
+      }
+      function syncBuffers() {
+        for (var i = 0; i < cells.length; i++) {
+          if (Math.abs(i - active) > keepRadius) releaseCell(cells[i]);
+        }
       }
 
       function update() {
@@ -265,7 +325,10 @@
         if (active > -1 && cells[active]) { cells[active].classList.remove('is-active'); stopCell(cells[active]); }
         active = best;
         cells[active].classList.add('is-active');
-        if (!reduce) playCell(cells[active]);
+        if (!noAuto) playCell(cells[active]);
+        preloadNeighbour(active - 1);
+        preloadNeighbour(active + 1);
+        syncBuffers();
         if (prevBtn) prevBtn.disabled = active <= 0;
         if (nextBtn) nextBtn.disabled = active >= cells.length - 1;
       }
@@ -289,7 +352,7 @@
       if ('IntersectionObserver' in window) {
         new IntersectionObserver(function (entries) {
           entries.forEach(function (en) {
-            if (en.isIntersecting) { if (active > -1 && !reduce) playCell(cells[active]); }
+            if (en.isIntersecting) { if (active > -1 && !noAuto) playCell(cells[active]); }
             else { cells.forEach(stopCell); }
           });
         }, { threshold: 0.2 }).observe(stage);

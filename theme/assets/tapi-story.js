@@ -13,9 +13,81 @@
 
   function parseJSON(s, fallback) { try { return JSON.parse(s); } catch (e) { return fallback; } }
 
+  // Bandwidth tier from the Network Information API (where supported).
+  //   'save' = Data Saver / 2g, 'lite' = 3g, 'full' = 4g / unknown.
+  function netTier() {
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return 'full';
+    if (c.saveData) return 'save';
+    var t = c.effectiveType || '';
+    if (t === 'slow-2g' || t === '2g') return 'save';
+    if (t === '3g') return 'lite';
+    return 'full';
+  }
+
+  function nativeHls(video) {
+    return !!(video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL'));
+  }
+
+  // Decide the playback source for THIS device + connection from the tile's
+  // rendition list. HLS (m3u8) is adaptive bitrate — the stream auto-matches the
+  // viewer's bandwidth — so prefer it whenever it can play (natively on
+  // Safari/iOS, or via lazy-loaded hls.js elsewhere). On Save-Data force the
+  // lightest concrete mp4 and skip adaptive probing. Returns { url, hls } where
+  // hls:true means "needs hls.js attached". Falls back to the inline mp4.
+  function choosePlayback(video, item) {
+    var srcs = (item.sources || []).filter(function (s) { return s && s.u; });
+    var tier = netTier();
+    var m3u8 = srcs.filter(function (s) { return s.f === 'm3u8'; })[0];
+    var mp4 = srcs.filter(function (s) { return s.f === 'mp4'; }).sort(function (a, b) { return (a.h || 0) - (b.h || 0); });
+    if (tier === 'save') { return { url: (mp4[0] || {}).u || item.video, hls: false }; }
+    if (m3u8) {
+      if (nativeHls(video)) return { url: m3u8.u, hls: false };
+      // No native HLS: use hls.js if this browser can (assume yes until the lib
+      // loads and tells us otherwise; the loader falls back to mp4 if not).
+      if (!window.Hls || window.Hls.isSupported()) return { url: m3u8.u, hls: true };
+    }
+    if (!mp4.length) return { url: item.video, hls: false };
+    if (tier === 'lite') {
+      var lite = mp4.filter(function (s) { return (s.h || 0) <= 720; });
+      return { url: (lite[lite.length - 1] || mp4[0]).u, hls: false };
+    }
+    return { url: mp4[mp4.length - 1].u, hls: false };
+  }
+
+  // Best mp4 for the tier — the graceful fallback when hls.js can't run.
+  function fallbackMp4(item) {
+    var mp4 = (item.sources || []).filter(function (s) { return s && s.u && s.f === 'mp4'; })
+      .sort(function (a, b) { return (a.h || 0) - (b.h || 0); });
+    if (!mp4.length) return item.video;
+    var tier = netTier();
+    if (tier === 'full') return mp4[mp4.length - 1].u;
+    var lite = mp4.filter(function (s) { return (s.h || 0) <= 720; });
+    return (lite[lite.length - 1] || mp4[0]).u;
+  }
+
+  // Lazy-load the vendored hls.js (only when a browser without native HLS opens
+  // the player). Loaded once, cached; resolves with window.Hls or null on failure.
+  var hlsLibPromise = null;
+  function loadHlsLib(src) {
+    if (window.Hls) return Promise.resolve(window.Hls);
+    if (!src) return Promise.resolve(null);
+    if (hlsLibPromise) return hlsLibPromise;
+    hlsLibPromise = new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = function () { resolve(window.Hls || null); };
+      s.onerror = function () { resolve(null); };
+      document.head.appendChild(s);
+    });
+    return hlsLibPromise;
+  }
+
   function itemFromTile(tile) {
     return {
       video: tile.getAttribute('data-video') || '',
+      sources: parseJSON(tile.getAttribute('data-sources'), []) || [],
       url: tile.getAttribute('data-url') || '',
       title: tile.getAttribute('data-title') || '',
       price: tile.getAttribute('data-price') || '',
@@ -86,6 +158,9 @@
     this.pending = null;
     this.muted = false;
     this.lastFocus = null;
+    this.hlsSrc = el.getAttribute('data-hls-src') || '';
+    this.hls = null;      // active hls.js instance, when used
+    this._loadToken = 0;  // guards against a slow async attach landing on a stale clip
     this._bind();
   }
 
@@ -171,6 +246,8 @@
     this.el.classList.remove('is-open');
     this.el.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('tapi-story-lock');
+    this._loadToken++;      // invalidate any in-flight hls.js attach
+    this._detachHls();
     try { this.video.pause(); this.video.removeAttribute('src'); this.video.load(); } catch (e) {}
     var el = this.el, focus = this.lastFocus;
     setTimeout(function () { el.hidden = true; if (focus && focus.focus) focus.focus(); }, 260);
@@ -202,6 +279,55 @@
     if (!m) { this.video.play().catch(function () {}); }
   };
 
+  Player.prototype._detachHls = function () {
+    if (this.hls) { try { this.hls.destroy(); } catch (e) {} this.hls = null; }
+  };
+
+  Player.prototype._playVideo = function () {
+    var self = this;
+    var pp = this.video.play();
+    if (pp && pp.catch) { pp.catch(function () { if (!self.muted) self.setMuted(true); }); }
+  };
+
+  // Attach the chosen source, wiring up hls.js when adaptive HLS is needed and
+  // this browser has no native HLS. A monotonic token ensures a slow async attach
+  // that finishes after the viewer has already swiped to another clip is dropped.
+  Player.prototype._setSource = function (item) {
+    var self = this;
+    var token = ++this._loadToken;
+    this._detachHls();
+    this.video.removeAttribute('src');
+    try { this.video.currentTime = 0; } catch (e) {}
+    var choice = choosePlayback(this.video, item);
+    if (!choice.hls) {
+      this.video.src = choice.url;
+      this.video.load();
+      this._playVideo();
+      return;
+    }
+    loadHlsLib(this.hlsSrc).then(function (Hls) {
+      if (token !== self._loadToken) return;                 // viewer already moved on
+      if (Hls && Hls.isSupported()) {
+        self.hls = new Hls({ capLevelToPlayerSize: true, maxBufferLength: 20 });
+        self.hls.loadSource(choice.url);
+        self.hls.attachMedia(self.video);
+        self.hls.on(Hls.Events.MANIFEST_PARSED, function () { if (token === self._loadToken) self._playVideo(); });
+        self.hls.on(Hls.Events.ERROR, function (evt, data) {
+          if (data && data.fatal && token === self._loadToken) {
+            self._detachHls();
+            self.video.src = fallbackMp4(item);
+            self.video.load();
+            self._playVideo();
+          }
+        });
+      } else {
+        self.video.src = fallbackMp4(item);
+        self.video.load();
+        self._playVideo();
+      }
+    });
+  };
+
   Player.prototype.load = function (i) {
     if (i < 0) { return; }
     if (i >= this.items.length) { this.close(); return; }
@@ -221,16 +347,10 @@
     // fall back to muted so the clip still plays (and flip the icon).
     this.video.muted = this.muted;
     this._syncMute();
-    this.video.src = item.video;
-    this.video.currentTime = 0;
-    this.video.load();
-    var selfp = this;
-    var pp = this.video.play();
-    if (pp && pp.catch) {
-      pp.catch(function () {
-        if (!selfp.muted) { selfp.setMuted(true); }
-      });
-    }
+    // Show the product image while the clip buffers so the stage never flashes
+    // black; the first video frame paints over it.
+    if (item.image) { this.video.poster = item.image; } else { this.video.removeAttribute('poster'); }
+    this._setSource(item);
 
     // Card.
     this.titleEl.textContent = item.title;
@@ -328,7 +448,7 @@
     // Wire PDP bubble previews (muted loop) if present.
     document.querySelectorAll('[data-vbubble-video]').forEach(function (v) {
       if (v.__wired) return; v.__wired = true;
-      if (reduceMotion) return;
+      if (reduceMotion || netTier() === 'save') return;
       var src = v.getAttribute('data-src');
       if (src && !v.src) { v.src = src; v.muted = true; v.loop = true; v.playsInline = true; v.play().catch(function () {}); }
     });

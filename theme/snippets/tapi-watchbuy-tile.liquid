@@ -2,12 +2,18 @@
   One Watch & Buy tile. Shared by both section sources (auto product_list + manual
   clip blocks) so the markup and shoppable data-attributes stay identical.
   Params:
-    vsrc         - mp4 URL string. Blank + design_mode shows an editor placeholder.
+    vsrc         - mp4 URL string (smallest rendition — used for the inline muted
+                   preview so it starts fast and stays light). Blank + design_mode
+                   shows an editor placeholder.
+    vsources     - JSON string of ALL renditions [{"f":"mp4"|"m3u8","h":<height>,"u":<url>}].
+                   The full-screen player picks from these by bandwidth (native HLS
+                   when available, else an mp4 tier). Defaults to "[]".
     poster       - image (tile thumbnail / first frame)
     product      - product object (optional; drives shop data + caption)
     shopify_attrs- block.shopify_attributes string (editor block mode only)
     design_mode  - request.design_mode
 {%- endcomment -%}
+{%- assign vsources = vsources | default: '[]' -%}
 {%- liquid
   assign spos = 0
   assign size_found = false
@@ -31,6 +37,7 @@
     class="tapi-watchbuy__tile"
     {% if vsrc != blank %}data-story-tile{% endif %}
     data-video="{{ vsrc }}"
+    data-sources="{{ vsources | escape }}"
     {% if product != blank %}
       data-handle="{{ product.handle }}"
       data-url="{{ product.url }}"
