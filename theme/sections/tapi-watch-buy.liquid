@@ -61,12 +61,9 @@
               {%- liquid
                 assign vsrc = ''
                 assign poster = blank
-                assign vsources = '[]'
-                assign vmedia = null
                 for m in product.media
                   if m.media_type == 'video' and vsrc == blank
-                    # Inline preview uses the smallest-height mp4 (~480p): fast start, low data.
-                    assign vmedia = m
+                    # Pick the smallest-height mp4 for a fast, light inline preview.
                     assign vmin = 99999
                     for s in m.sources
                       if s.format == 'mp4' and s.height < vmin
@@ -81,17 +78,14 @@
                   assign poster = product.featured_image
                 endif
               -%}
-              {%- comment -%} All renditions (mp4 tiers + HLS) so the full-screen player adapts to bandwidth. {%- endcomment -%}
               {%- if vsrc != blank -%}
-                {%- capture vsources -%}[{% for s in vmedia.sources %}{% unless forloop.first %},{% endunless %}{"f":{{ s.format | json }},"h":{{ s.height | default: 0 }},"u":{{ s.url | json }}}{% endfor %}]{%- endcapture -%}
-                {%- render 'tapi-watchbuy-tile', vsrc: vsrc, vsources: vsources, poster: poster, product: product, design_mode: request.design_mode -%}
+                {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: product, design_mode: request.design_mode -%}
               {%- endif -%}
             {%- endfor -%}
           {%- else -%}
             {%- for block in section.blocks -%}
               {%- liquid
                 assign vsrc = ''
-                assign vsources = '[]'
                 if block.settings.video != blank
                   assign vmin = 99999
                   for s in block.settings.video.sources
@@ -107,10 +101,7 @@
                 endif
               -%}
               {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
-              {%- if block.settings.video != blank -%}
-                {%- capture vsources -%}[{% for s in block.settings.video.sources %}{% unless forloop.first %},{% endunless %}{"f":{{ s.format | json }},"h":{{ s.height | default: 0 }},"u":{{ s.url | json }}}{% endfor %}]{%- endcapture -%}
-              {%- endif -%}
-              {%- render 'tapi-watchbuy-tile', vsrc: vsrc, vsources: vsources, poster: poster, product: block.settings.product, shopify_attrs: block.shopify_attributes, design_mode: request.design_mode -%}
+              {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: block.settings.product, shopify_attrs: block.shopify_attributes, design_mode: request.design_mode -%}
             {%- endfor -%}
           {%- endif -%}
         </ul>
@@ -258,7 +249,7 @@
       var tier = netTier();
       // Inline preview only has the one heavy mp4 rendition Liquid exposes, so
       // autoplay it only on a fast link. On 3g/2g/Save-Data the active tile stays a
-      // poster with a visible play button; tapping opens the adaptive HLS player.
+      // poster with a visible play button; tapping opens the full-screen player.
       var noAuto = reduce || tier !== 'full';
       if (noAuto) stage.classList.add('wb-nodata');
       var keepRadius = tier === 'full' ? 1 : 0;  // how many neighbours keep their buffer

@@ -945,26 +945,27 @@
     });
   }
 
-  // Fully close the mobile menu drawer. Dawn's own closeMenuDrawer starts a
-  // requestAnimationFrame loop to drop the [open] attribute after 400ms; if that
-  // rAF is throttled or interrupted, [open] lingers and the dim backdrop
-  // (summary::before, shown while details[open]) keeps covering the page. So we
-  // call Dawn's close for focus/a11y, then FORCE the teardown ourselves —
-  // independent of any animation frame — so the backdrop and scroll-lock can
-  // never get stuck.
+  // Fully close the mobile menu drawer. The full-screen dim backdrop is
+  // `.header__icon--menu[aria-expanded='true']::before` (base.css) — tied to the
+  // summary's aria-expanded, NOT to [open]. Dawn's closeMenuDrawer only clears
+  // aria-expanded on a KEYBOARD close, so a click-close leaves aria-expanded=true:
+  // the backdrop stays visible + clickable, and since the details is now closed a
+  // tap on it re-opens the drawer. So we clear aria-expanded ourselves (kills the
+  // backdrop) and force the rest of the teardown independent of Dawn's rAF.
   function forceCloseDrawer(drawer) {
     if (!drawer) return;
     var details = drawer.querySelector('details');
+    var summary = drawer.querySelector('summary');
     if (typeof drawer.closeMenuDrawer === 'function') {
       // elementToFocus is required: HeaderDrawer.closeMenuDrawer no-ops without it.
-      try { drawer.closeMenuDrawer(new Event('click'), drawer.querySelector('summary')); } catch (_) {}
+      try { drawer.closeMenuDrawer(new Event('click'), summary); } catch (_) {}
     }
+    if (summary) summary.setAttribute('aria-expanded', 'false');  // removes the backdrop ::before
     if (details) {
       details.classList.remove('menu-opening');
       details.querySelectorAll('.menu-opening').forEach(function (el) { el.classList.remove('menu-opening'); });
       details.querySelectorAll('details[open]').forEach(function (d) { d.removeAttribute('open'); });
-      // Let the panel slide out, then guarantee [open] is gone regardless of rAF.
-      setTimeout(function () { details.removeAttribute('open'); }, 380);
+      details.removeAttribute('open');
     }
     document.body.className = document.body.className.replace(/\boverflow-hidden-[\w-]+\b/g, '').replace(/\s{2,}/g, ' ').trim();
     var sh = document.querySelector('.section-header');
