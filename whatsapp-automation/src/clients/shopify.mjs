@@ -47,7 +47,7 @@ const ORDER_FIELDS = `
   customer { firstName }
   shippingLines(first: 10) { nodes { title originalPriceSet { shopMoney { amount } } } }
   fulfillments(first: 10) { status displayStatus trackingInfo { number company } }
-  lineItems(first: 50) { nodes { id title quantity originalUnitPriceSet { shopMoney { amount } } } }
+  lineItems(first: 50) { nodes { id title quantity product { id } originalUnitPriceSet { shopMoney { amount } } } }
 `;
 
 async function getOrder(numericOrGid) {
@@ -185,6 +185,82 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
   throw new Error('convertToPrepaid live sequence not authored yet (pending test-order verification)');
 }
 
+// ---- Flow B: reviews + thank-you code --------------------------------------
+/** Create a product_review metaobject (ACTIVE or DRAFT). Returns { id, status }. */
+async function createReview({ productGid, orderName, rating, fit, body, authorName, consent, status, submittedAt }) {
+  const fields = [
+    { key: 'order_name', value: String(orderName || '') },
+    { key: 'rating', value: String(rating) },
+    { key: 'body', value: String(body) },
+    { key: 'author_name', value: String(authorName) },
+    { key: 'verified_buyer', value: 'true' },
+    { key: 'consent', value: String(Boolean(consent)) },
+    { key: 'source', value: 'whatsapp' },
+    { key: 'submitted_at', value: submittedAt || new Date().toISOString() },
+  ];
+  if (productGid) fields.push({ key: 'product', value: productGid });
+  if (fit) fields.push({ key: 'fit', value: fit });
+
+  if (config.dryRun) {
+    log.info('createReview skipped (dry_run)', { status, rating });
+    return { id: 'dry_review', status };
+  }
+  const data = await graphql(
+    `mutation MoCreate($m: MetaobjectCreateInput!){ metaobjectCreate(metaobject:$m){ metaobject{ id } userErrors{ field message code } } }`,
+    { m: { type: 'product_review', capabilities: { publishable: { status } }, fields } },
+  );
+  const errs = data.metaobjectCreate?.userErrors || [];
+  if (errs.length) throw new Error(`createReview errors: ${JSON.stringify(errs)}`);
+  return { id: data.metaobjectCreate.metaobject.id, status };
+}
+
+/** Append a review metaobject gid to a product's custom.reviews list (ACTIVE only). */
+async function appendProductReview(productGid, reviewGid) {
+  if (config.dryRun) {
+    log.info('appendProductReview skipped (dry_run)', { productGid });
+    return { skipped: 'dry_run' };
+  }
+  const cur = await graphql(`query($id:ID!){ product(id:$id){ metafield(namespace:"custom", key:"reviews"){ value } } }`, { id: productGid });
+  let list = [];
+  try {
+    list = JSON.parse(cur.product?.metafield?.value || '[]');
+  } catch {
+    list = [];
+  }
+  if (!list.includes(reviewGid)) list.push(reviewGid);
+  return metafieldsSet([
+    { ownerId: productGid, namespace: 'custom', key: 'reviews', type: 'list.metaobject_reference', value: JSON.stringify(list) },
+  ]);
+}
+
+/** Create a single-use percentage code for any customer. Returns { id, code }. */
+async function createDiscountCode({ code, title, startsAt, endsAt, percentage, minSubtotalInr }) {
+  if (config.dryRun) {
+    log.info('createDiscountCode skipped (dry_run)', { code });
+    return { id: 'dry_discount', code };
+  }
+  const data = await graphql(
+    `mutation Disc($basic: DiscountCodeBasicInput!){ discountCodeBasicCreate(basicCodeDiscount:$basic){ codeDiscountNode{ id } userErrors{ field message code } } }`,
+    {
+      basic: {
+        title,
+        code,
+        startsAt,
+        endsAt,
+        usageLimit: 1,
+        appliesOncePerCustomer: true,
+        context: { all: 'ALL' },
+        customerGets: { value: { percentage }, items: { all: true } },
+        minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: String(minSubtotalInr) } },
+        combinesWith: { orderDiscounts: false, productDiscounts: false, shippingDiscounts: true },
+      },
+    },
+  );
+  const errs = data.discountCodeBasicCreate?.userErrors || [];
+  if (errs.length) throw new Error(`createDiscountCode errors: ${JSON.stringify(errs)}`);
+  return { id: data.discountCodeBasicCreate.codeDiscountNode.id, code };
+}
+
 export const shopify = {
   graphql,
   getOrder,
@@ -192,6 +268,9 @@ export const shopify = {
   orderCancel,
   metafieldsSet,
   convertToPrepaid,
+  createReview,
+  appendProductReview,
+  createDiscountCode,
   ensureWebhooks,
   ORDER_FIELDS,
 };

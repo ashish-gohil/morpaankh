@@ -57,6 +57,7 @@ export function normalizeOrder(o) {
       id: li.id,
       title: li.title,
       quantity: li.quantity,
+      productGid: li.product?.id || null,
       unitPaise: toPaise(li.originalUnitPriceSet?.shopMoney?.amount || 0),
     })),
     // COD King attributes

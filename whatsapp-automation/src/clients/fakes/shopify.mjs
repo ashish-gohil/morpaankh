@@ -32,6 +32,18 @@ export function makeFakeShopify({ orders = {} } = {}) {
       calls.push({ op: 'convertToPrepaid', args });
       return { applied: true, method: 'order_edit', ...args };
     },
+    async createReview(args) {
+      calls.push({ op: 'createReview', args });
+      return { id: `gid://shopify/Metaobject/${calls.length}`, status: args.status };
+    },
+    async appendProductReview(productGid, reviewGid) {
+      calls.push({ op: 'appendProductReview', productGid, reviewGid });
+      return { ok: true };
+    },
+    async createDiscountCode(args) {
+      calls.push({ op: 'createDiscountCode', args });
+      return { id: `gid://shopify/DiscountCodeNode/${calls.length}`, code: args.code };
+    },
     async graphql(query, variables) {
       calls.push({ op: 'graphql', query: query.slice(0, 40), variables });
       return {};

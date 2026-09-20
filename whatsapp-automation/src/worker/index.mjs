@@ -6,11 +6,14 @@
  */
 import { log, metric } from '../log.mjs';
 import { realClients } from '../clients/index.mjs';
-import { decodePayload } from '../lib/ids.mjs';
+import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
+import { getSecrets } from '../secrets.mjs';
+import { getState } from '../store/orderState.mjs';
 import { isOptedOut, setOptOut, touchInbound, setUndeliverable } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import * as flowA from './flowA.run.mjs';
+import * as flowB from './flowB.run.mjs';
 
 const OPT_OUT = new Set(['STOP', 'UNSUBSCRIBE', 'OPT OUT']);
 const OPT_IN = new Set(['START']);
@@ -36,9 +39,12 @@ async function onShopify(m) {
   if (topic === 'orders/updated') {
     const tags = String(payload?.tags || '').split(',').map((t) => t.trim());
     if (hasTag(tags, 'COD-Cancelled')) return flowA.onStop(orderId, deps());
-    return; // other updates: Flow B/C handle their own triggers
+    return;
   }
-  // fulfillments/* + fulfillment_events/* are handled by Flow B/C (later phases)
+  if (topic === 'fulfillments/create') return flowA.onFulfillmentCreate(orderId, deps());
+  if (topic === 'fulfillment_events/create' && payload?.status === 'delivered') {
+    return flowB.onDelivered(orderId, payload.happened_at || payload.created_at || null, deps());
+  }
 }
 
 // ---- WhatsApp inbound (taps + keywords) -------------------------------------
@@ -57,6 +63,23 @@ async function onWaInbound(m) {
     return sendSessionTo(phone, 'optin_done', {});
   }
   if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
+
+  // WhatsApp Flow completion (review form): the signed flow_token carries the order.
+  const nfm = msg.interactive?.nfm_reply;
+  if (nfm) {
+    let data;
+    try {
+      data = JSON.parse(nfm.response_json || '{}');
+    } catch {
+      return;
+    }
+    const s = await getSecrets();
+    const claims = data.flow_token ? verifyToken(data.flow_token, s.flowTokenKey || 'dev-flow-key') : null;
+    if (!claims) return log.warn('nfm_reply: bad or expired flow token');
+    const st = await getState(claims.orderId);
+    if (st?.verifiedPhone && st.verifiedPhone !== phone) return log.warn('nfm_reply: phone mismatch, ignoring');
+    return flowB.onReviewSubmit(claims.orderId, data, deps());
+  }
 
   const rawPayload = msg.button?.payload || msg.interactive?.button_reply?.id;
   const p = rawPayload ? decodePayload(rawPayload) : null;
@@ -109,20 +132,27 @@ async function onRazorpay(m) {
 
 // ---- timers -----------------------------------------------------------------
 async function onTimer(m) {
-  if (m.flow !== 'A') return; // Flow B/C timers handled later
   const d = deps();
-  switch (m.step) {
-    case 'cod':
-      return flowA.onCodTimer(m.orderId, d);
-    case 'reminder':
-      return flowA.onReminder(m.orderId, d);
-    case 'fallback':
-      return flowA.onFallback(m.orderId, d);
-    case 'highrisk':
-      return flowA.onHighRisk(m.orderId, d);
-    default:
-      log.info('timer: unknown step', { step: m.step });
+  if (m.flow === 'A') {
+    switch (m.step) {
+      case 'cod':
+        return flowA.onCodTimer(m.orderId, d);
+      case 'reminder':
+        return flowA.onReminder(m.orderId, d);
+      case 'fallback':
+        return flowA.onFallback(m.orderId, d);
+      case 'highrisk':
+        return flowA.onHighRisk(m.orderId, d);
+      default:
+        return log.info('timer: unknown A step', { step: m.step });
+    }
   }
+  if (m.flow === 'B') {
+    if (m.step === 'review_ask') return flowB.onReviewTimer(m.orderId, d);
+    if (m.step === 'review_reminder') return flowB.onReviewReminder(m.orderId, d);
+    return log.info('timer: unknown B step', { step: m.step });
+  }
+  // Flow C timers handled in a later phase
 }
 
 const routes = {

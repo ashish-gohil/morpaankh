@@ -46,6 +46,18 @@ export async function patchFlowA(id, fields) {
   return patchState(id, { flowA: { ...(s.flowA || {}), ...fields } });
 }
 
+/** Merge into the nested flowB sub-state. */
+export async function patchFlowB(id, fields) {
+  const s = (await getState(id)) || {};
+  return patchState(id, { flowB: { ...(s.flowB || {}), ...fields } });
+}
+
+/** Merge into the nested flowC sub-state. */
+export async function patchFlowC(id, fields) {
+  const s = (await getState(id)) || {};
+  return patchState(id, { flowC: { ...(s.flowC || {}), ...fields } });
+}
+
 /** True once a side effect has been recorded (idempotency). */
 export async function sideDone(id, action) {
   return Boolean(await table.get(pk(id), `SIDE#${action}`));

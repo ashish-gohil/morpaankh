@@ -91,3 +91,9 @@ export function formatISTDate(date) {
   const p = istParts(date);
   return `${p.day} ${MONTHS[p.mon]}`;
 }
+
+/** End of the IST day (23:59) for `date`, as a UTC Date. */
+export function endOfDayIST(date) {
+  const p = istParts(date);
+  return fromISTWall(p.y, p.mon, p.day, 23, 59);
+}

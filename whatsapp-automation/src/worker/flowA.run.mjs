@@ -28,7 +28,7 @@ import {
   recordMessage,
 } from '../store/orderState.mjs';
 import { isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing } from '../store/phoneProfile.mjs';
-import { setPaylinkMap, setPayTokenMap } from '../store/maps.mjs';
+import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { log } from '../log.mjs';
 
@@ -351,6 +351,30 @@ export async function onStop(orderId, deps) {
   await patchFlowA(orderId, { step: 'stopped' });
   await cancelAllTimers(orderId);
   await cancelLinkIfAny(deps, orderId);
+}
+
+/**
+ * fulfillments/create brought the AWB. Map it, and if a prepaid payment arrived
+ * before the AWB existed (pendingCourierPrepaid), do the courier edit now; a
+ * failure here is URGENT (the courier would otherwise collect cash).
+ */
+export async function onFulfillmentCreate(orderId, deps) {
+  const n = await getNorm(deps, orderId);
+  if (!n || !n.delhiveryAwb) return;
+  await setAwbMap(n.delhiveryAwb, n.numericId);
+  const st = await getState(orderId);
+  if (st?.flowA?.pendingCourierPrepaid) {
+    await runOnce(orderId, 'pending-courier-edit', async () => {
+      try {
+        await deps.clients.courier.editToPrepaid(n.delhiveryAwb);
+        return { edited: true };
+      } catch (e) {
+        await ownerAlert(deps, n.name, 'URGENT: order paid online but courier edit to prepaid failed after AWB assigned');
+        throw e;
+      }
+    });
+    await patchFlowA(orderId, { pendingCourierPrepaid: false });
+  }
 }
 
 // ---- helpers ----------------------------------------------------------------
