@@ -1,0 +1,21 @@
+{
+  "name": "whatsapp-automation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Customer WhatsApp order automation for Morpaankh via Meta WhatsApp Cloud API (direct). COD confirm/convert, delivered review + code, NDR/RTO rescue, owner ops. See PLAN.md.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p jsconfig.json",
+    "dryrun:render": "node scripts/dryrun-render.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

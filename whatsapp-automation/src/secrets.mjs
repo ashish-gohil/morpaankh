@@ -1,0 +1,66 @@
+/*
+ * secrets.mjs — the ONLY place secrets are read. Never logged, never in config.
+ *
+ *   env : read individual vars from process.env (local dev / DRY_RUN).
+ *   aws : read one JSON secret from Secrets Manager, cached 5 minutes in memory.
+ *
+ * getSecrets() returns a flat object with the field names below. Missing values
+ * are '' so callers stay in DRY_RUN rather than crash.
+ */
+import { config } from './config.mjs';
+
+const CACHE_MS = 5 * 60 * 1000;
+let cache = null;
+let cachedAt = 0;
+
+// Secrets Manager JSON keys  <->  local env var names.
+const FIELDS = {
+  waAccessToken: 'WA_ACCESS_TOKEN',
+  waAppSecret: 'WA_APP_SECRET',
+  waVerifyToken: 'WA_VERIFY_TOKEN',
+  waPhoneNumberId: 'WA_PHONE_NUMBER_ID',
+  waWabaId: 'WA_WABA_ID',
+  shopifyAdminToken: 'SHOPIFY_ADMIN_TOKEN',
+  shopifyWebhookSecret: 'SHOPIFY_WEBHOOK_SECRET',
+  razorpayKeyId: 'RAZORPAY_KEY_ID',
+  razorpayKeySecret: 'RAZORPAY_KEY_SECRET',
+  razorpayWebhookSecret: 'RAZORPAY_WEBHOOK_SECRET',
+  delhiveryToken: 'DELHIVERY_TOKEN',
+  delhiveryPushSecret: 'DELHIVERY_PUSH_SECRET',
+  payTokenKey: 'PAY_TOKEN_KEY',
+  flowTokenKey: 'FLOW_TOKEN_KEY',
+};
+
+function fromEnv() {
+  const out = {};
+  for (const [k, envName] of Object.entries(FIELDS)) out[k] = process.env[envName] || '';
+  return out;
+}
+
+let sm = null;
+async function fromAws() {
+  if (!sm) {
+    const c = await import('@aws-sdk/client-secrets-manager');
+    sm = { client: new c.SecretsManagerClient({ region: config.region }), GetSecretValueCommand: c.GetSecretValueCommand };
+  }
+  const r = await sm.client.send(new sm.GetSecretValueCommand({ SecretId: config.secretsId }));
+  const json = JSON.parse(r.SecretString || '{}');
+  const out = {};
+  for (const k of Object.keys(FIELDS)) out[k] = json[k] || '';
+  return out;
+}
+
+/** @returns {Promise<Record<string,string>>} cached secrets object */
+export async function getSecrets() {
+  const now = Date.now();
+  if (cache && now - cachedAt < CACHE_MS) return cache;
+  cache = config.secretsBackend === 'aws' ? await fromAws() : fromEnv();
+  cachedAt = now;
+  return cache;
+}
+
+/** Test-only: drop the cache. */
+export function _resetSecrets() {
+  cache = null;
+  cachedAt = 0;
+}

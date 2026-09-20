@@ -1,0 +1,9 @@
+{
+  "app": "node bin/app.js",
+  "watch": { "exclude": ["node_modules/**", "cdk.out/**"] },
+  "context": {
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "region": "ap-south-1"
+  }
+}

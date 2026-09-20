@@ -1,0 +1,9 @@
+# Never commit secrets or local state.
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+data/
+iac/cdk.out/
+iac/node_modules/
