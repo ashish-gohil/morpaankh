@@ -1,0 +1,260 @@
+# WhatsApp order automation service (Morpaankh) — PLAN
+
+Status: **Phase 1 deliverable. Awaiting your approval before any code is written.**
+
+This is the folder layout, module map, data model, phase breakdown, open questions, and
+your manual steps. Nothing here has been deployed or run. No customer has been messaged.
+Every "confirm" item from the spec is tracked in `DECISIONS.md`.
+
+---
+
+## 1. What this is, and how it relates to what already exists
+
+A new, self-contained service that sends customer WhatsApp messages for the Shopify store
+through Meta's WhatsApp Cloud API directly (no BSP). It covers Flow A (COD confirm / cancel /
+COD-to-prepaid), Flow B (delivered -> review -> code + on-site reviews), Flow C (NDR rescue +
+RTO reasons), Flow D (owner alerts, digest, reconciliation, admin scripts).
+
+Two Node services already live in this repo. I read both:
+
+- **`meta-outcomes/`** — AWS Lambda + Meta Graph API + Shopify Admin GraphQL + scheduled poll +
+  idempotency ledger. This is the pattern I mirror for code style: ESM `.mjs`, hand-rolled
+  `config`/`assertConfig`/`redact`, `DRY_RUN=true` default, lazy `@aws-sdk` imports, global
+  `fetch` Shopify client, HMAC verify with `timingSafeEqual`, region `ap-south-1`, Vitest.
+- **`shipping-integration/`** — a never-deployed (accounts blocked) prior attempt that already
+  contains a **direct Meta WhatsApp Cloud API client** (`src/clients/whatsapp.js` with
+  `normalizeIndianPhone` + template send), Shopify HMAC verify, a courier status map, and
+  COD-confirmation / review-request automations. **The new service supersedes its WhatsApp,
+  COD, and review flows.** I will lift the phone normalizer and the send shape, and leave
+  `shipping-integration/` untouched and dormant.
+
+**Guardrail (double-messaging):** the new service must be the *only* thing sending order
+WhatsApp/SMS. Before go-live, `shipping-integration` automations stay off, the old
+`node-workflow` automations stay off, and COD King's own post-order WhatsApp/SMS is turned off
+(kept: OTP + abandoned cart). Listed in README manual steps and in `DECISIONS.md`.
+
+**No change to the Shopify app / theme / checkout / COD King settings** happens without your
+explicit go-ahead. The `partial-payment` product is never touched. Checkout files are never
+touched.
+
+---
+
+## 2. Tech decisions (headline — these gate everything; see the questions at the end)
+
+The spec says default to TypeScript-strict + CDK v2 *"only where no convention exists."* A
+convention **does** exist (`meta-outcomes` = plain ESM JS, Vitest, shell/CLI deploy), so my
+recommended defaults follow the repo, not the spec's fallback:
+
+| Area | Recommended | Why | Spec fallback (override on request) |
+|---|---|---|---|
+| Language | **ESM JavaScript (`.mjs`) + JSDoc types** | Matches `meta-outcomes`; no build step to maintain across the repo's services | TypeScript (strict) |
+| Type-checking | `tsc --noEmit --checkJs` over the pure-logic modules only (phone, classification, money, windows, payloads) | Catches the dangerous mistakes without a compile step | full TS everywhere |
+| Tests | **Vitest** | Matches `meta-outcomes` | (same) |
+| IaC | **AWS CDK v2 authored in JavaScript** | ~12 resource types (API GW HTTP API, DynamoDB, SQS FIFO+DLQ, 4 Lambdas, EventBridge Scheduler + rules, Secrets Manager, SSM, SNS, alarms); a hand-rolled shell script (the `meta-outcomes` convention) would be fragile for this much IAM/wiring | plain shell/CLI, or SAM |
+| Region | `ap-south-1` (Mumbai) | Matches `meta-outcomes`; customers + store are in India | (same) |
+| Runtime | Node.js 20.x on Lambda | Matches `meta-outcomes` deploy | latest LTS Lambda supports |
+
+Everything in the spec's section 4 architecture (DynamoDB single-table, SQS FIFO + DLQ,
+EventBridge Scheduler one-time timers, Secrets Manager, API Gateway) is followed as written.
+It is genuinely warranted here: unlike `meta-outcomes` (twice-daily batch, safe on an S3 JSON
+blob), this service is real-time, per-order-serialized, timer-driven, multi-provider, and moves
+money, so it needs ordering, durable timers, optimistic locking, and dedupe.
+
+---
+
+## 3. Folder layout
+
+```
+whatsapp-automation/
+  PLAN.md                     # this file
+  DECISIONS.md                # every "confirm" item + chosen defaults + status
+  README.md                   # setup + manual steps (Phase 10)
+  RUNBOOK.md                  # ops: alarms, DLQ replay, token expiry (Phase 10)
+  package.json                # type: module, vitest, jsdoc-typecheck script
+  jsconfig.json               # checkJs on src/domain + src/lib pure modules
+  .env.example                # every var, documented; real .env is gitignored
+  .gitignore
+
+  src/
+    config.mjs                # env + non-secret config (SSM/Dynamo overrides at runtime)
+    secrets.mjs               # Secrets Manager fetch, 5-min in-memory cache, redact()
+    log.mjs                   # masked structured logging (phone -> last 4) + EMF metrics
+
+    lib/                      # provider-agnostic primitives (pure where possible)
+      phone.mjs               # normalizeVerifiedPhone() — verified-attr only (hard rule 1)
+      money.mjs               # paise integers, en-IN formatting
+      time.mjs                # Asia/Kolkata quiet hours, send windows, caps, expiries
+      ids.mjs                 # button-payload encode/decode, timer names, tokens (HMAC)
+      signature.mjs           # timing-safe HMAC verify per provider + base64/hex/isBase64
+      dedupe.mjs              # DynamoDB conditional-put dedupe (TTL 7d)
+
+    store/
+      table.mjs               # single-table DynamoDB access (get/put/update, optimistic version)
+      orderState.mjs          # ORDER#<id>/STATE + MSG + SIDE (idempotency) helpers
+      phoneProfile.mjs        # PHONE#<e164>/PROFILE (optOut, window, awaiting, takeover, caps)
+      maps.mjs                # AWB#, PAYLINK#, PAYTOKEN# -> orderId
+
+    clients/                  # each behind an interface + a fake for tests
+      whatsapp.mjs            # Cloud API: template + session sends, inbound parse, statuses
+      shopify.mjs             # Admin GraphQL client + order fetch + mutations + webhooks-sync
+      razorpay.mjs            # PaymentLinks interface (create/cancel/refund/reuse)
+      courier.mjs             # Courier interface (track/edit-to-prepaid/cancel/NDR) — Delhivery
+      fakes/                  # in-memory fakes for all four, used by tests + DRY_RUN replay
+
+    domain/                   # pure business logic, no I/O — heavily unit-tested
+      classify.mjs            # COD | PARTIAL | PREPAID | UNKNOWN (classify once, store)
+      eligibility.mjs         # per-flow eligibility (startAt, cancelled, tags, opt-out)
+      amounts.mjs             # codFee, newTotal, saving, link expiry (paise)
+      courier-status.mjs      # Delhivery status/NSL -> internal state enum
+      flowA.mjs flowB.mjs flowC.mjs   # state machines: (state, event) -> actions
+      moderation.mjs          # review moderation (URL/email/phone/word list) — rating-blind
+
+    ingest/                   # API Gateway HTTP handlers: verify, dedupe, 200 fast, enqueue
+      shopify.mjs whatsapp.mjs razorpay.mjs delhivery.mjs
+      pay-redirect.mjs        # GET /p/{token}
+      onboarding.mjs          # GET /onboarding + POST /onboarding/exchange (flagged)
+
+    worker/                   # SQS FIFO consumer (batch 1, partial-batch-failure)
+      index.mjs               # route by message kind -> flow handlers; re-fetch before side effects
+      flowA.run.mjs flowB.run.mjs flowC.run.mjs flowD.run.mjs
+
+    timers/                   # EventBridge Scheduler helpers + recurring jobs
+      schedule.mjs            # create/replace/delete one-time schedules (deterministic names)
+      poll-delhivery.mjs reconcile.mjs digest.mjs
+
+  messages/                   # THE ONLY place with customer-facing text (spec section 5)
+    templates.mjs             # Meta template registry (name+version, category, placeholders)
+    session.mjs               # free-form session messages
+    labels.mjs                # payload ids, RTO reasons, NDR options, moderation list, status text
+    rules.mjs                 # config/rules.ts equivalent: every number + timing (section 10)
+    flows/review.flow.json    # WhatsApp Flow (SURVEY) JSON
+    README.md                 # how to edit copy (version-bump rule, sync)
+    *.test.mjs                # registry shape rules (lengths, dashes, placeholder positions)
+
+  scripts/                    # IAM-protected admin/setup scripts (not public)
+    templates-sync.mjs flows-sync.mjs shopify-webhooks-sync.mjs reviews-setup.mjs
+    dryrun-render.mjs send-test.mjs replay-dlq.mjs pause-flow.mjs resend.mjs
+
+  iac/                        # AWS CDK v2 (JavaScript)
+    app.mjs bin/ lib/*-stack.mjs cdk.json
+
+  theme/                      # Flow B on-site reviews — patches to the LIVE theme
+    (edits under the repo's existing theme/ dir, pushed with the usual CLI; see Phase 6)
+```
+
+---
+
+## 4. Data model — DynamoDB single table (on-demand, PITR on, TTL `expiresAt`)
+
+`PK` / `SK` design (all per spec section 4):
+
+| PK | SK | Purpose |
+|---|---|---|
+| `ORDER#<id>` | `STATE` | class, riskTag, verifiedPhone, firstName, amounts(paise), codFee, AWB, courierStatus, per-flow sub-state, `version` (optimistic lock) |
+| `ORDER#<id>` | `MSG#<wamid>` | message key, template+version, status history, error codes, pricing category |
+| `ORDER#<id>` | `SIDE#<action>` | idempotency record for each external side effect (order edit, payment, courier edit, refund, code, tags) |
+| `PHONE#<e164>` | `PROFILE` | optOut, lastInboundAt, awaiting{type,orderId,until}, humanTakeoverUntil, lastMarketingAt, lastReviewAskAt, undeliverable |
+| `AWB#<awb>` | `MAP` | -> orderId |
+| `PAYLINK#<id>` | `MAP` | -> orderId |
+| `PAYTOKEN#<token>` | `MAP` | -> orderId |
+| `EVENT#<source>#<id>` | `DEDUP` | provider event dedupe, TTL 7d |
+
+- **GSI1 (sparse):** `activeShipment` -> item, for the Delhivery poller to scan only live AWBs.
+- Every `STATE`/`PROFILE` write is a conditional update on `version` (optimistic lock).
+- `expiresAt` set 180 days after a terminal state.
+
+---
+
+## 5. AWS resources (CDK)
+
+- **API Gateway HTTP API** with routes: `POST /webhooks/shopify`, `GET|POST /webhooks/whatsapp`,
+  `POST /webhooks/razorpay`, `POST /webhooks/delhivery`, `GET /p/{token}`, `GET /onboarding`,
+  `POST /onboarding/exchange` (last two behind a flag).
+- **4 ingest Lambdas** (one per provider family) + **pay-redirect** + **onboarding** Lambdas.
+- **SQS FIFO queue + FIFO DLQ** (maxReceiveCount 5). `MessageGroupId` = `order:<id>` (or
+  `phone:<e164>`); `MessageDeduplicationId` = source event id.
+- **Worker Lambda** (batch size 1, partial-batch-failure reporting, reserved concurrency 5).
+- **EventBridge Scheduler** one-time schedules (`at(...)`, Asia/Kolkata, flexible window off,
+  ActionAfterCompletion DELETE) targeting the FIFO queue; deterministic names
+  `<flow>-<orderId>-<step>`. Plus **EventBridge rules** for recurring jobs (poll hourly
+  08:00-22:00 IST, reconcile 02:30, digest 09:30).
+- **DynamoDB** table (above). **Secrets Manager** one JSON secret. **SSM Parameter Store** (or a
+  Dynamo config item) for non-secret flags so they change without a redeploy.
+- **CloudWatch** EMF metrics + alarms (worker errors, DLQ depth > 0, WhatsApp failure spike,
+  courier API failures) -> **SNS** email (same opt-in pattern as `meta-outcomes`).
+- IAM least-privilege per Lambda (only the table/queue/secret/scheduler actions it needs).
+
+---
+
+## 6. Config & secrets (mirrors `meta-outcomes`)
+
+- **Secrets Manager** (one JSON, cached 5 min): WhatsApp token/app-secret/verify-token/phone-number-id/WABA-id;
+  Shopify admin token + webhook secret; Razorpay key id/secret/webhook secret; Delhivery creds +
+  push secret; pay-token + flow-token signing keys.
+- **Non-secret config** (SSM/Dynamo, hot-swappable): shop domain, Shopify API version, Graph
+  version, public base URL, `OWNER_ALERT_PHONES`, `DRY_RUN`, `SEND_ALLOWLIST`, `ORDER_ALLOWLIST`,
+  per-flow `enabled` + `startAt`.
+- **Defaults:** all flows **OFF**, `DRY_RUN=true`. Nothing sends until a flag is flipped.
+- Local dev reads `.env` with the same tiny hand-rolled reader as `meta-outcomes` (no dotenv dep).
+
+---
+
+## 7. Phases (each: typecheck + lint + tests green + one small commit)
+
+1. **PLAN.md + DECISIONS.md** — this. **Stop for approval.** (No code, no commit yet.)
+2. **Skeleton:** CDK stacks, config, secrets, DynamoDB, SQS FIFO + DLQ, ingest + worker wiring,
+   signature verify, dedupe, masked logging, flags, `DRY_RUN`, allowlists. Deploys nothing live.
+3. **Clients + fakes:** WhatsApp, Shopify, Razorpay, Courier, each behind an interface with a
+   fake; `shopify-webhooks-sync` script.
+4. **messages/** registry + session + labels + rules; `templates-sync`, `flows-sync`; registry
+   tests (lengths, dash ban, placeholder positions, examples, sanitization).
+5. **Flow A** (COD confirm / cancel / COD-to-prepaid) + all its timers + accounting paths.
+6. **Flow B** (delivered -> review Flow -> code) + `reviews-setup` metaobjects + **theme** reviews
+   section/JSON-LD + WhatsApp notice locale strings.
+7. **Flow C** (NDR rescue + RTO reasons).
+8. **Flow D** (alerts, digest, reconciliation, admin scripts) + alarms.
+9. **Onboarding** page (coexistence embedded signup / dedicated number), behind a flag.
+10. **README.md + RUNBOOK.md** + final `DECISIONS.md` pass.
+
+Testing per spec section 14 (unit + integration with fakes + recorded fixtures). Staging
+end-to-end only after you say go (Meta test number, Razorpay test mode, a Delhivery staging AWB,
+orders placed by you only via `ORDER_ALLOWLIST`).
+
+---
+
+## 8. Guardrails I will enforce every phase
+
+- Recipient = `_otpVerifiedPhoneNumber` only; never any user-typed phone. Missing/invalid ->
+  tag `wa-no-verified-phone`, count in digest, send nothing.
+- Business-initiated = approved templates only; free-form only inside an open 24h window (10-min
+  safety margin). Utility templates carry no offer/discount wording.
+- Only orders created after each flow's `startAt`. No backfill.
+- Opt-out (STOP/UNSUBSCRIBE/OPT OUT) honored; START re-opts. Caps enforced (2 business msgs/
+  order/flow; 1 marketing/phone/7d; 1 review ask/phone/14d). Quiet hours 21:30-09:30 IST.
+- Reviews: code for any genuine review regardless of rating; moderation never depends on rating.
+- No em/en dash and no emoji in any customer copy (enforced by a registry test).
+- Worker re-fetches the order and re-checks eligibility before ANY side effect.
+- Never touch `partial-payment`, checkout files, or COD King's partial-payment flow. Partial
+  orders excluded from Flow A (still get B and C).
+- Every mutation validated against the live Shopify schema before it ships (`validate_graphql_codeblocks`).
+
+---
+
+## 9. Open questions for you (answered at the approval gate)
+
+1. **Language:** ESM JS + JSDoc (recommended, matches repo) or full TypeScript-strict (your
+   spec default)? This one is expensive to change later.
+2. **IaC:** CDK v2 in JavaScript (recommended) or plain shell/CLI (repo convention) or SAM?
+3. **Service directory name** `whatsapp-automation/` acceptable?
+4. **Branch:** new `whatsapp-automation` branch off `main` (we are on `audit/seo-perf`), or
+   continue here?
+5. **Courier API variant:** does this Delhivery account use the **express API static token**
+   (`track.delhivery.com`) or **Delhivery One** (client id + secret)? Needed before Flow C; I
+   will build behind the `Courier` interface either way, but the concrete client differs.
+6. **Payment links = Razorpay** even though checkout runs on **Cashfree** (means a second PG
+   account + its fees). Spec says Razorpay behind a `PaymentLinks` interface with Cashfree added
+   later — confirming you want to open/keep a Razorpay account for this.
+
+Everything else marked "confirm" in the spec I will verify from Meta/Shopify/Razorpay/Delhivery
+docs or the live API at the start of the phase that needs it, and record the finding in
+`DECISIONS.md` (current best-known values are already listed there).
