@@ -1,0 +1,101 @@
+{
+  "//": "WhatsApp Flow: review form. Static (no data endpoint); the terminal screen's complete action returns the form data to the webhook (nfm_reply). Flow JSON version + exact component bindings are verified at Phase 6 (DECISIONS B8). category SURVEY.",
+  "version": "5.1",
+  "screens": [
+    {
+      "id": "RATE",
+      "title": "Rate your order",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "first_name": { "type": "string", "__example__": "Aarav" },
+        "percent_text": { "type": "string", "__example__": "5%" },
+        "min_order_text": { "type": "string", "__example__": "Rs 1,500" },
+        "show_product": { "type": "boolean", "__example__": true },
+        "products": {
+          "type": "array",
+          "items": { "type": "object", "properties": { "id": { "type": "string" }, "title": { "type": "string" } } },
+          "__example__": [{ "id": "1", "title": "Bandhan kurta set" }]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "As a thank you, you will get a code for ${data.percent_text} off your next order of ${data.min_order_text} or more."
+          },
+          {
+            "type": "Dropdown",
+            "name": "product",
+            "label": "Which product are you reviewing?",
+            "required": true,
+            "visible": "${data.show_product}",
+            "data-source": "${data.products}"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "rating",
+            "label": "How would you rate your order?",
+            "required": true,
+            "data-source": [
+              { "id": "5", "title": "5: Loved it" },
+              { "id": "4", "title": "4: Good" },
+              { "id": "3", "title": "3: Okay" },
+              { "id": "2", "title": "2: Not great" },
+              { "id": "1", "title": "1: Poor" }
+            ]
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "fit",
+            "label": "How was the fit?",
+            "required": false,
+            "data-source": [
+              { "id": "too_tight", "title": "Too tight" },
+              { "id": "just_right", "title": "Just right" },
+              { "id": "too_loose", "title": "Too loose" },
+              { "id": "not_sure", "title": "Not sure" }
+            ]
+          },
+          {
+            "type": "TextArea",
+            "name": "review",
+            "label": "Your review",
+            "required": true,
+            "helper-text": "What did you like, and what could be better?",
+            "max-length": 600
+          },
+          {
+            "type": "TextInput",
+            "name": "display_name",
+            "label": "Name to show with your review",
+            "required": true,
+            "max-length": 30,
+            "init-value": "${data.first_name}"
+          },
+          {
+            "type": "OptIn",
+            "name": "consent",
+            "label": "You can show my review and first name on the website."
+          },
+          {
+            "type": "Footer",
+            "label": "Submit review",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "product": "${form.product}",
+                "rating": "${form.rating}",
+                "fit": "${form.fit}",
+                "review": "${form.review}",
+                "display_name": "${form.display_name}",
+                "consent": "${form.consent}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

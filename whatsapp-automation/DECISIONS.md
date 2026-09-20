@@ -31,7 +31,7 @@ No secrets, tokens, phone numbers, or account ids appear in this file.
 | # | Item | Current best-known | Status |
 |---|---|---|---|
 | B1 | Graph API version | spec: v25.0; `shipping-integration` used v20.0; `meta-outcomes` uses v21.0. Will pin the current stable at Phase 3 and put in config | OPEN (Phase 3) |
-| B2 | Named vs positional template params | Use Meta named params if the pinned Graph version supports them; else registry maps names -> `{{1}}..{{n}}` in declared order. Code uses names either way | OPEN (Phase 4) |
+| B2 | Named vs positional template params | **CHOSEN 2026-09-20:** registry stores named `{{placeholders}}`; templates-sync converts to positional `{{1}}..{{n}}` at creation and the renderer supplies params in the same declared order (positional is universally supported). Code always uses names. Named-params can be adopted later without touching flow code | RESOLVED |
 | B3 | Flow button send shape | `sub_type:"flow"`, parameter `{type:"action", action:{flow_token, flow_action_data}}` | OPEN (Phase 6) |
 | B4 | URL button send shape | `sub_type:"url"`, parameter `text` = token suffix (confirmed pattern exists in `shipping-integration/whatsapp.js`) | OPEN (verify at Phase 4) |
 | B5 | Error codes -> handling | 131047 window-closed -> template/skip; 131049 marketing-cap -> no retry + 7d marketing block; 131026 undeliverable -> mark + alert; 132000/132001/132012 template/param -> alert as bug, no retry; 130429/131056 rate -> backoff; unknown -> alert once/code/day | OPEN (Phase 3, verify in Meta error reference) |
