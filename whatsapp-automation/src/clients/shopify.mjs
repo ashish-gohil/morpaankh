@@ -35,9 +35,12 @@ const ORDER_FIELDS = `
   name
   note
   tags
+  test
   createdAt
   cancelledAt
   displayFinancialStatus
+  paymentGatewayNames
+  netPaymentSet { shopMoney { amount currencyCode } }
   currentTotalPriceSet { shopMoney { amount currencyCode } }
   totalPriceSet { shopMoney { amount currencyCode } }
   customAttributes { key value }
@@ -96,7 +99,7 @@ async function ensureWebhooks({ dryRun = true } = {}) {
     }
     const data = await graphql(
       `mutation Sub($topic: WebhookSubscriptionTopic!, $url: URL!){
-         webhookSubscriptionCreate(topic:$topic, webhookSubscription:{ callbackUrl:$url, format:JSON }){
+         webhookSubscriptionCreate(topic:$topic, webhookSubscription:{ uri:$url, format:JSON }){
            userErrors{ field message } webhookSubscription{ id }
          } }`,
       { topic, url: callbackUrl },
@@ -107,4 +110,88 @@ async function ensureWebhooks({ dryRun = true } = {}) {
   return results;
 }
 
-export const shopify = { graphql, getOrder, tagsAdd, ensureWebhooks, ORDER_FIELDS };
+async function orderCancel(orderGid, { reason = 'CUSTOMER', staffNote = '' } = {}) {
+  if (config.dryRun) {
+    log.info('shopify orderCancel skipped (dry_run)', { orderGid, reason });
+    return { skipped: 'dry_run' };
+  }
+  // COD has nothing captured, so no refund is issued (the deprecated `refund`
+  // arg is omitted). Validated against the live schema before go-live.
+  const data = await graphql(
+    `mutation Cancel($orderId: ID!, $reason: OrderCancelReason!, $staffNote: String) {
+       orderCancel(orderId: $orderId, reason: $reason, restock: true, notifyCustomer: false, staffNote: $staffNote) {
+         orderCancelUserErrors { field message }
+       }
+     }`,
+    { orderId: orderGid, reason, staffNote },
+  );
+  const errs = data.orderCancel?.orderCancelUserErrors || [];
+  if (errs.length) throw new Error(`orderCancel errors: ${JSON.stringify(errs)}`);
+  return { ok: true };
+}
+
+async function metafieldsSet(metafields) {
+  if (config.dryRun) {
+    log.info('shopify metafieldsSet skipped (dry_run)', { count: metafields.length });
+    return { skipped: 'dry_run' };
+  }
+  const data = await graphql(
+    `mutation Set($mf: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $mf) { userErrors { field message } } }`,
+    { mf: metafields },
+  );
+  const errs = data.metafieldsSet?.userErrors || [];
+  if (errs.length) throw new Error(`metafieldsSet errors: ${JSON.stringify(errs)}`);
+  return { ok: true };
+}
+
+/**
+ * COD -> prepaid Shopify accounting (spec section 7 step 8c-8f).
+ *
+ * The exact mutation sequence + payment-record method (orderMarkAsPaid vs
+ * orderCreateManualPayment) MUST be chosen by TESTING on a real test order
+ * first (DECISIONS C3). Until that verification is done and CONVERSION_VERIFIED
+ * is set, the live path refuses to run so no half-verified money mutation ever
+ * touches a real order. DRY_RUN returns the plan for the fixture replay.
+ */
+async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
+  const plan = {
+    orderId: order.numericId,
+    removeShippingLine: 'Cash on Delivery',
+    addShippingLine: 'Standard @ 0',
+    discountPaise: amounts.discountPaise,
+    codFeeRemovedPaise: amounts.codFeePaise,
+    expectedNewTotalPaise: amounts.newTotalPaise,
+    paymentId,
+    linkId,
+    method: 'order_edit',
+  };
+  if (config.dryRun) {
+    log.info('convertToPrepaid plan (dry_run)', plan);
+    return { ...plan, applied: false, method: 'dry_run' };
+  }
+  if (process.env.CONVERSION_VERIFIED !== 'true') {
+    throw new Error(
+      'prepaid conversion not verified on a test order yet. Run the Phase 5 test-order verification ' +
+        '(pick the working order-edit + payment-record option, confirm outstanding == amount paid), ' +
+        'author the sequence here, then set CONVERSION_VERIFIED=true. See DECISIONS C3.',
+    );
+  }
+  // TODO(Phase 5 test-order): author the verified option-1 sequence here:
+  //   orderEditBegin -> orderEditRemoveShippingLine(Cash on Delivery) ->
+  //   orderEditAddShippingLine(Standard, 0) -> orderEditAddLineItemDiscount(₹100 on
+  //   the highest line) -> orderEditCommit(notifyCustomer:false, staffNote:paymentId);
+  //   then record payment (orderMarkAsPaid or orderCreateManualPayment) and assert
+  //   outstanding == amount paid to the paisa before returning applied:true.
+  throw new Error('convertToPrepaid live sequence not authored yet (pending test-order verification)');
+}
+
+export const shopify = {
+  graphql,
+  getOrder,
+  tagsAdd,
+  orderCancel,
+  metafieldsSet,
+  convertToPrepaid,
+  ensureWebhooks,
+  ORDER_FIELDS,
+};

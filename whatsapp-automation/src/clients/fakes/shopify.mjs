@@ -18,6 +18,20 @@ export function makeFakeShopify({ orders = {} } = {}) {
       if (o) o.tags = [...(Array.isArray(o.tags) ? o.tags : String(o.tags || '').split(',').filter(Boolean)), ...tags];
       return { ok: true };
     },
+    async orderCancel(orderGid, opts) {
+      calls.push({ op: 'orderCancel', orderGid, opts });
+      const o = store.get(orderGid);
+      if (o) o.cancelledAt = new Date().toISOString();
+      return { ok: true };
+    },
+    async metafieldsSet(metafields) {
+      calls.push({ op: 'metafieldsSet', metafields });
+      return { ok: true };
+    },
+    async convertToPrepaid(args) {
+      calls.push({ op: 'convertToPrepaid', args });
+      return { applied: true, method: 'order_edit', ...args };
+    },
     async graphql(query, variables) {
       calls.push({ op: 'graphql', query: query.slice(0, 40), variables });
       return {};
