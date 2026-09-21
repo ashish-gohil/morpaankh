@@ -59,6 +59,27 @@ export async function getSecrets() {
   return cache;
 }
 
+/**
+ * Merge fields into the Secrets Manager secret (aws backend only). Used by
+ * onboarding to persist the exchanged WhatsApp token + WABA/phone ids.
+ */
+export async function writeSecrets(patch) {
+  if (config.secretsBackend !== 'aws') throw new Error('writeSecrets requires SECRETS_BACKEND=aws');
+  const c = await import('@aws-sdk/client-secrets-manager');
+  const client = new c.SecretsManagerClient({ region: config.region });
+  let current = {};
+  try {
+    const r = await client.send(new c.GetSecretValueCommand({ SecretId: config.secretsId }));
+    current = JSON.parse(r.SecretString || '{}');
+  } catch (e) {
+    if (e?.name !== 'ResourceNotFoundException') throw e;
+  }
+  const next = { ...current, ...patch };
+  await client.send(new c.PutSecretValueCommand({ SecretId: config.secretsId, SecretString: JSON.stringify(next) }));
+  cache = null; // force a re-read next time
+  return { ok: true };
+}
+
 /** Test-only: drop the cache. */
 export function _resetSecrets() {
   cache = null;
