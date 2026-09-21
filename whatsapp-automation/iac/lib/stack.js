@@ -116,10 +116,12 @@ class WaAutomationStack extends cdk.Stack {
     const redirectFn = makeFn('pay-redirect', 'src/ingest/pay-redirect.handler');
     const onboardingFn = makeFn('onboarding', 'src/ingest/onboarding.handler');
 
-    // worker (all side effects): serialize per order, small concurrency
+    // worker (all side effects). No reserved concurrency: this account's total
+    // limit is 10 and a reservation would drop the unreserved pool below AWS's
+    // minimum. FIFO ordering per MessageGroupId holds regardless, so correctness
+    // is unaffected; set `reserved` here only on an account with headroom.
     const worker = makeFn('worker', 'src/worker/index.handler', {
       timeout: Duration.seconds(60),
-      reserved: 5,
     });
     worker.addEventSource(new SqsEventSource(queue, { batchSize: 1, reportBatchItemFailures: true }));
 

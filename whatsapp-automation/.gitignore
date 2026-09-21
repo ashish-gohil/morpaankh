@@ -7,3 +7,6 @@ node_modules/
 data/
 iac/cdk.out/
 iac/node_modules/
+
+# CDK deploy outputs (non-secret, not committed)
+iac/cdk-outputs.json
