@@ -51,5 +51,8 @@ export function makeFakeShopify({ orders = {} } = {}) {
     async ensureWebhooks() {
       return [];
     },
+    async ordersUpdatedSince() {
+      return [...store.values()].map((o) => ({ id: o.id, tags: o.tags }));
+    },
   };
 }

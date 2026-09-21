@@ -57,6 +57,25 @@ async function getOrder(numericOrGid) {
   return data.order;
 }
 
+/** Orders updated on/after sinceISO (id + tags only). Used by digest + reconcile. */
+async function ordersUpdatedSince(sinceISO) {
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const data = await graphql(
+      `query Iter($q: String!, $after: String){
+         orders(first: 100, after: $after, query: $q, sortKey: UPDATED_AT){
+           edges { cursor node { id tags } } pageInfo { hasNextPage endCursor }
+         } }`,
+      { q: `updated_at:>='${sinceISO}'`, after: cursor },
+    );
+    for (const e of data.orders.edges) out.push(e.node);
+    if (!data.orders.pageInfo.hasNextPage) break;
+    cursor = data.orders.pageInfo.endCursor;
+  }
+  return out;
+}
+
 async function tagsAdd(orderGid, tags) {
   if (config.dryRun) {
     log.info('shopify tagsAdd skipped (dry_run)', { orderGid, tags });
@@ -265,6 +284,7 @@ async function createDiscountCode({ code, title, startsAt, endsAt, percentage, m
 export const shopify = {
   graphql,
   getOrder,
+  ordersUpdatedSince,
   tagsAdd,
   orderCancel,
   metafieldsSet,
