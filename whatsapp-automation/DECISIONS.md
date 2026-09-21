@@ -94,3 +94,28 @@ No secrets, tokens, phone numbers, or account ids appear in this file.
 - **G5 Verified-phone coverage:** if many real orders lack `_otpVerifiedPhoneNumber`, Flow A
   reach is limited by design (hard rule 1). The digest counts `wa-no-verified-phone` so you can
   see the gap. No fallback to typed phones, ever.
+
+---
+
+## H. Build completion (2026-09-21)
+
+All 10 phases are built, committed, and green (180+ Vitest tests, `tsc --checkJs`
+clean, `cdk synth` clean). Nothing has been deployed; no customer messaged; no
+order touched. What remains before go-live is **account setup + gated verification**,
+not code:
+
+- **Verified now (no account needed):** all pure logic; message registry + copy
+  rules; the four client interfaces + fakes; the CDK stack (synths); the Shopify
+  mutations that ship (`getOrder`, `tagsAdd`, `orderCancel`, `metafieldsSet`,
+  `webhookSubscriptionCreate`, `metaobjectCreate`, `metaobjectDefinitionCreate`,
+  `discountCodeBasicCreate`, `ordersUpdatedSince`) validated against the live
+  admin schema.
+- **Still OPEN (verify at the phase's go-live, needs creds/staging):** Graph API
+  version pin (B1); flow button send shape + template FLOW-button create + Flow
+  JSON version (B3/B7/B8); Meta error codes in practice (B5); coexistence echoes
+  (B6); Razorpay `expire_by` minimum (D2); all Delhivery Express endpoints/field
+  names/NDR cutoff (E2/E4/E5/E6) + which API the account actually has (E1); the
+  Flow A prepaid-conversion sequence + payment-record choice on a test order (C3,
+  gated by `CONVERSION_VERIFIED`); Embedded Signup featureType/session version (F2).
+- **Needs you (accounts / manual):** A5 dir name and A6 branch are set; the Meta /
+  Razorpay / Delhivery / Shopify-scope / COD King steps in README "Manual steps".
