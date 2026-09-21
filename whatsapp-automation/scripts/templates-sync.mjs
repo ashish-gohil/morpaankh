@@ -87,7 +87,13 @@ for (const [key, t] of Object.entries(TEMPLATES)) {
     headers: { ...auth, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: t.name, language: t.language, category: t.category, components }),
   });
-  const j = await r.json();
+  const rawText = await r.text();
+  let j = {};
+  try {
+    j = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    j = { raw: rawText };
+  }
   if (!r.ok) {
     console.log(`  ${t.name}: ERROR ${JSON.stringify(j).slice(0, 200)}`);
     failed = true;

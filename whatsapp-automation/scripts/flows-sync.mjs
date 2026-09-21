@@ -66,8 +66,13 @@ const upJson = await up.json();
 if (!up.ok) throw new Error(`asset upload failed: ${JSON.stringify(upJson).slice(0, 300)}`);
 console.log('asset uploaded; validation:', JSON.stringify(upJson.validation_errors || 'none'));
 
-// publish
+// publish (needs Business Verification; if blocked, the flow stays a valid DRAFT)
 const pub = await fetch(`${G}/${flow.id}/publish`, { method: 'POST', headers: auth });
 const pubJson = await pub.json();
-if (!pub.ok) throw new Error(`publish failed: ${JSON.stringify(pubJson).slice(0, 200)}`);
+if (!pub.ok) {
+  console.log(`flow ${flow.id} saved (DRAFT). Publish blocked: ${JSON.stringify(pubJson.error?.error_user_msg || pubJson).slice(0, 160)}`);
+  console.log('Publishing typically needs Business Verification. Re-run this after verification.');
+  console.log(`WA_REVIEW_FLOW_ID=${flow.id}`);
+  process.exit(0);
+}
 console.log(`published. Set WA_REVIEW_FLOW_ID=${flow.id} for templates-sync.`);
