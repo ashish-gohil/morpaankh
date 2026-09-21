@@ -48,6 +48,8 @@ export function normalizeOrder(o) {
     codFeePaise: codLine ? toPaise(codLine.originalPriceSet?.shopMoney?.amount || 0) : 0,
     verifiedPhone: verifiedPhoneFromCustomAttributes(o.customAttributes),
     firstName: o.customer?.firstName || 'there',
+    customerGid: o.customer?.id || null,
+    zip: o.shippingAddress?.zip || null,
     createdAt: o.createdAt,
     cancelledAt: o.cancelledAt,
     riskTag: riskTag(tags),

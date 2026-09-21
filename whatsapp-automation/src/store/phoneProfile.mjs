@@ -58,3 +58,11 @@ export async function canAskReview(phone, now, days) {
 export const markReviewAsk = (phone, now = new Date()) => patch(phone, { lastReviewAskAt: now.toISOString() });
 
 export const setUndeliverable = (phone) => patch(phone, { undeliverable: true, undeliverableAt: new Date().toISOString() });
+
+/** Increment and return the RTO count for a phone (drives rto-count-<n> + cod-block). */
+export async function markRto(phone) {
+  const p = await getProfile(phone);
+  const rtoCount = (p.rtoCount || 0) + 1;
+  await save({ ...p, rtoCount });
+  return rtoCount;
+}

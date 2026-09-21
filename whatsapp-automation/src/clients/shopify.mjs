@@ -44,7 +44,8 @@ const ORDER_FIELDS = `
   currentTotalPriceSet { shopMoney { amount currencyCode } }
   totalPriceSet { shopMoney { amount currencyCode } }
   customAttributes { key value }
-  customer { firstName }
+  customer { id firstName }
+  shippingAddress { zip city }
   shippingLines(first: 10) { nodes { title originalPriceSet { shopMoney { amount } } } }
   fulfillments(first: 10) { status displayStatus trackingInfo { number company } }
   lineItems(first: 50) { nodes { id title quantity product { id } originalUnitPriceSet { shopMoney { amount } } } }

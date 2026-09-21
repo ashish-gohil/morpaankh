@@ -8,12 +8,15 @@ import { log, metric } from '../log.mjs';
 import { realClients } from '../clients/index.mjs';
 import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
+import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { getState } from '../store/orderState.mjs';
-import { isOptedOut, setOptOut, touchInbound, setUndeliverable } from '../store/phoneProfile.mjs';
+import { getAwbMap } from '../store/maps.mjs';
+import { isOptedOut, setOptOut, touchInbound, setUndeliverable, getAwaiting } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
+import * as flowC from './flowC.run.mjs';
 
 const OPT_OUT = new Set(['STOP', 'UNSUBSCRIBE', 'OPT OUT']);
 const OPT_IN = new Set(['START']);
@@ -42,8 +45,9 @@ async function onShopify(m) {
     return;
   }
   if (topic === 'fulfillments/create') return flowA.onFulfillmentCreate(orderId, deps());
-  if (topic === 'fulfillment_events/create' && payload?.status === 'delivered') {
-    return flowB.onDelivered(orderId, payload.happened_at || payload.created_at || null, deps());
+  if (topic === 'fulfillment_events/create') {
+    if (payload?.status === 'delivered') return flowB.onDelivered(orderId, payload.happened_at || payload.created_at || null, deps());
+    if (payload?.status === 'attempted_delivery' || payload?.status === 'failure') return flowC.onNdr(orderId, deps());
   }
 }
 
@@ -83,10 +87,30 @@ async function onWaInbound(m) {
 
   const rawPayload = msg.button?.payload || msg.interactive?.button_reply?.id;
   const p = rawPayload ? decodePayload(rawPayload) : null;
-  if (!p) return; // free text with no actionable payload: a human answers it
 
-  if (p.flow === 'A') return routeFlowATap(p.orderId, p.action);
-  // Flow C taps (ndr_*, rto_*) are handled in a later phase
+  if (p) {
+    if (p.flow === 'A') return routeFlowATap(p.orderId, p.action);
+    if (p.flow === 'C') return routeFlowCTap(p.orderId, p.action);
+    return;
+  }
+
+  // No payload: if the phone is in an "awaiting" state, this text is the answer
+  // (NDR address / RTO other reason). Otherwise a human handles it.
+  const awaiting = await getAwaiting(phone);
+  const text = msg.text?.body;
+  if (awaiting && text) {
+    if (awaiting.type === 'address') return flowC.onAddressText(awaiting.orderId, text, deps());
+    if (awaiting.type === 'rto_other') return flowC.onRtoOtherText(awaiting.orderId, text, deps());
+  }
+}
+
+function routeFlowCTap(orderId, action) {
+  const d = deps();
+  if (action === 'ndr_reattempt') return flowC.onNdrReattempt(orderId, d);
+  if (action === 'ndr_address') return flowC.onNdrAddressStart(orderId, d);
+  if (action === 'ndr_cancel') return flowC.onNdrCancel(orderId, d);
+  if (action.startsWith('rto_')) return flowC.onRtoReason(orderId, action.slice(4), d);
+  log.info('flowC: unknown tap action', { action });
 }
 
 function routeFlowATap(orderId, action) {
@@ -117,6 +141,17 @@ async function onWaStatus(m) {
     await setUndeliverable(`+${st.recipient_id}`); // 131026 = undeliverable number
   }
   // Fuller per-message status history (wamid -> order) lands with Flow D metrics.
+}
+
+// ---- Delhivery courier events (poll or push) --------------------------------
+async function onDelhivery(m) {
+  const map = await getAwbMap(m.awb);
+  if (!map) return log.info('delhivery: unknown AWB', {});
+  const orderId = map.orderId;
+  const state = mapCourierStatus({ status: m.status, statusType: m.shipment?.Status?.StatusType });
+  if (state === 'DELIVERED') return flowB.onDelivered(orderId, m.at || null, deps());
+  if (state === 'NDR') return flowC.onNdr(orderId, deps());
+  if (state === 'RTO_INITIATED') return flowC.onRto(orderId, deps());
 }
 
 // ---- Razorpay ---------------------------------------------------------------
@@ -152,7 +187,11 @@ async function onTimer(m) {
     if (m.step === 'review_reminder') return flowB.onReviewReminder(m.orderId, d);
     return log.info('timer: unknown B step', { step: m.step });
   }
-  // Flow C timers handled in a later phase
+  if (m.flow === 'C') {
+    if (m.step === 'ndr') return flowC.onNdr(m.orderId, d);
+    if (m.step === 'rto_reason') return flowC.onRtoTimer(m.orderId, d);
+    return log.info('timer: unknown C step', { step: m.step });
+  }
 }
 
 const routes = {
@@ -160,6 +199,7 @@ const routes = {
   wa_inbound: onWaInbound,
   wa_status: onWaStatus,
   razorpay: onRazorpay,
+  delhivery: onDelhivery,
   timer: onTimer,
 };
 
