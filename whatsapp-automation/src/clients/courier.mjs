@@ -1,14 +1,11 @@
 /*
- * clients/courier.mjs — Courier interface.
+ * clients/courier.mjs — Courier interface, Delhivery Express API (static token).
  *
- * NOTE (2026-09-21): the account is Delhivery ONE (client-credentials OAuth), not
- * Express. This Express implementation is a placeholder; swap it for a D1 client
- * (OAuth token from DELHIVERY_AUTH_URL/realm, then D1 track/edit/NDR endpoints)
- * once the D1 API shapes are confirmed via the d1-mcp-mint MCP or D1 docs. The
- * Courier interface below (track/editToPrepaid/cancel/ndrAction) stays the same,
- * so nothing else in the service changes. See DECISIONS E1.
- *
- * (original: Delhivery Express API, static token)
+ * The account uses the classic Express API (Authorization: Token <token>). The
+ * tracking endpoint below is verified working (2026-09-21). The edit-to-prepaid
+ * (/api/p/edit) and NDR (/api/p/update) endpoints/fields are still best-known and
+ * get verified on a staging AWB at Flow C go-live (DECISIONS E4-E6). All writes
+ * are DRY_RUN-gated.
  *
  * Interface (a Delhivery One impl could swap in behind the same shape):
  *   track(awbs[])                    -> [{ awb, status, statusType, statusDateTime, instructions, nsl }]

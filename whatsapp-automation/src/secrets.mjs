@@ -25,13 +25,10 @@ const FIELDS = {
   razorpayKeyId: 'RAZORPAY_KEY_ID',
   razorpayKeySecret: 'RAZORPAY_KEY_SECRET',
   razorpayWebhookSecret: 'RAZORPAY_WEBHOOK_SECRET',
-  // Delhivery One (client-credentials OAuth). The account is D1, not Express.
-  delhiveryClientId: 'DELHIVERY_CLIENT_ID',
-  delhiveryClientSecret: 'DELHIVERY_CLIENT_SECRET',
-  delhiveryAuthUrl: 'DELHIVERY_AUTH_URL',
-  delhiveryRealm: 'DELHIVERY_REALM',
-  delhiveryClientCms: 'DELHIVERY_CLIENT_CMS',
-  delhiveryMcpUrl: 'DELHIVERY_MCP_URL',
+  // Delhivery Express API (static token: Authorization: Token <token>) - the
+  // account's classic API. delhiveryPushSecret is the shared header Delhivery
+  // signs its status-push webhook with (set when they enable it).
+  delhiveryToken: 'DELHIVERY_TOKEN',
   delhiveryPushSecret: 'DELHIVERY_PUSH_SECRET',
   payTokenKey: 'PAY_TOKEN_KEY',
   flowTokenKey: 'FLOW_TOKEN_KEY',
