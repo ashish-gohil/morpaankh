@@ -12,6 +12,7 @@ new WaAutomationStack(app, 'WaAutomation', {
   // Secrets Manager by hand (see README). Everything defaults to safe/OFF.
   alertEmail: app.node.tryGetContext('alertEmail') || '',
   shopDomain: app.node.tryGetContext('shopDomain') || '',
+  graphVersion: app.node.tryGetContext('graphVersion') || 'v25.0',
   publicBaseUrl: app.node.tryGetContext('publicBaseUrl') || '',
 });
 

@@ -88,6 +88,7 @@ class WaAutomationStack extends cdk.Stack {
       SECRETS_ID: secret.secretName,
       QUEUE_URL: queue.queueUrl,
       SHOP_DOMAIN: props.shopDomain || '',
+      GRAPH_VERSION: props.graphVersion || 'v25.0',
       PUBLIC_BASE_URL: props.publicBaseUrl || '',
       SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
       SCHEDULER_TARGET_ARN: queue.queueArn,

@@ -65,7 +65,7 @@ export const config = {
 
   shopDomain: process.env.SHOP_DOMAIN || '',
   shopifyApiVersion: process.env.SHOPIFY_API_VERSION || '2026-07',
-  graphVersion: process.env.GRAPH_VERSION || 'v21.0',
+  graphVersion: process.env.GRAPH_VERSION || 'v25.0',
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, ''),
 
   sendAllowlist: list(process.env.SEND_ALLOWLIST),
