@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * reviews-setup — create the product_review metaobject definition (idempotent).
+ * reviews-setup — create the tapi_review metaobject definition (idempotent).
  * Storefront PUBLIC_READ + publishable capability, so ACTIVE reviews render on
  * the PDP. Dry-run by default; --live to create.
  *
@@ -17,7 +17,7 @@ const live = process.argv.includes('--live');
 
 const DEF = {
   name: 'Product review',
-  type: 'product_review',
+  type: 'tapi_review',
   access: { storefront: 'PUBLIC_READ' },
   capabilities: { publishable: { enabled: true } },
   fieldDefinitions: [
@@ -35,17 +35,17 @@ const DEF = {
 };
 
 async function exists() {
-  const d = await shopify.graphql(`{ metaobjectDefinitionByType(type:"product_review"){ id } }`).catch(() => null);
+  const d = await shopify.graphql(`{ metaobjectDefinitionByType(type:"tapi_review"){ id } }`).catch(() => null);
   return Boolean(d?.metaobjectDefinitionByType?.id);
 }
 
 if (!live) {
-  console.log('reviews-setup (dry-run): would create metaobject definition product_review with', DEF.fieldDefinitions.length, 'fields.');
+  console.log('reviews-setup (dry-run): would create metaobject definition tapi_review with', DEF.fieldDefinitions.length, 'fields.');
   process.exit(0);
 }
 
 if (await exists()) {
-  console.log('product_review definition already exists; nothing to do.');
+  console.log('tapi_review definition already exists; nothing to do.');
   process.exit(0);
 }
 const data = await shopify.graphql(

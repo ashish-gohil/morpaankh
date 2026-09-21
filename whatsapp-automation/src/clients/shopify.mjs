@@ -118,7 +118,7 @@ async function ensureWebhooks({ dryRun = true } = {}) {
       continue;
     }
     const data = await graphql(
-      `mutation Sub($topic: WebhookSubscriptionTopic!, $url: URL!){
+      `mutation Sub($topic: WebhookSubscriptionTopic!, $url: String!){
          webhookSubscriptionCreate(topic:$topic, webhookSubscription:{ uri:$url, format:JSON }){
            userErrors{ field message } webhookSubscription{ id }
          } }`,
@@ -227,7 +227,7 @@ async function createReview({ productGid, orderName, rating, fit, body, authorNa
   }
   const data = await graphql(
     `mutation MoCreate($m: MetaobjectCreateInput!){ metaobjectCreate(metaobject:$m){ metaobject{ id } userErrors{ field message code } } }`,
-    { m: { type: 'product_review', capabilities: { publishable: { status } }, fields } },
+    { m: { type: 'tapi_review', capabilities: { publishable: { status } }, fields } },
   );
   const errs = data.metaobjectCreate?.userErrors || [];
   if (errs.length) throw new Error(`createReview errors: ${JSON.stringify(errs)}`);
