@@ -1,9 +1,17 @@
 {
   "app": "node bin/app.js",
-  "watch": { "exclude": ["node_modules/**", "cdk.out/**"] },
+  "watch": {
+    "exclude": [
+      "node_modules/**",
+      "cdk.out/**"
+    ]
+  },
   "context": {
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
-    "region": "ap-south-1"
+    "region": "ap-south-1",
+    "shopDomain": "yaaijv-6p.myshopify.com",
+    "publicBaseUrl": "https://dqpboq7r05.execute-api.ap-south-1.amazonaws.com",
+    "graphVersion": "v25.0"
   }
 }
