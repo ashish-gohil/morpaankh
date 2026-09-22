@@ -183,7 +183,11 @@ class WaAutomationStack extends cdk.Stack {
 
     // ---- alarms -> SNS ----------------------------------------------------
     const topic = new sns.Topic(this, 'Alerts', { topicName: 'wa-automation-alerts' });
-    if (props.alertEmail) topic.addSubscription(new subs.EmailSubscription(props.alertEmail));
+    // alertEmail accepts a comma/space separated list so more than one person
+    // gets paged. Each address must click the AWS confirmation mail once.
+    for (const addr of String(props.alertEmail || '').split(/[,\s]+/).filter(Boolean)) {
+      topic.addSubscription(new subs.EmailSubscription(addr));
+    }
     const alarmAction = new cwActions.SnsAction(topic);
 
     const alarm = (name, metric, threshold, opts = {}) => {

@@ -12,6 +12,7 @@
     "region": "ap-south-1",
     "shopDomain": "yaaijv-6p.myshopify.com",
     "publicBaseUrl": "https://dqpboq7r05.execute-api.ap-south-1.amazonaws.com",
-    "graphVersion": "v25.0"
+    "graphVersion": "v25.0",
+    "alertEmail": "morpaankh.collection@gmail.com,ashishgohil148@gmail.com"
   }
 }
