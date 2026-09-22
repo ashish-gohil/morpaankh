@@ -14,6 +14,12 @@ new WaAutomationStack(app, 'WaAutomation', {
   shopDomain: app.node.tryGetContext('shopDomain') || '',
   graphVersion: app.node.tryGetContext('graphVersion') || 'v25.0',
   publicBaseUrl: app.node.tryGetContext('publicBaseUrl') || '',
+  // Go-live switches (safe when absent: dry run on, all flows off).
+  dryRun: app.node.tryGetContext('dryRun') !== false,
+  sendAllowlist: app.node.tryGetContext('sendAllowlist') || '',
+  orderAllowlist: app.node.tryGetContext('orderAllowlist') || '',
+  ownerAlertPhones: app.node.tryGetContext('ownerAlertPhones') || '',
+  flows: app.node.tryGetContext('flows') || {},
 });
 
 app.synth();

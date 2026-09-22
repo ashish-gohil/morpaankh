@@ -215,3 +215,32 @@ all 9 templates APPROVED, so Flows A, C and D can go live without verification.
 Verification is needed to publish the review Flow (unblocking
 delivered_review_v1 / review_reminder_v1) and to raise the 250 unique
 recipients / 24h cap.
+
+### K. First live send + the webhook field gap (2026-09-22)
+
+Owner test number **+91 7048459816**. Owner confirmed COD King post-order
+WhatsApp is now OFF (OTP + abandoned cart stay on).
+
+- **First real message ever sent through this WABA succeeded**: `cod_confirm_v1`
+  to the owner, Meta returned `accepted` with a wamid. This also proves the app
+  being in Development mode does NOT stop sends to real numbers.
+- **Allowlist verified**: with `SEND_ALLOWLIST` set, a non-listed number is
+  skipped as `not_allowlisted` with no Graph call at all. That is the safety net
+  for a staged rollout.
+- **GAP FOUND AND FIXED: the app was subscribed to `account_alerts` ONLY.**
+  The `messages` field was missing, which is what delivers inbound messages,
+  **quick-reply button taps** and message status callbacks. Flow A would have
+  sent cod_confirm and then never heard the customer tap Confirm. Subscribed
+  `messages` + `message_template_status_update` via
+  `POST /<app-id>/subscriptions`. Only noticed because the first send produced
+  no delivery receipt - worth re-checking after any Meta app change:
+  `GET /<app-id>/subscriptions?access_token=<app-id>|<app-secret>`.
+- **Round trip then proven live**: second send -> Meta status callback ->
+  `wa-ingest-whatsapp` (signature verified) -> SQS FIFO -> `wa-worker` handled
+  `kind: wa_status`, zero errors.
+
+Go-live switches are now deploy-controlled (`iac/lib/stack.js` + `bin/app.js`
+read `dryRun`, `sendAllowlist`, `orderAllowlist`, `ownerAlertPhones` and a
+`flows` map from CDK context). **Defaults verified safe**: an unparameterised
+`cdk synth` still yields `DRY_RUN=true`, empty allowlists and all four flows
+`false`. The staged flip itself was NOT applied - the sandbox blocks it.

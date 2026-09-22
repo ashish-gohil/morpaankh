@@ -79,7 +79,19 @@ class WaAutomationStack extends cdk.Stack {
 
     // ---- Lambda factory ---------------------------------------------------
     const commonEnv = {
-      DRY_RUN: 'true',
+      // Go-live switches. Defaults stay safe (dry run, every flow off) so an
+      // unparameterised deploy can never start messaging customers. Set them
+      // in cdk.json context; see README "Go live".
+      DRY_RUN: props.dryRun === false ? 'false' : 'true',
+      SEND_ALLOWLIST: props.sendAllowlist || '',
+      ORDER_ALLOWLIST: props.orderAllowlist || '',
+      OWNER_ALERT_PHONES: props.ownerAlertPhones || '',
+      ...Object.fromEntries(
+        ['A', 'B', 'C', 'D'].flatMap((f) => [
+          [`FLOW_${f}_ENABLED`, String(Boolean((props.flows || {})[f]?.enabled))],
+          [`FLOW_${f}_START_AT`, (props.flows || {})[f]?.startAt || ''],
+        ]),
+      ),
       DYNAMO_BACKEND: 'aws',
       QUEUE_BACKEND: 'aws',
       SECRETS_BACKEND: 'aws',
