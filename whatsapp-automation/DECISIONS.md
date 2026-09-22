@@ -185,3 +185,33 @@ the live Meta/Delhivery/Razorpay accounts.
 ### State left behind
 Stack deployed and healthy, `DRY_RUN=true`, all four flows OFF. Nothing has been
 sent to any customer and no order has been modified.
+
+### J. Business verification rejection - actual cause (2026-09-22, read from Security Center)
+
+Business portfolio "Morpaankh" id **1728084641501165**, entity name on file
+**MORPAANKH COLLECTION**, verification use case already correct
+("App requires access to permissions on Meta for Developers").
+
+Meta's own rejection detail reads: **"There's a problem with the ID you
+submitted. Try submitting a different ID."** So the business is not refused,
+the uploaded document is. Resubmission is allowed immediately (no appeal
+needed): Security Center -> Business Verification -> Learn more -> Continue ->
+Get started. Country India is pre-filled; the wizard then asks for **business
+type** (Corporation / Sole Proprietorship / Partnership / Private Company /
+Institution), which decides which documents are accepted, then business
+details, then a contact confirmation, then the upload.
+
+Accepted documents (must be unexpired, issued by the relevant authority, in a
+supported language - English and Hindi both qualify):
+Certificate/Articles of Incorporation; Business Registration or License
+Document; Government-issued Business Tax Document (**self-filed tax documents
+are NOT accepted**); Business Bank Statement; Utility Bill (only proves address
+/ phone, and the legal business name must appear on it).
+Docs: accepted list https://www.facebook.com/business/help/159334372093366 ,
+rejection reasons https://www.facebook.com/business/help/2342133782492969 .
+
+**Scope of the block: Flow B only.** The number is CONNECTED at TIER_250 with
+all 9 templates APPROVED, so Flows A, C and D can go live without verification.
+Verification is needed to publish the review Flow (unblocking
+delivered_review_v1 / review_reminder_v1) and to raise the 250 unique
+recipients / 24h cap.
