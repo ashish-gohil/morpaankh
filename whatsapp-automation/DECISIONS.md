@@ -120,3 +120,68 @@ not code:
   gated by `CONVERSION_VERIFIED`); Embedded Signup featureType/session version (F2).
 - **Needs you (accounts / manual):** A5 dir name and A6 branch are set; the Meta /
   Razorpay / Delhivery / Shopify-scope / COD King steps in README "Manual steps".
+
+---
+
+## I. Live end-to-end verification (2026-09-22)
+
+Full production audit run against the deployed stack, real Shopify orders and
+the live Meta/Delhivery/Razorpay accounts.
+
+### Verified working
+- **Templates: all 9 APPROVED** by Meta (plus a pre-existing `order_placed`).
+  Rendered payloads compared field-by-field against Meta's approved component
+  structures: body-parameter counts, language and button sub_type/index all
+  match for the 10 templates that exist.
+- **WABA** `account_review_status: APPROVED`; number +91 9372710234 `CONNECTED`,
+  `TIER_250`, platform CLOUD_API.
+- **Domain layer against real orders** (#1143-#1148): `_codkAmountType=cod`
+  present, COD vs PREPAID classified correctly, cancelled and COD-Cancelled
+  orders excluded, `_otpVerifiedPhoneNumber` present on every order, Rs 50 COD
+  fee and the Delhivery AWB both extracted.
+- **Delhivery Express** tracking live on real AWBs -> `IN_TRANSIT` mapping.
+- **Shopify** 6 webhooks registered; Admin API reads fine. **Razorpay** auth 200.
+- **Endpoint auth**: WhatsApp GET verify returns the challenge, wrong token 403,
+  Shopify/Razorpay unsigned 401, `/p/<bad token>` serves the expiry page.
+  (Route is `/p/{token}`, matching the approved `prepaid_offer_v1` button URL.)
+
+### Defects found and fixed
+- **wa-worker was dead in production.** `src/worker/index.mjs` declared
+  `const text` twice in `onWaInbound`, a module-scope SyntaxError, so every
+  invocation failed with `Runtime.UserCodeSyntaxError` and 42 real Shopify
+  order/fulfillment events landed in the DLQ. Renamed the second to `rawText`.
+  Missed because `jsconfig.json` scopes tsc to `src/lib` + `src/domain` and no
+  test imported a Lambda entry point -> added `src/handlers.test.mjs` covering
+  all 10 entry points (190 tests). Deployed; DLQ redriven; all 42 reprocessed
+  clean, both queues empty, zero errors.
+- **`cdk deploy` blanked runtime config.** `shopDomain` / `publicBaseUrl` were
+  only ever passed as `-c` flags, so a bare deploy rewrote every Lambda with
+  `SHOP_DOMAIN=''` and `PUBLIC_BASE_URL=''` (kills the webhook shop check and
+  every payment link). Caught by `cdk diff` before shipping; pinned as context
+  defaults in `iac/cdk.json`.
+
+### OPEN blockers for go-live
+1. **Business verification REJECTED** (`business_verification_status: rejected`).
+   Consequence chain: the review Flow `morpaankh_review_v1` (id 1105549658511440)
+   is stuck `DRAFT` with zero validation errors -> `delivered_review_v1` and
+   `review_reminder_v1` cannot be created (they carry a FLOW button) -> **Flow B
+   cannot run at all**. Also caps sending at TIER_250/24h. Owner action: re-submit
+   verification in Meta Business Settings.
+2. **COD King is still a Tech Provider on the WABA** (app 1414959830674213,
+   subscribed alongside ours). Its post-order WhatsApp/SMS must be confirmed OFF
+   before `DRY_RUN=false` or customers get double-messaged. Do NOT unsubscribe the
+   app: that would break the pre-checkout OTP the store depends on.
+3. **Nobody receives alarms.** `wa-automation-alerts` SNS topic has zero
+   subscriptions (stack deployed with `alertEmail` empty), which is exactly why
+   the dead worker went unnoticed. Deploy with `-c alertEmail=<address>`.
+4. **`OWNER_ALERT_PHONES` is empty**, so Flow D owner alerts and the digest have
+   no recipient.
+5. **No message has ever been sent** through this WABA. Sending is unproven until
+   one template goes to a real handset.
+6. Unchanged from H: Flow A prepaid conversion stays hard-gated
+   (`CONVERSION_VERIFIED`), and the Delhivery write endpoints `/api/p/edit` +
+   `/api/p/update` field shapes are still unverified (reads are proven).
+
+### State left behind
+Stack deployed and healthy, `DRY_RUN=true`, all four flows OFF. Nothing has been
+sent to any customer and no order has been modified.
