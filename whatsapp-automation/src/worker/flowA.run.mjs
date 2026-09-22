@@ -135,6 +135,15 @@ export async function onCodTimer(orderId, deps) {
     { customer_name: n.firstName, order_number: n.name, order_total: formatINR(n.currentTotalPaise) },
     { orderId: n.numericId },
   );
+  // A skipped send (allowlist or dry run) is not a send. Leave the order
+  // completely unmarked, otherwise a staged rollout tags real customer orders
+  // wa-cod-sent and sets codConfirmAt, and they are then treated as already
+  // confirmed and never messaged once the allowlist comes off. Nothing
+  // downstream starts either, since the reminder chain is scheduled below.
+  if (res?.skipped) {
+    log.info('flowA cod: send skipped, order left unmarked', { orderId, skip: res.skipped });
+    return;
+  }
   await recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: 'cod_confirm_v1' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']);
   await patchFlowA(orderId, { step: 'confirm_sent', codConfirmAt: now.toISOString() });

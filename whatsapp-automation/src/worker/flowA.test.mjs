@@ -162,3 +162,24 @@ describe('Flow A exclusions + guards', () => {
     expect(offers).toHaveLength(1);
   });
 });
+
+describe('Flow A staged rollout (SEND_ALLOWLIST)', () => {
+  it('a skipped send leaves the order unmarked, and it still sends once the allowlist comes off', async () => {
+    const { clients, deps } = setup();
+    const realSend = clients.whatsapp.sendTemplate.bind(clients.whatsapp);
+    // what the real client returns for a recipient outside SEND_ALLOWLIST
+    clients.whatsapp.sendTemplate = async () => ({ messageId: 'not_allowlisted:dry', skipped: 'not_allowlisted' });
+
+    await A.onCodTimer('12345', deps);
+
+    // nothing may be written to a real customer's order for a message we never sent
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-cod-sent');
+    expect(_peekTimers().map((t) => t.name)).not.toContain('A-12345-reminder');
+
+    // allowlist removed: the order must NOT be stuck as already-confirmed
+    clients.whatsapp.sendTemplate = realSend;
+    await A.onCodTimer('12345', deps);
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
+    expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
+  });
+});

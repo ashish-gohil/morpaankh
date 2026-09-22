@@ -13,6 +13,12 @@
     "shopDomain": "yaaijv-6p.myshopify.com",
     "publicBaseUrl": "https://dqpboq7r05.execute-api.ap-south-1.amazonaws.com",
     "graphVersion": "v25.0",
-    "alertEmail": "morpaankh.collection@gmail.com,ashishgohil148@gmail.com"
+    "alertEmail": "morpaankh.collection@gmail.com,ashishgohil148@gmail.com",
+    "dryRun": false,
+    "sendAllowlist": "+917048459816",
+    "ownerAlertPhones": "+917048459816",
+    "flows": {
+      "A": { "enabled": true, "startAt": "2026-09-22T18:16:41Z" }
+    }
   }
 }
