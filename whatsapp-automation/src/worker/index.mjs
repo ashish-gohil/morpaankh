@@ -97,10 +97,10 @@ async function onWaInbound(m) {
   // No payload: if the phone is in an "awaiting" state, this text is the answer
   // (NDR address / RTO other reason). Otherwise a human handles it.
   const awaiting = await getAwaiting(phone);
-  const text = msg.text?.body;
-  if (awaiting && text) {
-    if (awaiting.type === 'address') return flowC.onAddressText(awaiting.orderId, text, deps());
-    if (awaiting.type === 'rto_other') return flowC.onRtoOtherText(awaiting.orderId, text, deps());
+  const rawText = msg.text?.body;
+  if (awaiting && rawText) {
+    if (awaiting.type === 'address') return flowC.onAddressText(awaiting.orderId, rawText, deps());
+    if (awaiting.type === 'rto_other') return flowC.onRtoOtherText(awaiting.orderId, rawText, deps());
   }
 }
 
