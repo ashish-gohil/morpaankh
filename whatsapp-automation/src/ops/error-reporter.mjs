@@ -188,25 +188,50 @@ export const handler = async (event) => {
 };
 
 /**
+ * The order's human name (#1150) rather than its internal id.
+ *
+ * Logs carry the numeric Shopify id because that is what the flows key on, but
+ * an alert saying "order #12648574091636" is unreadable and the first real one
+ * sent had to be asked about. This is a read, it is out of band, and it is soft,
+ * so the worst case is the alert falls back to the raw id.
+ */
+async function orderLabel(orderId) {
+  if (!orderId) return null;
+  const o = await soft('resolveOrderName', () => realClients.shopify.getOrder(orderId), { orderId });
+  return o?.name || `#${orderId}`;
+}
+
+/**
  * The short version, straight to the owner's phone.
  *
- * Uses the same approved ops_alert template the flows use, so it needs no new
- * Meta review. The body parameter is capped because a template body has a hard
- * 1024 character limit and Meta rejects the whole send if it is exceeded.
+ * Deliberately says what it means for the customer, because an alert that reads
+ * like a customer problem when nothing is wrong with the order is worse than no
+ * alert. Params are capped: a template body has a hard 1024 character limit and
+ * Meta rejects the whole send if it is exceeded.
  */
 async function notifyOwnerOnWhatsApp(logGroup, event) {
   if (!config.ownerAlertPhones.length) return null;
   const d = describe(event);
   const fn = fnName(logGroup);
-  const orderId = d.fields.orderId ? `#${d.fields.orderId}` : fn;
-  const detail = `${fn} failed: ${d.summary}${d.soft ? ' (non-fatal, the customer and the order are fine)' : ''}`;
+  const label = await orderLabel(d.fields.orderId);
+  const where = label ? `${fn}, on order ${label}` : fn;
+  const detail = `${where}: ${d.summary}`;
+  const impact = d.soft
+    ? 'None for the customer. The order is correct and nothing needs doing.'
+    : 'That step did not complete. It retries automatically, then parks in the dead letter queue.';
+
   const deps = { clients: realClients };
+  const vars = {
+    when: istTime(event.timestamp),
+    detail: detail.slice(0, 500),
+    impact,
+    // what the ops_alert fallback needs while ops_error is still in review
+    order_number: label || fn,
+    alert_text: `${detail} (${impact})`.slice(0, 500),
+  };
   let sent = null;
   for (const phone of config.ownerAlertPhones) {
-    sent = await soft('ownerWhatsAppAlert', () =>
-      tpl(deps, phone, 'ops_alert', { order_number: orderId, alert_text: detail.slice(0, 500) }, {}),
-      { logGroup },
-    );
+    sent = await soft('ownerWhatsAppAlert', () => tpl(deps, phone, 'ops_error', vars, {}), { logGroup });
   }
   return sent;
 }

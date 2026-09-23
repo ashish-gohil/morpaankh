@@ -270,6 +270,29 @@ export const TEMPLATES = {
     buttons: [],
   },
 
+  // Owner-only, for system faults rather than order problems. ops_alert exists
+  // and is approved, but its copy is order-centric ("Please check the order in
+  // Shopify"), which reads as a false alarm when the fault is an expired token
+  // or a provider outage and nothing about the order is wrong. That ambiguity
+  // is what made the first real alert unreadable, so infrastructure gets its
+  // own wording. Until this is approved the sender falls back to ops_alert.
+  ops_error: {
+    name: 'ops_error_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Automation alert, {{when}} IST.\n\n' +
+      'What happened: {{detail}}\n\n' +
+      'Impact: {{impact}}\n\n' +
+      'The full report with the stack and a log link is in the alert email.',
+    examples: {
+      when: '23 Sep, 9:46 pm',
+      detail: 'wa-worker could not cancel the payment link on order #1150',
+      impact: 'None for the customer. The order is correct and nothing was resent.',
+    },
+    buttons: [],
+  },
+
   // Owner-only. Declared MARKETING because that is what Meta actually assigned
   // it: a periodic summary is tied to no single transaction, so it does not
   // meet Meta's UTILITY definition however it is worded. Declaring UTILITY here
@@ -422,6 +445,18 @@ export const LEGACY = {
       qr('I did not order this', 'C', 'rto_did_not_order'),
       qr('Other reason', 'C', 'rto_other'),
     ],
+  },
+
+  // Not older copy: the approved template ops_error falls back to while it is
+  // in review. It takes different placeholders, which is why the caller passes
+  // the union of both and renderTemplateDef ignores what its version does not use.
+  ops_error: {
+    name: 'ops_alert_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body: 'Hello,\nAction needed on order {{order_number}}: {{alert_text}}.\n\nPlease check the order in Shopify.',
+    examples: { order_number: '#1234', alert_text: 'payment received but courier edit failed' },
+    buttons: [],
   },
 
   ops_alert: {
