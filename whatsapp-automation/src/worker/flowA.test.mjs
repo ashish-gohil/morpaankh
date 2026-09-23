@@ -455,3 +455,33 @@ describe('Flow A: tidying up never fails the work it belongs to', () => {
     expect(clients.whatsapp.sent.some((s) => /is cancelled/.test(s.body || ''))).toBe(true);
   });
 });
+
+describe('Flow A: an unverified courier API must not strand a real payment', () => {
+  const withAwb = () => codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }] });
+
+  it('converts, tells the customer and raises an urgent alert when the courier edit fails', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    clients.courier.editToPrepaid = async () => { throw new Error('unexpected field pt'); };
+
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+
+    // the customer is served: order converted, money kept, message sent
+    expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(true);
+    expect(clients.razorpay.refunds).toHaveLength(0);
+    expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_confirmed'))).toBe(true);
+    // and the waybill is flagged for a human before it ships
+    expect(tagsAdded(clients.shopify)).toContain('wa-courier-still-cod');
+    const alert = clients.whatsapp.sent.find((s) => s.name && s.name.startsWith('ops_alert'));
+    expect(JSON.stringify(alert.components)).toContain('collect the money a second time');
+  });
+
+  it('retries the courier edit on a later attempt rather than recording the failure', async () => {
+    const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    let calls = 0;
+    clients.courier.editToPrepaid = async () => { calls += 1; throw new Error('nope'); };
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    await A.onFulfillmentCreate('12345', deps); // the AWB webhook arrives again
+    expect(calls).toBeGreaterThan(1);
+  });
+});

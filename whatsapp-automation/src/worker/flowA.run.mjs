@@ -398,10 +398,34 @@ export async function onPaymentPaid(orderId, entity, deps) {
     if (n.delhiveryAwb) {
       const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
       if (isCourierEditable(mapCourierStatus(t))) {
-        await runOnce(orderId, 'courier-prepaid-edit', async () => {
-          await deps.clients.courier.editToPrepaid(n.delhiveryAwb);
-          return { edited: true };
-        });
+        // Delhivery's edit-to-prepaid field names are still unverified against
+        // a live waybill, so this call can fail for reasons that have nothing
+        // to do with the customer. Letting it throw parked a real payment in
+        // the DLQ with the order unconverted, the customer untold, and the
+        // waybill still marked COD, which is the worst of every world: the
+        // courier would collect the money a second time on delivery.
+        //
+        // soft() returns null on failure and runOnce records nothing when its
+        // function throws, so a later attempt can still succeed.
+        const edited = await soft('courierEditToPrepaid', () =>
+          runOnce(orderId, 'courier-prepaid-edit', async () => {
+            await deps.clients.courier.editToPrepaid(n.delhiveryAwb);
+            return { edited: true };
+          }),
+          { orderId, awb: n.delhiveryAwb },
+        );
+        if (!edited) {
+          // Convert the order anyway. The money is real and the customer has to
+          // be served; what is left is a courier record a human must correct,
+          // which is why this is tagged and alerted rather than swallowed.
+          await patchFlowA(orderId, { pendingCourierPrepaid: true });
+          await soft('tagsAdd:courier-still-cod', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-courier-still-cod']), { orderId });
+          await ownerAlert(
+            deps,
+            n.name,
+            'URGENT: paid online but the courier record is still cash on delivery. Fix the waybill before dispatch or the courier will collect the money a second time',
+          );
+        }
       } else {
         await refundOnce(deps, orderId, paymentId, paidPaise ?? amt.newTotalPaise);
         await notifyRefund(deps, n, orderId, paidPaise, now);
@@ -522,16 +546,27 @@ export async function onFulfillmentCreate(orderId, deps) {
   await setAwbMap(n.delhiveryAwb, n.numericId);
   const st = await getState(orderId);
   if (st?.flowA?.pendingCourierPrepaid) {
-    await runOnce(orderId, 'pending-courier-edit', async () => {
-      try {
+    // Same reasoning as the payment path: failing the record here would park
+    // the fulfillment in the DLQ and lose the dispatch message too, while the
+    // waybill stayed COD either way. Flag it for a human instead, and leave
+    // pendingCourierPrepaid set so a later fulfillment update tries again.
+    const edited = await soft('courierEditToPrepaid', () =>
+      runOnce(orderId, 'pending-courier-edit', async () => {
         await deps.clients.courier.editToPrepaid(n.delhiveryAwb);
         return { edited: true };
-      } catch (e) {
-        await ownerAlert(deps, n.name, 'URGENT: order paid online but courier edit to prepaid failed after AWB assigned');
-        throw e;
-      }
-    });
-    await patchFlowA(orderId, { pendingCourierPrepaid: false });
+      }),
+      { orderId, awb: n.delhiveryAwb },
+    );
+    if (edited) {
+      await patchFlowA(orderId, { pendingCourierPrepaid: false });
+    } else {
+      await soft('tagsAdd:courier-still-cod', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-courier-still-cod']), { orderId });
+      await ownerAlert(
+        deps,
+        n.name,
+        'URGENT: paid online but the courier record is still cash on delivery after the waybill was assigned. Fix it before dispatch or the courier will collect the money a second time',
+      );
+    }
   }
   // The AWB mapping and the courier prepaid edit above are the parts that must
   // not be lost. A dispatch message that cannot be sent because its template is

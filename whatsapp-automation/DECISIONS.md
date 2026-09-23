@@ -649,3 +649,20 @@ attempt returned `whatsapp: false` and the soft log named the reason precisely,
 reporter is created after the shared grant loop, so it never got secret read.
 Fixed with `secret.grantRead(errorReporter)`. Retested: `whatsapp: true`, and
 the worker logged the Meta callbacks `sent` then `delivered`.
+
+### The last unverified write on a live money path (2026-09-23)
+Delhivery's edit-to-prepaid field names are still marked unverified (a Phase 7
+TODO), and `DRY_RUN` is now false, so that call goes out for real. It could
+throw for reasons that have nothing to do with the customer.
+
+Letting it throw was the worst possible outcome: the payment landed in the DLQ,
+the order was never converted, the customer was never told, and the waybill was
+still marked COD, so the courier would have collected the money a second time on
+delivery. The same rethrow existed in `onFulfillmentCreate`.
+
+Both now convert the order regardless, tell the customer, tag the order
+`wa-courier-still-cod`, and raise an URGENT owner alert naming the actual risk.
+`soft` returns null and `runOnce` records nothing when its function throws, so a
+later fulfillment update still retries the edit. Strictly better than the DLQ on
+every axis: the customer is served, and what remains is one courier record a
+human can fix before dispatch.
