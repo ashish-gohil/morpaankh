@@ -318,8 +318,13 @@ export async function onPaymentPaid(orderId, entity, deps) {
         return { refunded: true };
       }
     } else {
+      // No AWB yet: remember to edit the shipment to prepaid once it exists.
+      // Deliberately NOT tagged PREPAID-CONVERTED here. That tag used to be
+      // applied before convertToPrepaid ran, so any failure in the conversion
+      // (the CONVERSION_VERIFIED gate, a Shopify error) left a still-unpaid COD
+      // order marked as prepaid, which risks shipping it without collecting
+      // cash. The tag is applied below, only after the conversion succeeds.
       await patchFlowA(orderId, { pendingCourierPrepaid: true });
-      await deps.clients.shopify.tagsAdd(n.gid, ['PREPAID-CONVERTED']);
     }
 
     const linkId = (await getSide(orderId, 'paylink'))?.linkId;

@@ -183,3 +183,23 @@ describe('Flow A staged rollout (SEND_ALLOWLIST)', () => {
     expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
   });
 });
+
+describe('Flow A prepaid conversion tagging', () => {
+  it('never tags PREPAID-CONVERTED when the conversion fails', async () => {
+    const { clients, deps } = setup(); // no AWB, so the pendingCourierPrepaid branch
+    clients.shopify.convertToPrepaid = async () => {
+      throw new Error('prepaid conversion not verified on a test order yet');
+    };
+
+    await A.onCodTimer('12345', deps);
+    await A.onConfirm('12345', deps);
+    await expect(
+      A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 114900 }, deps),
+    ).rejects.toThrow();
+
+    // the order is still unpaid COD: marking it prepaid would risk shipping it
+    // without collecting cash
+    expect(tagsAdded(clients.shopify)).not.toContain('PREPAID-CONVERTED');
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-prepaid-converted');
+  });
+});
