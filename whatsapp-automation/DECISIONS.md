@@ -290,3 +290,41 @@ real customer takes the prepaid offer, **Razorpay collects the money and the
 Shopify order is never converted**; the message retries and lands in the DLQ.
 Harmless today because the allowlist blocks customers. Either finish the C3
 conversion verification or disable the prepaid-offer path before going wide.
+
+### M. Why no message ever arrived: WABA has no payment method (2026-09-23)
+
+**Root cause: Meta error 131042, "Business eligibility payment issue" - no
+payment method is set up on the WhatsApp Business account.** The Graph API
+accepts the send and returns a wamid with `message_status: accepted`, which
+only means queued. Delivery then fails. Every message sent so far, including
+the manual owner tests, failed this way. Fix (owner, billing details, not
+something this repo can do):
+https://business.facebook.com/billing_hub/accounts/details/?business_id=1728084641501165&asset_id=3348947278638950&wizard_name=ADD_PM&account_type=whatsapp-business-account
+
+**Why it stayed invisible - three observability holes, all now closed:**
+1. `onWaStatus` discarded the delivery callback without logging it, so a
+   message Meta accepted but never delivered looked like a success everywhere:
+   the send logged MessageSent, the order got tagged, nothing said otherwise.
+   Now logs status/code/title/detail, at error level on failure.
+2. `wa-whatsapp-failures` alarmed on a `MessageFailed` metric that **nothing in
+   the codebase emitted**, and `wa-courier-failures` on `CourierError`, also
+   never emitted. Two of four alarms were dead. Both are now emitted
+   (dimensionless, matching the alarms) and MessageFailed was verified
+   end to end: failed send -> status callback -> worker -> EMF -> CloudWatch
+   datapoint 1.0.
+3. Only the worker had a Lambda error alarm. An ingest function throwing on
+   every invocation would 5xx every webhook, the provider would retry, give up,
+   and events would be lost silently. Added `wa-function-errors`, a math
+   expression over errors across all ingest + timer + redirect functions.
+
+**Error boundaries audited and correct as built:** ingest returns 401 on a bad
+signature (+IngestRejected), 400 on bad JSON, 200-ack on an unmappable payload
+so it cannot retry forever, and 502 after unmarking the dedupe key when enqueue
+fails so the provider retries safely. The worker drops a poison body, and on a
+handler throw logs, emits WorkerError and returns only that record in
+`batchItemFailures`; the event source mapping has batch size 1 with
+ReportBatchItemFailures, DLQ at maxReceiveCount 5, visibility 360s.
+
+Known, deliberately not changed mid-incident: Lambda log groups have unlimited
+retention (cost only). CDK's logRetention adds another custom-resource Lambda
+and the account concurrency cap is 10.

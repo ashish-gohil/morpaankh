@@ -228,6 +228,24 @@ class WaAutomationStack extends cdk.Stack {
     alarm('whatsapp-failures', emf('MessageFailed'), 5);
     alarm('courier-failures', emf('CourierError'), 5);
 
+    // Only the worker was alarmed before, so an ingest Lambda that threw on
+    // every invocation (a bad deploy, a Secrets Manager outage) would 5xx every
+    // webhook, the provider would retry, give up, and the events would be lost
+    // with nothing alerting. One alarm over the sum of errors across every
+    // other function closes that.
+    const otherFns = [...Object.values(ingest), redirectFn, pollFn, reconcileFn, digestFn];
+    alarm(
+      'function-errors',
+      new cw.MathExpression({
+        expression: otherFns.map((_, i) => `e${i}`).join(' + '),
+        usingMetrics: Object.fromEntries(
+          otherFns.map((f, i) => [`e${i}`, f.metricErrors({ period: Duration.minutes(5) })]),
+        ),
+        period: Duration.minutes(5),
+      }),
+      1,
+    );
+
     // ---- outputs ----------------------------------------------------------
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
     new cdk.CfnOutput(this, 'TableName', { value: table.tableName });
