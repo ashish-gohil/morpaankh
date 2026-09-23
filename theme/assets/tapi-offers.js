@@ -73,6 +73,11 @@
       var freshAside = doc.querySelector('.tapi-cart-aside');
       var liveAside = host.querySelector('.tapi-cart-aside');
       if (freshAside && liveAside) liveAside.innerHTML = freshAside.innerHTML;
+      // Mobile sticky checkout bar (amount + savings badge) also sits outside
+      // .js-contents; swap it so a promo-code switch updates it live too.
+      var freshBar = doc.querySelector('.tapi-cart-stickybar');
+      var liveBar = host.querySelector('.tapi-cart-stickybar');
+      if (freshBar && liveBar) liveBar.innerHTML = freshBar.innerHTML;
     });
   }
 
@@ -168,23 +173,33 @@
       btn.classList.add('is-copied');
       var lbl = btn.querySelector('[data-copy-label]');
       var prev = lbl ? lbl.textContent : '';
-      if (lbl) lbl.textContent = 'Copied';
+      if (lbl) lbl.textContent = 'Copied \u2713';
       window.setTimeout(function () {
         btn.classList.remove('is-copied');
         if (lbl) lbl.textContent = prev;
-      }, 1800);
+      }, 2000);
     };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(code).then(done, function () { /* denied */ });
-    } else {
+    // The old in-app browsers a lot of this traffic arrives in (Instagram,
+    // Facebook) DO expose navigator.clipboard, then reject the write with
+    // NotAllowedError. Treating only a MISSING API as "use the old way" left
+    // those shoppers tapping Copy and getting nothing back, so a rejection
+    // falls through to the same fallback.
+    var legacy = function () {
       var ta = document.createElement('textarea');
       ta.value = code;
+      ta.setAttribute('readonly', '');
       ta.style.position = 'fixed';
       ta.style.left = '-9999px';
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand('copy'); done(); } catch (e) { /* no-op */ }
+      ta.setSelectionRange(0, code.length);   // iOS ignores select() on its own
+      try { if (document.execCommand('copy')) done(); } catch (e) { /* no-op */ }
       document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(done, legacy);
+    } else {
+      legacy();
     }
   }
 

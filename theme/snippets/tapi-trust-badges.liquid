@@ -4,31 +4,21 @@
   content is fixed here rather than merchant-typed — nothing to keep in sync and
   nothing that can drift into an unhonest claim.
 
-  COD is the one conditional: it renders only when `cod: true` is passed, which
-  the PDP ties to the payment-perks setting (the flag for "the COD app is live").
-  Until then the store never promises Cash on Delivery it cannot yet take.
+  Delivery and Cash on Delivery are deliberately NOT here. They live in the
+  .tapi-assure block directly under the buy button (sections/main-product-tapi),
+  which states them in full and keeps COD gated on the payment-perks setting.
+  Repeating them here put the same promise on screen twice, a few pixels apart.
 
   @param {string} [layout] - 'pdp' (default) or 'compact'.
-  @param {boolean} [cod] - render the Cash on Delivery badge.
   @example
-  {% render 'tapi-trust-badges', layout: 'pdp', cod: true %}
+  {% render 'tapi-trust-badges', layout: 'pdp' %}
 {% enddoc %}
 {%- assign tb_layout = layout | default: 'pdp' -%}
 <ul class="tapi-trust tapi-trust--{{ tb_layout }}" role="list">
   <li class="tapi-trust__item">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 6h11v10H2zM13 9h4l3 3.5V16h-7z"/><circle cx="6" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/></svg>
-    <span class="tapi-trust__label"><strong>Free delivery</strong> on prepaid orders</span>
-  </li>
-  <li class="tapi-trust__item">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 8a9 9 0 0116-3.5M21 16a9 9 0 01-16 3.5"/><path d="M20.5 3v4.5H16M3.5 21v-4.5H8"/></svg>
     <span class="tapi-trust__label"><strong>7-day returns</strong> on defects &amp; wrong items</span>
   </li>
-  {%- if cod -%}
-  <li class="tapi-trust__item">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7h15a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M3 7l2.5-3.5H16L18 7"/><circle cx="15.5" cy="13" r="1.6"/></svg>
-    <span class="tapi-trust__label"><strong>Cash on Delivery</strong> available across India</span>
-  </li>
-  {%- endif -%}
   <li class="tapi-trust__item">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
     <span class="tapi-trust__label"><strong>Secure payment</strong> UPI · cards · netbanking</span>

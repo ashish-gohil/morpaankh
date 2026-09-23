@@ -6,72 +6,197 @@
    Content is merchant-edited (offer_lines setting): only offers that
    are actually live in Discounts belong here.
    ------------------------------------------------------------------ */
-.tapi-pdp__offers {
-  list-style: none;
-  margin: 1.6rem 0 0;
-  padding: 1.4rem 1.6rem;
-  background: var(--mor-surface-2, #f3eee3);
-  border: 1px solid var(--mor-hairline, #e5ddc8);
-  border-radius: 0; /* boxy pass: in-flow panels are square-cornered */
+/* ------------------------------------------------------------------
+   The welcome ticket. A coupon written in the brand's own hand: warm
+   paper rather than a block of colour, a stamped double edge in brass,
+   and a perforation down the middle. The eye is caught by the border and
+   the gleam on the code, not by a heavy fill, so it reads as an
+   invitation rather than a sale sticker and sits quietly on the cream.
+
+   The ground is translucent on purpose: the page's own pattern shows
+   faintly through it, which is what keeps it feeling like part of the
+   page instead of a banner dropped on top.
+   ------------------------------------------------------------------ */
+.tapi-ticket {
+  /* Brass at the weights that work on warm paper: a visible edge, a
+     softer inner rule, and a whisper for the wash. */
+  --tk-edge: rgba(176, 137, 71, 0.55);
+  --tk-rule: rgba(176, 137, 71, 0.45);
+  --tk-wash: rgba(240, 228, 201, 0.45);
+
+  position: relative;
+  margin: 1.8rem 0 0;
+  padding: 2rem 2.2rem;
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.tapi-pdp__offers li {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  margin: 0;
-  font-size: var(--mor-text-sm, 1.4rem);
-  line-height: 1.55;
-  color: var(--mor-text, #2c2826);
-}
-.tapi-pdp__offers svg {
-  flex: 0 0 auto;
-  width: 1.6rem;
-  height: 1.6rem;
-  margin-top: 0.25em;
-  color: var(--mor-accent, #b7472a);
+  align-items: center;
+  gap: 1.8rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), var(--tk-wash));
+  border: 1px solid var(--tk-edge);
+  border-radius: var(--radius-md, 8px);
 }
 
-/* Recommended hero: the single first-order offer above the fold.
-   [icon] [ Recommended eyebrow / offer line ] [copy] — hierarchy comes from
-   structure and weight, not colour alone. */
-.tapi-pdp__offers-heroitem {
-  align-items: center;
-  gap: 1.2rem;
+/* The stamped inner edge. Two rules a few pixels apart is what makes a
+   ticket read as a ticket, and it carries the whole card without any
+   weight of colour. */
+.tapi-ticket::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px dashed var(--tk-rule);
+  border-radius: var(--radius-sm, 4px);
+  pointer-events: none;
 }
-.tapi-pdp__offers-ic {
-  align-self: flex-start;
-  margin-top: 0.2rem;
-}
-.tapi-pdp__offers-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+
+/* The perforation. A real notched edge needs the page colour punched into
+   the card, which breaks the moment a section sits on a different ground;
+   a dashed rule reads the same and cannot fall out of sync. */
+.tapi-ticket__text {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
+  align-self: stretch;
+  padding-right: 1.8rem;
+  border-right: 1px dashed var(--tk-rule);
 }
-.tapi-pdp__offers-rec {
-  align-self: flex-start;
-  font-size: var(--fs-xs);
+
+.tapi-ticket__eyebrow {
+  display: block;
+  font-family: var(--font-body-family);
+  font-size: var(--fs-2xs, 10px);
   font-weight: 700;
-  letter-spacing: 0.12em;
-  line-height: 1;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mor-primary, #2e4b3c);
-  background: rgba(46, 75, 60, 0.1);
-  padding: 0.4rem 0.7rem;
 }
-.tapi-pdp__offers-text {
-  font-size: var(--fs-sm);
-  line-height: 1.5;
-  color: var(--mor-text, #2c2826);
+
+.tapi-ticket__head {
+  margin: 0.7rem 0 0;
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: clamp(2.2rem, 5.6vw, 2.8rem);
+  font-weight: 700;
+  line-height: 1.12;
+  color: var(--mor-charcoal, #2c2826);
+}
+
+.tapi-ticket__sub {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-body-family);
+  font-size: var(--fs-sm, 14px);
+  line-height: 1.45;
+  color: var(--mor-text-muted, #6b5d54);
+}
+
+/* The chip is the whole control: code and action in one 44px target. It
+   is the one solid surface on the card, so the eye lands on the code. */
+.tapi-ticket__chip {
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 4.4rem;
+  padding: 1rem 1.4rem;
+  background: var(--mor-paper, #fff);
+  border: 1px solid var(--mor-gold, #b08947);
+  border-radius: var(--radius-sm, 4px);
+  box-shadow: var(--mor-shadow-sm, 0 1px 2px rgba(44, 40, 38, 0.05));
+  color: var(--mor-charcoal, #2c2826);
+  font-family: var(--font-body-family);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--mor-dur-fast, 150ms) ease, transform var(--mor-dur-fast, 150ms) ease;
+}
+
+.tapi-ticket__code {
+  font-size: var(--fs-base, 16px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.tapi-ticket__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-xs, 12px);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--mor-text-muted, #6b5d54);
+}
+
+.tapi-ticket__chip:active { transform: scale(0.98); }
+
+.tapi-ticket__chip:focus-visible {
+  outline: 2px solid var(--mor-primary, #2e4b3c);
+  outline-offset: 3px;
+}
+
+.tapi-ticket__chip.is-copied {
+  border-color: var(--mor-primary, #2e4b3c);
+  box-shadow: inset 0 0 0 1px var(--mor-primary, #2e4b3c);
+}
+
+.tapi-ticket__chip.is-copied .tapi-ticket__copy { color: var(--mor-primary, #2e4b3c); }
+
+/* One slow pass of brass light across the code shortly after the page
+   settles, enough to pull the eye without ever asking for it again. */
+.tapi-ticket__chip::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    rgba(176, 137, 71, 0) 0%,
+    rgba(176, 137, 71, 0.16) 40%,
+    rgba(176, 137, 71, 0.4) 55%,
+    rgba(176, 137, 71, 0) 100%
+  );
+  transform: translate3d(-170%, 0, 0) skewX(-18deg);
+  pointer-events: none;
+  animation: tapi-ticket-shine 1200ms var(--mor-ease-out, ease-out) 700ms 1 both;
+}
+
+@keyframes tapi-ticket-shine {
+  0%   { transform: translate3d(-170%, 0, 0) skewX(-18deg); opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: translate3d(330%, 0, 0) skewX(-18deg); opacity: 0; }
+}
+
+/* Under 750px the ticket stacks: text, perforation, then a full-width code
+   row. Checked at 360px, where the headline still holds one line. */
+@media (max-width: 749px) {
+  .tapi-ticket {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.4rem;
+    padding: 1.8rem;
+  }
+  .tapi-ticket__text {
+    align-self: auto;
+    padding-right: 0;
+    padding-bottom: 1.4rem;
+    border-right: 0;
+    border-bottom: 1px dashed var(--tk-rule);
+  }
+  .tapi-ticket__chip {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-ticket__chip { transition: none; }
+  .tapi-ticket__chip:active { transform: none; }
+  .tapi-ticket__chip::after { display: none; animation: none; }
 }
 
 /* Copy affordance: 44px touch target, keyboard focus ring, press feedback.
    Scoped to the PDP so the cart panel's compact chip stays unchanged. */
-.tapi-pdp__offers .tapi-code-chip,
 .tapi-pdp__more-list .tapi-code-chip {
   min-height: 4.4rem;
   padding: 0 1.2rem;

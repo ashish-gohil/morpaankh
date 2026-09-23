@@ -166,3 +166,64 @@
 @media (prefers-reduced-motion: reduce) {
   .tapi-concierge__btn { transition: none; }
 }
+
+
+/* ------------------------------------------------------------------
+   How you can pay, directly under the buy button. Two statements, each
+   with its own plain second line, on the same raised ivory as the rest
+   of the buy column so it reassures without competing with the offer
+   ticket above it.
+
+   The icons use the deeper brass (--mor-gold-deep) rather than the base
+   gold: base gold lands just under 3:1 on ivory, which is too faint to
+   read as a line drawing at 22px.
+   ------------------------------------------------------------------ */
+.tapi-assure {
+  margin: 1.8rem 0 0;
+  padding: 1.6rem 1.8rem;
+  display: grid;
+  gap: 1.3rem;
+  background: var(--mor-surface-raised, #faf6ec);
+  border: 1px solid rgba(176, 137, 71, 0.38);
+  border: 1px solid color-mix(in srgb, var(--mor-gold, #b08947) 38%, transparent);
+  border-radius: var(--radius-md, 8px);
+}
+
+.tapi-assure__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.tapi-assure__row svg {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  color: var(--mor-gold-deep, #8f6e34);
+}
+
+.tapi-assure__copy { min-width: 0; }
+
+.tapi-assure__title {
+  display: block;
+  font-size: var(--fs-sm, 14px);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--mor-charcoal, #2c2826);
+}
+
+.tapi-assure__sub {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: var(--fs-xs, 12px);
+  line-height: 1.4;
+  color: var(--mor-text-muted, #6b5d54);
+}
+
+/* Two rows rather than two side-by-side tiles. Side by side, "Free delivery
+   on prepaid orders" wraps to a second line while "Cash on Delivery
+   available" holds one, and the two tiles stop lining up. Stacked, both
+   statements read straight across and the block stays quiet. */
+@media (max-width: 749px) {
+  .tapi-assure { padding: 1.5rem 1.6rem; }
+}

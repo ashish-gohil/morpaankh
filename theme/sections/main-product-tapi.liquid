@@ -236,7 +236,7 @@
           <span class="tapi-tag tapi-tag--terracotta">Save {{ saving | money }}</span>
         {%- endif -%}
       </div>
-      <p class="tapi-pdp__price-note">Inclusive of taxes. Free delivery on prepaid orders.</p>
+      <p class="tapi-pdp__price-note">Inclusive of taxes.</p>
 
       {%- comment -%} Offers come from Theme settings -> Offers, the single source
         of truth shared with the cart smart-offers panel, so PDP and cart can
@@ -278,9 +278,10 @@
             assign pdp_hero_id = pdp_offer_ids | first
           endif
         -%}
-        {%- comment -%} The recommended-offer box is rendered LOWER now (after the
-          size/colour picker and the save/share actions). Only the offer ids + hero id
-          are computed here so the "More offers" accordion can still reuse them. {%- endcomment -%}
+        {%- comment -%} The ticket itself renders further down, after the colour and
+          size pickers: choosing the piece comes first, the code comes once they have
+          chosen. Only the offer ids and the hero id are resolved here, because the
+          "More offers" accordion further down reuses them. {%- endcomment -%}
       {%- endif -%}
 
       {%- liquid
@@ -468,6 +469,84 @@
           }
         </script>
 
+        {%- comment -%} The welcome ticket. It sits directly under the price, before the
+            colour and size pickers, because it is the one thing on this page that changes
+            what the shopper pays and it should land before they start choosing.
+
+            Every word is DERIVED from the same Theme settings -> Offers row the cart panel
+            reads, so changing the code, the amount or the minimum in one place updates the
+            product page and the cart together and they can never contradict each other.
+            Keeps class .tapi-pdp__offers so the view_promotion analytics hook still fires.
+            {%- endcomment -%}
+          {%- if pdp_hero_id != blank -%}
+            {%- liquid
+              assign hero_base = 'tapi_offer' | append: pdp_hero_id
+              assign k = hero_base | append: '_code'
+              assign hero_code = settings[k] | strip | upcase
+              assign k = hero_base | append: '_label'
+              assign hero_label = settings[k]
+              assign k = hero_base | append: '_first_order'
+              assign hero_first = settings[k]
+              assign k = hero_base | append: '_kind'
+              assign hero_kind = settings[k]
+              assign k = hero_base | append: '_value'
+              assign hero_value = settings[k] | default: 0 | plus: 0
+              assign k = hero_base | append: '_min_subtotal'
+              assign hero_min = settings[k] | default: 0 | plus: 0
+              assign k = hero_base | append: '_min_qty'
+              assign hero_qty = settings[k] | default: 0 | plus: 0
+
+              # Headline. A merchant who types a label but leaves the numbers at zero still
+              # gets a readable line instead of a blank card.
+              assign hero_head = ''
+              if hero_kind == 'amount' and hero_value > 0
+                assign hero_head = '&#8377;' | append: hero_value
+              elsif hero_value > 0
+                assign hero_head = hero_value | append: '%'
+              endif
+              if hero_head == blank
+                assign hero_head = hero_label | default: hero_code
+              elsif hero_first
+                assign hero_head = hero_head | append: ' off your first order'
+              else
+                assign hero_head = hero_head | append: ' off your order'
+              endif
+
+              # Qualifier, with Indian comma grouping. Thousands only: the minimums this
+              # store runs sit well under a lakh.
+              # ponytail: grouping breaks above 99,999. Split on lakhs if that ever changes.
+              assign hero_sub = 'No minimum on your first order'
+              if hero_min > 0
+                assign hero_amt = hero_min | append: ''
+                if hero_min >= 1000
+                  assign hero_th = hero_min | divided_by: 1000
+                  assign hero_rest = hero_min | modulo: 1000 | prepend: '000' | slice: -3, 3
+                  assign hero_amt = hero_th | append: ',' | append: hero_rest
+                endif
+                assign hero_sub = 'On orders of &#8377;' | append: hero_amt | append: ' and above'
+              elsif hero_qty > 0
+                assign hero_sub = 'On any ' | append: hero_qty | append: ' pieces or more'
+              endif
+            -%}
+            <div class="tapi-pdp__offers tapi-ticket">
+              <div class="tapi-ticket__text">
+                <span class="tapi-ticket__eyebrow">{% if hero_first %}Welcome offer{% else %}Offer for you{% endif %}</span>
+                <p class="tapi-ticket__head">{{ hero_head }}</p>
+                <p class="tapi-ticket__sub">{{ hero_sub }}</p>
+              </div>
+              {%- comment -%} One control, not a chip plus a button: the whole thing is the
+                copy target, so a thumb that lands anywhere on the code still works and a
+                screen reader announces one clear action. {%- endcomment -%}
+              <button type="button" class="tapi-ticket__chip" data-tapi-copy="{{ hero_code }}" aria-label="Copy discount code {{ hero_code }}">
+                <span class="tapi-ticket__code">{{ hero_code }}</span>
+                <span class="tapi-ticket__copy">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+                  <span data-copy-label>Copy code</span>
+                </span>
+              </button>
+            </div>
+          {%- endif -%}
+
         {%- comment -%}
           Fit feedback tile — disabled on request. Un-wrap this comment block
           (remove the {%- comment -%} / {%- endcomment -%} lines) to restore
@@ -519,54 +598,46 @@
         {%- if product.selling_plan_groups.size > 0 -%}{% comment %}reserved{% endcomment %}{%- endif -%}
       {%- endform -%}
 
-      {%- comment -%} Save / Share and the recommended offer sit AFTER the size + colour
-        picker (and the Add to Bag): the shopper commits to a variant first, then can save
-        or share, then sees the code. {%- endcomment -%}
+      {%- comment -%} How they can pay, right where they decide to. Two plain statements
+        instead of the old single run-on line, because a shopper hesitating over Cash on
+        Delivery reads the second row and stops hesitating.
+
+        Cash on Delivery stays tied to the payment-perks setting, which is the store's
+        flag for "the COD app is live". The store must never offer a way to pay that it
+        cannot actually take. Free delivery is unconditional, so it always shows.
+        {%- endcomment -%}
+      <div class="tapi-assure">
+        <div class="tapi-assure__row">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 6.5h11v10H2zM13 9.5h4l3 3.5v3.5h-7z"/><circle cx="6" cy="18.5" r="1.7"/><circle cx="16.5" cy="18.5" r="1.7"/></svg>
+          <span class="tapi-assure__copy">
+            <span class="tapi-assure__title">Free delivery on prepaid orders</span>
+            <span class="tapi-assure__sub">Pay online and we ship to you at no extra cost</span>
+          </span>
+        </div>
+        {%- if section.settings.payment_perks != blank -%}
+          <div class="tapi-assure__row">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 8.5h14.5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 8.5 5.6 5h10.2l2.2 3.5"/><circle cx="15" cy="13.5" r="1.7"/></svg>
+            <span class="tapi-assure__copy">
+              <span class="tapi-assure__title">Cash on Delivery available</span>
+              <span class="tapi-assure__sub">Pay when your order arrives</span>
+            </span>
+          </div>
+        {%- endif -%}
+      </div>
+
+      {%- comment -%} Save / Share sit after the Add to Bag: the shopper commits to a
+        variant first, then decides to keep or pass it on. The offer used to live here
+        too and now sits under the price instead. {%- endcomment -%}
       <div class="tapi-pdp__quickactions">
         {% render 'tapi-wishlist-button', product: product, variant: 'pdp' %}
         {% render 'tapi-share', product: product %}
       </div>
-      {%- if section.settings.show_offers and pdp_hero_id != blank -%}
-        {%- liquid
-          assign base = 'tapi_offer' | append: pdp_hero_id
-          assign k_code = base | append: '_code'
-          assign hero_code = settings[k_code] | strip | upcase
-          assign k_label = base | append: '_label'
-          assign hero_label = settings[k_label]
-          assign k_first = base | append: '_first_order'
-          assign hero_first = settings[k_first]
-          assign hero_terms = hero_label
-          if hero_first and hero_label contains '·'
-            assign hero_terms = hero_label | split: '·' | last | strip
-          endif
-        -%}
-        <ul class="tapi-pdp__offers" data-tapi-reveal>
-          <li class="tapi-pdp__offers-heroitem">
-            <svg class="tapi-pdp__offers-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
-            <span class="tapi-pdp__offers-main">
-              <span class="tapi-pdp__offers-rec">Recommended</span>
-              <span class="tapi-pdp__offers-text">{% if hero_first %}First order? {{ hero_terms }} with code {{ hero_code }}{% else %}{{ hero_label | default: hero_code }} with code {{ hero_code }}{% endif %}</span>
-            </span>
-            <button type="button" class="tapi-code-chip" data-tapi-copy="{{ hero_code }}" aria-label="Copy code {{ hero_code }}">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
-              <span class="tapi-code-chip__label" data-copy-label>Copy</span>
-            </button>
-          </li>
-        </ul>
-      {%- endif -%}
 
-      {%- if section.settings.payment_perks != blank -%}
-        <p class="tapi-pdp__perks">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
-          <span>{{ section.settings.payment_perks }}</span>
-        </p>
-      {%- endif -%}
-
-      {%- comment -%} Trust row at the point of purchase — the single highest-impact
-        placement per CRO research. COD only appears once payment perks (the COD-app
-        flag) is set, so the store never promises a payment method it cannot take. {%- endcomment -%}
+      {%- comment -%} The rest of the reassurance. Delivery and Cash on Delivery moved
+        up into the block under the buy button, so this row carries only what that block
+        does not say and the page never states the same promise twice. {%- endcomment -%}
       {%- if section.settings.show_trust_badges -%}
-        {% render 'tapi-trust-badges', layout: 'pdp', cod: section.settings.payment_perks %}
+        {% render 'tapi-trust-badges', layout: 'pdp' %}
       {%- endif -%}
 
       {%- comment -%} Curation promise + WhatsApp concierge — honest, brand-true trust
@@ -1058,14 +1129,6 @@
   /* Payment perks line under the buy button — prepaid/COD nudge. Reads as a
      calm trust cue (not a loud promo) so it feels premium. Gold shield = the
      "save online" reassurance. */
-  .tapi-pdp__perks {
-    display: flex; align-items: center; gap: 0.8rem;
-    margin: 1.6rem 0 0; padding: 1.2rem 1.4rem;
-    background: var(--mor-cream-2); border: 1px solid var(--tapi-hairline);
-    border-radius: 0; /* boxy pass: in-flow panels are square-cornered */
-    font-size: var(--fs-sm); line-height: 1.4; color: var(--mor-text);
-  }
-  .tapi-pdp__perks svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--mor-gold); }
 
   .tapi-pdp__quickactions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 
