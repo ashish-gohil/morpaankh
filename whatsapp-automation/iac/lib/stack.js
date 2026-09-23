@@ -58,7 +58,14 @@ class WaAutomationStack extends cdk.Stack {
     const queue = new sqs.Queue(this, 'Queue', {
       queueName: 'wa-automation.fifo',
       fifo: true,
-      contentBasedDeduplication: false,
+      // MUST stay true. EventBridge Scheduler's SQS target can only supply a
+      // MessageGroupId, never a MessageDeduplicationId, so with this off every
+      // timer delivery fails with InvalidParameterValue, the schedule then
+      // self-deletes (ActionAfterCompletion: DELETE) and the timer disappears
+      // silently. That kills every timed step in all four flows. The ingest
+      // path is unaffected: it passes an explicit MessageDeduplicationId,
+      // which always takes precedence over content-based dedup.
+      contentBasedDeduplication: true,
       visibilityTimeout: Duration.seconds(360), // >= 6x worker timeout
       deadLetterQueue: { queue: dlq, maxReceiveCount: 5 },
     });
