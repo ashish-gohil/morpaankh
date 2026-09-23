@@ -15,6 +15,7 @@ export function maskPhone(p) {
 }
 
 function emit(level, msg, fields = {}) {
+  /** @type {Record<string, any>} */
   const line = { level, msg, t: new Date().toISOString(), ...fields };
   // Defensive: never let a stray phone field leak unmasked.
   if (typeof line.phone === 'string' && line.phone.length > 6) line.phone = maskPhone(line.phone);

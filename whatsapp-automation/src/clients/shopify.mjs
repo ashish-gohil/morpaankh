@@ -9,24 +9,55 @@
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
+import { withRetry } from '../lib/resilience.mjs';
 
-async function graphql(query, variables = {}) {
+/**
+ * @param {string} query
+ * @param {object} [variables]
+ * @param {{idempotent?:boolean}} [opts] idempotent only for reads and for
+ *        mutations that can be repeated without a second effect. Order edits
+ *        and payment marking are NOT idempotent, so they default to false.
+ */
+async function graphql(query, variables = {}, { idempotent = false } = {}) {
   const s = await getSecrets();
   const endpoint = `https://${config.shopDomain}/admin/api/${config.shopifyApiVersion}/graphql.json`;
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': s.shopifyAdminToken },
-    body: JSON.stringify({ query, variables }),
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`Shopify non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`);
-  }
-  if (json.errors) throw new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
-  return json.data;
+  return withRetry(
+    'shopify.graphql',
+    async () => {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': s.shopifyAdminToken },
+        body: JSON.stringify({ query, variables }),
+      });
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        const e = new Error(`Shopify non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`);
+        e.status = res.status;
+        throw e;
+      }
+      if (json.errors) {
+        const e = new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
+        // Shopify answers a rate limit with HTTP 200 and a THROTTLED error, so
+        // it has to be mapped by hand or it would never be retried.
+        if (JSON.stringify(json.errors).includes('THROTTLED')) e.status = 429;
+        e.status = e.status || res.status;
+        throw e;
+      }
+      // A non-2xx whose body still parses as JSON used to fall straight through
+      // here and return `undefined`, so a 503 from Shopify looked exactly like
+      // "this order does not exist" to every caller. Check the status.
+      if (!res.ok) {
+        const e = new Error(`Shopify HTTP ${res.status}: ${text.slice(0, 200)}`);
+        e.status = res.status;
+        throw e;
+      }
+      return json.data;
+    },
+    { idempotent },
+  );
 }
 
 // Fields the flows + classifier need. Validated against the live schema at Phase 5.
@@ -59,7 +90,7 @@ const ORDER_FIELDS = `
 
 async function getOrder(numericOrGid) {
   const id = String(numericOrGid).startsWith('gid://') ? numericOrGid : `gid://shopify/Order/${numericOrGid}`;
-  const data = await graphql(`query GetOrder($id: ID!){ order(id:$id){ ${ORDER_FIELDS} } }`, { id });
+  const data = await graphql(`query GetOrder($id: ID!){ order(id:$id){ ${ORDER_FIELDS} } }`, { id }, { idempotent: true });
   return data.order;
 }
 
@@ -74,6 +105,7 @@ async function ordersUpdatedSince(sinceISO) {
            edges { cursor node { id tags } } pageInfo { hasNextPage endCursor }
          } }`,
       { q: `updated_at:>='${sinceISO}'`, after: cursor },
+      { idempotent: true },
     );
     for (const e of data.orders.edges) out.push(e.node);
     if (!data.orders.pageInfo.hasNextPage) break;

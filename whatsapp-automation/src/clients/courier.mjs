@@ -20,6 +20,7 @@
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log, metric } from '../log.mjs';
+import { withRetry } from '../lib/resilience.mjs';
 
 const BASE = () =>
   process.env.DELHIVERY_STAGING === 'true' ? 'https://staging-express.delhivery.com' : 'https://track.delhivery.com';
@@ -29,26 +30,31 @@ async function authHeaders() {
   return { Authorization: `Token ${s.delhiveryToken}`, 'Content-Type': 'application/json' };
 }
 
-async function req(method, path, body) {
-  const res = await fetch(`${BASE()}${path}`, {
-    method,
-    headers: await authHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    // Feeds the wa-courier-failures alarm. No dimensions, to match the alarm.
-    metric('CourierError', 1);
-    throw new Error(`delhivery ${method} ${path} failed: ${JSON.stringify(json).slice(0, 200)}`);
-  }
-  return json;
+async function req(method, path, body, { idempotent = false } = {}) {
+  const headers = await authHeaders();
+  return withRetry(`delhivery.${path}`, async () => {
+    const res = await fetch(`${BASE()}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Feeds the wa-courier-failures alarm. No dimensions, to match the alarm.
+      metric('CourierError', 1);
+      const e = new Error(`delhivery ${method} ${path} failed: ${JSON.stringify(json).slice(0, 200)}`);
+      e.status = res.status;
+      throw e;
+    }
+    return json;
+  }, { idempotent });
 }
 
 export const courier = {
   // Reads are safe (no DRY_RUN gate). TODO(Phase 7): confirm path + max waybills/call (default 25).
   async track(awbs) {
     const list = (Array.isArray(awbs) ? awbs : [awbs]).slice(0, 25).join(',');
-    const json = await req('GET', `/api/v1/packages/json/?waybill=${encodeURIComponent(list)}`);
+    const json = await req('GET', `/api/v1/packages/json/?waybill=${encodeURIComponent(list)}`, undefined, { idempotent: true });
     const shipments = json.ShipmentData || [];
     return shipments.map((sd) => {
       const sh = sd.Shipment || {};

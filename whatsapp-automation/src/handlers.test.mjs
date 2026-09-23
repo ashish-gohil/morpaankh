@@ -19,6 +19,7 @@ const ENTRY_POINTS = [
   'timers/poll-delhivery',
   'timers/reconcile',
   'timers/digest',
+  'ops/error-reporter',
 ];
 
 describe('every deployed Lambda entry point loads', () => {

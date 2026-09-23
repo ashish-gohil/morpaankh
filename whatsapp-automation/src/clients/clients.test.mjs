@@ -36,3 +36,48 @@ describe('fake clients record calls for flow tests', () => {
     expect(c.courier.calls[0]).toMatchObject({ op: 'editToPrepaid', awb: 'AWB1' });
   });
 });
+
+describe('real clients ride out a transient provider failure', () => {
+  const okJson = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+  const fail = (status) => ({ ok: false, status, json: async () => ({ error: { message: 'nope' } }), text: async () => '{}' });
+
+  it('retries a Shopify read through a 503 and returns the data', async () => {
+    const { shopify } = await import('./shopify.mjs');
+    const real = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return calls === 1 ? fail(503) : okJson({ data: { order: { id: 'gid://shopify/Order/1', name: '#1' } } });
+    };
+    const order = await shopify.getOrder('1');
+    expect(calls).toBe(2);
+    expect(order.name).toBe('#1');
+    globalThis.fetch = real;
+  });
+
+  it('gives up on a Shopify 401 without retrying, because it will never succeed', async () => {
+    const { shopify } = await import('./shopify.mjs');
+    const real = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; return fail(401); };
+    await expect(shopify.getOrder('1')).rejects.toThrow();
+    expect(calls).toBe(1);
+    globalThis.fetch = real;
+  });
+
+  it('treats a Shopify THROTTLED answer as a rate limit even though it arrives as HTTP 200', async () => {
+    const { shopify } = await import('./shopify.mjs');
+    const real = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return calls === 1
+        ? okJson({ errors: [{ message: 'Throttled', extensions: { code: 'THROTTLED' } }] })
+        : okJson({ data: { order: { id: 'x', name: '#2' } } });
+    };
+    const order = await shopify.getOrder('1');
+    expect(calls).toBe(2);
+    expect(order.name).toBe('#2');
+    globalThis.fetch = real;
+  });
+});

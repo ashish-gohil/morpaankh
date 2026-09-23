@@ -490,3 +490,101 @@ registry.test.mjs now rejects `}}` followed only by punctuation.
   in the DLQ over a message is the wrong trade. The prepaid confirmation is
   deliberately NOT caught: it is the whole point of that handler, so a failure
   should be visible and replayable.
+
+## Q. Hard error guardrails, retries, and reporting that actually says what broke (2026-09-23)
+
+The rule this section implements: **an error may cost us a retry, but it must
+never cost the customer a duplicate message, a second refund, or a wrong order,
+and it must never disappear silently.**
+
+### The two primitives (`src/lib/resilience.mjs`)
+Everything routes through `withRetry` and `soft`.
+
+`withRetry` turns on one distinction that matters for money: whether the failed
+request ever reached the provider.
+- **Never sent** (DNS failure, connection refused, connect timeout, HTTP 429 and
+  503): the provider refused or was never reached, so the call definitely did
+  not happen. Always safe to retry, even a refund.
+- **Unknown** (connection reset, socket timeout, HTTP 500/502/504): it may have
+  been processed before the connection died. Retried ONLY when the caller
+  declares the operation idempotent.
+
+`idempotent` defaults to false, so a caller that has not thought about it gets
+the safe behaviour. Reads are marked idempotent; WhatsApp sends, Razorpay calls
+and Shopify order edits are not. Backoff is jittered so two workers hitting the
+same outage do not come back in lockstep.
+
+`soft` runs a step that must never fail the message it belongs to (an internal
+tag, an audit metafield, an owner alert). It logs at ERROR level on purpose, so
+swallowed is not the same as hidden: the failure still reaches the owner's inbox.
+
+### Errors could reach the customer. Now they cannot.
+1. **A failing tag resent the confirmation.** `onCodTimer` sent the message,
+   then recorded it, then tagged Shopify, then wrote `codConfirmAt`. A Shopify
+   blip anywhere in that tail threw, SQS redelivered, `codConfirmAt` was still
+   unset, and the customer got a **second confirmation**. The send marker is now
+   written immediately after a successful send and everything after it is soft.
+   Same fix in the reminder, the marketing fallback, the prepaid confirmation,
+   the Flow B review ask and reminder, and the Flow C NDR and RTO asks. Several
+   of those had no re-send guard at all (`onNdr`, `onReminder`, `onFallback`,
+   `onReviewReminder`), so a redelivery always re-sent.
+2. **An unreachable owner could cost a customer money.** `ownerAlert` was called
+   immediately after a refund and a cancel. If the owner's WhatsApp send threw,
+   the whole record failed, SQS redelivered, and the refund ran **again**.
+   `ownerAlert` can no longer throw.
+3. **A refund could be issued twice.** The refund sat inline inside the outer
+   `runOnce`, so anything failing after it (the customer message, the alert)
+   meant the whole block was retried from the top. Refunds are now
+   `runOnce(orderId, 'refund')`: no redelivery, retry or duplicate webhook can
+   issue a second one, whatever fails afterwards.
+4. **A converted customer could never be told.** If the conversion succeeded and
+   the notification then failed, the retry hit the duplicate guard and returned
+   early, so the money moved and the customer heard nothing. The notification is
+   its own `runOnce` step and the duplicate branch calls it too, so a retry
+   completes the missing half without repeating the conversion.
+5. **Flow C left customers hanging.** An RTO reason tap wrote metafields and
+   tags before replying; a Shopify failure meant the customer who just tapped
+   got nothing. The bookkeeping is soft now and the reply always goes.
+
+### A pre-existing bug the new tests caught
+`shopify.graphql` never checked `res.ok`. A 503 with a JSON body fell straight
+through and returned `undefined`, so a Shopify outage looked exactly like "this
+order does not exist" to every caller, silently. Now it throws with the status.
+
+### Error reporting that is worth reading
+A CloudWatch alarm email says "wa-worker-errors went to ALARM" and nothing else,
+so every incident started with a trip to the console. `src/ops/error-reporter.mjs`
+receives the actual error lines through log subscription filters and emails the
+failure with the order id, flow, step, attempt number, stack and a direct link
+to the log stream, and says in one line whether the customer was affected.
+
+It is deliberately **out of band**: it reads logs after the fact, so it cannot
+slow down, block or fail anything a customer is waiting on, and it is not
+subscribed to its own log group, so it cannot feed itself. Identical faults are
+throttled to one mail per 15 minutes by a conditional put whose key contains the
+window id, so a storm cannot flood the inbox.
+
+Two filters per log group (the per-group maximum), on all ten functions:
+`{ $.level = "error" }` for our own structured errors, and
+`?"Task timed out" ?"Runtime." ?"[ERROR]"` for the failures that happen before
+any of our code runs. That second one is exactly the class that killed the
+worker silently for hours (`Runtime.UserCodeSyntaxError`).
+
+Log retention was "never expire" on every group; set to 90 days, and the two
+groups that had never been created (`wa-ingest-delhivery`, `wa-onboarding`,
+neither function had ever been invoked) were created so the filters attach.
+
+### Decoupling, checked rather than assumed
+FIFO message groups are already per order (`order:<id>`), per waybill
+(`awb:<n>`) and per phone (`phone:<e164>`), so a poison message blocks only that
+one order or customer and never the whole service. Batch size is 1 with
+`reportBatchItemFailures`, so a failure is reported back as exactly that record.
+
+**The one real coupling left is not fixable in code:** this AWS account has a
+Lambda concurrency limit of **10**, and AWS requires the unreserved pool to stay
+at or above 10, so no function can reserve capacity. A retry storm in the worker
+can therefore starve the ingest functions and lose webhooks. The fix is a
+service quota increase for Lambda concurrent executions (the default is 1000);
+it is free and usually granted quickly. Until then the exposure is limited by
+the 360s visibility timeout, which paces retries at roughly one per six minutes
+per message rather than in a tight loop.

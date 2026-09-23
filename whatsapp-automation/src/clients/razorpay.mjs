@@ -10,6 +10,7 @@
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
+import { withRetry } from '../lib/resilience.mjs';
 
 const BASE = 'https://api.razorpay.com/v1';
 
@@ -18,15 +19,25 @@ async function authHeader() {
   return `Basic ${Buffer.from(`${s.razorpayKeyId}:${s.razorpayKeySecret}`).toString('base64')}`;
 }
 
+// Never idempotent. A retry after an unknown outcome could issue a second
+// refund or create a second payment link, so only refusals Razorpay never
+// processed are retried.
 async function call(method, path, body) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', Authorization: await authHeader() },
-    body: body ? JSON.stringify(body) : undefined,
+  const auth = await authHeader();
+  return withRetry(`razorpay.${path.split('/')[1] || path}`, async () => {
+    const res = await fetch(`${BASE}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: auth },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const e = new Error(`razorpay ${method} ${path} failed: ${json.error?.description || res.status}`);
+      e.status = res.status;
+      throw e;
+    }
+    return json;
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`razorpay ${method} ${path} failed: ${json.error?.description || res.status}`);
-  return json;
 }
 
 export const razorpay = {

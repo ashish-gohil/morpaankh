@@ -30,6 +30,7 @@ import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import { log } from '../log.mjs';
+import { soft, withRetry } from '../lib/resilience.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
 
@@ -115,9 +116,12 @@ export async function onCodTimer(orderId, deps) {
       log.info('flowA confirm: send skipped, order left unmarked', { orderId, skip: res.skipped });
       return;
     }
-    await recordMessage(orderId, res.messageId, { key: 'order_confirmed', template: res.templateName });
-    await deps.clients.shopify.tagsAdd(n.gid, ['wa-order-confirmed']);
+    // The message is now on the customer's phone. Record that FIRST, because
+    // codConfirmAt is the only thing stopping a retry from sending a second
+    // copy, and then let nothing after it throw.
     await patchFlowA(orderId, { step: 'order_confirmed', codConfirmAt: now.toISOString() });
+    await soft('recordMessage', () => recordMessage(orderId, res.messageId, { key: 'order_confirmed', template: res.templateName }), { orderId });
+    await soft('tagsAdd:wa-order-confirmed', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-order-confirmed']), { orderId });
     return;
   }
 
@@ -143,13 +147,32 @@ export async function onCodTimer(orderId, deps) {
     log.info('flowA cod: send skipped, order left unmarked', { orderId, skip: res.skipped });
     return;
   }
-  await recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: res.templateName });
-  await deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']);
+  // Same rule: mark the send before anything else can fail. Everything below is
+  // bookkeeping the customer never sees, and a throw here used to redeliver the
+  // whole record and message them a second time.
   await patchFlowA(orderId, { step: 'confirm_sent', codConfirmAt: now.toISOString() });
+  await soft('recordMessage', () => recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: res.templateName }), { orderId });
+  await soft('tagsAdd:wa-cod-sent', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']), { orderId });
 
-  await scheduleTimer({ flow: 'A', orderId, step: 'reminder', at: deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours) });
-  await scheduleTimer({ flow: 'A', orderId, step: 'fallback', at: deferPastQuietHours(addMinutes(now, RULES.codMarketingFallbackAfterMin), RULES.quietHours) });
-  await scheduleTimer({ flow: 'A', orderId, step: 'highrisk', at: deferPastQuietHours(addHours(now, RULES.highRiskCheckAfterHours), RULES.quietHours) });
+  await armTimer(orderId, 'reminder', deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours));
+  await armTimer(orderId, 'fallback', deferPastQuietHours(addMinutes(now, RULES.codMarketingFallbackAfterMin), RULES.quietHours));
+  await armTimer(orderId, 'highrisk', deferPastQuietHours(addHours(now, RULES.highRiskCheckAfterHours), RULES.quietHours));
+}
+
+/**
+ * Arm one Flow A timer.
+ *
+ * Retried, because losing it silently drops the rest of the chase, and creating
+ * a schedule is idempotent (deterministic name, delete-then-create). Soft after
+ * that, because the confirmation has already gone out and failing the record
+ * would only send it again. A total failure is logged at error level, so it
+ * reaches the owner's inbox rather than disappearing.
+ */
+async function armTimer(orderId, step, at) {
+  return soft(`scheduleTimer:${step}`, () =>
+    withRetry(`scheduleTimer:${step}`, () => scheduleTimer({ flow: 'A', orderId, step, at }), { idempotent: true }),
+    { orderId, step },
+  );
 }
 
 // ---- taps -------------------------------------------------------------------
@@ -251,24 +274,28 @@ export async function onCancelYes(orderId, deps) {
 
 // ---- timers -----------------------------------------------------------------
 export async function onReminder(orderId, deps) {
+  const now = nowOf(deps);
   const st = await getState(orderId);
   if (!st || st.flowA?.step !== 'confirm_sent') return; // tapped already
+  if (st.flowA?.reminderSentAt) return; // a retry after the send succeeded
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
   if (await isOptedOut(n.verifiedPhone)) return;
   const amt = computeAmounts(n, RULES);
   const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
-  await tpl(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
+  const res = await tpl(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
     orderId: n.numericId,
     preferLegacy: !offerOk,
   });
-  await patchFlowA(orderId, { reminderSentAt: new Date().toISOString() });
+  if (res?.skipped) return;
+  await patchFlowA(orderId, { reminderSentAt: now.toISOString() });
 }
 
 export async function onFallback(orderId, deps) {
   const now = nowOf(deps);
   const st = await getState(orderId);
   if (!st || st.flowA?.step !== 'confirm_sent') return; // tapped already
+  if (st.flowA?.fallbackSentAt) return; // a retry after the send succeeded
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
   if (await isOptedOut(n.verifiedPhone)) return;
@@ -280,13 +307,16 @@ export async function onFallback(orderId, deps) {
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (!link) return;
-  await tpl(deps, n.verifiedPhone, 'prepaid_offer', offerVars(n, amt, now, link), {
+  const res = await tpl(deps, n.verifiedPhone, 'prepaid_offer', offerVars(n, amt, now, link), {
     orderId: n.numericId,
     token: link.token,
     imageUrl: heroImageUrl(n),
   });
-  await markMarketing(n.verifiedPhone, now);
-  await patchFlowA(orderId, { fallbackSentAt: new Date().toISOString() });
+  if (res?.skipped) return;
+  // fallbackSentAt is what stops a retry re-sending a MARKETING message, so it
+  // is written before the marketing cap is stamped, not after.
+  await patchFlowA(orderId, { fallbackSentAt: now.toISOString() });
+  await soft('markMarketing', () => markMarketing(n.verifiedPhone, now), { orderId });
 }
 
 export async function onHighRisk(orderId, deps) {
@@ -302,6 +332,17 @@ export async function onHighRisk(orderId, deps) {
 }
 
 // ---- payment ----------------------------------------------------------------
+/**
+ * A customer paid the prepaid link.
+ *
+ * This is the only handler that moves money, so every irreversible step is its
+ * own runOnce and every step that is not irreversible is soft. The rule is:
+ * a failure anywhere must be safe to redeliver, and redelivery must never
+ * repeat a refund, a conversion or a message the customer already has.
+ *
+ * The outer runOnce only records on full success, so a partial failure
+ * re-enters here and resumes from whichever inner step has not been recorded.
+ */
 export async function onPaymentPaid(orderId, entity, deps) {
   const now = nowOf(deps);
   await runOnce(orderId, 'payment-processed', async () => {
@@ -316,12 +357,6 @@ export async function onPaymentPaid(orderId, entity, deps) {
     const paymentId = entity?.payment_id || entity?.id || null;
     const paidPaise = entity?.amount_paid != null ? Math.round(entity.amount_paid) : null;
 
-    // Already converted: this is a repeat delivery of the same event. Ack it.
-    if (stNow?.flowA?.convertedAt || hasTag(n?.tags, 'PREPAID-CONVERTED')) {
-      log.info('flowA payment: already converted, ignoring duplicate', { orderId });
-      return { duplicate: true };
-    }
-
     // A read failure is NOT a reason to send someone's money back. getNorm
     // returns null both when an order genuinely does not exist and when Shopify
     // is briefly unhappy, and refunding on the second one is unrecoverable.
@@ -329,10 +364,20 @@ export async function onPaymentPaid(orderId, entity, deps) {
     // DLQ where a human sees it. runOnce records nothing when fn throws.
     if (!n) throw new Error(`payment received for an order that could not be read: ${orderId}`);
 
+    // Already converted: a repeat delivery of the same event. Still make sure
+    // the customer was actually told, because the previous attempt may have
+    // converted the order and then failed on the message. notifyPaid is
+    // runOnce-guarded, so this cannot send a second copy.
+    if (stNow?.flowA?.convertedAt || hasTag(n.tags, 'PREPAID-CONVERTED')) {
+      log.info('flowA payment: already converted, confirming the customer was told', { orderId });
+      await notifyPaid(deps, n, orderId, paidPaise ?? n.currentTotalPaise, now);
+      return { duplicate: true };
+    }
+
     if (n.cancelledAt || cls !== 'COD') {
-      if (paymentId) await deps.clients.razorpay.refund(paymentId, paidPaise ?? 0);
-      await sendRefundMessage(deps, n, orderId, paidPaise, now);
-      await ownerAlert(deps, n?.name || `#${orderId}`, 'payment received but order no longer eligible, refunded');
+      await refundOnce(deps, orderId, paymentId, paidPaise ?? 0);
+      await notifyRefund(deps, n, orderId, paidPaise, now);
+      await ownerAlert(deps, n.name, 'payment received but order no longer eligible, refunded');
       return { refunded: true };
     }
 
@@ -340,10 +385,13 @@ export async function onPaymentPaid(orderId, entity, deps) {
     if (n.delhiveryAwb) {
       const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
       if (isCourierEditable(mapCourierStatus(t))) {
-        await deps.clients.courier.editToPrepaid(n.delhiveryAwb);
+        await runOnce(orderId, 'courier-prepaid-edit', async () => {
+          await deps.clients.courier.editToPrepaid(n.delhiveryAwb);
+          return { edited: true };
+        });
       } else {
-        if (paymentId) await deps.clients.razorpay.refund(paymentId, paidPaise ?? amt.newTotalPaise);
-        await sendRefundMessage(deps, n, orderId, paidPaise, now);
+        await refundOnce(deps, orderId, paymentId, paidPaise ?? amt.newTotalPaise);
+        await notifyRefund(deps, n, orderId, paidPaise, now);
         await ownerAlert(deps, n.name, 'payment received but courier not editable, refunded');
         return { refunded: true };
       }
@@ -358,37 +406,88 @@ export async function onPaymentPaid(orderId, entity, deps) {
     }
 
     const linkId = (await getSide(orderId, 'paylink'))?.linkId;
-    const conv = await deps.clients.shopify.convertToPrepaid({ order: n, amounts: amt, paymentId, linkId });
-    await deps.clients.shopify.tagsAdd(n.gid, ['wa-prepaid-converted', 'PREPAID-CONVERTED']);
-    await patchFlowA(orderId, { convertedAt: now.toISOString() });
-    await deps.clients.shopify.metafieldsSet([
-      {
-        ownerId: n.gid,
-        namespace: 'automation',
-        key: 'prepaid_conversion',
-        type: 'json',
-        value: JSON.stringify({
-          paymentId,
-          linkId,
-          amountPaise: paidPaise ?? amt.newTotalPaise,
-          discountPaise: amt.discountPaise,
-          codFeeRemovedPaise: amt.codFeePaise,
-          method: conv.method,
-          convertedAt: now.toISOString(),
-        }),
-      },
-    ]);
-    await cancelLinkIfAny(deps, orderId);
-    await cancelAllTimers(orderId);
+    // The order edit is not repeatable: a second run would discount the order
+    // twice. runOnce makes a redelivery return the first result untouched.
+    const conv = await runOnce(orderId, 'convert-prepaid', () =>
+      deps.clients.shopify.convertToPrepaid({ order: n, amounts: amt, paymentId, linkId }),
+    );
+    // convertedAt is the guard that stops a redelivery re-entering this branch,
+    // so it is written immediately after the conversion and before the
+    // bookkeeping that follows it.
+    await patchFlowA(orderId, { convertedAt: now.toISOString(), step: 'converted' });
 
-    const paidStr = formatINR(paidPaise ?? amt.newTotalPaise);
-    if (await windowOpen(n.verifiedPhone, now, RULES.windowSafetyMinutes)) {
-      await sess(deps, n.verifiedPhone, 'payment_received', { customer_name: n.firstName, amount_paid: paidStr, order_number: n.name });
-    } else {
-      await tpl(deps, n.verifiedPhone, 'prepaid_confirmed', { customer_name: n.firstName, amount_paid: paidStr, order_number: n.name }, { orderId: n.numericId });
-    }
-    await patchFlowA(orderId, { step: 'converted' });
+    // Everything from here is internal record keeping. The money has moved and
+    // the order is correct; none of it is worth redelivering the record for.
+    await soft('tagsAdd:prepaid-converted', () =>
+      withRetry('tagsAdd:prepaid-converted', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-prepaid-converted', 'PREPAID-CONVERTED']), { idempotent: true }),
+      { orderId },
+    );
+    await soft('metafieldsSet:prepaid_conversion', () =>
+      deps.clients.shopify.metafieldsSet([
+        {
+          ownerId: n.gid,
+          namespace: 'automation',
+          key: 'prepaid_conversion',
+          type: 'json',
+          value: JSON.stringify({
+            paymentId,
+            linkId,
+            amountPaise: paidPaise ?? amt.newTotalPaise,
+            discountPaise: amt.discountPaise,
+            codFeeRemovedPaise: amt.codFeePaise,
+            method: conv?.method,
+            convertedAt: now.toISOString(),
+          }),
+        },
+      ]),
+      { orderId },
+    );
+    await soft('cancelPaymentLink', () => cancelLinkIfAny(deps, orderId), { orderId });
+    await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
+
+    // Deliberately NOT soft. Telling the customer their money arrived is the
+    // point of this handler, so a failure here should redeliver the record. On
+    // redelivery the duplicate branch above calls this same guarded step.
+    await notifyPaid(deps, n, orderId, paidPaise ?? amt.newTotalPaise, now);
     return { converted: true };
+  });
+}
+
+/**
+ * Refund exactly once, ever.
+ *
+ * Razorpay's refund endpoint is not idempotent, so this is the single most
+ * dangerous call in the service. Wrapping it in runOnce means no redelivery,
+ * retry or duplicate webhook can issue a second refund, whatever fails after it.
+ */
+async function refundOnce(deps, orderId, paymentId, amountPaise) {
+  if (!paymentId) {
+    log.error('flowA payment: refund needed but no payment id in the webhook', { orderId });
+    return null;
+  }
+  return runOnce(orderId, 'refund', () => deps.clients.razorpay.refund(paymentId, amountPaise));
+}
+
+/** Tell the customer their payment landed. Guarded so a retry cannot repeat it. */
+async function notifyPaid(deps, n, orderId, paidPaise, now) {
+  if (!n.verifiedPhone) return null;
+  return runOnce(orderId, 'paid-notify', async () => {
+    const vars = { customer_name: n.firstName, amount_paid: formatINR(paidPaise), order_number: n.name };
+    const res = (await windowOpen(n.verifiedPhone, now, RULES.windowSafetyMinutes))
+      ? await sess(deps, n.verifiedPhone, 'payment_received', vars)
+      : await tpl(deps, n.verifiedPhone, 'prepaid_confirmed', vars, { orderId: n.numericId });
+    // A skipped send is not a send, so it must not be recorded as one.
+    if (res?.skipped) throw new Error(`paid notify skipped: ${res.skipped}`);
+    return { sent: true };
+  });
+}
+
+/** Tell the customer about a refund. Guarded so a retry cannot repeat it. */
+async function notifyRefund(deps, n, orderId, paidPaise, now) {
+  if (!n?.verifiedPhone) return null;
+  return runOnce(orderId, 'refund-notify', async () => {
+    await sendRefundMessage(deps, n, orderId, paidPaise, now);
+    return { sent: true };
   });
 }
 

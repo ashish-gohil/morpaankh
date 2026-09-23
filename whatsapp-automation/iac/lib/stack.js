@@ -19,6 +19,8 @@ const targets = require('aws-cdk-lib/aws-events-targets');
 const sns = require('aws-cdk-lib/aws-sns');
 const subs = require('aws-cdk-lib/aws-sns-subscriptions');
 const cw = require('aws-cdk-lib/aws-cloudwatch');
+const logs = require('aws-cdk-lib/aws-logs');
+const logDests = require('aws-cdk-lib/aws-logs-destinations');
 const cwActions = require('aws-cdk-lib/aws-cloudwatch-actions');
 const { HttpApi, HttpMethod } = require('aws-cdk-lib/aws-apigatewayv2');
 const { HttpLambdaIntegration } = require('aws-cdk-lib/aws-apigatewayv2-integrations');
@@ -212,6 +214,53 @@ class WaAutomationStack extends cdk.Stack {
     }
     const alarmAction = new cwActions.SnsAction(topic);
 
+    // ---- error reporter ---------------------------------------------------
+    // An alarm email says "wa-worker-errors went to ALARM" and nothing else, so
+    // every incident used to start with a trip to CloudWatch. This function
+    // receives the actual error lines through log subscription filters and
+    // emails them with the order, the flow, the step and a link to the stream.
+    //
+    // It runs entirely out of band: it reads logs after the fact, so it cannot
+    // slow down or fail anything a customer is waiting on, and it is NOT
+    // subscribed to its own log group, so it cannot feed itself.
+    const errorReporter = makeFn('error-reporter', 'src/ops/error-reporter.handler', {
+      env: { ALERT_TOPIC_ARN: topic.topicArn },
+    });
+    table.grantReadWriteData(errorReporter); // throttling ledger
+    topic.grantPublish(errorReporter);
+
+    // Log groups are created here only so the subscription filters have
+    // something to attach to; Lambda writes to these same names by convention.
+    // Every function is covered, including ones that have never been invoked.
+    const reported = [
+      'wa-worker',
+      'wa-ingest-shopify',
+      'wa-ingest-whatsapp',
+      'wa-ingest-razorpay',
+      'wa-ingest-delhivery',
+      'wa-pay-redirect',
+      'wa-onboarding',
+      'wa-poll-delhivery',
+      'wa-reconcile',
+      'wa-digest',
+    ];
+    for (const name of reported) {
+      const lg = logs.LogGroup.fromLogGroupName(this, `Lg${name}`, `/aws/lambda/${name}`);
+      // Two filters, which is the per-log-group maximum. The first catches our
+      // own structured errors; the second catches the failures that happen
+      // before any of our code runs (a syntax error in a bad deploy, an import
+      // failure, a timeout) which is exactly the class that once killed the
+      // worker silently for hours.
+      lg.addSubscriptionFilter(`SubApp${name}`, {
+        destination: new logDests.LambdaDestination(errorReporter),
+        filterPattern: logs.FilterPattern.literal('{ $.level = "error" }'),
+      });
+      lg.addSubscriptionFilter(`SubCrash${name}`, {
+        destination: new logDests.LambdaDestination(errorReporter),
+        filterPattern: logs.FilterPattern.literal('?"Task timed out" ?"Runtime." ?"[ERROR]"'),
+      });
+    }
+
     const alarm = (name, metric, threshold, opts = {}) => {
       const a = new cw.Alarm(this, name, {
         alarmName: `wa-${name}`,
@@ -236,7 +285,7 @@ class WaAutomationStack extends cdk.Stack {
     // webhook, the provider would retry, give up, and the events would be lost
     // with nothing alerting. One alarm over the sum of errors across every
     // other function closes that.
-    const otherFns = [...Object.values(ingest), redirectFn, pollFn, reconcileFn, digestFn];
+    const otherFns = [...Object.values(ingest), redirectFn, pollFn, reconcileFn, digestFn, errorReporter];
     alarm(
       'function-errors',
       new cw.MathExpression({

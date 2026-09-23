@@ -233,6 +233,14 @@ async function handleMessage(message) {
   metric('WorkerHandled', 1, { kind: message.kind });
 }
 
+/**
+ * The error boundary. One record at a time (batch size 1), so a failure is
+ * always reported back as exactly that record and SQS redelivers only it.
+ *
+ * Nothing is swallowed here: a throw means the work did not complete, and the
+ * flow handlers are written so that redelivering is safe. After
+ * maxReceiveCount attempts the record lands in the DLQ, which is alarmed.
+ */
 export const handler = async (event) => {
   const failures = [];
   for (const record of event.Records || []) {
@@ -240,13 +248,29 @@ export const handler = async (event) => {
     try {
       message = JSON.parse(record.body);
     } catch (e) {
-      log.error('worker: bad message body, dropping', { err: e.message });
+      // Unparseable: redelivering it would fail identically forever, so it is
+      // dropped rather than left to poison its message group.
+      log.error('worker: bad message body, dropping', { err: e.message, body: String(record.body).slice(0, 300) });
+      metric('WorkerError', 1, { kind: 'unparseable' });
       continue;
     }
     try {
       await handleMessage(message);
     } catch (e) {
-      log.error('worker: message failed', { kind: message.kind, err: e.message });
+      // Everything a human needs to act on this without opening the console
+      // first. attempt says how close this is to the DLQ.
+      const attempt = Number(record.attributes?.ApproximateReceiveCount || 0);
+      log.error('worker: message failed', {
+        kind: message.kind,
+        orderId: message.orderId || message.entity?.notes?.shopify_order_id,
+        flow: message.flow,
+        step: message.step,
+        topic: message.topic,
+        attempt,
+        lastAttempt: attempt >= 5,
+        err: e.message,
+        stack: String(e.stack || '').split('\n').slice(0, 4).join(' | '),
+      });
       metric('WorkerError', 1, { kind: message.kind || 'unknown' });
       failures.push({ itemIdentifier: record.messageId });
     }

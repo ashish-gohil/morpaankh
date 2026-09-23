@@ -14,6 +14,7 @@ import { scheduleTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert } from './send.mjs';
 import * as flowA from './flowA.run.mjs';
 import { log } from '../log.mjs';
+import { soft } from '../lib/resilience.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
 
@@ -26,7 +27,10 @@ export async function onNdr(orderId, deps) {
   if (!withinWindow(now, RULES.ndrSendWindow)) {
     return scheduleTimer({ flow: 'C', orderId, step: 'ndr', at: nextWindowTime(now, RULES.ndrSendWindow) });
   }
-  await tpl(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(now) }, { orderId: n.numericId });
+  const st = await getState(orderId);
+  if (st?.flowC?.ndrAskedAt) return; // a retry after the send succeeded
+  const res = await tpl(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(now) }, { orderId: n.numericId });
+  if (res?.skipped) return;
   await patchFlowC(orderId, { ndrAskedAt: now.toISOString() });
 }
 
@@ -112,7 +116,8 @@ export async function onRtoTimer(orderId, deps) {
   if (!n || !n.verifiedPhone) return;
   const st = await getState(orderId);
   if (st?.flowC?.rtoReasonAskedAt) return;
-  await tpl(deps, n.verifiedPhone, 'rto_reason', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId });
+  const res = await tpl(deps, n.verifiedPhone, 'rto_reason', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId });
+  if (res?.skipped) return;
   await patchFlowC(orderId, { rtoReasonAskedAt: nowOf(deps).toISOString() });
 }
 
@@ -123,16 +128,22 @@ export async function onRtoReason(orderId, reasonId, deps) {
   await touchInbound(n.verifiedPhone, now);
   const reason = RTO_REASONS.find((r) => r.id === reasonId) || { id: reasonId, slug: reasonId };
 
-  await deps.clients.shopify.metafieldsSet([
-    { ownerId: n.gid, namespace: 'automation', key: 'rto_reason', type: 'json', value: JSON.stringify({ reasonId: reason.id, at: now.toISOString() }) },
-  ]);
-  await deps.clients.shopify.tagsAdd(n.gid, [`rto-reason-${reason.slug}`]);
+  // The customer just tapped a button and is waiting. None of this bookkeeping
+  // is worth leaving them without an answer, so all of it is soft and any
+  // failure is reported instead of thrown.
+  await soft('metafieldsSet:rto_reason', () =>
+    deps.clients.shopify.metafieldsSet([
+      { ownerId: n.gid, namespace: 'automation', key: 'rto_reason', type: 'json', value: JSON.stringify({ reasonId: reason.id, at: now.toISOString() }) },
+    ]),
+    { orderId },
+  );
+  await soft('tagsAdd:rto-reason', () => deps.clients.shopify.tagsAdd(n.gid, [`rto-reason-${reason.slug}`]), { orderId });
 
-  const count = await markRto(n.verifiedPhone);
-  if (n.customerGid) {
+  const count = await soft('markRto', () => markRto(n.verifiedPhone), { orderId });
+  if (n.customerGid && count != null) {
     const tags = [`rto-count-${count}`];
     if (count >= RULES.rtoCodBlockCount || COD_BLOCK_REASONS.includes(reason.id)) tags.push('cod-block');
-    await deps.clients.shopify.tagsAdd(n.customerGid, tags);
+    await soft('tagsAdd:cod-block', () => deps.clients.shopify.tagsAdd(n.customerGid, tags), { orderId });
   }
 
   if (reason.id === 'other') {
@@ -148,9 +159,12 @@ export async function onRtoOtherText(orderId, text, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, nowOf(deps));
-  await deps.clients.shopify.metafieldsSet([
-    { ownerId: n.gid, namespace: 'automation', key: 'rto_reason', type: 'json', value: JSON.stringify({ reasonId: 'other', text, at: nowOf(deps).toISOString() }) },
-  ]);
+  await soft('metafieldsSet:rto_reason_other', () =>
+    deps.clients.shopify.metafieldsSet([
+      { ownerId: n.gid, namespace: 'automation', key: 'rto_reason', type: 'json', value: JSON.stringify({ reasonId: 'other', text, at: nowOf(deps).toISOString() }) },
+    ]),
+    { orderId },
+  );
   await sess(deps, n.verifiedPhone, 'rto_thanks', {});
   await clearAwaiting(n.verifiedPhone);
 }

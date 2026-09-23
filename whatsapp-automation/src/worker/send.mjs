@@ -7,6 +7,7 @@ import { normalizeOrder } from '../domain/order.mjs';
 import { TEMPLATES, LEGACY, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { log, metric } from '../log.mjs';
+import { soft } from '../lib/resilience.mjs';
 
 /**
  * Meta errors that mean "this particular template could not be used", as
@@ -96,8 +97,18 @@ export async function sess(deps, phone, key, vars, ctx = {}) {
   return null;
 }
 
+/**
+ * Tell the owner something needs attention. NEVER throws.
+ *
+ * This is usually called right after an irreversible step (a refund, a cancel),
+ * so letting it throw would redeliver the record and repeat that step. An
+ * unreachable owner must never cost a customer money.
+ */
 export async function ownerAlert(deps, orderName, alertText) {
   for (const phone of config.ownerAlertPhones) {
-    await tpl(deps, phone, 'ops_alert', { order_number: orderName, alert_text: alertText }, {});
+    await soft('ownerAlert', () => tpl(deps, phone, 'ops_alert', { order_number: orderName, alert_text: alertText }, {}), {
+      orderName,
+      alertText,
+    });
   }
 }

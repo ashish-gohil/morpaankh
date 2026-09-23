@@ -16,6 +16,7 @@
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log, maskPhone, metric } from '../log.mjs';
+import { withRetry } from '../lib/resilience.mjs';
 
 /** @returns {string|null} a skip reason, or null when sending is allowed */
 function guard(to) {
@@ -32,19 +33,25 @@ async function post(to, payload) {
   }
   const s = await getSecrets();
   const url = `https://graph.facebook.com/${config.graphVersion}/${s.waPhoneNumberId}/messages`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.waAccessToken}` },
-    body: JSON.stringify({ messaging_product: 'whatsapp', to: to.replace(/^\+/, ''), ...payload }),
+  // NOT idempotent: a retry after an unknown outcome could send the customer a
+  // second copy. Only a refusal Meta never processed (429/503, DNS, refused
+  // connection) is retried.
+  return withRetry('whatsapp.send', async () => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.waAccessToken}` },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to: to.replace(/^\+/, ''), ...payload }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(`wa send failed (${payload.type}): ${json.error?.message || res.status}`);
+      err.waCode = json.error?.code; // 131047, 131049, 131026, ... handled by the worker
+      err.status = res.status;
+      throw err;
+    }
+    metric('MessageSent', 1, { type: payload.type });
+    return { messageId: json.messages?.[0]?.id, raw: json };
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(`wa send failed (${payload.type}): ${json.error?.message || res.status}`);
-    err.waCode = json.error?.code; // 131047, 131049, 131026, ... handled by the worker
-    throw err;
-  }
-  metric('MessageSent', 1, { type: payload.type });
-  return { messageId: json.messages?.[0]?.id, raw: json };
 }
 
 export const whatsapp = {

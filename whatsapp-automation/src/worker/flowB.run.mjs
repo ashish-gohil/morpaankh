@@ -19,6 +19,7 @@ import { isOptedOut, touchInbound, canAskReview, markReviewAsk } from '../store/
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert } from './send.mjs';
 import { log } from '../log.mjs';
+import { soft } from '../lib/resilience.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
 
@@ -79,27 +80,35 @@ export async function onReviewTimer(orderId, deps) {
   if (!(await canAskReview(n.verifiedPhone, now, RULES.reviewAskCapDays))) return;
 
   const token = await flowToken(n.numericId, now);
-  await tpl(
+  const res = await tpl(
     deps,
     n.verifiedPhone,
     'delivered_review',
     { customer_name: n.firstName, order_number: n.name, delivered_date: formatISTDate(new Date(st?.flowB?.deliveredAt || now)) },
     { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, true) },
   );
-  await deps.clients.shopify.tagsAdd(n.gid, ['wa-review-asked']);
-  await markReviewAsk(n.verifiedPhone, now);
+  if (res?.skipped) return;
+  // reviewAsked is the only guard against asking the same customer twice, so it
+  // is written before any step that could throw.
   await patchFlowB(orderId, { reviewAsked: true, askedAt: now.toISOString() });
-  await scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: nextWindowTime(addHours(now, RULES.reviewReminderAfterHours), RULES.reviewSendWindow) });
+  await soft('tagsAdd:wa-review-asked', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-review-asked']), { orderId });
+  await soft('markReviewAsk', () => markReviewAsk(n.verifiedPhone, now), { orderId });
+  await soft('scheduleTimer:review_reminder', () =>
+    scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: nextWindowTime(addHours(now, RULES.reviewReminderAfterHours), RULES.reviewSendWindow) }),
+    { orderId },
+  );
 }
 
 export async function onReviewReminder(orderId, deps) {
   const now = nowOf(deps);
   const st = await getState(orderId);
   if (!st?.flowB?.reviewAsked || st?.flowB?.reviewed) return;
+  if (st?.flowB?.reminderSentAt) return; // a retry after the send succeeded
   const n = await getNorm(deps, orderId);
   if (reviewSkipReason(n) || !n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) return;
   const token = await flowToken(n.numericId, now);
-  await tpl(deps, n.verifiedPhone, 'review_reminder', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, false) });
+  const res = await tpl(deps, n.verifiedPhone, 'review_reminder', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, false) });
+  if (res?.skipped) return;
   await patchFlowB(orderId, { reminderSentAt: now.toISOString() });
 }
 
@@ -165,7 +174,7 @@ export async function onReviewSubmit(orderId, submission, deps) {
     await ownerAlert(deps, n.name, 'review code creation failed, sent pending message');
   }
 
-  await deps.clients.shopify.tagsAdd(n.gid, ['wa-reviewed']);
   await patchFlowB(orderId, { reviewed: true, reviewedAt: now.toISOString(), status });
-  await cancelTimer({ flow: 'B', orderId, step: 'review_reminder' });
+  await soft('tagsAdd:wa-reviewed', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-reviewed']), { orderId });
+  await soft('cancelTimer:review_reminder', () => cancelTimer({ flow: 'B', orderId, step: 'review_reminder' }), { orderId });
 }

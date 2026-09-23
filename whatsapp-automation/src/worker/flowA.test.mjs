@@ -336,3 +336,98 @@ describe('Flow A tracking arrives late', () => {
     expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v1')).toHaveLength(1);
   });
 });
+
+describe('Flow A: an error must never reach the customer twice', () => {
+  it('does not resend the confirmation when the bookkeeping after it fails', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.tagsAdd = async () => { throw new Error('shopify down'); };
+
+    await A.onCodTimer('12345', deps); // must not throw: tagging is not the customer's problem
+    expect(names(clients.whatsapp).filter((n) => n.startsWith('cod_confirm'))).toHaveLength(1);
+
+    // the timer fires again (SQS redelivery, a duplicate webhook, a retry)
+    await A.onCodTimer('12345', deps);
+    expect(names(clients.whatsapp).filter((n) => n.startsWith('cod_confirm'))).toHaveLength(1);
+  });
+
+  it('does not resend the reminder or the offer after a redelivery', async () => {
+    const { clients, deps } = setup();
+    await A.onCodTimer('12345', deps);
+    await A.onReminder('12345', deps);
+    await A.onReminder('12345', deps);
+    expect(names(clients.whatsapp).filter((n) => n.startsWith('cod_reminder'))).toHaveLength(1);
+
+    await A.onFallback('12345', deps);
+    await A.onFallback('12345', deps);
+    expect(names(clients.whatsapp).filter((n) => n.startsWith('prepaid_offer'))).toHaveLength(1);
+  });
+
+  it('still sends the confirmation when the owner alert cannot be delivered', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    const { clients, deps } = setup(
+      codOrder({ shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: '99.00' } } }] } }),
+    );
+    const real = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (a.name.startsWith('ops_alert')) throw new Error('owner phone unreachable');
+      return real(a);
+    };
+    await A.onCodTimer('12345', deps);
+    await A.onConfirm('12345', deps); // alerts the owner about the fee mismatch
+    expect(names(clients.whatsapp).some((n) => n.startsWith('cod_confirm'))).toBe(true);
+  });
+});
+
+describe('Flow A: money moves at most once, whatever fails afterwards', () => {
+  const cancelled = () => codOrder({ cancelledAt: '2026-09-20T07:00:00Z' });
+
+  it('refunds exactly once even when every later step keeps failing', async () => {
+    const { clients, deps } = setup(cancelled());
+    const real = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async () => { throw new Error('meta down'); };
+
+    // three redeliveries, all failing after the refund has already happened
+    for (let i = 0; i < 3; i += 1) {
+      await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps)).rejects.toThrow();
+    }
+    expect(clients.razorpay.refunds).toHaveLength(1);
+
+    // WhatsApp recovers: the customer is told, and still no second refund
+    clients.whatsapp.sendTemplate = real;
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    expect(clients.razorpay.refunds).toHaveLength(1);
+    expect(names(clients.whatsapp).filter((n) => n.startsWith('prepaid_refund'))).toHaveLength(1);
+  });
+
+  it('converts the order once and still tells the customer after a failed attempt', async () => {
+    const { clients, deps } = setup();
+    const real = clients.whatsapp.sendText;
+    clients.whatsapp.sendText = async () => { throw new Error('meta down'); };
+    await A.onConfirm('12345', deps); // opens the 24h window so the notify is a session message
+
+    await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps)).rejects.toThrow();
+    expect(clients.shopify.calls.filter((c) => c.op === 'convertToPrepaid')).toHaveLength(1);
+
+    clients.whatsapp.sendText = real;
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    // converted once, and the customer heard about it exactly once
+    expect(clients.shopify.calls.filter((c) => c.op === 'convertToPrepaid')).toHaveLength(1);
+    expect(clients.whatsapp.sent.filter((s) => /has come through/.test(s.body || ''))).toHaveLength(1);
+  });
+
+  it('keeps the order correct when only the audit trail fails', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.metafieldsSet = async () => { throw new Error('metafield write failed'); };
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(true);
+    expect(clients.razorpay.refunds).toHaveLength(0);
+    expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_confirmed'))).toBe(true);
+  });
+
+  it('sends nothing and lets SQS retry when the order cannot be read at all', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.getOrder = async () => { throw Object.assign(new Error('gateway'), { status: 503 }); };
+    await expect(A.onCodTimer('12345', deps)).rejects.toThrow('gateway');
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+});
