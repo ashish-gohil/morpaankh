@@ -328,3 +328,29 @@ ReportBatchItemFailures, DLQ at maxReceiveCount 5, visibility 360s.
 Known, deliberately not changed mid-incident: Lambda log groups have unlimited
 retention (cost only). CDK's logRetention adds another custom-resource Lambda
 and the account concurrency cap is 10.
+
+### N. First confirmed delivery + a prepaid-tagging bug (2026-09-23)
+
+Owner added a payment method (Visa, Tax ID verified, INR, ₹3 verification
+charge Paid). The first send right after still failed 131042 with a CHANGED
+detail ("one or more errors related to your payment method" rather than "no
+payment method is set up") - that was propagation lag, not a billing problem.
+A retry ~90s later delivered.
+
+**Full flow proven end to end on real order #1150:** orders/create replay
+03:34:09 -> Scheduler timer fired 03:37:26 -> cod_confirm_v1 -> status sent
+03:37:36, delivered 03:37:37, read 03:37:46, `codConfirmAt` recorded, order
+tagged wa-cod-sent. Owner confirmed receipt on the handset.
+
+**BUG (fixed): PREPAID-CONVERTED was tagged before the conversion ran.** In
+`onPaymentPaid`'s no-AWB branch the tag was applied, then `convertToPrepaid`
+was called; when that threw (the CONVERSION_VERIFIED gate) the tag stayed.
+Real order #1150 ended up tagged PREPAID-CONVERTED with
+displayFinancialStatus PENDING and netPayment 0.00 - i.e. marked prepaid while
+still an unpaid COD order, which risks shipping without collecting cash. Tag
+removed by hand via tagsRemove; the tag is now applied only after
+convertToPrepaid returns, with a regression test.
+
+Note for future testing: firing a synthetic `payment_link.paid` at a real
+order exercises the conversion path against that real order. Use a throwaway
+order, not a live one.
