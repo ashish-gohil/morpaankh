@@ -19,7 +19,7 @@
  */
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
-import { log } from '../log.mjs';
+import { log, metric } from '../log.mjs';
 
 const BASE = () =>
   process.env.DELHIVERY_STAGING === 'true' ? 'https://staging-express.delhivery.com' : 'https://track.delhivery.com';
@@ -36,7 +36,11 @@ async function req(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`delhivery ${method} ${path} failed: ${JSON.stringify(json).slice(0, 200)}`);
+  if (!res.ok) {
+    // Feeds the wa-courier-failures alarm. No dimensions, to match the alarm.
+    metric('CourierError', 1);
+    throw new Error(`delhivery ${method} ${path} failed: ${JSON.stringify(json).slice(0, 200)}`);
+  }
   return json;
 }
 

@@ -137,6 +137,20 @@ function routeFlowATap(orderId, action) {
 async function onWaStatus(m) {
   const st = m.status || {};
   const code = st.errors?.[0]?.code;
+  // The delivery outcome is the ONLY evidence a send reached a handset. Without
+  // this line a message Meta "accepted" but never delivered is invisible: the
+  // send logs success, the order is tagged, and nothing anywhere says it failed.
+  const err = st.errors?.[0];
+  // Feeds the wa-whatsapp-failures alarm. Emitted with NO dimensions so it
+  // matches the alarm's dimensionless metric.
+  if (st.status === 'failed') metric('MessageFailed', 1);
+  log[st.status === 'failed' ? 'error' : 'info']('wa status', {
+    status: st.status,
+    phone: st.recipient_id ? `+${st.recipient_id}` : undefined,
+    code,
+    title: err?.title,
+    detail: err?.error_data?.details,
+  });
   if (st.status === 'failed' && code === 131026 && st.recipient_id) {
     await setUndeliverable(`+${st.recipient_id}`); // 131026 = undeliverable number
   }
