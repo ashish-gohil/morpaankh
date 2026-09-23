@@ -226,9 +226,10 @@ details.tapi-pdp__more-offers {
      Radius and padding match the two cards above it so the column reads as a
      set rather than three unrelated boxes. */
   margin-top: 0;
-  border: 1px solid var(--mor-hairline, #e5ddc8);
+  border: 1px solid rgba(176, 137, 71, 0.38);
+  border: 1px solid color-mix(in srgb, var(--mor-gold, #b08947) 38%, transparent);
   border-radius: var(--radius-md, 8px);
-  background: var(--mor-surface-2, #f3eee3);
+  background: var(--mor-surface-raised, #faf6ec);
 }
 details.tapi-pdp__more-offers > summary {
   padding: var(--space-md) var(--space-lg);
@@ -259,5 +260,7 @@ details.tapi-pdp__more-offers > summary {
   width: 1.6rem;
   height: 1.6rem;
   margin-top: 0.25em;
-  color: var(--mor-accent, #b7472a);
+  /* Brass, like the ticket above and the reassurance below. Terracotta made
+     this one card in the set shout. */
+  color: var(--mor-gold-deep, #8f6e34);
 }

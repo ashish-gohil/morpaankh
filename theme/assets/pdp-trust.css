@@ -169,23 +169,26 @@
 
 
 /* ------------------------------------------------------------------
-   How you can pay, directly under the buy button. Two statements, each
-   with its own plain second line, on the same raised ivory as the rest
-   of the buy column so it reassures without competing with the offer
-   ticket above it.
+   The reassurance block that closes the buy column: shipping, payment,
+   and what happens if something is wrong. Four statements separated by
+   brass hairlines, on the same raised ivory as the cards above it, so it
+   reads as a short spec sheet rather than a row of badges.
+
+   Rows rather than side-by-side tiles. Side by side, "Free delivery on
+   prepaid orders" wraps to a second line while "Secure payment" holds
+   one, and the tiles stop lining up.
 
    The icons use the deeper brass (--mor-gold-deep) rather than the base
-   gold: base gold lands just under 3:1 on ivory, which is too faint to
-   read as a line drawing at 22px.
+   gold: base gold lands just under 3:1 on ivory, too faint to read as a
+   line drawing at 22px.
    ------------------------------------------------------------------ */
 .tapi-assure {
+  list-style: none;
   /* No margin of its own: this is a direct child of the buy column, which
-     already sets a 24px gap between blocks. A margin here stacked on top of
-     that gap and pushed it to 42px, out of step with everything else. */
+     already sets a 24px gap between blocks. A margin here would stack on
+     that gap and push it out of step with every other block. */
   margin: 0;
   padding: var(--space-md) var(--space-lg);
-  display: grid;
-  gap: var(--space-md);
   background: var(--mor-surface-raised, #faf6ec);
   border: 1px solid rgba(176, 137, 71, 0.38);
   border: 1px solid color-mix(in srgb, var(--mor-gold, #b08947) 38%, transparent);
@@ -197,6 +200,15 @@
   align-items: flex-start;
   gap: var(--space-sm);
   min-width: 0;
+}
+
+/* A hairline between statements, not around them: it separates without
+   adding another box to a column that already has several. */
+.tapi-assure__row + .tapi-assure__row {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid rgba(176, 137, 71, 0.22);
+  border-top: 1px solid color-mix(in srgb, var(--mor-gold, #b08947) 22%, transparent);
 }
 
 .tapi-assure__row svg {
@@ -223,10 +235,6 @@
   color: var(--mor-text-muted, #6b5d54);
 }
 
-/* Two rows rather than two side-by-side tiles. Side by side, "Free delivery
-   on prepaid orders" wraps to a second line while "Cash on Delivery
-   available" holds one, and the two tiles stop lining up. Stacked, both
-   statements read straight across and the block stays quiet. */
 @media (max-width: 749px) {
   .tapi-assure { padding: var(--space-md); }
 }
