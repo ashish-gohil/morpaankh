@@ -431,3 +431,27 @@ describe('Flow A: money moves at most once, whatever fails afterwards', () => {
     expect(clients.whatsapp.sent).toHaveLength(0);
   });
 });
+
+describe('Flow A: tidying up never fails the work it belongs to', () => {
+  it('stops the flow even though the paid link cannot be cancelled', async () => {
+    // Razorpay refuses to cancel a paid link. This really happened on order
+    // #1150: the customer cancelled after paying, and orders/cancelled failed
+    // five times and went to the DLQ, so Flow A was never stopped.
+    const { clients, deps } = setup();
+    await A.onConfirm('12345', deps); // creates the link
+    clients.razorpay.cancelLink = async () => {
+      throw new Error('cannot cancel or expire an already paid / partially paid link');
+    };
+    await expect(A.onStop('12345', deps)).resolves.not.toThrow();
+  });
+
+  it('still tells a cancelling customer it is done when the cleanup fails', async () => {
+    const { clients, deps } = setup();
+    await A.onConfirm('12345', deps);
+    clients.razorpay.cancelLink = async () => { throw new Error('already paid'); };
+    clients.shopify.tagsAdd = async () => { throw new Error('shopify down'); };
+    await A.onCancelYes('12345', deps);
+    expect(clients.shopify.calls.some((c) => c.op === 'orderCancel')).toBe(true);
+    expect(clients.whatsapp.sent.some((s) => /is cancelled/.test(s.body || ''))).toBe(true);
+  });
+});

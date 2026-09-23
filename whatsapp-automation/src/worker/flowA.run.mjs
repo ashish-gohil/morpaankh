@@ -38,9 +38,22 @@ const A_TIMERS = ['cod', 'reminder', 'fallback', 'highrisk'];
 async function cancelAllTimers(orderId) {
   for (const step of A_TIMERS) await cancelTimer({ flow: 'A', orderId, step });
 }
+/**
+ * Close the open payment link, if there is one. NEVER throws.
+ *
+ * Razorpay refuses to cancel a link that has already been paid or has expired,
+ * and both are perfectly normal here: this runs on cancellation, on RTO and
+ * right after a successful conversion, by which point the link usually IS paid.
+ *
+ * It used to throw. A real customer cancelling order #1150 after paying failed
+ * the whole orders/cancelled record five times and parked it in the DLQ, so
+ * Flow A was never stopped for that order. Tidying up a link is never worth
+ * failing the work it belongs to.
+ */
 async function cancelLinkIfAny(deps, orderId) {
   const s = await getSide(orderId, 'paylink');
-  if (s?.linkId) await deps.clients.razorpay.cancelLink(s.linkId);
+  if (!s?.linkId) return null;
+  return soft('cancelPaymentLink', () => deps.clients.razorpay.cancelLink(s.linkId), { orderId, linkId: s.linkId });
 }
 
 /** Create (or reuse) the payment link + pay token. Null when no offer is valid. */
@@ -246,8 +259,8 @@ export async function onCancelYes(orderId, deps) {
       await deps.clients.shopify.orderCancel(n.gid, { reason: 'CUSTOMER', staffNote: 'WhatsApp customer cancel' });
       return { cancelled: true };
     });
-    await deps.clients.shopify.tagsAdd(n.gid, ['wa-cancelled']);
-    await cancelAllTimers(orderId);
+    await soft('tagsAdd:wa-cancelled', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cancelled']), { orderId });
+    await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
     await cancelLinkIfAny(deps, orderId);
     await sess(deps, n.verifiedPhone, 'cancel_done', { order_number: n.name });
     return;
@@ -261,8 +274,8 @@ export async function onCancelYes(orderId, deps) {
       await deps.clients.shopify.orderCancel(n.gid, { reason: 'CUSTOMER', staffNote: 'WhatsApp customer cancel' });
       return { cancelled: true };
     });
-    await deps.clients.shopify.tagsAdd(n.gid, ['wa-cancelled']);
-    await cancelAllTimers(orderId);
+    await soft('tagsAdd:wa-cancelled', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cancelled']), { orderId });
+    await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
     await cancelLinkIfAny(deps, orderId);
     await sess(deps, n.verifiedPhone, 'cancel_done', { order_number: n.name });
   } else {
@@ -442,7 +455,7 @@ export async function onPaymentPaid(orderId, entity, deps) {
       ]),
       { orderId },
     );
-    await soft('cancelPaymentLink', () => cancelLinkIfAny(deps, orderId), { orderId });
+    await cancelLinkIfAny(deps, orderId);
     await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
 
     // Deliberately NOT soft. Telling the customer their money arrived is the
@@ -491,9 +504,10 @@ async function notifyRefund(deps, n, orderId, paidPaise, now) {
   });
 }
 
+/** Stop Flow A for this order: no more chasing, no open link. Never throws. */
 export async function onStop(orderId, deps) {
   await patchFlowA(orderId, { step: 'stopped' });
-  await cancelAllTimers(orderId);
+  await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
   await cancelLinkIfAny(deps, orderId);
 }
 
