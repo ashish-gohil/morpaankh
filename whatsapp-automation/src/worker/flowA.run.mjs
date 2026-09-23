@@ -8,7 +8,7 @@
  */
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { normalizeOrder } from '../domain/order.mjs';
+import { normalizeOrder, hasTag } from '../domain/order.mjs';
 import { classify } from '../domain/classify.mjs';
 import { computeAmounts } from '../domain/amounts.mjs';
 import { flowAEligible } from '../domain/eligibility.mjs';
@@ -295,9 +295,21 @@ export async function onPaymentPaid(orderId, entity, deps) {
   const now = nowOf(deps);
   await runOnce(orderId, 'payment-processed', async () => {
     const n = await getNorm(deps, orderId);
-    const cls = n ? classify(n) : 'UNKNOWN';
+    const stNow = await getState(orderId);
+    // Use the STORED class. classify() is explicitly a once-at-first-sight
+    // decision: a converted (or delivered) COD order reads back as PAID, so
+    // re-classifying here would call a successfully converted order
+    // "no longer eligible" and refund a customer who did nothing wrong. That
+    // is exactly what a duplicate or retried Razorpay webhook would do.
+    const cls = stNow?.class || (n ? classify(n) : 'UNKNOWN');
     const paymentId = entity?.payment_id || entity?.id || null;
     const paidPaise = entity?.amount_paid != null ? Math.round(entity.amount_paid) : null;
+
+    // Already converted: this is a repeat delivery of the same event. Ack it.
+    if (stNow?.flowA?.convertedAt || hasTag(n?.tags, 'PREPAID-CONVERTED')) {
+      log.info('flowA payment: already converted, ignoring duplicate', { orderId });
+      return { duplicate: true };
+    }
 
     if (!n || n.cancelledAt || cls !== 'COD') {
       if (paymentId) await deps.clients.razorpay.refund(paymentId, paidPaise ?? 0);
@@ -330,6 +342,7 @@ export async function onPaymentPaid(orderId, entity, deps) {
     const linkId = (await getSide(orderId, 'paylink'))?.linkId;
     const conv = await deps.clients.shopify.convertToPrepaid({ order: n, amounts: amt, paymentId, linkId });
     await deps.clients.shopify.tagsAdd(n.gid, ['wa-prepaid-converted', 'PREPAID-CONVERTED']);
+    await patchFlowA(orderId, { convertedAt: now.toISOString() });
     await deps.clients.shopify.metafieldsSet([
       {
         ownerId: n.gid,

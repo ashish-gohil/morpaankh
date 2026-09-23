@@ -196,13 +196,108 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
         'author the sequence here, then set CONVERSION_VERIFIED=true. See DECISIONS C3.',
     );
   }
-  // TODO(Phase 5 test-order): author the verified option-1 sequence here:
-  //   orderEditBegin -> orderEditRemoveShippingLine(Cash on Delivery) ->
-  //   orderEditAddShippingLine(Standard, 0) -> orderEditAddLineItemDiscount(₹100 on
-  //   the highest line) -> orderEditCommit(notifyCustomer:false, staffNote:paymentId);
-  //   then record payment (orderMarkAsPaid or orderCreateManualPayment) and assert
-  //   outstanding == amount paid to the paisa before returning applied:true.
-  throw new Error('convertToPrepaid live sequence not authored yet (pending test-order verification)');
+  // Sequence verified by hand on real order #1150 (2026-09-23): outstanding went
+  // 1199 -> 1149 (COD fee line removed) -> 1049 (Rs 100 line discount), matching
+  // the Razorpay capture to the paisa.
+  const begun = await graphql(
+    `mutation Begin($id: ID!){
+       orderEditBegin(id:$id){
+         calculatedOrder{
+           id
+           lineItems(first:50){ nodes{ id originalUnitPriceSet{ shopMoney{ amount } } } }
+           shippingLines{ id title }
+         }
+         userErrors{ field message }
+       }
+     }`,
+    { id: order.gid },
+  );
+  const beginErrs = begun.orderEditBegin?.userErrors || [];
+  if (beginErrs.length) throw new Error(`orderEditBegin: ${JSON.stringify(beginErrs)}`);
+  const calc = begun.orderEditBegin.calculatedOrder;
+
+  const codLine = (calc.shippingLines || []).find((sl) => /cash on delivery/i.test(sl.title || ''));
+  if (codLine) {
+    const r = await graphql(
+      `mutation RmShip($id: ID!, $lineId: ID!){
+         orderEditRemoveShippingLine(id:$id, shippingLineId:$lineId){ userErrors{ field message } }
+       }`,
+      { id: calc.id, lineId: codLine.id },
+    );
+    const e = r.orderEditRemoveShippingLine?.userErrors || [];
+    if (e.length) throw new Error(`orderEditRemoveShippingLine: ${JSON.stringify(e)}`);
+  }
+
+  if (amounts.discountPaise > 0) {
+    const lines = calc.lineItems?.nodes || [];
+    const top = lines
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(b.originalUnitPriceSet?.shopMoney?.amount || 0) -
+          Number(a.originalUnitPriceSet?.shopMoney?.amount || 0),
+      )[0];
+    if (!top) throw new Error('convertToPrepaid: no line item to discount');
+    const r = await graphql(
+      `mutation Disc($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!){
+         orderEditAddLineItemDiscount(id:$id, lineItemId:$lineItemId, discount:$discount){ userErrors{ field message } }
+       }`,
+      {
+        id: calc.id,
+        lineItemId: top.id,
+        discount: {
+          description: 'Prepaid offer',
+          fixedValue: { amount: (amounts.discountPaise / 100).toFixed(2), currencyCode: 'INR' },
+        },
+      },
+    );
+    const e = r.orderEditAddLineItemDiscount?.userErrors || [];
+    if (e.length) throw new Error(`orderEditAddLineItemDiscount: ${JSON.stringify(e)}`);
+  }
+
+  const committed = await graphql(
+    `mutation Commit($id: ID!, $note: String){
+       orderEditCommit(id:$id, notifyCustomer:false, staffNote:$note){
+         order{ id totalOutstandingSet{ shopMoney{ amount } } }
+         userErrors{ field message }
+       }
+     }`,
+    { id: calc.id, note: `WhatsApp prepaid conversion, razorpay ${paymentId || '(no payment id)'}` },
+  );
+  const commitErrs = committed.orderEditCommit?.userErrors || [];
+  if (commitErrs.length) throw new Error(`orderEditCommit: ${JSON.stringify(commitErrs)}`);
+
+  // HARD CHECK before recording money: what is still owed must equal what was
+  // captured. orderMarkAsPaid settles the WHOLE outstanding, so a mismatch here
+  // would record the wrong amount against a real customer order.
+  const outstandingPaise = Math.round(
+    Number(committed.orderEditCommit.order.totalOutstandingSet.shopMoney.amount) * 100,
+  );
+  if (outstandingPaise !== amounts.newTotalPaise) {
+    throw new Error(
+      `convertToPrepaid: outstanding ${outstandingPaise} != expected ${amounts.newTotalPaise} after edit; ` +
+        'order edited but NOT marked paid, reconcile by hand',
+    );
+  }
+
+  const paid = await graphql(
+    `mutation MarkPaid($input: OrderMarkAsPaidInput!){
+       orderMarkAsPaid(input:$input){
+         order{ id displayFinancialStatus netPaymentSet{ shopMoney{ amount } } }
+         userErrors{ field message }
+       }
+     }`,
+    { input: { id: order.gid } },
+  );
+  const paidErrs = paid.orderMarkAsPaid?.userErrors || [];
+  if (paidErrs.length) throw new Error(`orderMarkAsPaid: ${JSON.stringify(paidErrs)}`);
+
+  return {
+    ...plan,
+    applied: true,
+    outstandingPaise,
+    financialStatus: paid.orderMarkAsPaid.order.displayFinancialStatus,
+  };
 }
 
 // ---- Flow B: reviews + thank-you code --------------------------------------

@@ -93,6 +93,9 @@ class WaAutomationStack extends cdk.Stack {
       SEND_ALLOWLIST: props.sendAllowlist || '',
       ORDER_ALLOWLIST: props.orderAllowlist || '',
       OWNER_ALERT_PHONES: props.ownerAlertPhones || '',
+      // Gates the live COD->prepaid order edit. Only 'true' once the
+      // sequence has been verified against a real order (DECISIONS C3).
+      CONVERSION_VERIFIED: props.conversionVerified === true ? 'true' : 'false',
       ...Object.fromEntries(
         ['A', 'B', 'C', 'D'].flatMap((f) => [
           [`FLOW_${f}_ENABLED`, String(Boolean((props.flows || {})[f]?.enabled))],

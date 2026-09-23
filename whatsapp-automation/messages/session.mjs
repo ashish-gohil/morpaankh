@@ -48,7 +48,7 @@ export const SESSION = {
   payment_received: {
     type: 'text',
     body:
-      'Thank you, {{customer_name}}. We have received your payment of {{amount_paid}} for order {{order_number}}. Your order is now fully prepaid, so there is nothing to pay at delivery.',
+      'Thank you, {{customer_name}}. We have received your payment of {{amount_paid}} for order {{order_number}}. Your order is now fully prepaid, so there is nothing to pay at delivery. Prepaid orders are packed and dispatched on priority, so yours will reach you sooner.',
   },
   prepaid_refund: {
     type: 'text',

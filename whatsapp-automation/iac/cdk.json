@@ -18,7 +18,11 @@
     "sendAllowlist": "+917048459816",
     "ownerAlertPhones": "+917048459816",
     "flows": {
-      "A": { "enabled": true, "startAt": "2026-09-22T18:16:41Z" }
-    }
+      "A": {
+        "enabled": true,
+        "startAt": "2026-09-22T18:16:41Z"
+      }
+    },
+    "conversionVerified": true
   }
 }

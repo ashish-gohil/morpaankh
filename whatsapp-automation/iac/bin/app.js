@@ -20,6 +20,7 @@ new WaAutomationStack(app, 'WaAutomation', {
   orderAllowlist: app.node.tryGetContext('orderAllowlist') || '',
   ownerAlertPhones: app.node.tryGetContext('ownerAlertPhones') || '',
   flows: app.node.tryGetContext('flows') || {},
+  conversionVerified: app.node.tryGetContext('conversionVerified') === true,
 });
 
 app.synth();
