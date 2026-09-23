@@ -386,3 +386,107 @@ cod_confirm_v1, which is an APPROVED UTILITY template. Offer wording risks a
 MARKETING reclassification (opt-in + marketing caps + higher cost), so the
 session message after the Pay online tap carries it for now at zero approval
 cost.
+
+## P. Product details in the message, every customer served, and the loophole sweep (2026-09-23)
+
+### What can actually be fetched and shown (verified live before any code)
+- Shopify `lineItem.variant.selectedOptions` gives a clean `Size`. `variantTitle`
+  alone is NOT usable: a two-option product returns "S / Lavender", so the size
+  would read as a colour. variantTitle is a fallback for single-option variants
+  only, and "Default Title" is not a size.
+- `lineItem.image.url` is a public Shopify CDN JPEG, which is what Meta needs.
+- The CDN centre-crops on demand but **refuses to upscale**: `width=800&height=800`
+  against a 473x593 source silently returns the original 473x593 portrait.
+  `heroImageUrl` clamps the square edge to the shorter side, so it is always a
+  true square. Verified against both a small and a large real product image.
+- A template IMAGE header cannot be created with a URL example. Meta wants a
+  handle from the Resumable Upload API, which needs the **app id**, read from
+  the access token via `/debug_token` rather than stored as another secret.
+  Proved end to end before writing the registry.
+
+### The category problem, and how the confirmation avoids it
+`cod_confirm` is UTILITY. Offer wording (save, discount, limited time) invites a
+MARKETING reclassification, which would bring opt-in requirements, per-user
+frequency caps and a higher price to **every** order confirmation. So v2 states
+the two amounts this order can be paid at and lets the customer choose:
+
+    Cash on delivery: Rs 1,499
+    Pay online instead: Rs 1,399
+
+Meta accepted it as UTILITY at create time. `prepaid_offer` is the one message
+that IS an offer, so it stays MARKETING and keeps its opt-out footer.
+`ops_digest` is now declared MARKETING because that is what Meta actually
+assigned it; a periodic summary is tied to no transaction, so no wording makes
+it UTILITY, and declaring otherwise only made templates-sync fail forever.
+
+### New copy cannot break production: TEMPLATES + LEGACY
+A template cannot be edited in place, so new copy means a new name, and a new
+name is unsendable until a human at Meta approves it. Deploying new copy without
+a safety net would silently break every order confirmation for hours. `tpl()`
+now tries TEMPLATES and falls back to LEGACY on the Meta codes that mean "this
+template is not usable" (131052/131053 media, 132000/132001/132005/132007/132012
+shape, 132015/132016 paused or disabled). It also uses the fallback when a
+product has no photo, and on request via `preferLegacy`. New copy therefore
+starts going out by itself the moment it is approved, with no redeploy.
+
+**Meta rejects a body that ends in a variable even with punctuation after it**
+(error_subcode 2388299), which killed prepaid_offer_v2 on the first submission.
+registry.test.mjs now rejects `}}` followed only by punctuation.
+
+### Everyone gets served now, not just COD
+- **PREPAID and PARTIAL were silently excluded from Flow A.** `flowAEligible`
+  rejected `class-PREPAID`, so a customer who paid online at checkout got no
+  WhatsApp at all. They now get `order_confirmed`: their items, their total, and
+  no payment wording, because one of those two has paid in full and the other
+  still owes a balance. No buttons either, since Flow A's cancel path issues no
+  refund and a paid order cannot be cancelled without one.
+- **There was no dispatch message anywhere.** `keep_cod_ack` promised "we will
+  send you the tracking link" and nothing ever sent one. `order_shipped` now
+  goes out on fulfillment for every class, with the item, the courier, the
+  waybill, a Track button, and one line that differs by what is still owed
+  (`currentTotal - netPayment`), so it is correct for COD, prepaid and partial
+  without needing to know the class.
+- **`fulfillments/update` was subscribed but not routed.** Shopify often creates
+  a fulfillment first and attaches tracking in a later update, so those orders
+  never had their AWB mapped. Both topics now route to the same idempotent
+  handler.
+- Flows B and C were checked and already had no class gate, so reviews and
+  NDR/RTO work for every customer once enabled.
+
+### Money and delivery loopholes found and fixed
+1. **A Shopify read failure could refund a paying customer.** `onPaymentPaid`
+   treated `getNorm` returning null as "order not eligible" and refunded. null
+   means both "does not exist" and "Shopify was briefly unhappy", and refunding
+   on the second is unrecoverable. It now throws, so SQS retries and a genuinely
+   missing order lands in the DLQ where a human sees it. runOnce records nothing
+   when the function throws, so the retry is clean.
+2. **Messages could quote a price the customer cannot be charged.** The payment
+   link is created once and reused, but the copy was rendered from a fresh
+   `computeAmounts`. If the order was edited after the link was made, the
+   message quoted one number and Razorpay collected another. Every message now
+   quotes the LINK's amount and the LINK's real expiry, and logs when they
+   diverge.
+3. **A "Pay online" tap killed the last nudge.** It cancelled the marketing
+   fallback timer, so someone who opened the link and got distracted was never
+   contacted again and the order quietly stayed COD. Asking for a link is not
+   paying; the fallback now stays armed and a real payment cancels everything.
+4. **The confirmation could quote a prepaid price we could not honour.** When
+   the COD fee does not match the COD King value, `ensurePaymentLink` refuses,
+   so a customer who tapped after seeing a number got an apology. The price-free
+   version is sent instead.
+5. **The owner's own messages bypassed the fallback.** digest.mjs and
+   reconcile.mjs called the WhatsApp client directly, so renaming the ops
+   templates would have silently killed the daily digest and every alert.
+6. `recordMessage` hardcoded `template: 'cod_confirm_v1'` and would have lied
+   from the first send of v2. It now records what was actually sent.
+
+### Left deliberately
+- The dispatch message is gated on a Delhivery AWB, because the Track button
+  points at Delhivery's tracking page and another courier would get a link that
+  does not resolve. Better quiet than wrong.
+- A template that is still in review makes the dispatch message fail. That is
+  caught and logged rather than thrown, because it shares a handler with the AWB
+  mapping and the courier prepaid edit, and parking a paid order's fulfillment
+  in the DLQ over a message is the wrong trade. The prepaid confirmation is
+  deliberately NOT caught: it is the whole point of that handler, so a failure
+  should be visible and replayable.

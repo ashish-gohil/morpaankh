@@ -76,10 +76,70 @@ export function normalizeOrder(o) {
       quantity: li.quantity,
       productGid: li.product?.id || null,
       unitPaise: toPaise(li.originalUnitPriceSet?.shopMoney?.amount || 0),
+      size: sizeOf(li),
+      image: li.image?.url ? { url: li.image.url, width: li.image.width, height: li.image.height } : null,
     })),
     // COD King attributes
     codkAmountType: attrs._codkAmountType || null,
     codkAmountValue: attrs._codkAmountValue || null,
     codkPartiallyPaid: attrs.codk_partially_paid || null,
   };
+}
+
+/**
+ * The size a line item was ordered in, or null.
+ *
+ * variantTitle is NOT usable on its own: a two-option product returns
+ * "S / Lavender" and a single-option one returns "XS", so the option named
+ * Size is read first and variantTitle is only a fallback for single-option
+ * variants. "Default Title" (Shopify's name for a product with no options)
+ * is not a size.
+ */
+function sizeOf(li) {
+  const opt = (li.variant?.selectedOptions || []).find((o) => /^size$/i.test(o.name || ''));
+  if (opt?.value) return opt.value;
+  const vt = li.variantTitle || '';
+  if (!vt || vt === 'Default Title' || vt.includes('/')) return null;
+  return vt;
+}
+
+/**
+ * One line naming what was ordered, for a WhatsApp body parameter.
+ *
+ * Must stay on ONE line: Meta rejects template parameters containing newlines,
+ * tabs or long runs of spaces. Extra items are counted rather than listed so
+ * the line stays short on a phone.
+ */
+export function itemLine(n) {
+  const items = n?.lineItems || [];
+  if (!items.length) return null;
+  const [first, ...rest] = items;
+  let line = first.title;
+  if (first.size) line += `, size ${first.size}`;
+  if (first.quantity > 1) line += `, ${first.quantity} pieces`;
+  if (rest.length) {
+    const more = rest.reduce((sum, li) => sum + (li.quantity || 1), 0);
+    line += ` and ${more} more item${more === 1 ? '' : 's'}`;
+  }
+  return line;
+}
+
+/**
+ * A square product image for the WhatsApp template header, or null.
+ *
+ * Shopify's CDN centre-crops on demand but REFUSES TO UPSCALE: asking for
+ * 800x800 from a 473x593 source silently returns the original 473x593
+ * portrait. The requested edge is therefore clamped to the shorter side of
+ * the source, which always yields a true square.
+ */
+export function heroImageUrl(n, max = 800) {
+  const img = (n?.lineItems || []).find((li) => li.image?.url)?.image;
+  if (!img) return null;
+  const edge = Math.min(img.width || max, img.height || max, max);
+  if (!edge) return img.url;
+  const u = new URL(img.url);
+  u.searchParams.set('width', String(edge));
+  u.searchParams.set('height', String(edge));
+  u.searchParams.set('crop', 'center');
+  return u.toString();
 }

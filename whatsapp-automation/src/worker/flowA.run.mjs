@@ -8,16 +8,14 @@
  */
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { normalizeOrder, hasTag } from '../domain/order.mjs';
+import { hasTag, itemLine, heroImageUrl } from '../domain/order.mjs';
 import { classify } from '../domain/classify.mjs';
 import { computeAmounts } from '../domain/amounts.mjs';
-import { flowAEligible } from '../domain/eligibility.mjs';
+import { flowAEligible, excludeFromAll } from '../domain/eligibility.mjs';
 import { mapCourierStatus, isCourierEditable, isBeforePickup } from '../domain/courier-status.mjs';
 import { formatINR } from '../lib/money.mjs';
 import { addMinutes, addHours, deferPastQuietHours, formatIST } from '../lib/time.mjs';
 import { randomToken } from '../lib/ids.mjs';
-import { renderTemplate } from '../../messages/templates.mjs';
-import { renderSession } from '../../messages/session.mjs';
 import {
   ensureState,
   getState,
@@ -30,32 +28,10 @@ import {
 import { isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing } from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
+import { getNorm, tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import { log } from '../log.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
-
-async function getNorm(deps, orderId) {
-  const o = await deps.clients.shopify.getOrder(orderId);
-  return o ? normalizeOrder(o) : null;
-}
-
-async function tpl(deps, phone, key, vars, ctx) {
-  const t = renderTemplate(key, vars, ctx);
-  return deps.clients.whatsapp.sendTemplate({ to: phone, name: t.name, language: t.language, components: t.components });
-}
-async function sess(deps, phone, key, vars, ctx = {}) {
-  const r = renderSession(key, vars, ctx);
-  const wa = deps.clients.whatsapp;
-  if (r.type === 'text') return wa.sendText({ to: phone, body: r.body });
-  if (r.type === 'buttons') return wa.sendButtons({ to: phone, body: r.body, buttons: r.buttons });
-  if (r.type === 'cta_url') return wa.sendCtaUrl({ to: phone, body: r.body, buttonText: r.buttonText, url: r.url });
-  return null;
-}
-async function ownerAlert(deps, orderName, alertText) {
-  for (const phone of config.ownerAlertPhones) {
-    await tpl(deps, phone, 'ops_alert', { order_number: orderName, alert_text: alertText }, {});
-  }
-}
 
 const A_TIMERS = ['cod', 'reminder', 'fallback', 'highrisk'];
 async function cancelAllTimers(orderId) {
@@ -86,7 +62,7 @@ async function ensurePaymentLink(deps, n, amt, now) {
     await setPaylinkMap(link.id, n.numericId);
     const token = randomToken();
     await setPayTokenMap(token, { orderId: n.numericId, url: link.shortUrl, expiresAt: expireBy });
-    return { linkId: link.id, url: link.shortUrl, token, newTotalPaise: amt.newTotalPaise };
+    return { linkId: link.id, url: link.shortUrl, token, newTotalPaise: amt.newTotalPaise, expiresAt: expireBy };
   });
 }
 
@@ -128,13 +104,36 @@ export async function onCodTimer(orderId, deps) {
     return;
   }
 
-  const res = await tpl(
-    deps,
-    n.verifiedPhone,
-    'cod_confirm',
-    { customer_name: n.firstName, order_number: n.name, order_total: formatINR(n.currentTotalPaise) },
-    { orderId: n.numericId },
-  );
+  // PREPAID and PARTIAL customers get a thank-you with their order details and
+  // nothing else: there is nothing for them to confirm, and no COD chase.
+  if (cls !== 'COD') {
+    const res = await tpl(deps, n.verifiedPhone, 'order_confirmed', confirmVars(n), {
+      orderId: n.numericId,
+      imageUrl: heroImageUrl(n),
+    });
+    if (res?.skipped) {
+      log.info('flowA confirm: send skipped, order left unmarked', { orderId, skip: res.skipped });
+      return;
+    }
+    await recordMessage(orderId, res.messageId, { key: 'order_confirmed', template: res.templateName });
+    await deps.clients.shopify.tagsAdd(n.gid, ['wa-order-confirmed']);
+    await patchFlowA(orderId, { step: 'order_confirmed', codConfirmAt: now.toISOString() });
+    return;
+  }
+
+  // Quoting a prepaid price we cannot honour is worse than not quoting one: if
+  // the COD fee does not match what COD King recorded, ensurePaymentLink will
+  // refuse to create a link, and a customer who tapped Pay online after seeing a
+  // number would get an apology instead. Send the price-free version instead.
+  const amt = computeAmounts(n, RULES);
+  const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
+  if (!offerOk) log.warn('flowA cod: no prepaid price quoted', { orderId, feeMatches: amt.feeMatches });
+
+  const res = await tpl(deps, n.verifiedPhone, 'cod_confirm', confirmVars(n, amt), {
+    orderId: n.numericId,
+    imageUrl: heroImageUrl(n),
+    preferLegacy: !offerOk,
+  });
   // A skipped send (allowlist or dry run) is not a send. Leave the order
   // completely unmarked, otherwise a staged rollout tags real customer orders
   // wa-cod-sent and sets codConfirmAt, and they are then treated as already
@@ -144,7 +143,7 @@ export async function onCodTimer(orderId, deps) {
     log.info('flowA cod: send skipped, order left unmarked', { orderId, skip: res.skipped });
     return;
   }
-  await recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: 'cod_confirm_v1' });
+  await recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: res.templateName });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']);
   await patchFlowA(orderId, { step: 'confirm_sent', codConfirmAt: now.toISOString() });
 
@@ -166,7 +165,7 @@ export async function onConfirm(orderId, deps) {
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (link) {
-    await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now), { url: link.url });
+    await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now, link), { url: link.url });
   } else {
     await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
   }
@@ -178,10 +177,13 @@ export async function onPayOnline(orderId, deps) {
   if (!n) return;
   await touchInbound(n.verifiedPhone, now);
   await cancelTimer({ flow: 'A', orderId, step: 'reminder' });
-  await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
+  // The fallback timer is deliberately LEFT RUNNING. Asking for a payment link
+  // is not paying: this tap used to cancel the only remaining nudge, so someone
+  // who opened the link and got distracted was never contacted again and the
+  // order quietly stayed COD. A successful payment cancels every timer anyway.
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
-  if (link) await sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, false), { url: link.url });
+  if (link) await sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
   else await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
 }
 
@@ -254,7 +256,12 @@ export async function onReminder(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
   if (await isOptedOut(n.verifiedPhone)) return;
-  await tpl(deps, n.verifiedPhone, 'cod_reminder', { customer_name: n.firstName, order_number: n.name, order_total: formatINR(n.currentTotalPaise) }, { orderId: n.numericId });
+  const amt = computeAmounts(n, RULES);
+  const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
+  await tpl(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
+    orderId: n.numericId,
+    preferLegacy: !offerOk,
+  });
   await patchFlowA(orderId, { reminderSentAt: new Date().toISOString() });
 }
 
@@ -273,7 +280,11 @@ export async function onFallback(orderId, deps) {
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (!link) return;
-  await tpl(deps, n.verifiedPhone, 'prepaid_offer', offerVars(n, amt, now), { orderId: n.numericId, token: link.token });
+  await tpl(deps, n.verifiedPhone, 'prepaid_offer', offerVars(n, amt, now, link), {
+    orderId: n.numericId,
+    token: link.token,
+    imageUrl: heroImageUrl(n),
+  });
   await markMarketing(n.verifiedPhone, now);
   await patchFlowA(orderId, { fallbackSentAt: new Date().toISOString() });
 }
@@ -311,7 +322,14 @@ export async function onPaymentPaid(orderId, entity, deps) {
       return { duplicate: true };
     }
 
-    if (!n || n.cancelledAt || cls !== 'COD') {
+    // A read failure is NOT a reason to send someone's money back. getNorm
+    // returns null both when an order genuinely does not exist and when Shopify
+    // is briefly unhappy, and refunding on the second one is unrecoverable.
+    // Throwing instead lets SQS retry and, if it really is gone, park it in the
+    // DLQ where a human sees it. runOnce records nothing when fn throws.
+    if (!n) throw new Error(`payment received for an order that could not be read: ${orderId}`);
+
+    if (n.cancelledAt || cls !== 'COD') {
       if (paymentId) await deps.clients.razorpay.refund(paymentId, paidPaise ?? 0);
       await sendRefundMessage(deps, n, orderId, paidPaise, now);
       await ownerAlert(deps, n?.name || `#${orderId}`, 'payment received but order no longer eligible, refunded');
@@ -402,19 +420,107 @@ export async function onFulfillmentCreate(orderId, deps) {
     });
     await patchFlowA(orderId, { pendingCourierPrepaid: false });
   }
+  // The AWB mapping and the courier prepaid edit above are the parts that must
+  // not be lost. A dispatch message that cannot be sent because its template is
+  // still in review is not worth failing the whole record and parking a paid
+  // order's fulfillment in the DLQ over.
+  try {
+    await sendShipped(orderId, n, deps);
+  } catch (e) {
+    if (!isTemplateUnusable(e)) throw e;
+    log.warn('flowA shipped: template not usable, no dispatch message sent', { orderId, waCode: e.waCode });
+  }
+}
+
+/**
+ * The dispatch message, for every order class.
+ *
+ * keep_cod_ack and order_confirmed both promise a tracking link, and until this
+ * existed nothing ever sent one. Gated on a Delhivery AWB because the Track
+ * button points at Delhivery's tracking page; another courier would get a link
+ * that does not resolve, so it is better to stay quiet than to be wrong.
+ */
+async function sendShipped(orderId, n, deps) {
+  if (!config.flows.A.enabled || !n.verifiedPhone) return;
+  const ex = excludeFromAll(n, { orderAllowlist: config.orderAllowlist });
+  if (ex.excluded) return log.info('flowA shipped: excluded', { orderId, reason: ex.reason });
+  if (await isOptedOut(n.verifiedPhone)) return;
+
+  await runOnce(orderId, 'shipped-message', async () => {
+    const duePaise = Math.max(0, n.currentTotalPaise - n.receivedPaise);
+    const res = await tpl(
+      deps,
+      n.verifiedPhone,
+      'order_shipped',
+      {
+        customer_name: n.firstName,
+        order_number: n.name,
+        item_line: itemLine(n) || 'Your order',
+        payment_line: duePaise > 0 ? `please keep ${formatINR(duePaise)} ready` : 'nothing to pay, this order is prepaid',
+        courier: 'Delhivery',
+        awb: n.delhiveryAwb,
+      },
+      { orderId: n.numericId, token: n.delhiveryAwb },
+    );
+    if (res?.skipped) {
+      log.info('flowA shipped: send skipped', { orderId, skip: res.skipped });
+      return null; // not recorded: a skipped send must not block the real one
+    }
+    await recordMessage(orderId, res.messageId, { key: 'order_shipped', template: res.templateName });
+    return { sent: true };
+  });
 }
 
 // ---- helpers ----------------------------------------------------------------
-function offerVars(n, amt, now, includeOrderNumber = true) {
-  const v = {
+/**
+ * Placeholders for the confirmation and reminder templates.
+ *
+ * Deliberately a UNION of what the current template and its legacy fallback
+ * need, because which one actually goes out is decided at send time (approval
+ * state, missing product image). renderTemplateDef drops the ones its version
+ * does not use.
+ */
+function confirmVars(n, amt) {
+  return {
     customer_name: n.firstName,
-    new_total: formatINR(amt.newTotalPaise),
+    order_number: n.name,
+    item_line: itemLine(n) || 'Your order',
     order_total: formatINR(n.currentTotalPaise),
-    saving: formatINR(amt.savingPaise),
-    valid_until: formatIST(addHours(now, RULES.payLinkMaxHours)),
+    cod_total: formatINR(n.currentTotalPaise),
+    prepaid_total: formatINR(amt ? amt.newTotalPaise : n.currentTotalPaise),
   };
-  if (includeOrderNumber) v.order_number = n.name;
-  return v;
+}
+
+/**
+ * Placeholders for every message that quotes the prepaid price.
+ *
+ * The numbers come from the LINK, not from a fresh computeAmounts. The link is
+ * created once and reused, so if the order is edited afterwards a recomputed
+ * total would quote a price the customer cannot actually be charged. Quoting
+ * what Razorpay will really collect is the only version that cannot mislead.
+ */
+function offerVars(n, amt, now, link) {
+  const newTotalPaise = link?.newTotalPaise ?? amt.newTotalPaise;
+  if (link && link.newTotalPaise !== amt.newTotalPaise) {
+    log.warn('flowA: live amount differs from the open payment link, quoting the link', {
+      orderId: n.numericId,
+      linkPaise: link.newTotalPaise,
+      livePaise: amt.newTotalPaise,
+    });
+  }
+  const savingPaise = Math.max(0, n.currentTotalPaise - newTotalPaise);
+  const until = link?.expiresAt ? new Date(link.expiresAt * 1000) : addHours(now, RULES.payLinkMaxHours);
+  return {
+    customer_name: n.firstName,
+    order_number: n.name,
+    item_line: itemLine(n) || 'Your order',
+    new_total: formatINR(newTotalPaise),
+    prepaid_total: formatINR(newTotalPaise),
+    order_total: formatINR(n.currentTotalPaise),
+    cod_total: formatINR(n.currentTotalPaise),
+    saving: formatINR(savingPaise),
+    valid_until: formatIST(until),
+  };
 }
 
 async function sendRefundMessage(deps, n, orderId, paidPaise, now) {

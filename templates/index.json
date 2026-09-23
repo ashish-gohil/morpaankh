@@ -1,0 +1,238 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "tapi_catalog_strip": {
+      "type": "tapi-catalog-strip",
+      "blocks": {
+        "coord": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "link": "shopify://collections/co-ord-sets",
+            "label": "Co-ord Sets",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM_1.jpg",
+            "placeholder_name": "Co",
+            "tint": "#7a8761"
+          }
+        },
+        "three_piece": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "link": "shopify://collections/kurta-sets",
+            "label": "Kurta Sets",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM.jpg",
+            "placeholder_name": "3",
+            "tint": "#b7472a"
+          }
+        },
+        "festive": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "link": "shopify://collections/festive",
+            "label": "Festive",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM.jpg",
+            "placeholder_name": "F",
+            "tint": "#b08947"
+          }
+        },
+        "newin": {
+          "type": "tile",
+          "settings": {
+            "collection": "",
+            "link": "shopify://collections/new-arrivals",
+            "label": "New Arrivals",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM_1.jpg",
+            "placeholder_name": "N",
+            "tint": "#3a3633"
+          }
+        }
+      },
+      "block_order": [
+        "coord",
+        "three_piece",
+        "festive",
+        "newin"
+      ],
+      "settings": {
+        "aria_label": "Shop by category"
+      }
+    },
+    "tapi_hero": {
+      "type": "tapi-hero",
+      "blocks": {
+        "slide_saanjh": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/PART_1___ROLE_202605291741.jpg",
+            "caption": "Saanjh · Kurta sets",
+            "mono": "Saanjh",
+            "tint": "#b7472a"
+          }
+        },
+        "slide_amba": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/Here_are_three_separate_hero-image_202605301107.jpg",
+            "caption": "Amba · Co-ord sets",
+            "mono": "Amba",
+            "tint": "#7a8761"
+          }
+        },
+        "slide_mehfil": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/PART_4___IMAGE_202605291746.jpg",
+            "caption": "Mehfil · Festive edit",
+            "mono": "Mehfil",
+            "tint": "#b08947"
+          }
+        },
+        "slide_dhoop": {
+          "type": "slide",
+          "settings": {
+            "image": "shopify://shop_images/Image_Generation_Prompt___202605291851.jpg",
+            "caption": "Dhoop · New arrivals",
+            "mono": "Dhoop",
+            "tint": "#9d3c23"
+          }
+        }
+      },
+      "block_order": [
+        "slide_saanjh",
+        "slide_amba",
+        "slide_mehfil",
+        "slide_dhoop"
+      ],
+      "settings": {
+        "autoplay": true,
+        "interval_ms": 5000,
+        "eyebrow": "Indian ethnic wear · Rooted in tradition",
+        "line_1": "Cloth we know",
+        "line_2": "by heart.",
+        "lede": "We grew up around cloth. MorPaankh comes from a family that has spent generations in India's textile trade, and that is the eye we bring to the kurta sets, co-ords, and festive pieces we choose. Honest fabric, a fit cut for real bodies, and what you see in the photos is what turns up at your door.",
+        "cta_primary": "See catalog",
+        "cta_primary_link": "shopify://collections/all",
+        "cta_secondary": "Our story",
+        "cta_secondary_link": "shopify://pages/about"
+      }
+    },
+    "tapi_collection_tiles": {
+      "type": "tapi-collection-tiles",
+      "blocks": {
+        "kurta": {
+          "type": "tile",
+          "settings": {
+            "collection": "kurta-sets",
+            "heading": "Kurta Sets",
+            "tagline": "Three pieces, every day",
+            "blurb": "A kurta, pants, and a dupatta. Easy to throw on, with a clean finish at the hem.",
+            "placeholder_name": "Saanjh",
+            "tint": "#b7472a"
+          }
+        },
+        "coord": {
+          "type": "tile",
+          "settings": {
+            "collection": "co-ord-sets",
+            "heading": "Co-ord Sets",
+            "tagline": "Two pieces, one story",
+            "blurb": "Cropped tops and wide pants. Wear the set together, or split it up with what you already own.",
+            "placeholder_name": "Amba",
+            "tint": "#7a8761"
+          }
+        },
+        "festive": {
+          "type": "tile",
+          "settings": {
+            "collection": "festive",
+            "heading": "Festive Edit",
+            "tagline": "For the days you'll remember",
+            "blurb": "Silk cotton dobby, fine tassel work, a quiet line of gold thread. Made for the days you dress up.",
+            "placeholder_name": "Mehfil",
+            "tint": "#b08947"
+          }
+        }
+      },
+      "block_order": [
+        "kurta",
+        "coord",
+        "festive"
+      ],
+      "settings": {
+        "eyebrow": "The wardrobe",
+        "heading": "Three ways into the wardrobe.",
+        "intro": "Kurta sets for the everyday. Co-ords for the in-between. Festive pieces for the occasions that matter."
+      }
+    },
+    "tapi_featured": {
+      "type": "tapi-featured-products",
+      "settings": {
+        "eyebrow": "New in",
+        "heading": "New this season.",
+        "collection": "new-arrivals",
+        "products_to_show": 4,
+        "view_all_text": "View all new arrivals"
+      }
+    },
+    "studio_strip": {
+      "type": "tapi-studio-strip",
+      "blocks": {
+        "s1": {
+          "type": "stat",
+          "settings": {
+            "value": "Heritage",
+            "label": "Generations in cloth"
+          }
+        },
+        "s2": {
+          "type": "stat",
+          "settings": {
+            "value": "Honest",
+            "label": "True to the photo, always"
+          }
+        },
+        "s3": {
+          "type": "stat",
+          "settings": {
+            "value": "All India",
+            "label": "Shipping, with care"
+          }
+        },
+        "s4": {
+          "type": "stat",
+          "settings": {
+            "value": "Pickup",
+            "label": "Available locally"
+          }
+        }
+      },
+      "block_order": [
+        "s1",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "settings": {
+        "eyebrow": "Our promise",
+        "heading": "Rooted in tradition. Honest in what we send."
+      }
+    }
+  },
+  "order": [
+    "tapi_catalog_strip",
+    "tapi_hero",
+    "tapi_collection_tiles",
+    "tapi_featured",
+    "studio_strip"
+  ]
+}

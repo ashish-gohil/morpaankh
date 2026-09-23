@@ -1,0 +1,33 @@
+/* ------------------------------------------------------------------
+   Wardrobe (collection tiles) EXPLORE-link fixes.
+
+   Loaded as its OWN asset (fresh, separately-versioned URL) on purpose:
+   the section's {% stylesheet %} output is bundled into
+   compiled_assets/styles.css, whose version hash got stuck on a stale
+   build — so edits there never reached the live homepage. A standalone
+   file with a new URL sidesteps that entirely. Loaded after the bundle,
+   so these rules win on source order.
+   ------------------------------------------------------------------ */
+
+/* Equal-height cards so the pinned links share one baseline. */
+.tapi-collection-tiles__grid { align-items: stretch; }
+.tapi-tile { height: auto; }
+.tapi-tile__info { display: flex; flex-direction: column; flex: 1 1 auto; }
+
+/* Blurb takes its natural height; the link is pushed to the card bottom. */
+.tapi-tile__blurb { flex: 0 0 auto; margin: 0 0 2rem; }
+.tapi-tile__arrow { margin-top: auto; }
+
+/* Touch screens have no real hover, so:
+   - show the EXPLORE underline statically on EVERY card (uniform), and
+   - neutralise the sticky-hover effects that freeze on the tapped card
+     (terracotta title, image zoom) — overriding the bundle's ungated
+     :hover rules so all cards read identically. */
+@media (hover: none) {
+  .tapi-tile__arrow::before { right: 0 !important; }
+  .tapi-tile:hover .tapi-tile__title,
+  .tapi-tile:focus-within .tapi-tile__title { color: var(--mor-text); }
+  .tapi-tile:hover .tapi-tile__media img,
+  .tapi-tile:hover .tapi-tile__placeholder { transform: none; }
+  .tapi-tile:hover .tapi-tile__arrow em { transform: translateX(0); }
+}

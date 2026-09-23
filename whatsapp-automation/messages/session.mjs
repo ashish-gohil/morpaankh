@@ -12,23 +12,30 @@ export const SESSION = {
   confirmed_with_offer: {
     type: 'cta_url',
     body:
-      'Thank you, {{customer_name}}. Your order {{order_number}} is confirmed. If you would like to pay online instead, you pay {{new_total}} rather than {{order_total}} and save {{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner. This is valid until {{valid_until}}.',
+      'Thank you, {{customer_name}}. Order {{order_number}} is confirmed and we are getting it ready.\n\n' +
+      'If you would rather pay now, it comes to {{new_total}} instead of {{order_total}}, so you keep ' +
+      '{{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner.\n\n' +
+      'The link stays open until {{valid_until}}. Nothing about your order changes until you use it.',
     ctaText: 'Pay {{new_total}}',
   },
   pay_online_offer: {
     type: 'cta_url',
     body:
-      'Thank you, {{customer_name}}. You can pay {{new_total}} online instead of {{order_total}} and save {{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner. The link is valid until {{valid_until}}.',
+      'Here you go, {{customer_name}}. Paying now brings order {{order_number}} to {{new_total}} instead of ' +
+      '{{order_total}}, so you keep {{saving}} extra. Prepaid orders are packed and dispatched on priority, ' +
+      'so yours reaches you sooner.\n\n' +
+      'The link stays open until {{valid_until}}. Nothing about your order changes until you use it.',
     ctaText: 'Pay {{new_total}}',
   },
   keep_cod_ack: {
     type: 'text',
     body:
-      'Thank you, {{customer_name}}. Your order {{order_number}} stays on Cash on Delivery. We will share the tracking details once it is dispatched.',
+      'Done, {{customer_name}}. Order {{order_number}} stays on cash on delivery. ' +
+      'We will send you the tracking link the moment it leaves us.',
   },
   cancel_check: {
     type: 'buttons',
-    body: 'Are you sure you want to cancel order {{order_number}}?',
+    body: 'Just to be sure before we stop the packing: should we cancel order {{order_number}}?',
     buttons: [
       { title: 'Yes, cancel', flow: 'A', action: 'cancel_yes' },
       { title: 'No, keep it', flow: 'A', action: 'cancel_no' },
@@ -37,67 +44,79 @@ export const SESSION = {
   cancel_done: {
     type: 'text',
     body:
-      'Your order {{order_number}} has been cancelled. Sorry it did not work out this time, and thank you for letting us know.',
+      'Order {{order_number}} is cancelled. Sorry it did not work out this time. ' +
+      'Thank you for telling us, and we hope to dress you for the next occasion.',
   },
-  cancel_kept: { type: 'text', body: 'Thank you. Your order {{order_number}} stays as it is.' },
+  cancel_kept: { type: 'text', body: 'Good. Order {{order_number}} stays exactly as it is.' },
   cancel_too_late: {
     type: 'text',
     body:
-      'Your order {{order_number}} has already been dispatched, so it cannot be cancelled from here. Our team will contact you shortly.',
+      'Order {{order_number}} has already left for delivery, so we cannot stop it from here. ' +
+      'Someone from our team will call you shortly and sort it out with you.',
   },
   payment_received: {
     type: 'text',
     body:
-      'Thank you, {{customer_name}}. We have received your payment of {{amount_paid}} for order {{order_number}}. Your order is now fully prepaid, so there is nothing to pay at delivery. Prepaid orders are packed and dispatched on priority, so yours will reach you sooner.',
+      'Thank you, {{customer_name}}. Your payment of {{amount_paid}} for order {{order_number}} has come through.\n\n' +
+      'The order is fully prepaid now, so there is nothing to hand over at the door. Prepaid orders are packed ' +
+      'and dispatched on priority, so yours is already moving up the queue.',
   },
   prepaid_refund: {
     type: 'text',
     body:
-      'Sorry, your order {{order_number}} had already left for delivery, so we could not change it to prepaid. We have started a refund of {{amount_paid}} to your original payment method. It usually takes {{refund_eta}}. Please pay {{cod_amount}} at delivery as before.',
+      'Order {{order_number}} had already left for delivery when your payment reached us, so we could not ' +
+      'switch it to prepaid.\n\n' +
+      'Your {{amount_paid}} is on its way back to the same account and usually lands within {{refund_eta}}. ' +
+      'Please keep {{cod_amount}} ready at delivery as planned.\n\nSorry for the extra step.',
   },
   review_code: {
     type: 'text',
     body:
-      'Thank you for your review, {{customer_name}}.\n\nYour code: {{code}}\nIt gives {{percent}}% off your next order of {{min_order}} or more. You can use it once, until {{valid_until}}.',
+      'Thank you for writing in, {{customer_name}}. That genuinely helps us.\n\n' +
+      'Here is {{percent}}% off your next order: {{code}}\n' +
+      'It works once on orders of {{min_order}} or more, until {{valid_until}}.',
   },
   review_code_pending: {
     type: 'text',
-    body: 'Thank you for your review, {{customer_name}}. Your code will reach you here shortly.',
+    body: 'Thank you for writing in, {{customer_name}}. Your thank you code will reach you here shortly.',
   },
   ndr_reattempt_ok: {
     type: 'text',
-    body: 'Thank you. We have asked our courier partner to try the delivery again on the next working day.',
+    body: 'Done. Our courier partner will try again on the next working day.',
   },
   ndr_address_ask: {
     type: 'text',
     body:
-      'Please reply with your complete address, including house or flat number, street, landmark and the 6-digit pincode.',
+      'Please send your full address in one message: house or flat number, street, landmark, ' +
+      'and the 6 digit pincode.',
   },
   ndr_address_retry: {
     type: 'text',
     body:
-      'Sorry, we could not find a 6-digit pincode in that message. Please send the complete address again, including the pincode.',
+      'We could not find a 6 digit pincode in that one. Please send the full address again with the pincode ' +
+      'included.',
   },
   ndr_address_saved: {
     type: 'text',
-    body: 'Thank you. We have shared the updated address with our courier partner, and they will try the delivery again.',
+    body: 'Thank you. Our courier partner has the new address and will try the delivery again.',
   },
   ndr_pincode_changed: {
     type: 'text',
     body:
-      'Thank you. The new address is in a different pincode, which the courier cannot change for a parcel that is already on its way. Our team will call you shortly to sort this out.',
+      'Thank you. That address is in a different pincode, which the courier cannot switch to once a parcel ' +
+      'is already on the road. Our team will call you shortly and work it out.',
   },
   ndr_cancel_ack: {
     type: 'text',
-    body: 'Noted. The parcel will come back to us. Thank you for letting us know.',
+    body: 'Noted. The parcel will come back to us. Thank you for telling us rather than leaving it.',
   },
-  rto_other_ask: { type: 'text', body: 'Please tell us in a short message what went wrong.' },
-  rto_thanks: { type: 'text', body: 'Thank you for telling us. We have noted it.' },
+  rto_other_ask: { type: 'text', body: 'Tell us in a line or two what went wrong. We read every one of these.' },
+  rto_thanks: { type: 'text', body: 'Thank you for telling us. It is noted and it will not be wasted.' },
   optout_done: {
     type: 'text',
-    body: 'You will not get order updates from us on WhatsApp anymore. Reply START if you would like them again.',
+    body: 'You will not get order updates from us here anymore. Reply START whenever you want them back.',
   },
-  optin_done: { type: 'text', body: 'Thank you. You will get order updates from us here again.' },
+  optin_done: { type: 'text', body: 'Thank you. Your order updates will come here again.' },
   pay_link_expired_page: {
     type: 'html',
     body: 'This payment link has expired. Please reply on WhatsApp and we will help you.',

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeOrder, hasTag, riskTag, hasRtoTag } from './order.mjs';
+import { itemLine, heroImageUrl, normalizeOrder, hasTag, riskTag, hasRtoTag } from './order.mjs';
 import { classify } from './classify.mjs';
 import { computeAmounts } from './amounts.mjs';
 import { flowAEligible, excludeFromAll } from './eligibility.mjs';
@@ -101,8 +101,12 @@ describe('eligibility', () => {
     expect(excludeFromAll(normalizeOrder(codOrder({ test: true }))).excluded).toBe(true);
     expect(excludeFromAll(normalizeOrder(codOrder({ test: true })), { orderAllowlist: ['12345'] }).excluded).toBe(false);
   });
-  it('rejects non-COD and pre-startAt', () => {
-    expect(flowAEligible(normalizeOrder(codOrder()), 'PARTIAL', { startAt }).reason).toBe('class-PARTIAL');
+  it('rejects only UNKNOWN classes and pre-startAt', () => {
+    // PREPAID and PARTIAL qualify now: they get a plain confirmation, not the
+    // COD chase. Only an order we could not classify is left alone.
+    expect(flowAEligible(normalizeOrder(codOrder()), 'PARTIAL', { startAt }).ok).toBe(true);
+    expect(flowAEligible(normalizeOrder(codOrder()), 'PREPAID', { startAt }).ok).toBe(true);
+    expect(flowAEligible(normalizeOrder(codOrder()), 'UNKNOWN', { startAt }).reason).toBe('class-UNKNOWN');
     expect(flowAEligible(normalizeOrder(codOrder()), 'COD', { startAt: '2026-12-01T00:00:00Z' }).reason).toBe('before-startAt');
     expect(flowAEligible(normalizeOrder(codOrder()), 'COD', {}).reason).toBe('before-startAt'); // no startAt => nothing qualifies
   });
@@ -126,5 +130,57 @@ describe('hasRtoTag vs the COD King risk tags', () => {
   it('is false for no tags', () => {
     expect(hasRtoTag([])).toBe(false);
     expect(hasRtoTag(undefined)).toBe(false);
+  });
+});
+
+describe('what the customer sees of their own order', () => {
+  const li = (over = {}) => ({
+    id: 'li',
+    title: 'Sahaj',
+    quantity: 1,
+    variantTitle: 'S / Lavender',
+    variant: { selectedOptions: [{ name: 'Size', value: 'S' }, { name: 'Color', value: 'Lavender' }] },
+    image: { url: 'https://cdn.shopify.com/f/sahaj.jpg?v=9', width: 473, height: 593 },
+    originalUnitPriceSet: { shopMoney: { amount: '1149.00' } },
+    ...over,
+  });
+  const order = (nodes) => normalizeOrder({ id: 'gid://shopify/Order/1', lineItems: { nodes } });
+
+  it('reads the size from the Size option, never from variantTitle alone', () => {
+    // "S / Lavender" as a size would read as a colour, so selectedOptions wins.
+    expect(itemLine(order([li()]))).toBe('Sahaj, size S');
+  });
+  it('falls back to variantTitle only for a single-option variant', () => {
+    expect(itemLine(order([li({ variant: null, variantTitle: 'XS' })]))).toBe('Sahaj, size XS');
+    expect(itemLine(order([li({ variant: null, variantTitle: 'Default Title' })]))).toBe('Sahaj');
+    expect(itemLine(order([li({ variant: null, variantTitle: 'S / Lavender' })]))).toBe('Sahaj');
+  });
+  it('counts the rest instead of listing them, and stays on one line', () => {
+    const line = itemLine(order([li(), li({ title: 'Bel', quantity: 2 })]));
+    expect(line).toBe('Sahaj, size S and 2 more items');
+    expect(line).not.toMatch(/[\n\t]/);
+  });
+  it('says pieces when more than one of the same item was ordered', () => {
+    expect(itemLine(order([li({ quantity: 3 })]))).toBe('Sahaj, size S, 3 pieces');
+  });
+  it('has nothing to say about an empty order', () => {
+    expect(itemLine(order([]))).toBe(null);
+    expect(heroImageUrl(order([]))).toBe(null);
+  });
+  it('never asks the CDN to upscale, because it silently returns the original', () => {
+    // 473x593 source: asking for 800 would come back 473x593 portrait, so the
+    // square edge is clamped to the shorter side.
+    const u = new URL(heroImageUrl(order([li()])));
+    expect(u.searchParams.get('width')).toBe('473');
+    expect(u.searchParams.get('height')).toBe('473');
+    expect(u.searchParams.get('crop')).toBe('center');
+  });
+  it('caps the square at the requested maximum for a large source', () => {
+    const u = new URL(heroImageUrl(order([li({ image: { url: 'https://cdn/x.jpg', width: 1600, height: 2000 } })])));
+    expect(u.searchParams.get('width')).toBe('800');
+  });
+  it('skips a line item with no photo and takes the next one', () => {
+    const u = heroImageUrl(order([li({ image: null }), li({ title: 'Bel' })]));
+    expect(u).toMatch(/sahaj\.jpg/);
   });
 });

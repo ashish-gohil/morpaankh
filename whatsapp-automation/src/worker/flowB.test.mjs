@@ -72,7 +72,7 @@ describe('Flow B', () => {
     expect(cr.args.status).toBe('ACTIVE');
     expect(calls(clients.shopify, 'appendProductReview')).toHaveLength(1);
     expect(calls(clients.shopify, 'createDiscountCode')).toHaveLength(1);
-    expect(clients.whatsapp.sent.some((s) => /Your code:/.test(s.body || ''))).toBe(true);
+    expect(clients.whatsapp.sent.some((s) => /off your next order/.test(s.body || ''))).toBe(true);
     expect(tagsAdded(clients.shopify)).toContain('wa-reviewed');
   });
 

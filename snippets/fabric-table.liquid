@@ -1,0 +1,18 @@
+{% doc %}
+  Standalone fabric table reading from product.metafields.tapi.*
+  @param {object} product - The product to render the table for
+  @example
+  {% render 'fabric-table', product: product %}
+{% enddoc %}
+{%- assign m = product.metafields.tapi -%}
+<table class="tapi-fabric-table">
+  <tbody>
+    {%- if m.gsm -%}<tr><td>GSM</td><td>{{ m.gsm }} gsm</td></tr>{%- endif -%}
+    {%- if m.blend -%}<tr><td>Blend</td><td>{{ m.blend }}</td></tr>{%- endif -%}
+    {%- if m.weave -%}<tr><td>Weave</td><td>{{ m.weave }}</td></tr>{%- endif -%}
+    {%- if m.fit_type -%}<tr><td>Fit type</td><td>{{ m.fit_type }}</td></tr>{%- endif -%}
+    {%- if m.opacity_note -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
+    {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
+    {%- if m.wash_care -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
+  </tbody>
+</table>

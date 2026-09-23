@@ -44,7 +44,13 @@ async function onShopify(m) {
     if (hasTag(tags, 'COD-Cancelled')) return flowA.onStop(orderId, deps());
     return;
   }
-  if (topic === 'fulfillments/create') return flowA.onFulfillmentCreate(orderId, deps());
+  // Both topics, because Shopify often creates a fulfillment first and attaches
+  // the tracking number in a later update. Handling only create meant those
+  // orders never got their AWB mapped and never got a dispatch message. The
+  // handler is idempotent (setAwbMap is a put, the rest is runOnce-guarded).
+  if (topic === 'fulfillments/create' || topic === 'fulfillments/update') {
+    return flowA.onFulfillmentCreate(orderId, deps());
+  }
   if (topic === 'fulfillment_events/create') {
     if (payload?.status === 'delivered') return flowB.onDelivered(orderId, payload.happened_at || payload.created_at || null, deps());
     if (payload?.status === 'attempted_delivery' || payload?.status === 'failure') return flowC.onNdr(orderId, deps());

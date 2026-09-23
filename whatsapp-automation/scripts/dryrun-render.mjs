@@ -6,7 +6,7 @@
  *
  *   node scripts/dryrun-render.mjs
  */
-import { TEMPLATES, renderTemplate, placeholderOrder } from '../messages/templates.mjs';
+import { TEMPLATES, LEGACY, renderTemplateDef, placeholderOrder } from '../messages/templates.mjs';
 import { SESSION, renderSession } from '../messages/session.mjs';
 
 function sampleValue(name) {
@@ -32,12 +32,19 @@ function sampleValue(name) {
   return map[name] || `[${name}]`;
 }
 
-const ctx = { orderId: '1234567890', token: 'TESTTOKEN16CHARS', flowToken: 'ft.exp.sig', flowActionData: { first_name: 'Aarav' }, url: 'https://dry.run/pay' };
+const ctx = {
+  orderId: '1234567890',
+  token: 'TESTTOKEN16CHARS',
+  flowToken: 'ft.exp.sig',
+  flowActionData: { first_name: 'Aarav' },
+  url: 'https://dry.run/pay',
+  imageUrl: 'https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center',
+};
 
 console.log('=== TEMPLATES ===');
-for (const [key, t] of Object.entries(TEMPLATES)) {
-  const r = renderTemplate(key, t.examples, ctx);
-  console.log(`\n[${key}] ${r.name} (${t.category})`);
+for (const [key, t] of [...Object.entries(TEMPLATES), ...Object.entries(LEGACY)]) {
+  const r = renderTemplateDef(t, t.examples, ctx);
+  console.log(`\n[${key}] ${r.name} (${t.category})${t.header ? ' [image header]' : ''}`);
   console.log(t.body.replace(/\{\{(\w+)\}\}/g, (_, n) => t.examples[n]));
   if (t.footer) console.log(`(footer) ${t.footer}`);
   for (const b of t.buttons || []) console.log(`  [${b.kind}] ${b.text}`);

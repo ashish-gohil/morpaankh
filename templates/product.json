@@ -1,0 +1,44 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-product-tapi",
+      "settings": {
+        "enable_sticky_info": true,
+        "color_scheme": "background-1",
+        "padding_top": 0,
+        "padding_bottom": 0
+      }
+    },
+    "editorial_break": {
+      "type": "tapi-editorial-break",
+      "settings": {
+        "quote": "If it isn't in the fabric, it isn't worth the price.",
+        "body": "Every kurta set lists its GSM — the weight of the fabric per square metre.",
+        "cta_text": "Read our fabric guide",
+        "link": "/pages/fabric-guide"
+      }
+    },
+    "related_products": {
+      "type": "related-products",
+      "settings": {
+        "heading": "You may also like",
+        "products_to_show": 4,
+        "columns_desktop": 4,
+        "image_ratio": "portrait",
+        "color_scheme": "background-1",
+        "padding_top": 36,
+        "padding_bottom": 36
+      }
+    }
+  },
+  "order": ["main", "editorial_break", "related_products"]
+}

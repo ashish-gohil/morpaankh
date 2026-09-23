@@ -48,7 +48,13 @@ const ORDER_FIELDS = `
   shippingAddress { zip city }
   shippingLines(first: 10) { nodes { title originalPriceSet { shopMoney { amount } } } }
   fulfillments(first: 10) { status displayStatus trackingInfo { number company } }
-  lineItems(first: 50) { nodes { id title quantity product { id } originalUnitPriceSet { shopMoney { amount } } } }
+  lineItems(first: 50) { nodes {
+    id title quantity variantTitle
+    product { id }
+    variant { selectedOptions { name value } }
+    image { url width height }
+    originalUnitPriceSet { shopMoney { amount } }
+  } }
 `;
 
 async function getOrder(numericOrGid) {

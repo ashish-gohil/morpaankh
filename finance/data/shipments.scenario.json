@@ -1,0 +1,242 @@
+[
+  {
+    "awb": "59152210001072",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210001024",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210001013",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210001035",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210001046",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210001002",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000980",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000991",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000965",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000954",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000943",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000976",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000873",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000884",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000895",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000906",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000910",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000921",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000932",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000825",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000836",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000862",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000840",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000851",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000792",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000766",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000770",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000781",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  },
+  {
+    "awb": "59152210000814",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "IN_TRANSIT"
+  },
+  {
+    "awb": "59152210000744",
+    "forwardFreight": 80,
+    "rtoFreight": null,
+    "codFee": null,
+    "chargedWeight": null,
+    "status": "DELIVERED"
+  }
+]

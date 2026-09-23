@@ -32,7 +32,19 @@ function codOrder(overrides = {}) {
     customer: { firstName: 'Aarav' },
     shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: '50.00' } } }] },
     fulfillments: fulfillments || [],
-    lineItems: { nodes: [{ id: 'li1', title: 'Bandhan', quantity: 1, originalUnitPriceSet: { shopMoney: { amount: '1449.00' } } }] },
+    lineItems: {
+      nodes: [
+        {
+          id: 'li1',
+          title: 'Bandhan',
+          quantity: 1,
+          variantTitle: 'M / Indigo',
+          variant: { selectedOptions: [{ name: 'Size', value: 'M' }, { name: 'Color', value: 'Indigo' }] },
+          image: { url: 'https://cdn.shopify.com/s/files/1/x/bandhan.jpg?v=1', width: 960, height: 1280 },
+          originalUnitPriceSet: { shopMoney: { amount: '1449.00' } },
+        },
+      ],
+    },
     ...rest,
   };
 }
@@ -63,7 +75,7 @@ describe('Flow A happy path', () => {
     expect(_peekTimers().map((t) => t.name)).toContain('A-12345-cod');
 
     await A.onCodTimer('12345', deps);
-    expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v2');
     expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
     const timerNames = _peekTimers().map((t) => t.name);
     expect(timerNames).toEqual(expect.arrayContaining(['A-12345-reminder', 'A-12345-fallback', 'A-12345-highrisk']));
@@ -79,7 +91,7 @@ describe('Flow A happy path', () => {
     expect(tagsAdded(clients.shopify)).toContain('wa-prepaid-converted');
     expect(clients.shopify.calls.some((c) => c.op === 'metafieldsSet')).toBe(true);
     // window is open (they just confirmed) -> session payment_received
-    expect(clients.whatsapp.sent.some((s) => s.type === 'text' && /received your payment/.test(s.body))).toBe(true);
+    expect(clients.whatsapp.sent.some((s) => s.type === 'text' && /has come through/.test(s.body))).toBe(true);
   });
 
   it('creates the payment link only once across duplicate taps', async () => {
@@ -99,7 +111,7 @@ describe('Flow A cancel', () => {
     await A.onCancelYes('12345', deps);
     expect(clients.shopify.calls.some((c) => c.op === 'orderCancel')).toBe(true);
     expect(tagsAdded(clients.shopify)).toContain('wa-cancelled');
-    expect(clients.whatsapp.sent.some((s) => /has been cancelled/.test(s.body || ''))).toBe(true);
+    expect(clients.whatsapp.sent.some((s) => /is cancelled/.test(s.body || ''))).toBe(true);
   });
 
   it('dispatched order: no cancel, tag wa-cancel-requested + too-late message', async () => {
@@ -108,7 +120,7 @@ describe('Flow A cancel', () => {
     await A.onCancelYes('12345', deps);
     expect(clients.shopify.calls.some((c) => c.op === 'orderCancel')).toBe(false);
     expect(tagsAdded(clients.shopify)).toContain('wa-cancel-requested');
-    expect(clients.whatsapp.sent.some((s) => /already been dispatched/.test(s.body || ''))).toBe(true);
+    expect(clients.whatsapp.sent.some((s) => /already left for delivery/.test(s.body || ''))).toBe(true);
   });
 });
 
@@ -120,7 +132,7 @@ describe('Flow A payment edge cases', () => {
     expect(clients.razorpay.refunds).toHaveLength(1);
     expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(false);
     // window closed -> refund goes as the prepaid_refund template
-    expect(clients.whatsapp.sent.some((s) => s.name === 'prepaid_refund_v1' || /refund/.test(s.body || ''))).toBe(true);
+    expect(clients.whatsapp.sent.some((s) => s.name === 'prepaid_refund_v2' || /on its way back/.test(s.body || ''))).toBe(true);
   });
 
   it('editable courier (manifested/in transit) -> edits to prepaid then converts', async () => {
@@ -133,10 +145,18 @@ describe('Flow A payment edge cases', () => {
 });
 
 describe('Flow A exclusions + guards', () => {
-  it('PARTIAL order never enters Flow A (no cod_confirm)', async () => {
-    const { clients, deps } = setup(codOrder({ displayFinancialStatus: 'PARTIALLY_PAID' }));
-    await A.onCodTimer('12345', deps);
-    expect(clients.whatsapp.sent).toHaveLength(0);
+  it('PARTIAL and PREPAID get a plain confirmation, never the COD chase', async () => {
+    for (const status of ['PARTIALLY_PAID', 'PAID']) {
+      _resetMemory();
+      _resetTimers();
+      const { clients, deps } = setup(codOrder({ displayFinancialStatus: status }));
+      await A.onCodTimer('12345', deps);
+      expect(names(clients.whatsapp), status).toContain('order_confirmed_v1');
+      expect(names(clients.whatsapp), status).not.toContain('cod_confirm_v2');
+      expect(tagsAdded(clients.shopify), status).toContain('wa-order-confirmed');
+      // nothing to chase: no reminder, no marketing fallback, no high-risk hold
+      expect(_peekTimers(), status).toHaveLength(0);
+    }
   });
 
   it('no verified phone -> tag wa-no-verified-phone, no message', async () => {
@@ -158,7 +178,7 @@ describe('Flow A exclusions + guards', () => {
     await A.onCodTimer('12345', deps); // step = confirm_sent
     await A.onFallback('12345', deps);
     await A.onFallback('12345', deps);
-    const offers = clients.whatsapp.sent.filter((s) => s.type === 'template' && s.name === 'prepaid_offer_v1');
+    const offers = clients.whatsapp.sent.filter((s) => s.type === 'template' && s.name === 'prepaid_offer_v2');
     expect(offers).toHaveLength(1);
   });
 });
@@ -179,7 +199,7 @@ describe('Flow A staged rollout (SEND_ALLOWLIST)', () => {
     // allowlist removed: the order must NOT be stuck as already-confirmed
     clients.whatsapp.sendTemplate = realSend;
     await A.onCodTimer('12345', deps);
-    expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v2');
     expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
   });
 });
@@ -201,5 +221,118 @@ describe('Flow A prepaid conversion tagging', () => {
     // without collecting cash
     expect(tagsAdded(clients.shopify)).not.toContain('PREPAID-CONVERTED');
     expect(tagsAdded(clients.shopify)).not.toContain('wa-prepaid-converted');
+  });
+});
+
+describe('Flow A dispatch message', () => {
+  const shipped = (order = codOrder()) =>
+    setup({ ...order, fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB9', company: 'Delhivery' }] }] });
+
+  it('tells a COD customer exactly what to keep ready, with the tracking number', async () => {
+    const { clients, deps } = shipped();
+    await A.onFulfillmentCreate('12345', deps);
+    const msg = clients.whatsapp.sent.find((s) => s.name === 'order_shipped_v1');
+    expect(msg).toBeDefined();
+    const params = msg.components.find((c) => c.type === 'body').parameters.map((p) => p.text);
+    expect(params).toContain('please keep ₹1,499 ready');
+    expect(params).toContain('Bandhan, size M');
+    expect(params).toContain('AWB9');
+    // the Track button carries the waybill as the URL suffix
+    expect(msg.components.find((c) => c.sub_type === 'url').parameters[0].text).toBe('AWB9');
+  });
+
+  it('tells a prepaid customer there is nothing to pay', async () => {
+    const { clients, deps } = shipped(
+      codOrder({ displayFinancialStatus: 'PAID', netPaymentSet: { shopMoney: { amount: '1499.00' } } }),
+    );
+    await A.onFulfillmentCreate('12345', deps);
+    const msg = clients.whatsapp.sent.find((s) => s.name === 'order_shipped_v1');
+    const params = msg.components.find((c) => c.type === 'body').parameters.map((p) => p.text);
+    expect(params).toContain('nothing to pay, this order is prepaid');
+  });
+
+  it('sends it once, however many times the fulfillment webhook arrives', async () => {
+    const { clients, deps } = shipped();
+    await A.onFulfillmentCreate('12345', deps);
+    await A.onFulfillmentCreate('12345', deps);
+    expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v1')).toHaveLength(1);
+  });
+});
+
+describe('Flow A quotes only what it can actually charge', () => {
+  it('falls back to the approved template when Meta rejects the new one', async () => {
+    const { clients, deps } = setup();
+    const real = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (a.name === 'cod_confirm_v2') {
+        const e = new Error('template does not exist');
+        e.waCode = 132001; // still in review
+        throw e;
+      }
+      return real(a);
+    };
+    await A.onCodTimer('12345', deps);
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
+    expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
+  });
+
+  it('quotes the open payment link, not a total that changed after it was made', async () => {
+    const order = codOrder();
+    const { clients, deps } = setup(order);
+    await A.onConfirm('12345', deps); // creates the link at 1499 - 100 = 1399
+    expect(clients.razorpay.links[0].args.amountPaise).toBe(139900);
+
+    // the order is edited afterwards; the link still charges the old amount
+    order.currentTotalPriceSet = { shopMoney: { amount: '1999.00' } };
+    await A.onPayOnline('12345', deps);
+
+    const last = clients.whatsapp.sent.filter((s) => s.type === 'cta_url').pop();
+    expect(last.buttonText).toBe('Pay ₹1,399');
+    expect(last.body).toContain('₹1,399');
+    expect(last.body).not.toContain('₹1,899');
+  });
+
+  it('keeps the prepaid nudge alive when a Pay online tap never becomes a payment', async () => {
+    const { clients, deps } = setup();
+    await A.onCodTimer('12345', deps);
+    await A.onPayOnline('12345', deps);
+    // asking for a link is not paying, so the 6h fallback must still be armed
+    expect(_peekTimers().map((t) => t.name)).toContain('A-12345-fallback');
+    expect(_peekTimers().map((t) => t.name)).not.toContain('A-12345-reminder');
+  });
+
+  it('refuses to quote a prepaid price when the COD fee does not match', async () => {
+    const { clients, deps } = setup(
+      codOrder({ shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: '99.00' } } }] } }),
+    );
+    await A.onCodTimer('12345', deps);
+    // the mismatch means no link can be created, so the price-free version goes
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
+    expect(names(clients.whatsapp)).not.toContain('cod_confirm_v2');
+  });
+});
+
+describe('Flow A never refunds on a read failure', () => {
+  it('throws so SQS retries instead of sending the money back', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.getOrder = async () => null;
+    await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps)).rejects.toThrow(/could not be read/);
+    expect(clients.razorpay.refunds).toHaveLength(0);
+  });
+});
+
+describe('Flow A tracking arrives late', () => {
+  it('handles a repeat fulfillment webhook without sending twice', async () => {
+    // Shopify commonly creates the fulfillment first and adds tracking after,
+    // so the same order legitimately arrives here more than once.
+    const order = codOrder();
+    const { clients, deps } = setup(order);
+    await A.onFulfillmentCreate('12345', deps); // no AWB yet: nothing to say
+    expect(clients.whatsapp.sent).toHaveLength(0);
+
+    order.fulfillments = [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB9', company: 'Delhivery' }] }];
+    await A.onFulfillmentCreate('12345', deps);
+    await A.onFulfillmentCreate('12345', deps);
+    expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v1')).toHaveLength(1);
   });
 });

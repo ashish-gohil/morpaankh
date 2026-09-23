@@ -5,7 +5,7 @@
  */
 import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
-import { renderTemplate } from '../../messages/templates.mjs';
+import { tpl } from '../worker/send.mjs';
 import { summarizeDigest } from '../domain/digest.mjs';
 import { istParts, fromISTWall, addDays, formatISTDate } from '../lib/time.mjs';
 import { log } from '../log.mjs';
@@ -22,9 +22,9 @@ export const handler = async () => {
   }));
   const { line } = summarizeDigest(norm);
 
+  const deps = { clients: realClients };
   for (const phone of config.ownerAlertPhones) {
-    const t = renderTemplate('ops_digest', { date: formatISTDate(yStart), summary: line }, {});
-    await realClients.whatsapp.sendTemplate({ to: phone, name: t.name, language: t.language, components: t.components });
+    await tpl(deps, phone, 'ops_digest', { date: formatISTDate(yStart), summary: line }, {});
   }
   log.info('digest sent', { line });
   return { ok: true, line };

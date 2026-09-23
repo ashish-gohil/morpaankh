@@ -1,0 +1,674 @@
+{%- liquid
+  assign slide_blocks = section.blocks | where: 'type', 'slide'
+  assign stat_blocks  = section.blocks | where: 'type', 'stat'
+  assign slide_count  = slide_blocks.size
+-%}
+{{ 'hero-fix.css' | asset_url | stylesheet_tag }}
+{{ 'home-stitch.css' | asset_url | stylesheet_tag }}
+<section class="tapi-hero">
+  <div
+    class="tapi-hero__carousel"
+    data-tapi-carousel
+    data-interval="{{ section.settings.interval_ms | default: 5000 }}"
+    data-autoplay="{% if section.settings.autoplay %}1{% else %}0{% endif %}"
+  >
+    <div class="tapi-hero__slides" aria-roledescription="carousel">
+      {%- if slide_count > 0 -%}
+        {%- for b in slide_blocks -%}
+          {%- assign tint = b.settings.tint | default: '#B7472A' -%}
+          {%- assign mono = b.settings.mono | default: 'Saanjh' -%}
+          {%- if forloop.first -%}{%- assign loading_attr = 'eager' -%}{%- else -%}{%- assign loading_attr = 'lazy' -%}{%- endif -%}
+          <figure
+            class="tapi-hero__slide{% if forloop.first %} is-active{% endif %}"
+            role="group"
+            aria-roledescription="slide"
+            aria-label="{{ forloop.index }} of {{ slide_count }}"
+            {{ b.shopify_attributes }}
+          >
+            <div class="tapi-hero__media">
+              {%- if b.settings.image != blank -%}
+                {{ b.settings.image | image_url: width: 2000 | image_tag:
+                   loading: loading_attr,
+                   widths: '600, 900, 1200, 1600, 2000',
+                   sizes: '100vw',
+                   alt: b.settings.image.alt | default: b.settings.caption | default: shop.name }}
+              {%- else -%}
+                <div class="tapi-hero__placeholder" style="--p-color: {{ tint }};">
+                  <span class="tapi-hero__placeholder-mono">{{ mono }}</span>
+                </div>
+              {%- endif -%}
+            </div>
+          </figure>
+        {%- endfor -%}
+      {%- else -%}
+        <figure class="tapi-hero__slide is-active">
+          <div class="tapi-hero__media">
+            <div class="tapi-hero__placeholder" style="--p-color: #B7472A;">
+              <span class="tapi-hero__placeholder-mono">Saanjh</span>
+            </div>
+          </div>
+        </figure>
+      {%- endif -%}
+    </div>
+
+    <div class="tapi-hero__scrim" aria-hidden="true"></div>
+
+    {%- if slide_count > 1 -%}
+      <div class="tapi-hero__nav" role="tablist" aria-label="Slide navigation">
+        {%- for b in slide_blocks -%}
+          <button
+            type="button"
+            class="tapi-hero__dot{% if forloop.first %} is-active{% endif %}"
+            data-idx="{{ forloop.index0 }}"
+            role="tab"
+            aria-label="Go to slide {{ forloop.index }}"
+            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+          ><span></span></button>
+        {%- endfor -%}
+      </div>
+      <div class="tapi-hero__progress" aria-hidden="true"><div class="tapi-hero__progress-fill"></div></div>
+    {%- endif -%}
+  </div>
+
+  {%- comment -%} Copy: overlays the image on desktop, stacks below it on mobile {%- endcomment -%}
+  <div class="tapi-hero__overlay">
+    <div class="tapi-hero__copy page-width" data-tapi-stagger="120">
+      <span class="tapi-eyebrow tapi-eyebrow--line tapi-hero__eyebrow" data-tapi-reveal>{{ section.settings.eyebrow }}</span>
+      <h1 class="tapi-hero__title" data-tapi-reveal>
+        {{ section.settings.line_1 }}<br>
+        <em class="tapi-hero__title-accent">{{ section.settings.line_2 }}</em>
+      </h1>
+      <p class="tapi-hero__lede" data-tapi-reveal>{{ section.settings.lede }}</p>
+      <div class="tapi-hero__cta-row" data-tapi-reveal>
+        {%- if section.settings.cta_primary != blank -%}
+          <span data-tapi-magnetic="0.12"><a href="{{ section.settings.cta_primary_link }}" class="button button--primary tapi-hero__cta-primary">{{ section.settings.cta_primary }} →</a></span>
+        {%- endif -%}
+        {%- if section.settings.cta_secondary != blank -%}
+          <a href="{{ section.settings.cta_secondary_link }}" class="tapi-hero__cta-secondary">{{ section.settings.cta_secondary }}</a>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
+  {%- if stat_blocks.size > 0 -%}
+    <div class="tapi-hero__trust page-width">
+      {%- for b in stat_blocks -%}
+        <div class="tapi-hero__trust-item" {{ b.shopify_attributes }}>
+          <span class="tapi-hero__stat-key">{{ b.settings.label }}</span>
+          <span class="tapi-hero__stat-val">{{ b.settings.value }}</span>
+        </div>
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+</section>
+
+{% stylesheet %}
+  /* Full-bleed hero: flush under header, own bottom spacing for trust strip */
+  .tapi-hero {
+    position: relative;
+    background: var(--mor-cream);
+    padding-top: 0 !important;
+    padding-bottom: clamp(3.2rem, 5vw, 6.4rem) !important;
+    --hero-h: clamp(44vh, 50vh, 58vh); /* image height on mobile — short so products are a quick scroll away */
+  }
+  @media (min-width: 990px) { .tapi-hero { --hero-h: 78vh; } }
+
+  /* Carousel */
+  .tapi-hero__carousel {
+    position: relative;
+    width: 100%;
+    height: var(--hero-h);
+    min-height: 360px;
+    overflow: hidden;
+    background: var(--mor-cream-2, #efe9de);
+  }
+  @media (min-width: 990px) {
+    .tapi-hero__carousel { min-height: 600px; max-height: 860px; }
+  }
+  .tapi-hero__slides {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .tapi-hero__slide {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1100ms cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 1100ms;
+    will-change: opacity;
+  }
+  .tapi-hero__slide.is-active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 1100ms cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
+    z-index: 1;
+  }
+  .tapi-hero__media {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .tapi-hero__media img,
+  .tapi-hero__placeholder {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scale(1.02);
+    transition: transform 9000ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  .tapi-hero__slide.is-active .tapi-hero__media img,
+  .tapi-hero__slide.is-active .tapi-hero__placeholder {
+    transform: scale(1.08);
+  }
+  .tapi-hero__placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,0.18), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 8px),
+      linear-gradient(135deg, var(--p-color, var(--tapi-terracotta)), color-mix(in srgb, var(--p-color, var(--tapi-terracotta)) 65%, #1f1c1a));
+  }
+  .tapi-hero__placeholder-mono {
+    font-family: var(--font-heading-family);
+    font-style: italic;
+    font-size: clamp(6rem, 14vw, 14rem);
+    color: var(--tapi-cream, #f8f3eb);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    opacity: 0.92;
+  }
+
+  /* Caption — soft chip bottom-right (out of the way of overlay copy) */
+  .tapi-hero__caption {
+    position: absolute;
+    right: var(--mor-gutter, 24px);
+    bottom: 5.6rem;
+    z-index: 3;
+    padding: 0.6rem 1.2rem;
+    background: rgba(31, 28, 26, 0.5);
+    color: var(--mor-cream, #F8F4ED);
+    font-size: var(--mor-text-xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-radius: var(--mor-radius-sm);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 800ms ease 300ms, transform 800ms var(--mor-ease) 300ms;
+  }
+  .tapi-hero__slide.is-active .tapi-hero__caption {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Scrim — only on desktop, where copy overlays the image */
+  .tapi-hero__scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    display: none;
+  }
+
+  /* ===== Copy: MOBILE-FIRST — stacks below the image, dark text on cream ===== */
+  .tapi-hero__overlay {
+    position: static;
+    background: var(--mor-cream);
+    padding: clamp(2.8rem, 7vw, 4rem) 0 0;
+  }
+  .tapi-hero__copy {
+    width: 100%;
+    max-width: var(--mor-max, 1440px);
+    margin-inline: auto;
+    padding-inline: var(--mor-gutter, 16px);
+    text-align: center;
+  }
+  .tapi-hero__eyebrow { color: var(--mor-text-muted); }
+  .tapi-hero__title {
+    font-family: var(--font-heading-family);
+    font-size: var(--mor-h1);
+    line-height: var(--mor-leading-tight);
+    letter-spacing: -0.018em;
+    font-weight: 500;
+    color: var(--mor-charcoal);
+    margin: 1.4rem 0 1.8rem;
+  }
+  .tapi-hero__title-accent { color: var(--mor-accent); font-weight: 500; font-style: italic; }
+  .tapi-hero__lede {
+    font-size: var(--mor-text-lg);
+    line-height: var(--mor-leading-body);
+    color: var(--mor-text-muted);
+    margin: 0 auto 3rem;
+    max-width: 48rem;
+  }
+  .tapi-hero__cta-row {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+  }
+  .tapi-hero__cta-primary { box-shadow: var(--mor-shadow-md); }
+  .tapi-hero__cta-secondary {
+    display: inline-flex;
+    align-items: center;
+    height: 4.8rem;
+    padding: 0 2.2rem;
+    font-family: var(--font-body-family);
+    font-size: var(--mor-text-sm);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mor-primary);
+    background: transparent;
+    border: 1px solid var(--mor-primary);
+    border-radius: var(--mor-radius-sm);
+    text-decoration: none;
+    transition: background-color var(--mor-dur-base) var(--mor-ease),
+                color var(--mor-dur-base) var(--mor-ease),
+                border-color var(--mor-dur-base) var(--mor-ease);
+  }
+  .tapi-hero__cta-secondary:hover {
+    background: var(--mor-primary);
+    color: var(--mor-cream);
+    border-color: var(--mor-primary);
+  }
+
+  /* ===== Copy: DESKTOP (>=990) — overlays the image, cream text ===== */
+  /* Kill the gap above the hero: the mobile catalog strip's section wrapper
+     stays in flow on desktop (only its <nav> is hidden), and the hero's
+     .section wrapper can pick up section margin. Collapse both. */
+  @media (min-width: 990px) {
+    .shopify-section--catalog-strip { display: none !important; }
+    .shopify-section.section:has(> .tapi-hero) { margin-top: 0 !important; }
+  }
+
+  @media (min-width: 990px) {
+    /* Stronger left-weighted scrim so cream copy + gold accent stay readable
+       on ANY photograph, not just this sage placeholder. */
+    .tapi-hero__scrim {
+      display: block;
+      /* Dark band extended to ~50% so the whole capped text column (title +
+         lede sit within the left half) clears WCAG AA on ANY photo, while the
+         right side of the image stays clear. */
+      background:
+        linear-gradient(90deg, rgba(18,16,14,0.82) 0%, rgba(18,16,14,0.62) 30%, rgba(18,16,14,0.38) 50%, rgba(18,16,14,0.10) 72%, rgba(18,16,14,0) 88%),
+        linear-gradient(0deg, rgba(18,16,14,0.42) 0%, rgba(18,16,14,0) 40%);
+    }
+    .tapi-hero__overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: var(--hero-h, 78vh);
+      min-height: 600px;
+      max-height: 860px;
+      display: flex;
+      align-items: center;
+      z-index: 3;
+      pointer-events: none;
+      background: transparent;
+      padding: 0;
+    }
+    /* Defined left inset + capped text column for a clean editorial block */
+    .tapi-hero__copy {
+      text-align: left;
+      pointer-events: auto;
+      padding-inline: clamp(48px, 6vw, 104px);
+    }
+    .tapi-hero__copy > * { max-width: 54rem; }
+    .tapi-hero__eyebrow { color: rgba(248, 244, 237, 0.88); }
+    .tapi-hero__title {
+      color: var(--mor-cream);
+      text-shadow: 0 2px 28px rgba(18,16,14,0.55), 0 1px 3px rgba(18,16,14,0.4);
+    }
+    /* Brighter gold + its own shadow so the accent reads on ANY slide,
+       including the light gold "Mehfil" image (worst-case contrast). */
+    .tapi-hero__title-accent {
+      color: #E2BE78;
+      text-shadow: 0 2px 28px rgba(18,16,14,0.6), 0 1px 3px rgba(18,16,14,0.45);
+    }
+    .tapi-hero__lede {
+      color: rgba(248, 244, 237, 0.92);
+      margin: 0 0 3rem;
+      max-width: 46rem;
+    }
+    .tapi-hero__cta-row { justify-content: flex-start; }
+    .tapi-hero__cta-secondary { color: var(--mor-cream); border-color: rgba(248, 244, 237, 0.6); }
+    .tapi-hero__cta-secondary:hover { background: var(--mor-cream); color: var(--mor-charcoal); border-color: var(--mor-cream); }
+  }
+
+  /* ===== Trust strip ===== */
+  .tapi-hero__trust {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2.4rem 4rem;
+    align-items: baseline;
+    padding-top: 2.4rem;
+    margin-top: 2.8rem;
+    border-top: 1px solid var(--mor-hairline);
+  }
+  /* ≥750: clean equal-width columns, each stacking label over value, with
+     hairline dividers between — centred under a capped width. */
+  @media (min-width: 750px) {
+    .tapi-hero__trust {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      justify-content: center;
+      align-items: stretch;
+      gap: 0;
+      max-width: 68rem;
+      margin-inline: auto;
+    }
+    .tapi-hero__trust-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      text-align: center;
+      padding: 0.2rem 2.4rem;
+    }
+    .tapi-hero__trust-item + .tapi-hero__trust-item { border-left: 1px solid var(--mor-hairline); }
+    .tapi-hero__trust .tapi-hero__stat-key { text-align: center; }
+  }
+  .tapi-hero__trust-item { display: inline-flex; align-items: baseline; gap: 0.8rem; }
+  .tapi-hero__stat-key {
+    font-size: var(--mor-text-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--mor-text-subtle);
+  }
+  .tapi-hero__stat-val {
+    font-family: var(--font-heading-family);
+    font-size: var(--mor-h4);
+    color: var(--mor-text);
+  }
+
+  /* Mobile trust: 2-column label/value grid, centred and perfectly aligned */
+  @media (max-width: 749px) {
+    .tapi-hero__trust {
+      display: grid;
+      grid-template-columns: auto auto;
+      justify-content: center;
+      column-gap: 1.4rem;
+      row-gap: 1rem;
+    }
+    .tapi-hero__trust-item { display: contents; }
+    .tapi-hero__stat-key { text-align: right; align-self: baseline; }
+    .tapi-hero__stat-val { text-align: left; }
+  }
+
+  /* <480: stack CTAs full-width for thumb reach */
+  @media (max-width: 480px) {
+    .tapi-hero__cta-row { flex-direction: column; align-items: stretch; width: 100%; }
+    .tapi-hero__cta-row > span { display: block; }
+    .tapi-hero__cta-row .button,
+    .tapi-hero__cta-secondary { width: 100%; justify-content: center; }
+  }
+
+  /* Reduced motion: no zoom, instant crossfade */
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-hero__slide,
+    .tapi-hero__media img,
+    .tapi-hero__placeholder,
+    .tapi-hero__caption,
+    .tapi-hero__progress-fill { transition: none !important; transform: none !important; }
+  }
+
+  /* Dot navigation */
+  .tapi-hero__nav {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2.4rem;
+    z-index: 4;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    padding: 0 var(--tapi-gutter, 16px);
+  }
+  .tapi-hero__dot {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    padding: 1rem 0;
+    cursor: pointer;
+    width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tapi-hero__dot span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: rgba(248, 243, 235, 0.4);
+    transition: background-color 360ms ease, height 240ms ease;
+  }
+  .tapi-hero__dot.is-active span { background: var(--tapi-cream, #f8f3eb); height: 3px; }
+  .tapi-hero__dot:hover span { background: rgba(248, 243, 235, 0.75); }
+  .tapi-hero__dot:focus-visible { outline: 2px solid var(--tapi-cream, #f8f3eb); outline-offset: 4px; }
+
+  /* Auto-play progress hairline (under dots) */
+  .tapi-hero__progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: rgba(31, 28, 26, 0.08);
+    z-index: 4;
+  }
+  .tapi-hero__progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--tapi-terracotta, #b7472a);
+    transition: width linear;
+    transform-origin: left;
+  }
+{% endstylesheet %}
+
+{% javascript %}
+  (function () {
+    'use strict';
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function initCarousel(root) {
+      if (root.__tapiCarouselWired) return;
+      root.__tapiCarouselWired = true;
+
+      var slides = root.querySelectorAll('.tapi-hero__slide');
+      var dots = root.querySelectorAll('.tapi-hero__dot');
+      var fill = root.querySelector('.tapi-hero__progress-fill');
+      if (slides.length <= 1) return;
+
+      var interval = Math.max(2500, parseInt(root.getAttribute('data-interval'), 10) || 5000);
+      var autoplay = root.getAttribute('data-autoplay') === '1' && !reduceMotion;
+      var current = 0;
+      var timer = null;
+      var rafId = null;
+      var paused = false;
+      var startTime = 0;
+
+      function setActive(idx) {
+        var next = ((idx % slides.length) + slides.length) % slides.length;
+        if (next === current) return;
+        slides[current].classList.remove('is-active');
+        if (dots[current]) {
+          dots[current].classList.remove('is-active');
+          dots[current].setAttribute('aria-selected', 'false');
+        }
+        current = next;
+        slides[current].classList.add('is-active');
+        if (dots[current]) {
+          dots[current].classList.add('is-active');
+          dots[current].setAttribute('aria-selected', 'true');
+        }
+        resetProgress();
+      }
+
+      function resetProgress() {
+        if (!fill) return;
+        fill.style.transition = 'none';
+        fill.style.width = '0%';
+        // Force reflow so the next transition takes effect
+        // eslint-disable-next-line no-unused-expressions
+        fill.offsetWidth;
+        if (autoplay && !paused) {
+          fill.style.transition = 'width ' + interval + 'ms linear';
+          fill.style.width = '100%';
+        }
+      }
+
+      function start() {
+        if (!autoplay || timer) return;
+        startTime = Date.now();
+        resetProgress();
+        timer = setInterval(function () {
+          if (paused || document.hidden) return;
+          setActive(current + 1);
+        }, interval);
+      }
+      function stop() {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
+      }
+      function restart() { stop(); start(); }
+
+      // Dot clicks
+      Array.prototype.forEach.call(dots, function (d) {
+        d.addEventListener('click', function () {
+          setActive(parseInt(d.getAttribute('data-idx'), 10) || 0);
+          restart();
+        });
+      });
+
+      // Pause on hover (desktop) — uses matchMedia so we don't bind on touch
+      if (window.matchMedia('(hover: hover)').matches) {
+        root.addEventListener('mouseenter', function () { paused = true; if (fill) fill.style.animationPlayState = 'paused'; });
+        root.addEventListener('mouseleave', function () { paused = false; });
+      }
+
+      // Pause on tab hidden
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stop();
+        else if (autoplay) start();
+      });
+
+      // Keyboard navigation when dots are focused
+      Array.prototype.forEach.call(dots, function (d) {
+        d.addEventListener('keydown', function (e) {
+          if (e.key === 'ArrowRight') { setActive(current + 1); restart(); }
+          else if (e.key === 'ArrowLeft') { setActive(current - 1); restart(); }
+        });
+      });
+
+      // Touch swipe (mobile)
+      var touchStartX = null;
+      root.addEventListener('touchstart', function (e) {
+        if (e.touches && e.touches.length === 1) touchStartX = e.touches[0].clientX;
+      }, { passive: true });
+      root.addEventListener('touchend', function (e) {
+        if (touchStartX === null || !e.changedTouches || !e.changedTouches.length) return;
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 40) {
+          setActive(current + (dx < 0 ? 1 : -1));
+          restart();
+        }
+        touchStartX = null;
+      }, { passive: true });
+
+      // Lazy-start when scrolled into view
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) start();
+            else stop();
+          });
+        }, { threshold: 0.15 });
+        io.observe(root);
+      } else {
+        start();
+      }
+    }
+
+    function boot() {
+      document.querySelectorAll('[data-tapi-carousel]').forEach(initCarousel);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
+    }
+
+    document.addEventListener('shopify:section:load', function (e) {
+      var c = e.target.querySelector('[data-tapi-carousel]');
+      if (c) { c.__tapiCarouselWired = false; initCarousel(c); }
+    });
+  })();
+{% endjavascript %}
+
+{% schema %}
+{
+  "name": "Tapi hero",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Carousel" },
+    { "type": "checkbox", "id": "autoplay", "label": "Auto-play slides", "default": true },
+    { "type": "range", "id": "interval_ms", "label": "Slide interval", "min": 3000, "max": 9500, "step": 500, "unit": "ms", "default": 5500 },
+    { "type": "header", "content": "Copy" },
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Indian ethnic wear · Rooted in tradition" },
+    { "type": "text", "id": "line_1", "label": "Headline line 1", "default": "Cloth we know" },
+    { "type": "text", "id": "line_2", "label": "Headline line 2 (accent)", "default": "by heart." },
+    { "type": "textarea", "id": "lede", "label": "Lede", "default": "MorPaankh comes from a family raised in India's textile trade, generations who read fabric by touch. We bring that eye to kurta sets, co-ords, and festive pieces chosen for honest cloth and a fit made for real bodies. What you see in the photographs is what arrives." },
+    { "type": "text", "id": "cta_primary", "label": "Primary CTA", "default": "Shop kurta sets" },
+    { "type": "url", "id": "cta_primary_link", "label": "Primary CTA link" },
+    { "type": "text", "id": "cta_secondary", "label": "Secondary CTA", "default": "Our story" },
+    { "type": "url", "id": "cta_secondary_link", "label": "Secondary CTA link" }
+  ],
+  "blocks": [
+    {
+      "type": "slide",
+      "name": "Slide",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "caption", "label": "Caption (overlay chip)" },
+        { "type": "text", "id": "mono", "label": "Placeholder monogram", "default": "Saanjh" },
+        { "type": "color", "id": "tint", "label": "Placeholder tint", "default": "#B7472A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "name": "Stat",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Label" },
+        { "type": "text", "id": "value", "label": "Value" }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [
+    {
+      "name": "Tapi hero",
+      "blocks": [
+        { "type": "slide", "settings": { "mono": "Saanjh", "tint": "#B7472A", "caption": "Saanjh · Kurta sets" } },
+        { "type": "slide", "settings": { "mono": "Amba",   "tint": "#7A8761", "caption": "Amba · Co-ord sets" } },
+        { "type": "slide", "settings": { "mono": "Mehfil", "tint": "#B08947", "caption": "Mehfil · Festive edit" } },
+        { "type": "stat", "settings": { "label": "Fit", "value": "True to body" } },
+        { "type": "stat", "settings": { "label": "Fabric", "value": "Indian-sourced" } },
+        { "type": "stat", "settings": { "label": "From", "value": "India" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

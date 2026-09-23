@@ -5,14 +5,14 @@
  */
 import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
-import { renderTemplate } from '../../messages/templates.mjs';
+import { tpl } from '../worker/send.mjs';
 import { trackActiveShipments } from './track-active.mjs';
 import { log } from '../log.mjs';
 
 async function alert(text) {
+  const deps = { clients: realClients };
   for (const phone of config.ownerAlertPhones) {
-    const t = renderTemplate('ops_alert', { order_number: 'reconcile', alert_text: text }, {});
-    await realClients.whatsapp.sendTemplate({ to: phone, name: t.name, language: t.language, components: t.components });
+    await tpl(deps, phone, 'ops_alert', { order_number: 'reconcile', alert_text: text }, {});
   }
 }
 

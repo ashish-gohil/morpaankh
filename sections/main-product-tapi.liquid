@@ -1,0 +1,725 @@
+{{ 'pdp-cta.css' | asset_url | stylesheet_tag }}
+{%- liquid
+  assign m = product.metafields.tapi
+  assign current_variant = product.selected_or_first_available_variant
+  assign saving = 0
+  if current_variant.compare_at_price > current_variant.price
+    assign saving = current_variant.compare_at_price | minus: current_variant.price
+  endif
+  assign low_stock_threshold = 3
+  assign current_stock = current_variant.inventory_quantity
+-%}
+
+<section class="tapi-pdp section" id="MainProduct-{{ section.id }}" data-section-id="{{ section.id }}">
+  <div class="page-width tapi-pdp__breadcrumb">
+    <a href="{{ routes.root_url }}">Home</a> &nbsp;/&nbsp;
+    {%- if collection -%}
+      <a href="{{ collection.url }}">{{ collection.title }}</a> &nbsp;/&nbsp;
+    {%- elsif product.collections.first -%}
+      <a href="{{ product.collections.first.url }}">{{ product.collections.first.title }}</a> &nbsp;/&nbsp;
+    {%- endif -%}
+    <span>{{ product.title }}</span>
+  </div>
+
+  <div class="page-width tapi-pdp__layout">
+
+    {%- comment -%} ----- GALLERY ----- {%- endcomment -%}
+    <div class="tapi-pdp__gallery">
+      <div class="tapi-pdp__gallery-thumbs">
+        {%- for media in product.media limit: 6 -%}
+          <button type="button" class="tapi-pdp__thumb {% if forloop.first %}is-active{% endif %}" data-thumb-index="{{ forloop.index0 }}" aria-label="View {{ forloop.index }}">
+            {{ media.preview_image | image_url: width: 200 | image_tag: loading: 'lazy', alt: media.preview_image.alt }}
+          </button>
+        {%- endfor -%}
+      </div>
+      <div class="tapi-pdp__gallery-main">
+        <div class="tapi-pdp__gallery-stage" data-gallery-stage>
+          {%- for media in product.media limit: 6 -%}
+            <div class="tapi-pdp__main-img {% if forloop.first %}is-active{% endif %}" data-main-index="{{ forloop.index0 }}">
+              {{ media.preview_image | image_url: width: 1400 | image_tag:
+                 loading: 'eager', widths: '600, 900, 1200, 1600',
+                 sizes: '(min-width: 990px) 50vw, 100vw',
+                 alt: media.preview_image.alt | default: product.title }}
+            </div>
+          {%- endfor -%}
+          {%- if product.media.size == 0 -%}
+            {{ 'product-1' | placeholder_svg_tag: 'placeholder-svg tapi-pdp__placeholder' }}
+          {%- endif -%}
+
+          {%- if product.media.size > 1 -%}
+            <button type="button" class="tapi-pdp__nav tapi-pdp__nav--prev" data-gallery-prev aria-label="Previous image">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false">
+                <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button type="button" class="tapi-pdp__nav tapi-pdp__nav--next" data-gallery-next aria-label="Next image">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false">
+                <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {%- endif -%}
+        </div>
+
+        {%- if product.media.size > 1 -%}
+          <div class="tapi-pdp__dots" data-gallery-dots aria-hidden="true">
+            {%- for media in product.media limit: 6 -%}
+              <button type="button" class="tapi-pdp__dot {% if forloop.first %}is-active{% endif %}" data-dot-index="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}"></button>
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+
+    {%- comment -%} ----- BUY COLUMN ----- {%- endcomment -%}
+    <div class="tapi-pdp__info">
+      <div class="tapi-pdp__tags">
+        {%- if product.tags contains 'new' -%}<span class="tapi-tag tapi-tag--charcoal">New</span>{%- endif -%}
+        {%- if product.tags contains 'bestseller' -%}<span class="tapi-tag tapi-tag--sage">Bestseller</span>{%- endif -%}
+        {%- if product.tags contains 'festive' -%}<span class="tapi-tag tapi-tag--terracotta">Festive</span>{%- endif -%}
+      </div>
+
+      <h1 class="tapi-pdp__title" data-tapi-reveal>{{ product.title }}</h1>
+      <p class="tapi-pdp__subtitle" data-tapi-reveal>
+        {{ m.subtitle | default: m.blend }}
+        {%- if m.pieces.value != blank -%} · {{ m.pieces.value | join: ' · ' }}{%- endif -%}
+      </p>
+
+      {%- if m.rating -%}
+        <div class="tapi-pdp__rating">
+          <span class="tapi-pdp__stars" aria-label="{{ m.rating }} out of 5">
+            {%- assign rounded = m.rating | round -%}
+            {%- for i in (1..5) -%}<span class="{% if i <= rounded %}is-filled{% endif %}">★</span>{%- endfor -%}
+          </span>
+          <span class="tapi-pdp__rating-num">{{ m.rating }}</span>
+          <span class="tapi-pdp__divider"></span>
+          <a href="#reviews" class="tapi-pdp__rating-count">{{ m.review_count | default: 0 }} reviews</a>
+        </div>
+      {%- endif -%}
+
+      <div class="tapi-pdp__price">
+        <span class="tapi-pdp__price-now">{{ current_variant.price | money }}</span>
+        {%- if current_variant.compare_at_price > current_variant.price -%}
+          <span class="tapi-pdp__price-was">{{ current_variant.compare_at_price | money }}</span>
+          <span class="tapi-tag tapi-tag--terracotta">Save {{ saving | money }}</span>
+        {%- endif -%}
+      </div>
+      <p class="tapi-pdp__price-note">Inclusive of taxes. Free shipping above ₹2,499.</p>
+
+      {%- liquid
+        assign color_option = nil
+        assign size_option = nil
+        for opt in product.options_with_values
+          if opt.name == 'Color'
+            assign color_option = opt
+          elsif opt.name == 'Size'
+            assign size_option = opt
+          endif
+        endfor
+      -%}
+
+      {%- comment -%} Colors — real variant option. Each swatch carries data-color
+        and drives variant resolution (see the matrix + script below). Hex dots
+        come from the tapi.color_options metafield, matched by name. {%- endcomment -%}
+      {%- if color_option and color_option.values.size > 0 -%}
+        <div class="tapi-pdp__group">
+          <div class="tapi-pdp__group-head">
+            <span class="tapi-eyebrow">Color</span>
+            <span class="tapi-pdp__group-meta" data-color-label>{{ color_option.selected_value }}</span>
+          </div>
+          <div class="tapi-pdp__colors" role="radiogroup" aria-label="Color">
+            {%- for val in color_option.values -%}
+              {%- assign hex = '#CFC6B8' -%}
+              {%- if m.color_options != blank -%}
+                {%- for c in m.color_options.value -%}
+                  {%- if c.name == val -%}{%- assign hex = c.hex -%}{%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+              <button type="button"
+                      class="tapi-pdp__color{% if val == color_option.selected_value %} is-active{% endif %}"
+                      data-color="{{ val | escape }}"
+                      role="radio"
+                      aria-checked="{% if val == color_option.selected_value %}true{% else %}false{% endif %}"
+                      aria-label="{{ val | escape }}">
+                <span class="tapi-pdp__color-dot" style="background: {{ hex }};"></span>
+                <span class="tapi-pdp__color-name">{{ val }}</span>
+              </button>
+            {%- endfor -%}
+          </div>
+        </div>
+      {%- endif -%}
+
+      <form method="post" action="{{ routes.cart_add_url }}" enctype="multipart/form-data" novalidate class="tapi-pdp__form" id="product-form-{{ section.id }}">
+        <input type="hidden" name="form_type" value="product">
+        <input type="hidden" name="utf8" value="✓">
+        <input type="hidden" name="id" value="{{ current_variant.id }}" id="variant-id-{{ section.id }}">
+
+        {%- if size_option -%}
+          <div class="tapi-pdp__group">
+            <div class="tapi-pdp__group-head">
+              <span class="tapi-eyebrow">Size</span>
+              <a href="/pages/fabric-guide" class="tapi-pdp__guide-link">Size guide</a>
+            </div>
+            <div class="tapi-pdp__sizes" role="radiogroup" aria-label="Size">
+              {%- for val in size_option.values -%}
+                <button type="button"
+                        class="tapi-pdp__size{% if val == size_option.selected_value %} is-active{% endif %}"
+                        data-size="{{ val | escape }}"
+                        role="radio"
+                        aria-checked="{% if val == size_option.selected_value %}true{% else %}false{% endif %}">
+                  {{ val }}
+                </button>
+              {%- endfor -%}
+            </div>
+            <p class="tapi-pdp__stock-note" data-stock-note></p>
+          </div>
+        {%- endif -%}
+
+        {%- comment -%} Full Size×Color variant matrix — the single source of truth
+          the selection script uses to resolve a chosen (size, color) to a real
+          variant id, its price, availability, stock count, and (future) image. {%- endcomment -%}
+        <script type="application/json" data-variant-matrix>
+          [
+            {%- for v in product.variants -%}
+              {%- comment -%} img: variant image src when one is assigned, else null.
+                guarded so a variant with no image never calls image_url on nil. {%- endcomment -%}
+              {%- assign vimg = '' -%}
+              {%- if v.image != blank -%}{%- capture vimg -%}{{ v.image | image_url: width: 1400 }}{%- endcapture -%}{%- endif -%}
+              {"id": {{ v.id }}, "size": {{ v.option1 | json }}, "color": {{ v.option2 | json }}, "available": {{ v.available }}, "priceText": {{ v.price | money | json }}, "compareText": {{ v.compare_at_price | money | json }}, "inv": {{ v.inventory_quantity | default: 0 }}, "img": {{ vimg | json }}}{%- unless forloop.last -%},{%- endunless -%}
+            {%- endfor -%}
+          ]
+        </script>
+        <span hidden data-low-stock="{{ low_stock_threshold }}"></span>
+
+        {%- comment -%}
+          Fit feedback tile — disabled on request. Un-wrap this comment block
+          (remove the {%- comment -%} / {%- endcomment -%} lines) to restore
+          the size-down / true-to-size / size-up bar. CSS for .tapi-fit-feedback*
+          is still present below in this section's {% stylesheet %} so re-enabling
+          is a one-line revert.
+        {%- endcomment -%}
+        {%- comment -%}
+        {%- if m.fit_pct_true -%}
+          <div class="tapi-fit-feedback" role="group" aria-label="Fit feedback">
+            <strong>Fit feedback from {{ m.review_count | default: '100+' }} buyers</strong>
+            <div class="tapi-fit-feedback__bar" data-tapi-reveal>
+              <span style="--w: {{ m.fit_pct_down }}%; background: var(--tapi-terracotta-soft);"></span>
+              <span style="--w: {{ m.fit_pct_true }}%; background: var(--tapi-sage);"></span>
+              <span style="--w: {{ m.fit_pct_up }}%; background: var(--tapi-terracotta);"></span>
+            </div>
+            <div class="tapi-fit-feedback__legend">
+              <span>{{ m.fit_pct_down }}% size down</span>
+              <span>{{ m.fit_pct_true }}% true</span>
+              <span>{{ m.fit_pct_up }}% size up</span>
+            </div>
+          </div>
+        {%- endif -%}
+        {%- endcomment -%}
+
+        <div class="tapi-pdp__cta-row" data-pdp-desktop-cta>
+          <div class="tapi-pdp__qty">
+            <button type="button" data-qty-down>−</button>
+            <input type="number" name="quantity" value="1" min="1" data-qty-input>
+            <button type="button" data-qty-up>+</button>
+          </div>
+          <button type="submit" name="add" class="button button--primary tapi-pdp__add" data-add-btn>
+            <span data-add-label>Add to bag — {{ current_variant.price | money }}</span>
+          </button>
+        </div>
+        <button type="submit" name="add" formaction="{{ routes.cart_add_url }}?return_to=/checkout" class="button button--terracotta tapi-pdp__buynow" data-buy-now>Buy it now</button>
+
+        {%- if product.selling_plan_groups.size > 0 -%}{% comment %}reserved{% endcomment %}{%- endif -%}
+      </form>
+
+      {%- comment -%}
+        Delivery & pickup (pincode lookup) — disabled on request. Un-wrap
+        this comment block to restore. Snippet snippets/pincode-delivery.liquid
+        is intact so re-enabling is a one-line revert.
+      {%- endcomment -%}
+      {%- comment -%}
+      {%- render 'pincode-delivery', product: product -%}
+      {%- endcomment -%}
+
+      <div class="tapi-pdp__accordions">
+        <details class="tapi-acc">
+          <summary><span>Description</span><span class="tapi-acc__toggle">+</span></summary>
+          <div class="tapi-acc__body rte">{{ product.description }}</div>
+        </details>
+        <details class="tapi-acc" open>
+          <summary><span>Fabric &amp; care</span><span class="tapi-acc__toggle">+</span></summary>
+          <div class="tapi-acc__body">
+            <table class="tapi-fabric-table">
+              <tbody>
+                {%- if m.gsm -%}<tr><td>GSM</td><td>{{ m.gsm }} gsm</td></tr>{%- endif -%}
+                {%- if m.blend -%}<tr><td>Blend</td><td>{{ m.blend }}</td></tr>{%- endif -%}
+                {%- if m.weave -%}<tr><td>Weave</td><td>{{ m.weave }}</td></tr>{%- endif -%}
+                {%- if m.fit_type -%}<tr><td>Fit type</td><td>{{ m.fit_type }}</td></tr>{%- endif -%}
+                {%- if m.opacity_note -%}<tr><td>Opacity</td><td>{{ m.opacity_note }}</td></tr>{%- endif -%}
+                {%- if m.breathability -%}<tr><td>Breathability</td><td>{{ m.breathability }}</td></tr>{%- endif -%}
+                {%- if m.wash_care -%}<tr><td>Wash care</td><td>{{ m.wash_care }}</td></tr>{%- endif -%}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {%- if m.model_height -%}
+          <details class="tapi-acc">
+            <summary><span>Model &amp; fit</span><span class="tapi-acc__toggle">+</span></summary>
+            <div class="tapi-acc__body">
+              <div class="tapi-model-grid">
+                <div><span>Height</span><strong>{{ m.model_height }}</strong></div>
+                <div><span>Wearing size</span><strong>{{ m.model_size }}</strong></div>
+                <div><span>Bust</span><strong>{{ m.model_bust }}″</strong></div>
+                <div><span>Waist</span><strong>{{ m.model_waist }}″</strong></div>
+                {%- if m.fit_note -%}<div class="tapi-model-grid__full"><span>Fit feedback</span><strong>{{ m.fit_note }}</strong></div>{%- endif -%}
+              </div>
+            </div>
+          </details>
+        {%- endif -%}
+        <details class="tapi-acc">
+          <summary><span>Shipping &amp; returns</span><span class="tapi-acc__toggle">+</span></summary>
+          <div class="tapi-acc__body">
+            <p>Free shipping above ₹2,499. 7-day exchange window on your first order. Pickup from Surat available — save ₹50.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  {%- comment -%} ----- MOBILE STICKY ADD-TO-BAG ----- {%- endcomment -%}
+  <div class="tapi-pdp__mobile-cta" aria-hidden="true">
+    <div>
+      <div class="tapi-pdp__mobile-price" data-mobile-price>{{ current_variant.price | money }}</div>
+      {%- if current_variant.compare_at_price > current_variant.price -%}
+        <div class="tapi-pdp__mobile-was">{{ current_variant.compare_at_price | money }}</div>
+      {%- endif -%}
+    </div>
+    <button type="submit" form="product-form-{{ section.id }}" name="add" class="button button--primary tapi-pdp__mobile-add" data-mobile-add>
+      Add — {{ current_variant.title }}
+    </button>
+  </div>
+</section>
+
+{% stylesheet %}
+  .tapi-pdp { padding-top: 2.4rem; padding-bottom: 4.8rem; }
+  .tapi-pdp__breadcrumb { font-size: 1.2rem; color: var(--tapi-muted); margin-bottom: 2.4rem; }
+  .tapi-pdp__breadcrumb a { color: var(--tapi-muted); text-decoration: none; transition: color 200ms; }
+  .tapi-pdp__breadcrumb a:hover { color: var(--tapi-terracotta); }
+  .tapi-pdp__breadcrumb span:last-child { color: var(--tapi-charcoal); }
+
+  .tapi-pdp__breadcrumb.page-width,
+  .tapi-pdp__layout.page-width {
+    max-width: var(--tapi-max, 144rem) !important;
+    margin-inline: auto;
+    padding-inline: var(--tapi-gutter, 16px) !important;
+    box-sizing: border-box;
+  }
+  .tapi-pdp__layout { display: grid; grid-template-columns: 80px 1fr 1fr; gap: clamp(2.4rem, 4vw, 5.6rem); align-items: start; }
+  .tapi-pdp__gallery { display: contents; }
+  .tapi-pdp__gallery-thumbs { display: flex; flex-direction: column; gap: 0.8rem; position: sticky; top: 130px; }
+  .tapi-pdp__thumb { width: 72px; height: 90px; border: 1px solid var(--tapi-hairline-2); padding: 2px; background: transparent; cursor: pointer; transition: border-color 200ms; overflow: hidden; }
+  .tapi-pdp__thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .tapi-pdp__thumb.is-active { border-color: var(--tapi-charcoal); }
+  .tapi-pdp__gallery-main { position: sticky; top: 130px; align-self: start; min-height: 600px; }
+  .tapi-pdp__gallery-stage { position: relative; }
+  .tapi-pdp__main-img { display: none; position: relative; overflow: hidden; }
+  .tapi-pdp__main-img.is-active { display: block; animation: tapi-rise 480ms cubic-bezier(0.16,1,0.3,1); }
+  .tapi-pdp__main-img img {
+    width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover;
+    transition: transform 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  @media (hover: hover) {
+    .tapi-pdp__main-img:hover img { transform: scale(1.04); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-pdp__main-img img { transition: none; }
+    .tapi-pdp__main-img:hover img { transform: none; }
+  }
+
+  /* Prev / next navigation overlay — sits on the main image, mid-height,
+     subtle by default and steps forward on hover. Hidden until the user
+     hovers (or always on touch). */
+  .tapi-pdp__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: rgba(248, 244, 237, 0.92);
+    border: 1px solid var(--tapi-hairline-2);
+    color: var(--tapi-charcoal);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
+                background 200ms,
+                transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: 2;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .tapi-pdp__nav:hover { background: var(--tapi-cream); }
+  .tapi-pdp__nav:active { transform: translateY(-50%) scale(0.94); }
+  .tapi-pdp__nav--prev { left: 1.2rem; }
+  .tapi-pdp__nav--next { right: 1.2rem; }
+  .tapi-pdp__gallery-stage:hover .tapi-pdp__nav,
+  .tapi-pdp__nav:focus-visible { opacity: 1; }
+  /* Touch devices have no hover — show the nav at low opacity always */
+  @media (hover: none) {
+    .tapi-pdp__nav { opacity: 0.72; }
+  }
+
+  /* Dot indicators — visible at all times, centered under the main image */
+  .tapi-pdp__dots {
+    display: flex; justify-content: center; gap: 8px;
+    margin-top: 1.6rem;
+  }
+  .tapi-pdp__dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--tapi-hairline-2);
+    border: none;
+    cursor: pointer;
+    transition: background 200ms, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 0;
+  }
+  .tapi-pdp__dot:hover { background: var(--tapi-warm-grey); }
+  .tapi-pdp__dot.is-active { background: var(--tapi-charcoal); transform: scale(1.25); }
+  @keyframes tapi-rise { from { opacity: 0; transform: translate3d(0,12px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+
+  .tapi-pdp__info { display: flex; flex-direction: column; gap: 2.4rem; min-width: 0; }
+  .tapi-pdp__tags { display: flex; gap: 0.8rem; }
+  .tapi-pdp__title { font-family: var(--font-heading-family); font-size: clamp(2.8rem, 4.4vw, 4.4rem); line-height: 1.08; letter-spacing: -0.012em; font-weight: 500; margin: 0; }
+  .tapi-pdp__subtitle { color: var(--tapi-warm-grey); margin: 0; font-size: clamp(1.4rem, 1.4vw, 1.7rem); line-height: 1.6; }
+
+  .tapi-pdp__rating { display: flex; align-items: center; gap: 1.2rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-pdp__stars { color: var(--tapi-hairline-2); font-size: 1.6rem; letter-spacing: 0.05em; }
+  .tapi-pdp__stars .is-filled { color: var(--tapi-terracotta); }
+  .tapi-pdp__rating-num { font-size: 1.4rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__divider { width: 1px; height: 16px; background: var(--tapi-hairline-2); }
+  .tapi-pdp__rating-count { font-size: 1.3rem; color: var(--tapi-warm-grey); text-decoration: underline; text-underline-offset: 4px; }
+
+  .tapi-pdp__price { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
+  .tapi-pdp__price-now { font-family: var(--font-heading-family); font-size: 3.2rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__price-was { font-size: 1.8rem; color: var(--tapi-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__price-note { font-size: 1.2rem; color: var(--tapi-muted); margin: -1.2rem 0 0; }
+
+  .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: 9999px; }
+  .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }
+  .tapi-tag--sage       { background: var(--tapi-sage-wash); color: var(--tapi-sage-deep); }
+  .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
+
+  .tapi-pdp__group { display: flex; flex-direction: column; gap: 1.2rem; }
+  .tapi-pdp__group-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .tapi-pdp__group-meta { font-size: 1.1rem; color: var(--tapi-muted); }
+  .tapi-pdp__guide-link { font-size: 1.2rem; color: var(--tapi-charcoal); position: relative; padding-bottom: 2px; text-decoration: none; transition: color 200ms; }
+  .tapi-pdp__guide-link::after { content:""; position: absolute; left:0; bottom:0; height:1px; width:100%; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-pdp__guide-link:hover::after { transform: scaleX(1); transform-origin: left; }
+
+  .tapi-pdp__colors { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .tapi-pdp__color { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; cursor: pointer; background: transparent; border: none; padding: 0; }
+  .tapi-pdp__color-dot {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--tapi-hairline-2);
+    transition: outline 240ms, border-color 240ms, transform 240ms cubic-bezier(0.22,1,0.36,1);
+  }
+  /* Active swatch — inset cream ring + charcoal border, matches page-pdp.jsx L162 */
+  .tapi-pdp__color.is-active .tapi-pdp__color-dot {
+    border: 1.5px solid var(--tapi-charcoal);
+    outline: 1.5px solid var(--tapi-cream);
+    outline-offset: -5px;
+  }
+  .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.06); }
+  .tapi-pdp__color-name { font-size: 1rem; letter-spacing: 0.06em; color: var(--tapi-muted); text-transform: uppercase; }
+  .tapi-pdp__color.is-active .tapi-pdp__color-name { color: var(--tapi-charcoal); }
+  /* Colour unavailable in the chosen size — dimmed with a hairline strike on
+     the dot. Still clickable (selecting it re-paints sizes for that colour). */
+  .tapi-pdp__color.is-out { opacity: 0.42; }
+  .tapi-pdp__color.is-out .tapi-pdp__color-dot { position: relative; }
+  .tapi-pdp__color.is-out .tapi-pdp__color-dot::after {
+    content: ""; position: absolute; inset: 0; margin: auto;
+    width: 132%; height: 1px; left: -16%;
+    background: var(--tapi-charcoal); transform: rotate(-45deg); opacity: 0.5;
+  }
+
+  .tapi-pdp__sizes { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  .tapi-pdp__size {
+    position: relative; height: 48px; min-width: 48px; padding: 0 1.4rem;
+    background: transparent; border: 1px solid var(--tapi-hairline-2); color: var(--tapi-charcoal);
+    font-family: inherit; font-size: 1.3rem; font-weight: 500; letter-spacing: 0.04em;
+    cursor: pointer; transition: border-color 200ms, background 200ms, color 200ms;
+  }
+  .tapi-pdp__size:hover { border-color: var(--tapi-charcoal); }
+  .tapi-pdp__size.is-active { background: var(--tapi-charcoal); color: var(--tapi-cream); border-color: var(--tapi-charcoal); }
+  .tapi-pdp__size.is-out { color: var(--tapi-muted); cursor: not-allowed; opacity: 0.5; }
+  .tapi-pdp__size.is-out::after { content:""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--tapi-muted); transform: rotate(-12deg); }
+  .tapi-pdp__size.is-low:not(.is-active)::before {
+    content:""; position: absolute; top: -6px; right: -6px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta);
+    animation: tapi-pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.65; } }
+  @media (prefers-reduced-motion: reduce) { .tapi-pdp__size.is-low::before { animation: none; } }
+  .tapi-pdp__stock-note { margin: 0; font-size: 1.2rem; color: var(--tapi-warm-grey); }
+
+  .tapi-fit-feedback { margin-top: 0; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: 2px; font-size: 1.3rem; }
+  .tapi-fit-feedback__bar { display: flex; height: 6px; background: var(--tapi-cream); border-radius: 3px; overflow: hidden; margin: 0.8rem 0 0.6rem; }
+  .tapi-fit-feedback__bar > span { display: block; height: 100%; width: 0; transition: width 1200ms cubic-bezier(0.16,1,0.3,1); }
+  .tapi-fit-feedback__bar.in > span { width: var(--w); }
+  .tapi-fit-feedback__legend { display: flex; justify-content: space-between; font-size: 1.1rem; color: var(--tapi-warm-grey); }
+
+  .tapi-pdp__cta-row { display: flex; gap: 1.2rem; align-items: stretch; }
+  .tapi-pdp__qty { display: flex; align-items: center; border: 1px solid var(--tapi-hairline-2); height: 56px; flex: 0 0 auto; }
+  .tapi-pdp__qty button { width: 44px; height: 100%; background: transparent; border: none; font-size: 1.8rem; cursor: pointer; }
+  .tapi-pdp__qty input { width: 44px; height: 100%; text-align: center; border: none; background: transparent; font-family: inherit; font-size: 1.5rem; font-variant-numeric: tabular-nums; appearance: textfield; }
+  .tapi-pdp__qty input::-webkit-outer-spin-button, .tapi-pdp__qty input::-webkit-inner-spin-button { appearance: none; }
+  .tapi-pdp__add { flex: 1; height: 56px; min-height: 56px !important; }
+  .tapi-pdp__buynow { width: 100%; height: 56px; min-height: 56px !important; }
+
+  .tapi-pdp__accordions { display: flex; flex-direction: column; border-top: 1px solid var(--tapi-hairline); }
+  .tapi-acc { border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-acc summary { display: flex; justify-content: space-between; align-items: center; padding: 2rem 0; cursor: pointer; list-style: none; font-family: var(--font-heading-family); font-size: 1.8rem; letter-spacing: -0.005em; transition: color 240ms ease; }
+  .tapi-acc summary::-webkit-details-marker { display: none; }
+  .tapi-acc summary:hover { color: var(--tapi-terracotta); }
+  .tapi-acc[open] .tapi-acc__toggle { transform: rotate(45deg); color: var(--tapi-terracotta); }
+  .tapi-acc__toggle { font-size: 2.8rem; color: var(--tapi-charcoal); transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1), color 240ms ease; line-height: 1; display: inline-flex; align-items: center; justify-content: center; width: 2.8rem; height: 2.8rem; }
+  .tapi-acc__body { padding: 0 0 2.4rem; font-size: 1.4rem; line-height: 1.7; color: var(--tapi-warm-grey); animation: tapi-acc-open 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes tapi-acc-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-acc__toggle { transition: none; }
+    .tapi-acc__body { animation: none; }
+  }
+  .tapi-acc__body p { margin: 0 0 1rem; }
+
+  .tapi-fabric-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; }
+  .tapi-fabric-table tr { border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-fabric-table td { padding: 1.2rem 0; }
+  .tapi-fabric-table td:first-child { color: var(--tapi-muted); width: 40%; letter-spacing: 0.04em; }
+
+  .tapi-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem; padding-bottom: 1.6rem; }
+  .tapi-model-grid > div { padding-bottom: 1.2rem; border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-model-grid > div span { display: block; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tapi-muted); margin-bottom: 0.4rem; }
+  .tapi-model-grid > div strong { font-weight: 500; color: var(--tapi-charcoal); }
+  .tapi-model-grid__full { grid-column: 1 / -1; }
+
+  /* Pincode widget brand styling */
+  .tapi-pincode { border: 1px solid var(--tapi-hairline); background: var(--tapi-ivory); padding: 1.6rem; }
+  .tapi-pincode__head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+  .tapi-pincode__heading { font-family: var(--font-heading-family); font-size: 1.6rem; }
+  .tapi-pincode__row { display: flex; gap: 0.8rem; }
+  .tapi-pincode__input { flex: 1; height: 4.4rem; padding: 0 1.2rem; border: 1px solid var(--tapi-hairline-2); background: var(--tapi-cream); }
+  .tapi-pincode__row .button { height: 4.4rem; }
+  .tapi-pincode__result { margin-top: 1.2rem; font-size: 1.3rem; }
+  .tapi-pincode__pickup { margin-top: 0.8rem; padding: 1.2rem; background: var(--tapi-terracotta-wash); display: flex; align-items: center; gap: 1rem; }
+
+  /* Mobile sticky bar */
+  .tapi-pdp__mobile-cta {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0;
+    background: var(--tapi-cream); border-top: 1px solid var(--tapi-hairline-2);
+    padding: 1rem 1.6rem; padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 80; box-shadow: 0 -8px 24px rgba(44,40,38,0.06);
+    gap: 1rem; align-items: center;
+  }
+  .tapi-pdp__mobile-price { font-family: var(--font-heading-family); font-size: 1.8rem; font-weight: 500; line-height: 1; }
+  .tapi-pdp__mobile-was { font-size: 1rem; color: var(--tapi-muted); text-decoration: line-through; margin-top: 2px; }
+  .tapi-pdp__mobile-add { flex: 1; height: 5.2rem; min-height: 5.2rem !important; font-size: 1.2rem; }
+
+  /* Tablet / mobile responsive */
+  @media (max-width: 1100px) {
+    .tapi-pdp__layout { grid-template-columns: 1fr; gap: 2.4rem; }
+    .tapi-pdp__gallery { display: contents; }
+    .tapi-pdp__gallery-thumbs { flex-direction: row; flex-wrap: wrap; position: static; order: 2; }
+    .tapi-pdp__gallery-main { position: static; order: 1; min-height: auto; }
+    .tapi-pdp__info { order: 3; }
+  }
+  @media (max-width: 749px) {
+    .tapi-pdp { padding-bottom: 10rem; }
+    .tapi-pdp__breadcrumb { display: none; }
+    .tapi-pdp__title { font-size: 3.2rem !important; }
+    .tapi-pdp__price-now { font-size: 2.6rem; }
+    .tapi-pdp__price-was { font-size: 1.5rem; }
+    .tapi-pdp__thumb { width: 56px; height: 70px; }
+    .tapi-pdp__cta-row, .tapi-pdp__buynow { display: none !important; }
+    .tapi-pdp__mobile-cta { display: flex; }
+  }
+{% endstylesheet %}
+
+<script>
+  (function () {
+    // Inline script — runs in DOM order, finds OUR section reliably
+    // via the script-tag's preceding [data-section-id] ancestor.
+    var thisScript = document.currentScript;
+    var sec = (thisScript && thisScript.closest('[data-section-id]'))
+           || document.querySelector('.tapi-pdp');
+    if (!sec) return;
+
+    const thumbs = sec.querySelectorAll('.tapi-pdp__thumb');
+    const mains  = sec.querySelectorAll('.tapi-pdp__main-img');
+    const variantInput = sec.querySelector('[id^="variant-id-"]');
+    const addLabel  = sec.querySelector('[data-add-label]');
+    const mobileAdd = sec.querySelector('[data-mobile-add]');
+    const mobilePrice = sec.querySelector('[data-mobile-price]');
+    const qtyInput  = sec.querySelector('[data-qty-input]');
+
+    // ---- Variant matrix (Size × Color) — single source of truth ----
+    const addBtn   = sec.querySelector('.tapi-pdp__add');
+    const buyBtn   = sec.querySelector('.tapi-pdp__buynow');
+    const stockNote = sec.querySelector('[data-stock-note]');
+    const colorLabel = sec.querySelector('[data-color-label]');
+    const matrixEl = sec.querySelector('[data-variant-matrix]');
+    let VARIANTS = [];
+    try { VARIANTS = JSON.parse(matrixEl ? matrixEl.textContent : '[]'); } catch (_) { VARIANTS = []; }
+    const lowEl = sec.querySelector('[data-low-stock]');
+    const lowStock = (lowEl && parseInt(lowEl.getAttribute('data-low-stock'), 10)) || 3;
+    const hasColor = VARIANTS.some(v => v.color);
+
+    // Seed selection from the server-active buttons, else first variant.
+    const activeSizeBtn = sec.querySelector('.tapi-pdp__size.is-active');
+    const activeColorBtn = sec.querySelector('.tapi-pdp__color.is-active');
+    let selSize = activeSizeBtn ? activeSizeBtn.getAttribute('data-size') : (VARIANTS[0] ? VARIANTS[0].size : null);
+    let selColor = activeColorBtn ? activeColorBtn.getAttribute('data-color') : (hasColor && VARIANTS[0] ? VARIANTS[0].color : null);
+
+    const findVariant = (size, color) =>
+      VARIANTS.find(v => v.size === size && (!hasColor || v.color === color)) || null;
+
+    // Re-run the rise animation by toggling .is-active (forces reflow).
+    const refadeActiveMain = () => {
+      const active = sec.querySelector('.tapi-pdp__main-img.is-active');
+      if (!active) return;
+      active.classList.remove('is-active');
+      void active.offsetWidth;
+      active.classList.add('is-active');
+    };
+
+    // Cross-availability: a size greys out if it has no available variant in the
+    // chosen color, and a colour greys out if unavailable in the chosen size —
+    // the behaviour customers expect from COS / Aritzia / Zara PDPs.
+    const paintAvailability = () => {
+      sec.querySelectorAll('.tapi-pdp__size').forEach(btn => {
+        const size = btn.getAttribute('data-size');
+        const v = findVariant(size, selColor);
+        btn.classList.toggle('is-out', !v || !v.available);
+        btn.classList.toggle('is-low', !!(v && v.available && v.inv > 0 && v.inv <= lowStock));
+        const on = size === selSize;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      sec.querySelectorAll('.tapi-pdp__color').forEach(btn => {
+        const color = btn.getAttribute('data-color');
+        const v = findVariant(selSize, color);
+        btn.classList.toggle('is-out', !v || !v.available);
+        const on = color === selColor;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+    };
+
+    // Resolve the (size, color) selection to a real variant and reflect it
+    // everywhere: hidden cart id, ?variant URL, price, CTA, stock note, image.
+    const render = () => {
+      const v = findVariant(selSize, selColor);
+      if (v && variantInput) variantInput.value = v.id;
+      if (v) {
+        try { const u = new URL(window.location.href); u.searchParams.set('variant', v.id); window.history.replaceState({}, '', u.toString()); } catch (_) {}
+      }
+      if (colorLabel && selColor) colorLabel.textContent = selColor;
+
+      const qty = Math.max(1, parseInt((qtyInput && qtyInput.value) || '1', 10) || 1);
+      const priceText = v ? v.priceText : '';
+      const available = !!(v && v.available);
+      const label = hasColor ? [selSize, selColor].filter(Boolean).join(' · ') : selSize;
+
+      if (available) {
+        if (addLabel) addLabel.textContent = qty > 1 ? `Add to bag (${qty}) — ${priceText}` : `Add to bag — ${priceText}`;
+        if (mobileAdd) mobileAdd.textContent = label ? `Add — ${label}` : 'Add to bag';
+        if (addBtn) { addBtn.disabled = false; addBtn.removeAttribute('aria-disabled'); }
+        if (buyBtn) { buyBtn.disabled = false; buyBtn.removeAttribute('aria-disabled'); }
+        if (stockNote) stockNote.textContent = (v.inv > 0 && v.inv <= lowStock)
+          ? `Only ${v.inv} left${label ? ' — ' + label : ''}`
+          : 'In stock — ships in 1–2 days';
+      } else {
+        if (addLabel) addLabel.textContent = 'Sold out';
+        if (mobileAdd) mobileAdd.textContent = 'Sold out';
+        if (addBtn) { addBtn.disabled = true; addBtn.setAttribute('aria-disabled', 'true'); }
+        if (buyBtn) { buyBtn.disabled = true; buyBtn.setAttribute('aria-disabled', 'true'); }
+        if (stockNote) stockNote.textContent = label ? `Sold out — ${label}` : 'Sold out — restocking soon';
+      }
+      if (mobilePrice && priceText) mobilePrice.textContent = priceText;
+
+      // Per-colour image swap (no-op until variants carry their own image).
+      if (v && v.img) {
+        const img = (sec.querySelector('.tapi-pdp__main-img.is-active img') || sec.querySelector('.tapi-pdp__main-img img'));
+        if (img && img.getAttribute('src') !== v.img) { img.setAttribute('src', v.img); img.removeAttribute('srcset'); }
+      }
+      paintAvailability();
+      refadeActiveMain();
+    };
+    // Back-compat alias for the qty stepper + initial sync below.
+    const rerenderCta = render;
+
+    // Gallery navigation (thumbs, dots, prev/next, keyboard, swipe) is wired
+    // up by tapi-motion.js so it loads from a known-cached script tag.
+
+    // Colour select — pick any colour; availability/CTA reflect the result.
+    sec.querySelectorAll('.tapi-pdp__color').forEach(btn => {
+      btn.addEventListener('click', function () {
+        selColor = btn.getAttribute('data-color');
+        render();
+      });
+    });
+
+    // Size select — document-level capture delegation, scoped to this section.
+    const onSizeClick = function (e) {
+      const b = e.target.closest('.tapi-pdp__size');
+      if (!b || !sec.contains(b)) return;
+      e.preventDefault();
+      selSize = b.getAttribute('data-size');
+      render();
+    };
+    document.addEventListener('click', onSizeClick, true);
+
+    // Qty stepper — now refreshes the CTA so the price reflects the order
+    const setQty = (next) => {
+      if (!qtyInput) return;
+      qtyInput.value = String(Math.max(1, next | 0));
+      rerenderCta();
+    };
+    const qDown = sec.querySelector('[data-qty-down]');
+    const qUp   = sec.querySelector('[data-qty-up]');
+    if (qDown) qDown.addEventListener('click', () => setQty(parseInt(qtyInput.value || '1', 10) - 1));
+    if (qUp)   qUp.addEventListener('click',   () => setQty(parseInt(qtyInput.value || '1', 10) + 1));
+    if (qtyInput) {
+      let qtyDebounce = null;
+      qtyInput.addEventListener('input', () => {
+        if (qtyDebounce) clearTimeout(qtyDebounce);
+        qtyDebounce = setTimeout(() => setQty(parseInt(qtyInput.value || '1', 10)), 80);
+      });
+    }
+
+    // Fit-feedback bar reveal — flips the .in class to trigger width transitions
+    const bar = sec.querySelector('.tapi-fit-feedback__bar');
+    if (bar && 'IntersectionObserver' in window) {
+      const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { bar.classList.add('in'); io.disconnect(); } }, { threshold: 0.4 });
+      io.observe(bar);
+    } else if (bar) {
+      bar.classList.add('in');
+    }
+
+    // Initial sync (in case size was preselected server-side)
+    rerenderCta();
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Tapi product",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "checkbox", "id": "enable_sticky_info", "default": true, "label": "Sticky buy column on desktop" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Top padding", "default": 24 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "label": "Bottom padding", "default": 36 }
+  ],
+  "presets": [{ "name": "Tapi product" }],
+  "enabled_on": { "templates": ["product"] }
+}
+{% endschema %}

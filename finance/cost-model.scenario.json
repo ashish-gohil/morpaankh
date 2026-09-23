@@ -1,0 +1,111 @@
+{
+  "_README": "SCENARIO ONLY. Placeholder rates used to demonstrate engine output. NOT verified. Do not quote.",
+  "version": "1.0.0",
+  "updated": "2026-09-19",
+  "currency": "INR",
+  "payment": {
+    "codFeeChargedToCustomer": {
+      "value": 50,
+      "source": "VERIFIED",
+      "note": "Confirmed live: shippingLine 'Cash on Delivery' = 50.00 on every COD order in the last 25."
+    },
+    "prepaidShippingChargedToCustomer": {
+      "value": 0,
+      "source": "VERIFIED",
+      "note": "Confirmed live: shippingLine 'Standard' = 0.00. Prepaid ships free."
+    },
+    "gatewayPercent": {
+      "value": 2.0,
+      "source": "ASSUMED",
+      "note": "Typical Indian gateway rate for domestic cards/UPI. CONFIRM against an actual Razorpay/Shopify Payments settlement statement. UPI is often 0% and cards ~2%, so a blended rate is more accurate if the mix is known."
+    },
+    "gatewayGstPercent": {
+      "value": 18.0,
+      "source": "ASSUMED",
+      "note": "GST charged ON the gateway fee, not on the order. Standard 18% on financial services."
+    }
+  },
+  "shipping": {
+    "courier": "Delhivery",
+    "source": "VERIFIED",
+    "note": "Confirmed live: 22 of last 25 orders carry Delhivery AWBs (59152210xxxxxx series) with direct delhivery.com tracking URLs. The Shiprocket service in shipping-integration/ is NOT the live path.",
+    "forwardFreightFallback": {
+      "value": null,
+      "source": "MISSING",
+      "note": "Per-AWB actual billed freight. Populate from the Delhivery One MCP or a Delhivery billing CSV. Until then the engine refuses to invent a number and marks the order freight_unknown."
+    },
+    "rtoFreightMultiplier": {
+      "value": 1.0,
+      "source": "ASSUMED",
+      "note": "RTO return leg billed at the same rate as forward. Delhivery commonly bills RTO at 100% of forward; some contracts bill 80%. CONFIRM from a billing statement showing an RTO line."
+    },
+    "codRemittanceFee": {
+      "flat": 40,
+      "percentOfCodValue": 1.5,
+      "rule": "higher_of",
+      "source": "ASSUMED",
+      "note": "Delhivery COD collection charge. Typically higher of a flat fee or a percent of COD value. CONFIRM the exact contracted numbers from a Delhivery invoice."
+    },
+    "packagingCostPerOrder": {
+      "value": 25,
+      "source": "SCENARIO"
+    },
+    "otherCouriers": {
+      "Tirupati": {
+        "note": "2 of last 25 orders (#1129, #1120) went via 'Other' / Tirupati Courier. These will have NO Delhivery AWB and will never resolve against the Delhivery MCP. They need manual cost entry or exclusion."
+      }
+    }
+  },
+  "tax": {
+    "gstOnSalesPercent": {
+      "value": 5,
+      "source": "SCENARIO"
+    },
+    "pricesAreGstInclusive": {
+      "value": true,
+      "source": "SCENARIO"
+    },
+    "inputCreditOnCogs": {
+      "value": null,
+      "source": "MISSING",
+      "note": "Whether supplier invoices from Fabrizo Market carry GST that can be claimed as input credit. Changes effective COGS materially."
+    }
+  },
+  "fixedMonthly": {
+    "_note": "Everything billed monthly regardless of order count. Ashish must fill. These are what turn a positive contribution margin into an actual loss.",
+    "shopifyPlan": {
+      "value": 0,
+      "source": "SCENARIO"
+    },
+    "codKingApp": {
+      "value": 0,
+      "source": "SCENARIO"
+    },
+    "otherApps": {
+      "value": 0,
+      "source": "SCENARIO"
+    },
+    "domain": {
+      "value": 0,
+      "source": "SCENARIO"
+    },
+    "whatsappApi": {
+      "value": 0,
+      "source": "SCENARIO"
+    },
+    "other": {
+      "value": 0,
+      "source": "SCENARIO"
+    }
+  },
+  "adSpend": {
+    "_note": "Pulled live from the Meta Ads MCP per period. Not stored here. Reel boost campaigns are offline-sales only and must be excluded from online P&L attribution.",
+    "source": "LIVE_META_MCP"
+  },
+  "dataQualityFlags": [
+    "Most products have weight 0 in Shopify. Delhivery bills on actual or volumetric weight, whichever is higher. With no declared weight there is no way to detect weight-discrepancy overbilling, which is the single most common silent margin leak in Indian D2C.",
+    "Kohra and Latkan are set to 0.6 GRAMS. Almost certainly meant to be 0.6 KILOGRAMS. A real data bug.",
+    "The 'Partial Payment' 0.00 product is still ACTIVE. It is a payment mechanism, not stock, and is excluded from COGS by the engine.",
+    "Some variants have sku: null (Anaar, Bandhan, Darpan, Morani and others). SKU-level cost attribution falls back to product title for these."
+  ]
+}

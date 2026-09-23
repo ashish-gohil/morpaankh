@@ -1,0 +1,27 @@
+/* ------------------------------------------------------------------
+   Header — restore sticky + premium hairline border.
+
+   A z-index fix shipped in the catalog strip accidentally forced
+   .shopify-section.section-header to position:relative. That selector
+   (specificity 0,2,0) out-ranks Dawn's .shopify-section-header-sticky
+   (0,1,0), so the header stopped sticking. The bad rule is baked into the
+   stale compiled CSS bundle, so we re-assert sticky with !important from
+   this fresh, sitewide asset (loaded by the header section, which renders
+   on every page).
+   ------------------------------------------------------------------ */
+.shopify-section-header-sticky {
+  position: sticky !important;
+  top: 0 !important;
+}
+
+/* Keep the header above page content while pinned. */
+.section-header,
+.shopify-section-group-header-group {
+  z-index: 50 !important;
+}
+
+/* Premium hairline under the header so it reads as a defined band as content
+   scrolls beneath it. Subtle, brand-cream tone — not a hard divider. */
+.header-wrapper {
+  border-bottom: 1px solid var(--mor-hairline, #E5DDC8);
+}

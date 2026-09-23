@@ -56,13 +56,13 @@ describe('Flow C: NDR', () => {
   it('sends ndr_action inside the window', async () => {
     const { clients, deps } = setup();
     await C.onNdr('12345', deps);
-    expect(sentTemplate(clients.whatsapp, 'ndr_action_v1')).toBe(true);
+    expect(sentTemplate(clients.whatsapp, 'ndr_action_v2')).toBe(true);
   });
 
   it('change address -> asks, then same-pincode edit saves', async () => {
     const { clients, deps } = setup();
     await C.onNdrAddressStart('12345', deps);
-    expect(sentText(clients.whatsapp, /complete address/)).toBe(true);
+    expect(sentText(clients.whatsapp, /full address in one message/)).toBe(true);
     expect((await getAwaiting(PHONE)).type).toBe('address');
 
     await C.onAddressText('12345', 'New flat 5, MG Road, Jaipur 302001', deps);
@@ -77,23 +77,23 @@ describe('Flow C: NDR', () => {
     await C.onAddressText('12345', 'shifted to Bengaluru 560001', deps);
     expect(sentText(clients.whatsapp, /different pincode/)).toBe(true);
     expect(courierCalls(clients.courier).some((c) => c.op === 'ndrAction')).toBe(false);
-    expect(sentTemplate(clients.whatsapp, 'ops_alert_v1')).toBe(true);
+    expect(sentTemplate(clients.whatsapp, 'ops_alert_v2')).toBe(true);
   });
 
   it('no pincode -> retry once, then alert', async () => {
     const { clients, deps } = setup();
     await C.onNdrAddressStart('12345', deps);
     await C.onAddressText('12345', 'my street near the temple', deps);
-    expect(sentText(clients.whatsapp, /could not find a 6-digit pincode/)).toBe(true);
+    expect(sentText(clients.whatsapp, /could not find a 6 digit pincode/)).toBe(true);
     await C.onAddressText('12345', 'still no pin', deps);
-    expect(sentTemplate(clients.whatsapp, 'ops_alert_v1')).toBe(true);
+    expect(sentTemplate(clients.whatsapp, 'ops_alert_v2')).toBe(true);
   });
 
   it('deliver tomorrow -> RE-ATTEMPT + ok', async () => {
     const { clients, deps } = setup();
     await C.onNdrReattempt('12345', deps);
     expect(courierCalls(clients.courier).some((c) => c.action === 'RE-ATTEMPT')).toBe(true);
-    expect(sentText(clients.whatsapp, /try the delivery again/)).toBe(true);
+    expect(sentText(clients.whatsapp, /will try again on the next working day/)).toBe(true);
   });
 });
 

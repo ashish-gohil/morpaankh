@@ -1,0 +1,2782 @@
+/* ============================================================
+   theme-variables.css — MorPaankh theme overrides for Dawn
+   Single source of truth for brand tokens. When the logo is
+   final and we shift to a peacock palette, only the --mor-*
+   values below change; the --tapi-* aliases beneath route the
+   rest of the theme automatically.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap");
+
+:root {
+  /* ---------- MorPaankh brand tokens (canonical) ---------- */
+  --mor-cream:           #F8F4ED;
+  --mor-cream-2:         #F1EBDD;
+  --mor-ivory:           #FCFAF4;
+  --mor-paper:           #FFFFFF;
+
+  --mor-charcoal:        #2C2826;
+  --mor-charcoal-2:      #3A3431;
+  --mor-warm-grey:       #6B5D54;
+  --mor-muted:           #9A8D83;
+  --mor-hairline:        #E5DDC8;
+  --mor-hairline-2:      #D6CDB8;
+
+  /* Accent (will shift to peacock teal/emerald when logo arrives) */
+  --mor-accent:          #B7472A;
+  --mor-accent-deep:     #8F3621;
+  --mor-accent-soft:     #D97A5F;
+  --mor-accent-wash:     #F3D9CD;
+
+  --mor-sage:            #7A8761;
+  --mor-sage-deep:       #5A6748;
+  --mor-sage-wash:       #E3E6D6;
+
+  --mor-gold:            #B08947;
+  --mor-gold-deep:       #8F6E34;
+
+  /* Primary brand colour — forest green. Drives main CTAs, links, focus. */
+  --mor-primary:         #2E4B3C;
+  --mor-primary-deep:    #233A2E;
+  --mor-primary-soft:    #5C7A66;
+  --mor-primary-wash:    #DDE5DD;
+
+  /* Semantic aliases (prefer these in new component code) */
+  --mor-surface:         var(--mor-cream);
+  --mor-surface-2:       var(--mor-cream-2);
+  --mor-surface-raised:  var(--mor-ivory);
+  --mor-text:            var(--mor-charcoal);
+  --mor-text-muted:      var(--mor-warm-grey);
+  --mor-text-subtle:     var(--mor-muted);
+  --mor-border:          var(--mor-hairline);
+  /* --mor-accent (terracotta) is declared in the brand-tokens block above */
+
+  /* ---------- Type scale (4 heading roles + body steps) ---------- */
+  --mor-h1:        clamp(3.4rem, 6.5vw, 7.6rem);  /* hero only */
+  --mor-h2:        clamp(2.8rem, 4.5vw, 5.2rem);  /* every section heading */
+  --mor-h3:        clamp(2rem, 3vw, 2.8rem);      /* card / sub headings */
+  --mor-h4:        clamp(1.6rem, 2vw, 2rem);
+  --mor-text-lg:   1.7rem;
+  --mor-text-base: 1.5rem;
+  --mor-text-sm:   1.3rem;
+  --mor-text-xs:   1.1rem;   /* eyebrows, labels, meta */
+  --mor-leading-tight: 1.04;
+  --mor-leading-snug:  1.3;
+  --mor-leading-body:  1.65;
+
+  /* ---------- Radius scale ---------- */
+  --mor-radius-sm:   2px;
+  --mor-radius-md:   4px;
+  --mor-radius-lg:   8px;
+  --mor-radius-pill: 9999px;
+
+  /* ---------- Elevation (3 tiers) ---------- */
+  --mor-shadow-sm: 0 1px 2px rgba(44, 40, 38, 0.05);
+  --mor-shadow-md: 0 12px 24px -16px rgba(44, 40, 38, 0.22);
+  --mor-shadow-lg: 0 24px 48px -28px rgba(44, 40, 38, 0.26);
+
+  /* ---------- Motion ---------- */
+  --mor-dur-fast: 150ms;
+  --mor-dur-base: 250ms;
+  --mor-dur-slow: 400ms;
+  --mor-dur-slower: 700ms;  /* luxurious image zoom / settle */
+  --mor-ease:     cubic-bezier(0.22, 1, 0.36, 1);
+  --mor-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- Back-compat aliases ----------
+     Existing CSS still references --tapi-*. These aliases route
+     to the canonical --mor-* tokens above so a future palette
+     change is a single-file edit. Do NOT add new --tapi-* refs;
+     prefer --mor-* in new code. */
+  --tapi-cream:           var(--mor-cream);
+  --tapi-cream-2:         var(--mor-cream-2);
+  --tapi-ivory:           var(--mor-ivory);
+  --tapi-paper:           var(--mor-paper);
+  --tapi-charcoal:        var(--mor-charcoal);
+  --tapi-charcoal-2:      var(--mor-charcoal-2);
+  --tapi-warm-grey:       var(--mor-warm-grey);
+  --tapi-muted:           var(--mor-muted);
+  --tapi-hairline:        var(--mor-hairline);
+  --tapi-hairline-2:      var(--mor-hairline-2);
+  --tapi-terracotta:      var(--mor-accent);
+  --tapi-terracotta-deep: var(--mor-accent-deep);
+  --tapi-terracotta-soft: var(--mor-accent-soft);
+  --tapi-terracotta-wash: var(--mor-accent-wash);
+  --tapi-sage:            var(--mor-sage);
+  --tapi-sage-deep:       var(--mor-sage-deep);
+  --tapi-sage-wash:       var(--mor-sage-wash);
+  --tapi-gold:            var(--mor-gold);
+
+  /* ---------- Dawn variable overrides ----------
+     Dawn uses these natively; overriding them re-skins
+     Dawn's built-in components without touching their Liquid.
+  */
+  --color-background:        248, 244, 237;   /* cream */
+  --color-foreground:        44, 40, 38;      /* charcoal */
+  --color-foreground-secondary: 107, 93, 84;  /* warm-grey */
+
+  --color-button:            46, 75, 60;      /* primary CTA = forest green #2E4B3C */
+  --color-button-text:       248, 244, 237;
+  --color-secondary-button:  248, 244, 237;
+  --color-secondary-button-text: 46, 75, 60;
+
+  --color-accent-1:          183, 71, 42;     /* terracotta (accent) */
+  --color-accent-2:          46, 75, 60;      /* forest green (primary) */
+
+  --color-link:              46, 75, 60;      /* forest green */
+  --color-shadow:            44, 40, 38;
+
+  /* ---------- Type ---------- */
+  --font-heading-family: "Cormorant Garamond", Georgia, serif;
+  --font-heading-weight: 500;
+  --font-heading-style:  normal;
+
+  --font-body-family:    "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-body-weight:    400;
+
+  /* ---------- Spacing (Dawn variables) ---------- */
+  --page-width:          144rem;     /* 1440px */
+  --grid-desktop-horizontal-spacing: 2.4rem;
+
+  /* ---------- Radii ---------- */
+  --product-card-corner-radius:        2px;
+  --buttons-radius:                    2px;
+  --inputs-radius:                     2px;
+  --media-radius:                      2px;
+
+  /* ---------- Borders ---------- */
+  --buttons-border-width:              1px;
+  --buttons-border-opacity:            1;
+  --inputs-border-width:               1px;
+  --inputs-border-opacity:             1;
+
+  /* ---------- Motion ---------- */
+  --duration-default:    0.16s;
+  --duration-short:      0.12s;
+  --duration-long:       0.4s;
+}
+
+/* ---------- Headings — serif everywhere ---------- */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: var(--font-heading-family);
+  font-weight: var(--font-heading-weight);
+  letter-spacing: -0.012em;
+  color: rgb(var(--color-foreground));
+}
+
+/* ---------- Editorial uppercase eyebrow ---------- */
+.tapi-eyebrow {
+  font-family: var(--font-body-family);
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey);
+}
+
+/* ---------- Buttons — small radius, uppercase, tracked ---------- */
+.button,
+button.shopify-payment-button__button--unbranded {
+  border-radius: var(--mor-radius-sm);
+  font-family: var(--font-body-family);
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  height: 4.8rem;
+  padding: 0 2.2rem;
+  transition: background-color var(--mor-dur-base) var(--mor-ease),
+              color var(--mor-dur-base) var(--mor-ease),
+              transform var(--mor-dur-fast) var(--mor-ease);
+}
+.button:not(:disabled):active { transform: translateY(1px); }
+.button--primary {
+  background: var(--mor-primary);
+  color: var(--mor-cream);
+  border: none;
+}
+.button--primary:hover {
+  background: var(--mor-primary-deep);
+}
+.button--terracotta {
+  background: var(--mor-accent);
+  color: var(--mor-cream);
+  border: none;
+}
+.button--terracotta:hover {
+  background: var(--mor-accent-deep);
+}
+.button--outline {
+  background: transparent;
+  color: var(--mor-primary);
+  border: 1px solid var(--mor-primary);
+}
+.button--outline:hover {
+  background: var(--mor-primary);
+  color: var(--mor-cream);
+}
+
+/* ---------- Product card ---------- */
+.card-wrapper { padding-bottom: 0.8rem; }
+.card__heading {
+  font-family: var(--font-heading-family);
+  font-size: 1.9rem;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+}
+.card__information {
+  padding-top: 1.4rem;
+}
+.price {
+  font-family: var(--font-heading-family);
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.price--on-sale .price-item--regular {
+  color: var(--tapi-muted);
+}
+.card .tapi-meta {
+  font-size: 1.1rem;
+  color: var(--tapi-muted);
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Product grid — equal-size image boxes, tight info rows.
+
+   Image box locked to aspect-ratio 3/4 with object-fit: contain so
+   every tile gets the SAME image area (same width AND same height)
+   regardless of the source image's dimensions. Images shrink to fit
+   the box rather than crop; the letterboxing background is cream so
+   the empty area reads as intentional negative space.
+
+   Info row (title + price) is tight by default — no enforced equal
+   tile height, no pinned-bottom price. That avoids the giant gap
+   that appears when a title is short.
+   ============================================================ */
+.product-grid .grid__item { display: block; }
+
+/* Image area — uniform across all tiles */
+.product-grid .card__inner,
+.product-grid .card .media,
+.product-grid .card__media {
+  aspect-ratio: 3 / 4 !important;
+  overflow: hidden;
+  background: var(--tapi-cream-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.product-grid .card__inner img,
+.product-grid .card .media img,
+.product-grid .card__media img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;   /* shrink-to-fit, no cropping */
+  object-position: center;
+}
+
+/* Info row — title and price hug each other tightly. No flex column
+   tricks, no auto margins; let the natural baseline gap (0.2rem) be
+   the only spacing between heading and price. */
+.product-grid .card__content,
+.product-grid .card__information {
+  display: block !important;
+  padding-top: 1rem !important;
+}
+.product-grid .card__information > * { margin: 0; }
+.product-grid .card__information .card__heading {
+  font-family: var(--font-heading-family);
+  font-size: 1.6rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-grid .card__information .price {
+  margin-top: 0.4rem !important;
+  padding: 0 !important;
+}
+/* ----- Overlay content inside the image area -----
+   Dawn renders the product NAME and the SOLD-OUT / SALE badge as
+   absolutely-positioned children of .card__inner. By default both
+   sit bottom-left (the .badge--bottom-left class). Repositioning:
+   - product name → top-left (small ivory pill, charcoal text)
+   - badge       → bottom-right (charcoal pill, cream text)
+   ============================================================ */
+.product-grid .card__inner {
+  position: relative !important;
+}
+
+/* The first .card__content lives INSIDE .card__inner — it's the
+   overlay. Make it fill the image area without consuming clicks. */
+.product-grid .card__inner > .card__content {
+  position: absolute !important;
+  inset: 0;
+  display: block !important;
+  padding: 0 !important;
+  pointer-events: none;
+  background: transparent !important;
+}
+
+/* Name overlay — top-left */
+.product-grid .card__inner > .card__content > .card__information {
+  position: absolute !important;
+  top: 12px;
+  left: 12px;
+  right: auto;
+  bottom: auto;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: calc(100% - 24px);
+  z-index: 2;
+  pointer-events: auto;
+  display: block !important;
+  background: transparent !important;
+}
+.product-grid .card__inner > .card__content > .card__information .card__heading {
+  margin: 0 !important;
+  font-family: var(--font-heading-family) !important;
+  font-size: 1.2rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.2 !important;
+  color: var(--tapi-charcoal) !important;
+  background: rgba(252, 250, 244, 0.92); /* translucent ivory */
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 6px 10px;
+  border-radius: 2px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-grid .card__inner > .card__content > .card__information .card__heading a {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+/* Sold-out / Sale badge — bottom-right */
+.product-grid .card__inner > .card__content > .card__badge {
+  position: absolute !important;
+  bottom: 12px !important;
+  right: 12px !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: 2;
+  pointer-events: auto;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+.product-grid .card__inner > .card__content > .card__badge .badge {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  background: var(--tapi-charcoal) !important;
+  color: var(--tapi-cream) !important;
+}
+/* Sale variant — terracotta to read distinct from sold out */
+.product-grid .card__inner > .card__content > .card__badge .badge[id*="Badge"]:not(:empty) {
+  background: var(--tapi-charcoal);
+}
+.product-grid .card__inner > .card__content > .card__badge .badge.badge--bottom-left {
+  /* Strip Dawn's positional modifier; parent already controls placement */
+  position: static !important;
+  top: auto !important; left: auto !important; bottom: auto !important; right: auto !important;
+}
+
+/* ---------- Inputs ---------- */
+.field__input {
+  background: var(--tapi-ivory);
+  border: 1px solid var(--tapi-hairline-2);
+  border-radius: 2px;
+  font-family: var(--font-body-family);
+}
+.field__input:focus {
+  border-color: var(--tapi-charcoal);
+  box-shadow: none;
+}
+
+/* ---------- Trust marquee ---------- */
+.tapi-marquee {
+  background: var(--tapi-charcoal);
+  color: var(--tapi-cream);
+  padding: 1rem 0;
+  overflow: hidden;
+  font-size: 1.2rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.tapi-marquee__track {
+  display: flex;
+  gap: 6.4rem;
+  width: max-content;
+  animation: tapi-marquee 60s linear infinite;
+  padding-right: 6.4rem;
+}
+@keyframes tapi-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ---------- Editorial pull-quote / break ---------- */
+.tapi-editorial-band {
+  background: var(--tapi-cream-2);
+  padding: 4.8rem;
+  margin: 5.6rem 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3.2rem;
+  align-items: center;
+}
+.tapi-editorial-band__quote {
+  font-family: var(--font-heading-family);
+  font-size: 2.4rem;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 0;
+}
+@media (max-width: 749px) {
+  .tapi-editorial-band { grid-template-columns: 1fr; padding: 3.2rem 2.4rem; }
+}
+
+/* ---------- Fabric table (PDP) ---------- */
+.tapi-fabric-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.4rem;
+}
+.tapi-fabric-table tr {
+  border-bottom: 1px dashed var(--tapi-hairline);
+}
+.tapi-fabric-table td {
+  padding: 1.2rem 0;
+}
+.tapi-fabric-table td:first-child {
+  color: var(--tapi-muted);
+  letter-spacing: 0.04em;
+  width: 40%;
+}
+
+/* ---------- Fit-feedback bar (PDP) ---------- */
+.tapi-fit-feedback {
+  margin-top: 1.6rem;
+  padding: 1.4rem;
+  background: var(--tapi-cream-2);
+  font-size: 1.3rem;
+  border-radius: 2px;
+}
+.tapi-fit-feedback__bar {
+  display: flex;
+  height: 6px;
+  background: var(--tapi-cream);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0.8rem 0 0.6rem;
+}
+.tapi-fit-feedback__bar > span { display: block; height: 100%; }
+.tapi-fit-feedback__legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.1rem;
+  color: var(--tapi-warm-grey);
+}
+
+/* ---------- Pincode widget ---------- */
+.tapi-pincode {
+  border: 1px solid var(--tapi-hairline);
+  background: var(--tapi-ivory);
+  padding: 1.6rem;
+  margin-top: 1.6rem;
+}
+.tapi-pincode__row {
+  display: flex;
+  gap: 0.8rem;
+}
+.tapi-pincode__input {
+  flex: 1;
+  height: 4rem;
+}
+.tapi-pincode__result {
+  margin-top: 1.2rem;
+  font-size: 1.3rem;
+  color: var(--tapi-charcoal);
+}
+.tapi-pincode__pickup {
+  margin-top: 0.8rem;
+  padding: 1.2rem;
+  background: var(--tapi-terracotta-wash);
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* ---------- Footer ---------- */
+.footer { background: var(--tapi-charcoal); color: var(--tapi-cream); }
+.footer a { color: var(--tapi-cream); opacity: 0.78; }
+.footer h2, .footer h3 {
+  color: var(--tapi-cream);
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-family: var(--font-body-family);
+  font-weight: 500;
+}
+
+/* ============================================================
+   Global micro-interactions (added by Tapi customization)
+   ============================================================ */
+
+/* Eyebrow-line — the small terracotta dash that draws in when the
+   parent reveals into view, then expands on hover.
+   Apply class `tapi-eyebrow--line` next to `tapi-eyebrow`. */
+.tapi-eyebrow--line { display: inline-flex; align-items: center; gap: 1rem; }
+.tapi-eyebrow--line::before {
+  content: "";
+  height: 1px;
+  width: 20px;
+  background: var(--tapi-terracotta);
+  transform-origin: left;
+  transform: scaleX(1);
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1) 200ms,
+              width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Inside an un-revealed [data-tapi-reveal] ancestor, hide the line until
+   the reveal observer adds .in — then it draws in cleanly */
+[data-tapi-reveal]:not(.in) .tapi-eyebrow--line::before,
+[data-tapi-reveal]:not(.in).tapi-eyebrow--line::before { transform: scaleX(0); }
+.tapi-eyebrow--line:hover::before { width: 40px; }
+@media (prefers-reduced-motion: reduce) {
+  [data-tapi-reveal]:not(.in) .tapi-eyebrow--line::before,
+  [data-tapi-reveal]:not(.in).tapi-eyebrow--line::before { transform: scaleX(1); }
+  .tapi-eyebrow--line::before { transition: none; }
+}
+
+/* Lift card */
+.tapi-lift { transition: transform 480ms cubic-bezier(0.22,1,0.36,1), box-shadow 480ms cubic-bezier(0.22,1,0.36,1); }
+.tapi-lift:hover { transform: translateY(-6px); box-shadow: 0 24px 48px -28px rgba(44,40,38,0.25); }
+
+/* Arrow slide */
+.tapi-arrow-slide { display: inline-flex; align-items: center; gap: 8px; }
+.tapi-arrow-slide em, .tapi-arrow-slide svg, .tapi-arrow-slide > .tapi-arrow {
+  font-style: normal;
+  transition: transform 360ms cubic-bezier(0.22,1,0.36,1);
+  display: inline-block;
+}
+.tapi-arrow-slide:hover em,
+.tapi-arrow-slide:hover svg,
+.tapi-arrow-slide:hover > .tapi-arrow { transform: translateX(6px); }
+
+/* Underline that draws in */
+.tapi-underline { position: relative; display: inline-block; padding-bottom: 4px; }
+.tapi-underline::after {
+  content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 1px;
+  background: currentColor; transform: scaleX(0); transform-origin: right;
+  transition: transform 480ms cubic-bezier(0.22,1,0.36,1);
+}
+.tapi-underline:hover::after { transform: scaleX(1); transform-origin: left; }
+
+/* Button lift + sliding wash on hover */
+.button--primary, .button--terracotta, .button--outline {
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: background var(--duration-default, 160ms), color var(--duration-default, 160ms),
+              border-color var(--duration-default, 160ms),
+              transform 240ms cubic-bezier(0.22,1,0.36,1),
+              box-shadow 240ms cubic-bezier(0.22,1,0.36,1);
+}
+.button--primary::before, .button--terracotta::before, .button--outline::before {
+  content: ""; position: absolute; inset: 0; background: currentColor;
+  opacity: 0; transform: translateY(100%); z-index: -1; pointer-events: none;
+  transition: transform 360ms cubic-bezier(0.22,1,0.36,1), opacity 240ms;
+}
+/* Soft, tonal lift shadows. !important is required because the input-reset
+   block above sets `box-shadow: none !important` on every .button, which was
+   silently killing these hover shadows (dead code). Each shadow is tinted to
+   its own button colour and kept soft (large negative spread, low alpha) —
+   premium depth, not a harsh drop. Reduced-motion / touch blocks below still
+   override these back to none. */
+.button--primary:hover    { transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(46,75,60,0.45) !important; }
+.button--terracotta:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -18px rgba(143,54,33,0.42) !important; }
+.button--outline:hover    { background: var(--tapi-charcoal); color: var(--tapi-cream); transform: translateY(-2px); box-shadow: 0 12px 24px -18px rgba(44,40,38,0.32) !important; }
+.button--primary:hover::before, .button--terracotta:hover::before, .button--outline:hover::before { transform: translateY(0); opacity: 0.06; }
+.button--primary:active, .button--terracotta:active, .button--outline:active { transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-eyebrow--line::before { width: 20px; animation: none; }
+  .tapi-lift, .tapi-arrow-slide em, .tapi-arrow-slide svg, .button--primary, .button--terracotta, .button--outline { transition: none !important; }
+  .tapi-lift:hover, .button--primary:hover, .button--terracotta:hover, .button--outline:hover { transform: none !important; box-shadow: none !important; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .tapi-lift:hover { transform: none; box-shadow: none; }
+  .button--primary:hover, .button--terracotta:hover, .button--outline:hover { transform: none; box-shadow: none; }
+}
+
+/* ============================================================
+   Header / mobile alignment (Dawn header customization)
+   ============================================================ */
+.tapi-logo { white-space: nowrap; }
+.tapi-logo svg { width: 36px; height: 36px; }
+.tapi-logo span { font-size: 22px; }
+@media (max-width: 749px) {
+  /* Stop the wordmark from overflowing on small phones */
+  .tapi-logo svg { width: 26px; height: 26px; margin-right: 8px !important; }
+  .tapi-logo span { font-size: 17px !important; letter-spacing: -0.014em !important; }
+  /* Tighten Dawn's header padding on mobile so logo + icons fit cleanly */
+  .header { padding-top: 1.2rem !important; padding-bottom: 1.2rem !important; }
+  .header__heading, .header__heading-link { min-width: 0; }
+  .header__heading-link { padding: 0 !important; }
+  .header__icons { gap: 0.4rem !important; }
+  .header__icon { width: 36px !important; height: 36px !important; }
+  /* Hide the country/lang selector on mobile if Dawn left it on */
+  .header__inline-menu { display: none; }
+  /* Trust marquee — smaller text */
+  .tapi-marquee { font-size: 0.95rem; padding: 0.7rem 0; }
+}
+@media (max-width: 540px) {
+  .tapi-logo svg { width: 22px; height: 22px; }
+  .tapi-logo span { font-size: 16px !important; }
+}
+
+/* ============================================================
+   Inputs — remove dark/blue focus rings everywhere
+   ============================================================ */
+input, textarea, select, button, .field__input, .button {
+  outline: none !important;
+  box-shadow: none !important;
+}
+input:focus, textarea:focus, select:focus,
+.field__input:focus, .field__input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: var(--tapi-hairline-2) !important;
+}
+/* Footer email input — bottom-border only, very subtle */
+.tapi-footer__field { box-shadow: none !important; }
+.tapi-footer__field input,
+.tapi-footer__field input:focus,
+.tapi-footer__field input:focus-visible {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.tapi-footer__field:focus-within { border-color: rgba(248,244,237,0.6) !important; }
+/* Keep keyboard-only users accessible: visible ring only when navigating via Tab.
+   2px solid terracotta reads against both cream and charcoal surfaces and clears
+   the WCAG 2.2 focus-appearance / 3:1 non-text-contrast bar — stronger than the
+   old 1px dashed warm-grey. */
+:focus-visible:not(input):not(textarea):not(select) {
+  outline: 2px solid var(--mor-accent) !important;
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Header — never let logo wrap; keep utility icons tight
+   ============================================================ */
+.header { flex-wrap: nowrap !important; }
+.header__heading, .header__heading-link, .tapi-logo { flex: 0 0 auto; min-width: 0; }
+.tapi-logo { white-space: nowrap; }
+.tapi-logo span { display: inline-block; }
+.header__icons { flex: 0 0 auto; }
+.header__inline-menu, .header__menu { min-width: 0; }
+/* When the cart drawer or other drawer adds body classes, prevent layout shift */
+body.overflow-hidden,
+body.has-drawer-open { padding-right: 0 !important; }
+@media (max-width: 749px) {
+  .header { gap: 0.6rem; }
+  .header > * { min-width: 0; }
+}
+
+/* ============================================================
+   Footer — logo a touch larger right above the about blurb
+   ============================================================ */
+.tapi-footer__cols > div:first-child .tapi-logo svg { width: 40px; height: 40px; margin-right: 14px !important; }
+.tapi-footer__cols > div:first-child .tapi-logo span { font-size: 28px; }
+
+/* ============================================================
+   Predictive search — re-skin Dawn's results to the editorial look
+   ============================================================ */
+predictive-search,
+.predictive-search,
+.predictive-search__results-groups-wrapper { background: var(--tapi-cream); border: 1px solid var(--tapi-hairline) !important; }
+.predictive-search { box-shadow: 0 24px 48px -28px rgba(44,40,38,0.25) !important; padding: 1.4rem 1.6rem !important; }
+.predictive-search__heading,
+.predictive-search h2 {
+  font-family: var(--font-body-family) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--tapi-warm-grey) !important;
+  margin: 0.4rem 0 1.2rem !important;
+}
+.predictive-search__list-item { padding: 1rem 0.6rem !important; border-bottom: 1px solid var(--tapi-hairline) !important; transition: background 200ms; }
+.predictive-search__list-item:hover, .predictive-search__list-item[aria-selected="true"] { background: var(--tapi-cream-2) !important; }
+.predictive-search-item__heading,
+.predictive-search-item__heading a {
+  font-family: var(--font-heading-family) !important;
+  font-size: 1.7rem !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.008em !important;
+  color: var(--tapi-charcoal) !important;
+}
+.predictive-search-item__image, .predictive-search__image {
+  aspect-ratio: 3 / 4 !important;
+  background: var(--tapi-cream-2) !important;
+  border-radius: 2px !important;
+}
+.predictive-search-item__price,
+.predictive-search-item__price .price {
+  font-family: var(--font-heading-family) !important;
+  font-size: 1.4rem !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--tapi-charcoal) !important;
+}
+.predictive-search-item__vendor,
+.predictive-search-item__type {
+  font-size: 1.1rem !important;
+  color: var(--tapi-warm-grey) !important;
+  letter-spacing: 0.04em !important;
+}
+.predictive-search a,
+.predictive-search button {
+  text-decoration: none !important;
+}
+.predictive-search__view-all-button, .predictive-search__view-all {
+  display: inline-flex !important; align-items: center !important; gap: 8px !important;
+  height: 44px !important; padding: 0 1.6rem !important;
+  font-family: var(--font-body-family) !important; font-size: 1.2rem !important;
+  letter-spacing: 0.06em !important; text-transform: uppercase !important;
+  color: var(--tapi-cream) !important; background: var(--tapi-charcoal) !important;
+  border-radius: 2px !important; margin-top: 1.2rem !important;
+}
+.predictive-search__view-all-button:hover, .predictive-search__view-all:hover { background: var(--tapi-terracotta) !important; }
+
+/* The search modal input */
+search-modal .field, .search-modal__form .field { border-bottom: 1px solid var(--tapi-hairline-2) !important; }
+search-modal .field__input, .search-modal__form .field__input {
+  font-family: var(--font-heading-family) !important;
+  font-size: clamp(2.4rem, 4vw, 4rem) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 1.2rem 0 !important;
+}
+search-modal .field__label, .search-modal__form .field__label { font-family: var(--font-heading-family) !important; opacity: 0.5; }
+search-modal .modal__close-button, .search-modal__close { color: var(--tapi-charcoal) !important; }
+
+/* ============================================================
+   Header — keep sticky/visible on ALL pages (PDP, cart, etc.)
+   ============================================================ */
+.shopify-section-group-header-group { position: sticky; top: 0; z-index: 50; }
+sticky-header, .header-wrapper {
+  /* Header sits on a slightly darker cream so it reads as distinct
+     from the page body without breaking the warm palette. */
+  background: var(--tapi-cream-2) !important;
+  position: sticky !important;
+  top: 0;
+  z-index: 50;
+  transform: none !important; /* override Dawn's on-scroll-down hide */
+}
+sticky-header.shopify-section-header-hidden { transform: none !important; }
+/* Hairline appears only after scrolling past 8px (set by tapi-motion.js).
+   Mirrors chrome.jsx L80 — clean header at the top of the page, subtle
+   separator once content starts to scroll under it. */
+.header-wrapper, .header-wrapper--border-bottom {
+  border-bottom: 1px solid transparent !important;
+  box-shadow: 0 0 0 rgba(44, 40, 38, 0);
+  transition: border-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.header-wrapper.is-scrolled {
+  border-bottom-color: var(--tapi-hairline) !important;
+  box-shadow: 0 4px 16px -8px rgba(44, 40, 38, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-wrapper { transition: none; }
+}
+
+/* Cart page — Dawn sometimes scopes the header to a darker scheme; force consistency */
+.template-cart .header-wrapper, .template-cart sticky-header { background: var(--tapi-cream-2) !important; }
+
+/* ============================================================
+   Mobile menu drawer — re-skin the bottom utility links so the
+   "Log in" link reads as a brand CTA, not a tiny inline link.
+   ============================================================ */
+.menu-drawer__utility-links {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 2rem 2.4rem 3.2rem !important;
+  border-top: 1px solid var(--tapi-hairline) !important;
+  background: var(--tapi-cream) !important;
+}
+.menu-drawer__account {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.8rem !important;
+  width: 100% !important;
+  height: 5.2rem !important;
+  min-height: 5.2rem !important;
+  padding: 0 2rem !important;
+  background: var(--tapi-charcoal) !important;
+  color: var(--tapi-cream) !important;
+  border: none !important;
+  border-radius: 2px !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.2rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  text-decoration: none !important;
+  transition: background 200ms, transform 200ms;
+}
+.menu-drawer__account:hover {
+  background: var(--tapi-terracotta) !important;
+  color: var(--tapi-cream) !important;
+}
+.menu-drawer__account:active { transform: scale(0.98); }
+.menu-drawer__account svg,
+.menu-drawer__account .icon-account,
+.menu-drawer__account account-icon {
+  width: 18px; height: 18px;
+  color: currentColor;
+}
+/* Make the localization links underneath look tertiary */
+.menu-drawer__localization { padding-top: 0.4rem !important; }
+.template-cart .header, .template-cart .header__heading-link { padding-top: 0; padding-bottom: 0; }
+.template-cart .tapi-logo, .template-cart .tapi-logo span, .template-cart .tapi-logo svg { color: var(--tapi-charcoal); }
+
+/* Trust marquee should always sit above the header (above the sticky band) */
+.tapi-marquee { position: relative; z-index: 51; }
+
+/* ============================================================
+   Inputs — consistent, vertically-centered, no rings
+   (Footer subscribe field is intentionally excluded.)
+   ============================================================ */
+
+/* Reset Dawn's defaults globally for text-like inputs */
+.field, .product-form__input, .customer .field,
+.cart-drawer .field, .cart-page__form .field,
+.contact .field, .search-modal .field, .tapi-pincode {
+  position: relative;
+}
+
+/* Apply ONLY to inputs NOT in the footer subscribe form */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input),
+select:not(.tapi-footer__field select),
+textarea:not(.tapi-footer__field textarea),
+.field__input:not(.tapi-footer__field .field__input) {
+  height: 4.8rem;
+  padding: 0 1.4rem;
+  line-height: 4.8rem;          /* vertical centering for single-line */
+  font-family: var(--font-body-family) !important;
+  font-size: 1.4rem !important;
+  color: var(--tapi-charcoal);
+  background: var(--tapi-ivory) !important;
+  border: 1px solid var(--tapi-hairline-2) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 200ms;
+}
+textarea:not(.tapi-footer__field textarea) {
+  height: auto;
+  min-height: 9.6rem;
+  line-height: 1.6;
+  padding: 1.2rem 1.4rem;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input):focus,
+select:not(.tapi-footer__field select):focus,
+textarea:not(.tapi-footer__field textarea):focus,
+.field__input:not(.tapi-footer__field .field__input):focus {
+  border-color: var(--tapi-charcoal) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+input::placeholder, textarea::placeholder { color: var(--tapi-muted); opacity: 1; }
+
+/* Floating-label fields from Dawn — labels were sometimes hanging mid-input.
+   Lift the label out and rely on placeholders for hint copy. */
+.field__label { display: none !important; }
+.field { display: block; }
+
+/* PDP quantity stepper — buttons + number all flush, no inset rings */
+.tapi-pdp__qty input {
+  height: 100% !important;
+  line-height: 5.4rem !important;
+  background: transparent !important;
+  border: none !important;
+  text-align: center;
+}
+.tapi-pdp__qty button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Pincode input override — matches the height of buttons next to it */
+.tapi-pincode__input {
+  height: 4.4rem !important;
+  line-height: 4.4rem !important;
+}
+.tapi-pincode__row .button { height: 4.4rem !important; min-height: 4.4rem !important; }
+
+/* Search-modal big serif input keeps its own styling */
+search-modal .field__input, .search-modal__form .field__input {
+  height: auto !important;
+  line-height: 1.2 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 1.2rem 0 !important;
+}
+
+/* Disable browser's number-input spin arrows globally for a cleaner look */
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { appearance: none; margin: 0; }
+input[type="number"] { appearance: textfield; }
+
+/* ============================================================
+   Mobile interactions — premium tap/scroll feel
+   ============================================================ */
+
+/* Remove iOS blue tap-highlight everywhere */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Smooth anchor-link scroll */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Momentum scroll on horizontal scrollers (filter pills, related products) */
+.hscroll, .product-options, [class*="scroll-snap"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+/* Press-down feedback on touch devices — feels haptic without JS */
+@media (hover: none) and (pointer: coarse) {
+  a, button, .button, .tapi-card__media, .tapi-tile, .tapi-pdp__size, .tapi-pdp__color, .tapi-pdp__thumb, .icon-btn, .header__icon {
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+                background 200ms, color 200ms, opacity 200ms;
+  }
+  button:active, a:active, .button:active,
+  .tapi-pdp__size:active, .tapi-pdp__color:active,
+  .tapi-pdp__thumb:active, .icon-btn:active {
+    transform: scale(0.96);
+  }
+  .tapi-card:active .tapi-card__media,
+  .tapi-tile:active { transform: scale(0.99); }
+  /* Don't keep hover states "stuck" after a tap */
+  .button:hover { transform: none; box-shadow: none; }
+  .tapi-card:hover .tapi-card__media { transform: none; box-shadow: none; }
+  .tapi-tile:hover .tapi-tile__media img { transform: none; }
+  /* The dual-image cross-fade is hover-only on touch → disabled */
+  .tapi-card:hover .tapi-card__img--front { opacity: 1; }
+  .tapi-card:hover .tapi-card__img--back  { opacity: 0; }
+  .tapi-card__quick { display: none; }
+}
+
+/* Mobile drawer / cart drawer slide-in easing */
+.cart-drawer, .menu-drawer, cart-drawer, menu-drawer {
+  --duration-default: 320ms;
+  --duration-long: 480ms;
+}
+.cart-drawer.active, cart-drawer.active,
+.menu-drawer.menu-opening { transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important; }
+
+/* Mobile sticky bar appears with a small slide-in when the page loads */
+.tapi-pdp__mobile-cta { animation: tapi-mobile-cta-in 420ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both; }
+@keyframes tapi-mobile-cta-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .tapi-pdp__mobile-cta { animation: none; } }
+
+/* Larger touch targets on icons */
+@media (max-width: 749px) {
+  .icon-btn, .header__icon { min-width: 44px; min-height: 44px; }
+}
+
+/* ============================================================
+   Selects + dropdowns — brand-styled, sharp edges, single chevron.
+
+   Dawn renders <select> WITH a sibling <span class="svg-wrapper">
+   that contains its own caret icon. Combined with the browser's
+   native arrow AND our brand-chevron background-image, we ended up
+   with two chevrons stacked. Fix: keep our brand chevron, suppress
+   Dawn's extra one, and style the <select> + .select wrapper to
+   match the design.
+   ============================================================ */
+
+/* Our brand chevron (single source of truth) */
+select:not(.tapi-footer__field select) {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%232C2826' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 1.4rem center !important;
+  padding-right: 3.6rem !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  border-radius: 2px !important;
+  background-color: var(--tapi-ivory) !important;
+  border: 1px solid var(--tapi-hairline-2) !important;
+  color: var(--tapi-charcoal) !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.3rem !important;
+  letter-spacing: 0.04em !important;
+  cursor: pointer;
+  transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 200ms;
+}
+select:not(.tapi-footer__field select):hover,
+select:not(.tapi-footer__field select):focus {
+  border-color: var(--tapi-charcoal) !important;
+  background-color: var(--tapi-cream) !important;
+}
+
+/* Hide Dawn's extra caret icon — both as a sibling and as a child of
+   the .select wrapper. Selector matches all known Dawn placements. */
+.select > .svg-wrapper,
+.select__select + .svg-wrapper,
+.facet-filters__field .svg-wrapper,
+.facets__sort + .svg-wrapper,
+.product-form__input--dropdown .svg-wrapper {
+  display: none !important;
+}
+
+/* The .select wrapper that Dawn puts around the select — strip its
+   own padding/border (it was meant to host a sibling icon) and let
+   the <select> own the chrome. */
+.select,
+.select__select-wrap {
+  position: relative !important;
+  display: inline-block !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  width: auto !important;
+}
+.select::before, .select::after,
+.select__select-wrap::before, .select__select-wrap::after {
+  display: none !important; content: none !important;
+}
+
+/* The <option> elements — browser support varies (Safari ignores most
+   of this) but Chromium/Firefox honor background + color. */
+select:not(.tapi-footer__field select) option {
+  background-color: var(--tapi-ivory);
+  color: var(--tapi-charcoal);
+  padding: 0.8rem 1.2rem;
+  font-family: var(--font-body-family);
+}
+select:not(.tapi-footer__field select) option:checked {
+  background-color: var(--tapi-cream-2);
+  color: var(--tapi-terracotta);
+  font-weight: 500;
+}
+
+/* Compact size variant — used in toolbars like the collection sort row.
+   line-height MUST match height; the global input rule sets line-height
+   4.8rem on selects, and without overriding it here the text falls below
+   center because the line box is taller than the box. */
+.facet-filters__field select,
+.facets-vertical-sort select,
+localization-form select,
+.localization-form select {
+  height: 4.4rem !important;
+  min-height: 4.4rem !important;
+  line-height: 4.4rem !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* ============================================================
+   Custom dropdown widget (.tapi-select-wrap)
+   Native <select> open dropdowns are OS-drawn and cannot be styled
+   cross-browser. tapi-motion.js wraps targeted selects with this
+   widget — the native <select> stays in DOM (form submission + a11y)
+   but becomes visually hidden; the wrapper handles all rendering.
+   ============================================================ */
+
+.tapi-select-wrap {
+  position: relative;
+  display: inline-block;
+  min-width: 18rem;
+}
+.tapi-select-wrap .tapi-select__native {
+  /* Keep in DOM (form value, focus management) but hide visually.
+     position: absolute + clip removes it from layout without breaking
+     screen-reader announcement. */
+  position: absolute;
+  width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%);
+  margin: -1px; padding: 0;
+  pointer-events: none; opacity: 0;
+}
+
+.tapi-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  height: 4.4rem;
+  padding: 0 1.4rem;
+  background: var(--tapi-ivory);
+  border: 1px solid var(--tapi-hairline-2);
+  border-radius: 2px;
+  color: var(--tapi-charcoal);
+  font-family: var(--font-body-family);
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 200ms;
+}
+.tapi-select__trigger:hover,
+.tapi-select-wrap.is-open .tapi-select__trigger,
+.tapi-select__trigger:focus-visible {
+  border-color: var(--tapi-charcoal);
+  background-color: var(--tapi-cream);
+  outline: none;
+}
+.tapi-select__value {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+.tapi-select__chevron {
+  flex: 0 0 auto;
+  color: var(--tapi-charcoal);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-select-wrap.is-open .tapi-select__chevron { transform: rotate(180deg); }
+
+.tapi-select__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: auto;
+  min-width: 100%;
+  max-height: 32rem;
+  overflow-y: auto;
+  background: var(--tapi-ivory);
+  border: 1px solid var(--tapi-charcoal);
+  border-radius: 2px;
+  box-shadow: 0 16px 40px -20px rgba(44, 40, 38, 0.22);
+  z-index: 60;
+  padding: 0.6rem 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-select-wrap.is-open .tapi-select__menu {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.tapi-select__option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 1rem 1.6rem;
+  background: transparent;
+  border: none;
+  color: var(--tapi-charcoal);
+  font-family: var(--font-body-family);
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 160ms, color 160ms;
+}
+.tapi-select__option:hover,
+.tapi-select__option:focus-visible {
+  background-color: var(--tapi-cream-2);
+  color: var(--tapi-terracotta);
+  outline: none;
+}
+.tapi-select__option[aria-selected="true"] {
+  background-color: var(--tapi-charcoal);
+  color: var(--tapi-cream);
+  font-weight: 500;
+}
+.tapi-select__option[aria-selected="true"]:hover {
+  background-color: var(--tapi-charcoal);
+  color: var(--tapi-cream);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-select__menu,
+  .tapi-select__chevron,
+  .tapi-select__trigger { transition: none !important; }
+  .tapi-select-wrap.is-open .tapi-select__chevron { transform: none; }
+}
+
+/* ============================================================
+   Product tags — ONE definition, identical everywhere
+   (card badges, PDP top, anywhere else)
+   ============================================================ */
+.tapi-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 10px !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  font-weight: 500 !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+}
+.tapi-tag--charcoal   { background: var(--tapi-charcoal)         !important; color: var(--tapi-cream)            !important; }
+.tapi-tag--sage       { background: var(--tapi-sage-wash)        !important; color: var(--tapi-sage-deep)        !important; }
+.tapi-tag--terracotta { background: var(--tapi-terracotta-wash)  !important; color: var(--tapi-terracotta-deep)  !important; }
+
+/* Identical anchoring inside product cards */
+.tapi-card__badges { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; z-index: 2; }
+.tapi-card__badges > .tapi-tag { margin: 0; }
+.tapi-pdp__tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ============================================================
+   Header logo — never wrap, on ANY page (home, PDP, cart, etc.)
+   ============================================================ */
+.header { grid-template-columns: 1fr auto 1fr !important; align-items: center !important; }
+.header__heading { margin: 0 !important; padding: 0 !important; line-height: 1 !important; font-size: inherit !important; min-width: 0; }
+.header__heading-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  padding: 0 !important;
+  min-width: 0;
+  text-decoration: none !important;
+}
+.header__heading-link .tapi-logo {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  width: auto !important;
+  max-width: none !important;
+}
+.header__heading-link .tapi-logo svg,
+.header__heading-link .tapi-logo span {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+/* Make sure the middle column of Dawn's grid is wide enough for the wordmark */
+.header > .header__heading,
+.header > .header__heading-link {
+  grid-column: 2 / 3 !important;
+  justify-self: center !important;
+}
+
+/* Belt-and-braces: never let the logo's parent flex squish below content width */
+header .header { gap: 0.8rem; }
+header .header > * { min-width: 0; }
+@media (max-width: 749px) {
+  .header { grid-template-columns: auto 1fr auto !important; }
+  .header > .header__heading,
+  .header > .header__heading-link { grid-column: 2 / 3 !important; justify-self: center !important; }
+}
+
+/* ============================================================
+   Field labels — restore, but stack ABOVE the input (no float overlap)
+   The earlier global hide broke the Contact form, login, etc.
+   ============================================================ */
+.field__label { display: block !important; }
+.field {
+  display: flex !important;
+  flex-direction: column-reverse !important;  /* input first in DOM, label sits above visually via reverse */
+  gap: 0.6rem !important;
+}
+.field__label {
+  position: static !important;
+  transform: none !important;
+  left: auto !important; top: auto !important;
+  font-family: var(--font-body-family) !important;
+  font-size: 1.1rem !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  color: var(--tapi-warm-grey) !important;
+  margin: 0 0 0.4rem !important;
+  padding: 0 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  background: transparent !important;
+}
+/* Restore the placeholder text inside inputs (Dawn hides via empty placeholder=" " trick) */
+.field__input::placeholder { color: var(--tapi-muted) !important; opacity: 1 !important; }
+
+/* Quantity steppers + size pills + similar custom-styled inputs don't have field__label — unaffected */
+
+/* ============================================================
+   Search input — left padding so text doesn't sit flush
+   ============================================================ */
+search-modal .field, .search-modal__form .field { padding-left: 0; }
+search-modal .field__input, .search-modal__form .field__input,
+input[type="search"]:not(.tapi-footer__field input) {
+  padding-left: 1.6rem !important;
+  padding-right: 1.6rem !important;
+  text-indent: 0 !important;
+}
+/* The big serif overlay search keeps its larger horizontal pad */
+search-modal .search-modal__form .field__input,
+search-modal .field__input {
+  padding-left: 2rem !important;
+}
+/* Predictive search results below the input also get aligned to the same padding */
+predictive-search, .predictive-search { padding-left: 2rem !important; padding-right: 2rem !important; }
+
+/* ============================================================
+   Field wrapper — strip border/padding/bg so only the inner
+   input carries visual chrome. (Footer subscribe field unaffected.)
+   ============================================================ */
+.field:not(.tapi-footer__field),
+.product-form__input:not(.tapi-footer__field),
+.customer .field,
+.contact .field,
+.search-modal .field,
+.cart-drawer .field,
+.cart-page__form .field {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+/* Defeat Dawn's :focus-within ring on the wrapper */
+.field:not(.tapi-footer__field):focus-within,
+.product-form__input:not(.tapi-footer__field):focus-within,
+.customer .field:focus-within,
+.contact .field:focus-within {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Same for any error state wrappers */
+.field.field--error:not(.tapi-footer__field),
+.field--with-error:not(.tapi-footer__field) {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Error state lives on the input itself */
+.field.field--error .field__input,
+.field--with-error .field__input { border-color: var(--tapi-terracotta) !important; }
+
+/* ============================================================
+   Aggressive wrapper-border kill — search modal + contact page
+   Dawn uses inset box-shadow + ::after/::before pseudos to draw
+   a border around the .field wrapper. Strip all of it.
+   ============================================================ */
+
+/* Wrapper itself */
+.search-modal .field,
+.search-modal__form .field,
+search-modal .field,
+search-modal__form .field,
+details-modal .field,
+.contact .field,
+.contact-form .field,
+form.contact .field,
+.template-contact .field {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Dawn paints the wrapper border with ::after — neutralize */
+.search-modal .field::before, .search-modal .field::after,
+.search-modal__form .field::before, .search-modal__form .field::after,
+search-modal .field::before, search-modal .field::after,
+.contact .field::before, .contact .field::after,
+.contact-form .field::before, .contact-form .field::after,
+form.contact .field::before, form.contact .field::after,
+.template-contact .field::before, .template-contact .field::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Focus-within killer */
+.search-modal .field:focus-within,
+.search-modal__form .field:focus-within,
+search-modal .field:focus-within,
+.contact .field:focus-within,
+.contact-form .field:focus-within,
+form.contact .field:focus-within,
+.template-contact .field:focus-within {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* For the search modal specifically, the parent <form> may also paint a border */
+.search-modal__form,
+search-modal__form,
+search-modal .search-modal__form {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.search-modal__form::before, .search-modal__form::after,
+search-modal .search-modal__form::before, search-modal .search-modal__form::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Contact page sometimes wraps each field in a .product-form__input or .field__input-wrapper */
+.field__input-wrapper,
+.contact-form__input-wrapper {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* ============================================================
+   Search box — align the search/reset icon buttons vertically
+   centered inside the field, with consistent inset.
+   ============================================================ */
+
+/* Position the .field as a positioning context */
+.search-modal .field,
+.search-modal__form .field,
+search-modal .field,
+.predictive-search .field,
+header .search__input-wrapper {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Reserve room inside the input for the icon buttons on the right */
+.search-modal .field__input,
+.search-modal__form .field__input,
+search-modal .field__input {
+  padding-right: 7rem !important;
+  padding-left: 2rem !important;
+}
+
+/* The search submit + reset (clear) buttons sit absolutely inside the field */
+.search-modal .field__button,
+.search-modal .field__submit,
+.search-modal .reset__button,
+.search-modal__form .field__button,
+.search-modal__form .field__submit,
+.search-modal__form .reset__button,
+search-modal .field__button,
+search-modal .field__submit,
+search-modal .reset__button {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 44px !important;
+  height: 44px !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--tapi-charcoal) !important;
+  cursor: pointer;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Submit (search-icon) on the right edge; Reset (×) just inside it */
+.search-modal .field__submit,
+.search-modal__form .field__submit,
+search-modal .field__submit { right: 0.6rem !important; left: auto !important; }
+.search-modal .reset__button,
+.search-modal__form .reset__button,
+search-modal .reset__button { right: 5rem !important; left: auto !important; }
+
+/* The icons themselves */
+.search-modal .field__button svg,
+.search-modal .field__submit svg,
+.search-modal .reset__button svg,
+.search-modal__form svg,
+search-modal .field__button svg,
+search-modal .field__submit svg,
+search-modal .reset__button svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block;
+  color: inherit;
+}
+
+/* Hover state — terracotta */
+.search-modal .field__submit:hover,
+.search-modal .reset__button:hover,
+.search-modal__form .field__submit:hover,
+.search-modal__form .reset__button:hover,
+search-modal .field__submit:hover,
+search-modal .reset__button:hover { color: var(--tapi-terracotta) !important; }
+
+/* Tighten the input height so the icons match vertically */
+.search-modal .field__input,
+.search-modal__form .field__input,
+search-modal .field__input {
+  height: auto !important;
+  line-height: 1.2 !important;
+  min-height: 5.6rem !important;
+}
+
+/* ============================================================
+   Search modal field — flex row, icons sit at the right, vertically
+   centered. Flex is more bulletproof than absolute positioning because
+   Dawn sometimes injects its own height/margin on these buttons.
+   ============================================================ */
+
+.search-modal .field,
+.search-modal__form .field,
+search-modal .field {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.4rem !important;
+  position: relative !important;
+  min-height: 5.6rem !important;
+  border-bottom: 1px solid var(--tapi-hairline-2) !important;
+}
+
+/* Hide the floating label inside the search field (placeholder carries the hint) */
+.search-modal .field__label,
+.search-modal__form .field__label,
+search-modal .field__label { display: none !important; }
+
+/* Input fills the row; icons sit after it at the right end */
+.search-modal .field__input,
+.search-modal__form .field__input,
+search-modal .field__input {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  display: block !important;
+  height: 5.6rem !important;
+  min-height: 5.6rem !important;
+  line-height: 5.6rem !important;
+  padding: 0 1.2rem 0 2rem !important;
+  font-size: clamp(2rem, 3vw, 2.8rem) !important;
+  font-family: var(--font-heading-family) !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Reset (×) + Submit (search) — flex items now, no absolute pos */
+.search-modal .field__button,
+.search-modal .field__submit,
+.search-modal .reset__button,
+.search-modal__form .field__button,
+.search-modal__form .field__submit,
+.search-modal__form .reset__button,
+search-modal .field__button,
+search-modal .field__submit,
+search-modal .reset__button {
+  position: static !important;
+  top: auto !important;
+  bottom: auto !important;
+  right: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  align-self: center !important;
+  flex: 0 0 auto !important;
+  width: 44px !important;
+  height: 44px !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--tapi-charcoal) !important;
+  cursor: pointer;
+  transition: color 200ms;
+}
+
+/* DOM order in Dawn is: input → label → reset → submit. With flex the
+   visual order matches the DOM order, so reset (×) appears immediately
+   left of submit (🔍). That's what we want. */
+
+.search-modal .field__button svg,
+.search-modal .field__submit svg,
+.search-modal .reset__button svg,
+.search-modal__form svg,
+search-modal .field__button svg,
+search-modal .field__submit svg,
+search-modal .reset__button svg {
+  width: 20px !important; height: 20px !important; display: block !important;
+}
+.search-modal .field__submit:hover,
+.search-modal .reset__button:hover,
+.search-modal__form .field__submit:hover,
+.search-modal__form .reset__button:hover,
+search-modal .field__submit:hover,
+search-modal .reset__button:hover { color: var(--tapi-terracotta) !important; }
+
+/* ============================================================
+   Show the × (reset) only when the input has text.
+   Uses :placeholder-shown — works on all modern browsers.
+   ============================================================ */
+.search-modal .reset__button,
+.search-modal__form .reset__button,
+search-modal .reset__button {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  transition: opacity 200ms;
+}
+/* When the search input is not in placeholder state (= user has typed), show × */
+.search-modal .field:has(input.field__input:not(:placeholder-shown)) .reset__button,
+.search-modal__form .field:has(input.field__input:not(:placeholder-shown)) .reset__button,
+search-modal .field:has(input.field__input:not(:placeholder-shown)) .reset__button {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+/* Fallback if :has() unsupported — show on focus + filled state via JS-less trick:
+   make the reset hidden via display until input is :not(:placeholder-shown) */
+.search-modal__form .field__input:placeholder-shown + .reset__button,
+search-modal .field__input:placeholder-shown + .reset__button { visibility: hidden !important; opacity: 0 !important; }
+.search-modal__form .field__input:not(:placeholder-shown) + .reset__button,
+search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility: visible !important; opacity: 1 !important; }
+
+/* ============================================================
+   Section spacing — one rule to govern every Tapi section
+   ============================================================ */
+:root { --tapi-section-y: clamp(6.4rem, 9vw, 11rem); }
+
+/* NOTE: .tapi-hero is intentionally excluded — it is full-bleed and owns its
+   own spacing (padding-top:0 so it sits flush under the header/catalog strip,
+   custom padding-bottom for the trust strip). Adding it here forced an
+   unwanted top band of cream above the carousel at every viewport. */
+.tapi-collection-tiles,
+.tapi-featured,
+.tapi-studio-strip,
+.tapi-editorial-band,
+.tapi-pdp {
+  padding-top: var(--tapi-section-y) !important;
+  padding-bottom: var(--tapi-section-y) !important;
+  margin: 0 !important;
+}
+
+/* The PDP needs slightly tighter spacing — keep it slim */
+.tapi-pdp { padding-top: 2.4rem !important; padding-bottom: 4.8rem !important; }
+@media (max-width: 749px) { .tapi-pdp { padding-bottom: 10rem !important; } }
+
+/* Dawn wraps each Tapi section in <div class="shopify-section ..."> ; kill any
+   inherited margins/padding so our --tapi-section-y is the single source of truth */
+.shopify-section + .shopify-section { margin-top: 0 !important; }
+.shopify-section:has(> .tapi-hero),
+.shopify-section:has(> .tapi-collection-tiles),
+.shopify-section:has(> .tapi-featured),
+.shopify-section:has(> .tapi-studio-strip),
+.shopify-section:has(> .tapi-editorial-band) { margin: 0 !important; padding: 0 !important; }
+
+/* Mobile — keep proportional, but a touch tighter */
+@media (max-width: 749px) {
+  :root { --tapi-section-y: clamp(4.8rem, 8vw, 7.2rem); }
+}
+
+/* ============================================================
+   Customer pages (login / register / reset / activate)
+   Built from tokens — Dawn defaults not used.
+   ============================================================ */
+
+.tapi-customer {
+  padding-top: clamp(4.8rem, 9vw, 11rem) !important;
+  padding-bottom: clamp(4.8rem, 9vw, 11rem) !important;
+  background: var(--tapi-cream);
+}
+.tapi-customer__shell {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 var(--gutter-mobile, 1.6rem);
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 750px) {
+  .tapi-customer__shell { padding: 0 2.4rem; }
+}
+
+/* Login section has two stacked panes; CSS-only :target toggle */
+.tapi-customer--login .tapi-customer__pane--recover { display: none; }
+.tapi-customer--login:has(#recover:target) .tapi-customer__pane--login { display: none; }
+.tapi-customer--login:has(#recover:target) .tapi-customer__pane--recover { display: block; }
+/* Fallback for browsers without :has() — show both, the URL anchor still
+   jumps to the right form, just stacked rather than swapped */
+@supports not (selector(:has(*))) {
+  .tapi-customer--login .tapi-customer__pane--recover { display: block; margin-top: 4.8rem; padding-top: 4.8rem; border-top: 1px solid var(--tapi-hairline); }
+}
+
+.tapi-customer__heading {
+  font-family: var(--font-heading-family);
+  font-size: clamp(3.2rem, 5vw, 5.2rem);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.05;
+  margin: 1.2rem 0 1.2rem;
+}
+.tapi-customer__lede {
+  font-size: clamp(1.5rem, 1.4vw, 1.7rem);
+  color: var(--tapi-warm-grey);
+  line-height: 1.6;
+  margin: 0 0 3.2rem;
+}
+
+.tapi-customer__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin: 0;
+}
+.tapi-customer__label {
+  font-family: var(--font-body-family);
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey);
+  margin: 1.2rem 0 0.4rem;
+  display: block;
+}
+.tapi-customer__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 1.2rem 0 0.4rem;
+}
+.tapi-customer__label-row .tapi-customer__label { margin: 0; }
+.tapi-customer__link {
+  font-size: 1.2rem;
+  color: var(--tapi-terracotta);
+  text-decoration: none;
+  position: relative;
+  padding-bottom: 2px;
+  transition: color 200ms;
+}
+.tapi-customer__link::after {
+  content: ""; position: absolute; left: 0; bottom: 0;
+  height: 1px; width: 100%; background: currentColor;
+  transform: scaleX(0); transform-origin: right;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-customer__link:hover::after { transform: scaleX(1); transform-origin: left; }
+
+/* The global input rule (line ~572) already styles these — explicitly
+   wrap here so layout/spacing reads as part of the card. */
+.tapi-customer__input {
+  width: 100%;
+  display: block;
+}
+.tapi-customer__input--error { border-color: var(--tapi-terracotta) !important; }
+
+.tapi-customer__submit {
+  margin-top: 2rem;
+  width: 100%;
+  height: 5.6rem !important;
+  min-height: 5.6rem !important;
+}
+.tapi-customer__alt {
+  width: 100%;
+  height: 5.6rem !important;
+  min-height: 5.6rem !important;
+}
+
+.tapi-customer__divider {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  margin: 2.8rem 0 2rem;
+  color: var(--tapi-muted);
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.tapi-customer__divider::before,
+.tapi-customer__divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--tapi-hairline);
+}
+
+.tapi-customer__help {
+  font-size: 1.3rem;
+  color: var(--tapi-warm-grey);
+  margin-top: 2.8rem;
+  text-align: center;
+}
+.tapi-customer__fine {
+  font-size: 1.1rem;
+  margin-top: 2rem;
+  text-align: left;
+  color: var(--tapi-muted);
+}
+
+.tapi-customer__row--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+}
+@media (max-width: 540px) {
+  .tapi-customer__row--split { grid-template-columns: 1fr; }
+}
+
+.tapi-customer__errors,
+.tapi-customer__success {
+  padding: 1.4rem 1.6rem;
+  font-size: 1.3rem;
+  border-radius: 2px;
+  margin-bottom: 0.4rem;
+}
+.tapi-customer__errors {
+  background: var(--tapi-terracotta-wash);
+  color: var(--tapi-terracotta-deep);
+  border: 1px solid rgba(143, 54, 33, 0.15);
+}
+.tapi-customer__errors ul { margin: 0.4rem 0 0; padding-left: 1.8rem; }
+.tapi-customer__errors li { margin: 0.2rem 0; }
+.tapi-customer__success {
+  background: var(--tapi-sage-wash);
+  color: var(--tapi-sage-deep);
+  border: 1px solid rgba(90, 103, 72, 0.15);
+}
+
+/* Staggered reveal — eyebrow → heading → lede → fields → submit */
+.tapi-customer[data-tapi-reveal] .tapi-eyebrow,
+.tapi-customer[data-tapi-reveal] .tapi-customer__heading,
+.tapi-customer[data-tapi-reveal] .tapi-customer__lede,
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *,
+.tapi-customer[data-tapi-reveal] .tapi-customer__divider,
+.tapi-customer[data-tapi-reveal] .tapi-customer__alt,
+.tapi-customer[data-tapi-reveal] .tapi-customer__help {
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  animation: tapi-customer-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tapi-customer[data-tapi-reveal] .tapi-eyebrow         { animation-delay: 60ms;  }
+.tapi-customer[data-tapi-reveal] .tapi-customer__heading { animation-delay: 120ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__lede    { animation-delay: 180ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *:nth-child(1) { animation-delay: 240ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *:nth-child(2) { animation-delay: 280ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *:nth-child(3) { animation-delay: 320ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *:nth-child(4) { animation-delay: 360ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *:nth-child(5) { animation-delay: 400ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__form > *:nth-child(6) { animation-delay: 440ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__divider { animation-delay: 480ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__alt     { animation-delay: 520ms; }
+.tapi-customer[data-tapi-reveal] .tapi-customer__help    { animation-delay: 560ms; }
+
+@keyframes tapi-customer-rise {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tapi-customer[data-tapi-reveal] *,
+  .tapi-customer[data-tapi-reveal] .tapi-customer__form > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ============================================================
+   Tapi search modal — slide-down panel
+   Replaces Dawn's centered modal with a top-anchored sheet that
+   contains a serif input + curated empty state (Trending /
+   Collections / Bestsellers) and a live predictive-results region.
+   ============================================================ */
+.tapi-search-modal.modal__content {
+  position: fixed;
+  inset: 0;
+  display: block;
+  background: transparent;
+  pointer-events: auto;
+  /* Sit above everything — hero overlay, trust marquee (z51), content. */
+  z-index: 9999;
+}
+/* When the search is open, lift the whole header section (the modal's
+   stacking-context parent) above the trust marquee and the hero overlay,
+   so nothing behind the panel can bleed through. The header lives in a
+   section group, so its wrapper id is sections--…__header; match by the
+   .section-header class plus the shopify-section wrapper to be safe. */
+.shopify-section.section-header:has(.tapi-search details[open]),
+.shopify-section-group-header-group:has(.tapi-search details[open]),
+.section-header:has(.tapi-search details[open]),
+[id^="shopify-section"]:has(> .tapi-search details[open]),
+[id^="shopify-section"]:has(.header__search details[open]) {
+  position: relative;
+  z-index: 10000 !important;
+}
+.tapi-search-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 40, 38, 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: tapi-search-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 0;
+}
+@keyframes tapi-search-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.tapi-search-panel {
+  position: fixed;
+  inset: 0 0 auto 0;
+  /* Dawn's .search-modal__content (same element) sets display: flex +
+     align-items: center + justify-content: center + height: 100% which
+     vertically centers everything and breaks our top-to-bottom layout.
+     Force block flow + auto height so content flows naturally from the
+     top of the panel. */
+  display: block !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+  height: auto !important;
+  width: 100%;
+  z-index: 1;
+  /* Fully opaque so nothing behind the panel shows through. Literal hex
+     (not a var) guarantees opacity even if a token is overridden. */
+  background: #F8F4ED !important;
+  background: var(--mor-cream, #F8F4ED) !important;
+  border-bottom: 1px solid var(--mor-hairline, #e5ddc8);
+  box-shadow: var(--mor-shadow-lg, 0 24px 48px -28px rgba(44, 40, 38, 0.18));
+  /* Extra top room so the input clears the screen edge and is comfortable to type in */
+  padding: clamp(32px, 4vw, 56px) clamp(16px, 4vw, 40px) clamp(32px, 5vw, 56px);
+  /* Cap at 90% of the viewport so the panel never overflows past the
+     screen — use dvh on supporting browsers so mobile URL/toolbar chrome
+     doesn't cut off the bottom. Fallback to vh for older Safari. */
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  animation: tapi-search-slide-down 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tapi-search-slide-down {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+.tapi-search-form,
+.tapi-search-form-inner {
+  display: block;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ---- Input row ---- */
+/* Sticky so the search field stays visible while scrolling long result
+   lists; sits flush at the top of the panel's scroll area. */
+.tapi-search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+  padding-bottom: 12px;
+  background: var(--tapi-cream, #f8f4ed);
+  border-bottom: 1px solid var(--tapi-charcoal, #2c2826);
+}
+.tapi-search-bar__icon {
+  color: var(--tapi-charcoal, #2c2826);
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tapi-search-bar__icon svg { width: 20px; height: 20px; }
+.tapi-search-bar__input.field__input,
+.tapi-search-bar__input,
+.tapi-search-bar .field__input,
+.tapi-search-bar input.search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: auto !important;
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif) !important;
+  font-size: clamp(20px, 3.4vw, 32px) !important;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--tapi-charcoal, #2c2826) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  /* Kill native field chrome so the .tapi-search-bar bottom border is the
+     ONLY line. (Input is type="text"; this is belt-and-suspenders in case a
+     browser/extension still applies search-field rendering.) */
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  border: 0 !important;
+  outline: none !important;
+  padding: 4px 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.tapi-search-bar__input::-webkit-search-cancel-button,
+.tapi-search-bar__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+.tapi-search-bar__input:focus,
+.tapi-search-bar__input:focus-visible,
+.tapi-search-bar .field__input:focus,
+.tapi-search-bar .field__input:focus-visible {
+  box-shadow: none !important;
+  outline: none !important;
+}
+.tapi-search-bar__input::placeholder {
+  color: var(--tapi-muted, #9a8d83);
+  font-style: italic;
+}
+.tapi-search-bar__reset {
+  background: transparent;
+  border: 0;
+  color: var(--tapi-warm-grey, #6b5d54);
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.tapi-search-bar__reset .svg-wrapper { width: 16px; height: 16px; }
+.tapi-search-bar__reset.hidden { display: none; }
+.tapi-search-bar__close {
+  background: transparent;
+  border: 0;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey, #6b5d54);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 6px;
+  flex: 0 0 auto;
+}
+.tapi-search-bar__close:hover { color: var(--tapi-terracotta, #b7472a); }
+.tapi-search-bar__close span[aria-hidden] {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@media (max-width: 600px) {
+  .tapi-search-bar__close-text { display: none; }
+}
+
+/* ---- Grid (two columns desktop, stack mobile) ---- */
+.tapi-search-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(24px, 4vw, 56px);
+  margin-top: clamp(20px, 4vw, 32px);
+}
+@media (min-width: 760px) {
+  .tapi-search-grid { grid-template-columns: 1fr 2fr; gap: clamp(32px, 5vw, 64px); }
+}
+.tapi-search-block + .tapi-search-block { margin-top: clamp(24px, 4vw, 32px); }
+.tapi-search-block__title {
+  margin: 0 0 14px;
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-warm-grey, #6b5d54);
+}
+
+/* ---- Trending + Collections lists ---- */
+.tapi-search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tapi-search-list__item { margin: 0; }
+.tapi-search-list__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  color: var(--tapi-charcoal, #2c2826);
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 17px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  width: max-content;
+  max-width: 100%;
+}
+.tapi-search-list__link--compact {
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 13px;
+  color: var(--tapi-warm-grey, #6b5d54);
+  padding: 4px 0;
+  gap: 10px;
+}
+.tapi-search-list__bullet {
+  width: 14px;
+  height: 1px;
+  background: var(--tapi-terracotta, #b7472a);
+  flex: 0 0 auto;
+  transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-search-list__link:hover .tapi-search-list__bullet { width: 24px; }
+.tapi-search-list__count {
+  color: var(--tapi-muted, #9a8d83);
+  font-size: 11px;
+}
+
+/* ---- Bestsellers / Matches product rows ---- */
+.tapi-search-products {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tapi-search-products__item + .tapi-search-products__item {
+  border-top: 1px solid var(--tapi-hairline, #e5ddc8);
+}
+.tapi-search-product {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  color: inherit;
+  text-decoration: none;
+  transition: padding-left 320ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tapi-search-product:hover {
+  padding-left: 8px;
+  background: var(--tapi-cream-2, #f1ebdd);
+}
+.tapi-search-product__thumb {
+  width: 64px;
+  height: 80px;
+  background: var(--tapi-cream-2, #f1ebdd);
+  overflow: hidden;
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  flex: 0 0 auto;
+}
+.tapi-search-product__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tapi-search-product__placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(183, 71, 42, 0.08), transparent 40%),
+    radial-gradient(circle at 70% 80%, rgba(122, 135, 97, 0.10), transparent 40%),
+    var(--tapi-cream-2, #f1ebdd);
+}
+.tapi-search-product__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tapi-search-product__name {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--tapi-charcoal, #2c2826);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tapi-search-product__sub {
+  font-size: 12px;
+  color: var(--tapi-muted, #9a8d83);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tapi-search-product__right {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+.tapi-search-product__price {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 16px;
+  color: var(--tapi-charcoal, #2c2826);
+}
+.tapi-search-product__cta {
+  font-size: 11px;
+  color: var(--tapi-terracotta, #b7472a);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---- Empty / no-results blurb ---- */
+.tapi-search-empty {
+  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--tapi-warm-grey, #6b5d54);
+  margin: 0;
+}
+
+/* ---- See-all CTA below matches ---- */
+.tapi-predictive__see-all {
+  margin-top: clamp(16px, 3vw, 24px);
+  padding-top: 16px;
+  border-top: 1px solid var(--tapi-hairline, #e5ddc8);
+}
+.tapi-predictive__see-all .predictive-search__item--term {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tapi-terracotta, #b7472a);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---- Query-active toggling (driven by tapi-motion.js) ---- */
+.tapi-search.is-query [data-default-trending],
+.tapi-search.is-query [data-default-title],
+.tapi-search.is-query [data-default-products] {
+  display: none;
+}
+.tapi-search:not(.is-query) [data-query-title],
+.tapi-search:not(.is-query) [data-query-suggested],
+.tapi-search:not(.is-query) .tapi-search-live {
+  display: none !important;
+}
+.tapi-search.is-query [data-query-title],
+.tapi-search.is-query [data-query-suggested],
+.tapi-search.is-query .tapi-search-live {
+  display: block !important;
+}
+
+/* ---- Loading spinner override (subtle, in-place) ---- */
+.tapi-search-live .predictive-search__loading-state {
+  margin: 24px auto;
+  color: var(--tapi-warm-grey, #6b5d54);
+}
+
+/* ---- Reset Dawn's old modal CSS that might interfere ---- */
+.tapi-search .modal-overlay { background: transparent; }
+.tapi-search [open] > .search-modal { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-search-panel,
+  .tapi-search-backdrop {
+    animation: none !important;
+  }
+  .tapi-search-product { transition: none !important; }
+  .tapi-search-list__bullet { transition: none !important; }
+}
+
+/* ----- Tapi accordion polish (collapsible-content + any <details>) ----- */
+.accordion summary {
+  padding: 2rem 0;
+  align-items: center;
+}
+.accordion .summary__title + .icon-caret,
+summary .icon-caret {
+  height: 1.6rem !important;
+  width: 1.6rem !important;
+  flex: 0 0 auto;
+  transform-origin: center;
+  transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  color: var(--tapi-terracotta, #b7472a);
+  margin-left: 1.2rem;
+}
+.accordion details[open] > summary .icon-caret,
+details[open] > summary .icon-caret {
+  transform: rotate(180deg);
+}
+.accordion summary:hover .icon-caret { color: var(--tapi-charcoal, #2c2826); }
+.accordion__title { font-size: clamp(1.6rem, 1.6vw, 1.9rem); letter-spacing: -0.005em; }
+.accordion__content {
+  padding: 0.6rem 0 1.8rem;
+  overflow: hidden;
+  animation: tapi-accordion-open 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tapi-accordion-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .accordion .summary__title + .icon-caret,
+  summary .icon-caret { transition: none !important; }
+  .accordion__content { animation: none !important; }
+}
+
+/* ====== Spacing system — one rhythm across the homepage ====== */
+:root {
+  --tapi-gutter:      16px;
+  --tapi-section-pad: 56px;
+  --tapi-card-gap:    16px;
+  --tapi-max:         1440px;
+  /* --mor-* spacing aliases (resolve responsively via the --tapi-* values
+     redefined at each breakpoint below). Prefer --mor-* in new code. */
+  --mor-gutter:      var(--tapi-gutter);
+  --mor-section-pad: var(--tapi-section-pad);
+  --mor-card-gap:    var(--tapi-card-gap);
+  --mor-max:         var(--tapi-max);
+}
+@media (min-width: 641px) {
+  :root { --tapi-gutter: 32px; --tapi-section-pad: 72px; --tapi-card-gap: 20px; }
+}
+@media (min-width: 990px) {
+  :root { --tapi-gutter: 48px; --tapi-section-pad: 96px; --tapi-card-gap: 28px; }
+}
+@media (min-width: 1440px) {
+  :root { --tapi-gutter: 64px; --tapi-section-pad: 112px; --tapi-card-gap: 32px; }
+}
+
+/* Apply system to all home sections (selectors target the existing section roots) */
+/* .tapi-hero is intentionally excluded — it is a full-bleed overlay hero that
+   manages its own spacing (flush under header, own bottom gap for trust strip). */
+.tapi-collection-tiles,
+.tapi-featured,
+.tapi-studio-strip,
+.tapi-editorial-band,
+.tapi-press {
+  padding-block: var(--tapi-section-pad) !important;
+  margin-block: 0 !important;
+  width: 100%;
+}
+.tapi-hero__trust,
+.tapi-collection-tiles > .page-width,
+.tapi-featured__inner,
+.tapi-studio-strip > .page-width,
+.tapi-editorial-band__inner,
+.tapi-press__inner {
+  max-width: var(--tapi-max);
+  margin-inline: auto;
+  padding-inline: var(--tapi-gutter);
+}
+
+/* ===== Cart page: items list + sticky checkout aside (desktop) ===== */
+/* Mobile: stays single-column. Desktop ≥990: side-by-side. */
+
+/* Base: apply tapi spacing tokens to the inner page-width wrappers */
+.template-cart cart-items > .page-width,
+.template-cart .cart__footer-wrapper > .page-width {
+  max-width: var(--tapi-max, 144rem) !important;
+  margin-inline: auto !important;
+  padding-inline: var(--tapi-gutter, 16px) !important;
+  box-sizing: border-box;
+}
+
+.template-cart .title-wrapper-with-link {
+  padding-block: 0;
+  margin-bottom: clamp(2rem, 3vw, 3.2rem);
+}
+
+/* Cart qty stepper — branded */
+.template-cart .quantity,
+.cart__footer-wrapper .quantity {
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  background: var(--tapi-ivory, #fcfaf4);
+  border-radius: 0;
+  box-shadow: none;
+}
+.template-cart .quantity__input,
+.cart__footer-wrapper .quantity__input {
+  background: transparent;
+  border: 0;
+  font-family: var(--font-body-family, Inter, sans-serif);
+  font-size: 14px;
+  color: var(--tapi-charcoal, #2c2826);
+}
+.template-cart .quantity__button,
+.cart__footer-wrapper .quantity__button {
+  background: transparent;
+  border: 0;
+  color: var(--tapi-charcoal, #2c2826);
+  width: 40px; height: 40px;
+}
+.template-cart .quantity__button:hover,
+.cart__footer-wrapper .quantity__button:hover { color: var(--tapi-terracotta, #b7472a); }
+
+/* === Desktop 2-column: items on left, sticky checkout on right === */
+@media (min-width: 990px) {
+  /* The cart template's main content becomes the grid container */
+  .template-cart #MainContent,
+  body.template-cart main.content-for-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+    column-gap: clamp(2rem, 4vw, 5.6rem);
+    row-gap: clamp(3rem, 4vw, 5rem);
+    max-width: var(--tapi-max, 144rem);
+    margin-inline: auto;
+    padding-inline: var(--tapi-gutter, 16px);
+    box-sizing: border-box;
+    align-items: start;
+  }
+
+  /* Cart-items section: column 1 */
+  .template-cart #shopify-section-cart-items {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  /* Cart-footer section: column 2, sticky */
+  .template-cart #shopify-section-cart-footer {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 120px;
+    align-self: start;
+    min-width: 0;
+  }
+  /* Featured-collection (and anything else): spans both columns */
+  .template-cart #MainContent > section:not(#shopify-section-cart-items):not(#shopify-section-cart-footer) {
+    grid-column: 1 / -1;
+  }
+
+  /* Strip the inner page-width since the grid parent provides the gutter */
+  .template-cart #shopify-section-cart-items cart-items > .page-width,
+  .template-cart #shopify-section-cart-footer .cart__footer-wrapper > .page-width,
+  .template-cart #shopify-section-cart-footer > .cart__footer-wrapper {
+    max-width: none !important;
+    padding-inline: 0 !important;
+  }
+  .template-cart #shopify-section-cart-items cart-items,
+  .template-cart #shopify-section-cart-footer .cart__footer {
+    padding-block: 0 !important;
+  }
+
+  /* Checkout aside framing — give it a card feel so it reads as a panel */
+  .template-cart #shopify-section-cart-footer .cart__footer {
+    background: var(--tapi-ivory, #fcfaf4);
+    border: 1px solid var(--tapi-hairline, #e5ddc8);
+    padding: clamp(20px, 2vw, 32px) !important;
+  }
+  .template-cart #shopify-section-cart-footer .cart__blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  /* CHECK OUT button fills the aside width */
+  .template-cart #shopify-section-cart-footer .cart__ctas .button,
+  .template-cart #shopify-section-cart-footer .cart__ctas button[type="submit"] {
+    width: 100%;
+    min-height: 56px;
+  }
+
+  /* Cart items table: stack qty + line-total under the product info on
+     each row so the row fits the narrower 1.7fr column without overflow */
+  .template-cart .cart-items thead { display: none; }
+  .template-cart .cart-items,
+  .template-cart .cart-items tbody { display: block; width: 100%; }
+  .template-cart .cart-items tr.cart-item {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    column-gap: clamp(16px, 2vw, 28px);
+    align-items: start;
+    padding-block: clamp(20px, 2.4vw, 32px);
+    border-bottom: 1px solid var(--tapi-hairline, #e5ddc8);
+  }
+  .template-cart .cart-items tr.cart-item > td { display: block; padding: 0; border: 0; }
+  .template-cart .cart-item__media { grid-column: 1; }
+  .template-cart .cart-item__details { grid-column: 2; }
+  /* Quantity cell + price cell collapse into a row UNDER the product info */
+  .template-cart .cart-item__quantity {
+    grid-column: 2;
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .template-cart .cart-item__totals {
+    grid-column: 2;
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-start;
+  }
+  .template-cart .cart-item__totals .price,
+  .template-cart .cart-item__totals .totals__subtotal-value {
+    font-family: var(--font-heading-family, "Cormorant Garamond", Georgia, serif);
+    font-size: 18px;
+    color: var(--tapi-charcoal, #2c2826);
+  }
+}
+
+/* ====== Tapi filter + sort dropdowns (global, /search and /collections) ====== */
+.facets-container, .facets-vertical-sort, .facets-vertical, .facets, .facets-wrapper {
+  font-family: var(--font-body-family, Inter, system-ui, sans-serif);
+}
+
+.facet-filters .select {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  box-shadow: none !important;
+  position: relative;
+  display: inline-block;
+  height: auto;
+}
+.facet-filters .select .svg-wrapper,
+.facet-filters .select .icon-caret { display: none !important; }
+
+.facets__summary,
+.facets-wrap details > summary,
+.facet-filters__sort,
+.facet-filters .select .select__select,
+.facet-filters select.select__select {
+  box-sizing: border-box;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  min-width: 168px !important;
+  height: 44px !important;
+  padding: 0 38px 0 14px !important;
+  font-family: var(--font-body-family, Inter, sans-serif) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--tapi-charcoal, #2c2826) !important;
+  background: var(--tapi-ivory, #fcfaf4) !important;
+  border: 1px solid var(--tapi-hairline, #e5ddc8) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  transition: border-color 240ms ease, color 240ms ease;
+  cursor: pointer;
+  background-image: none !important;
+}
+.facets__summary:hover,
+.facets-wrap details > summary:hover,
+.facet-filters .select .select__select:hover,
+.facet-filters select.select__select:hover { border-color: var(--tapi-charcoal, #2c2826) !important; }
+.facets__summary:focus,
+.facets-wrap details > summary:focus,
+.facet-filters .select .select__select:focus,
+.facet-filters select.select__select:focus {
+  border-color: var(--tapi-charcoal, #2c2826) !important;
+  outline: 2px solid var(--tapi-charcoal, #2c2826) !important;
+  outline-offset: 2px !important;
+}
+.facets details[open] > summary {
+  color: var(--tapi-terracotta, #b7472a) !important;
+  border-color: var(--tapi-charcoal, #2c2826) !important;
+}
+
+.facets details > summary,
+.facet-filters .select { position: relative; }
+.facets details > summary::after,
+.facet-filters .select::after {
+  content: "";
+  position: absolute;
+  right: 14px; top: 50%;
+  width: 12px; height: 8px;
+  background: var(--tapi-terracotta, #b7472a);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M5 6 0 0h10z'/></svg>") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M5 6 0 0h10z'/></svg>") center / contain no-repeat;
+  transform: translateY(-50%);
+  transition: transform 200ms ease-in-out;
+  pointer-events: none;
+}
+.facets details[open] > summary::after { transform: translateY(-50%) rotate(180deg); }
+.facet-filters .select:focus-within::after { transform: translateY(-50%) rotate(180deg); }
+.facets__summary .icon-caret,
+.facets-wrap details > summary .icon-caret { display: none !important; }
+
+/* Native <option> styling (limited but helps consistency across Chromium/Edge) */
+.facet-filters__sort option,
+.facet-filters .select option,
+.facet-filters select.select__select option {
+  background: var(--tapi-ivory, #fcfaf4) !important;
+  color: var(--tapi-charcoal, #2c2826) !important;
+  font-family: var(--font-body-family, Inter, sans-serif) !important;
+  font-size: 13px !important;
+  padding: 10px 14px !important;
+}
+.facet-filters__sort option:checked,
+.facet-filters .select option:checked,
+.facet-filters select.select__select option:checked {
+  background: var(--tapi-charcoal, #2c2826) linear-gradient(0deg, var(--tapi-charcoal, #2c2826), var(--tapi-charcoal, #2c2826)) !important;
+  color: var(--tapi-cream, #f8f4ed) !important;
+  font-weight: 500;
+}
+
+.facets__form, .facets__display {
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  background: var(--tapi-ivory, #fcfaf4);
+  box-shadow: 0 12px 24px -16px rgba(44,40,38,0.2);
+  border-radius: 0;
+  padding: 14px 16px;
+  margin-top: 8px;
+  min-width: 220px;
+}
+.facets__form ul, .facets__display ul { padding-left: 0; }
+.facets__item label, .facets__list label {
+  font-size: 13px !important;
+  letter-spacing: 0.02em;
+  color: var(--tapi-charcoal, #2c2826) !important;
+  font-weight: 400;
+}
+.facet-filters__field { gap: 12px; align-items: center; }
+.facet-filters__label, .facet-filters__label label {
+  font-size: 11px !important;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tapi-muted, #97887a) !important;
+  font-weight: 500;
+}
+.product-count, .product-count__text { color: var(--tapi-muted, #97887a); font-size: 13px; }
+.product-count__text { letter-spacing: 0.02em; }
+
+@media (max-width: 640px) {
+  .facets__summary,
+  .facets-wrap details > summary,
+  .facet-filters__sort,
+  .facet-filters .select .select__select,
+  .facet-filters select.select__select,
+  .tapi-sort > summary { min-width: 140px !important; }
+}
+
+/* ====== Tapi custom sort dropdown (matches filter <details>) ====== */
+.tapi-sort { position: relative; display: inline-block; }
+.tapi-sort > summary { list-style: none; }
+.tapi-sort > summary::-webkit-details-marker { display: none; }
+/* The trigger styling + caret + open-state colour are inherited from the
+   .facets__summary / .facets details > summary rules earlier in this file. */
+
+/* Popup menu — aligned to trigger left edge, same width as trigger */
+.tapi-sort__menu {
+  position: absolute !important;
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  min-width: 100%;
+  width: max-content;
+  max-width: 320px;
+  background: var(--tapi-ivory, #fcfaf4);
+  border: 1px solid var(--tapi-hairline, #e5ddc8);
+  box-shadow: 0 16px 32px -20px rgba(44, 40, 38, 0.28);
+  border-radius: 0;
+  padding: 6px 0;
+  margin: 0;
+  z-index: 50;
+  animation: tapi-sort-open 180ms ease-out;
+}
+@keyframes tapi-sort-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tapi-sort__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tapi-sort__item { margin: 0; padding: 0; }
+.tapi-sort__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-family: var(--font-body-family, Inter, sans-serif);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--tapi-charcoal, #2c2826);
+  cursor: pointer;
+  user-select: none;
+  transition: background 160ms ease, color 160ms ease;
+}
+.tapi-sort__option:hover { background: var(--tapi-cream-2, #f1ebdd); }
+.tapi-sort__option.is-active { background: var(--tapi-charcoal, #2c2826); color: var(--tapi-cream, #f8f4ed); font-weight: 500; }
+.tapi-sort__radio { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+.tapi-sort__option-text { flex: 1; }
+.tapi-sort__option-check {
+  width: 14px; height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.tapi-sort__option.is-active .tapi-sort__option-check { opacity: 1; }
+.tapi-sort__option-check::after {
+  content: "";
+  width: 10px; height: 6px;
+  border-left: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(-45deg) translateY(-2px);
+}
+
+/* Right-align the menu when the trigger sits on the right side of the row */
+.facet-filters .tapi-sort .tapi-sort__menu { left: auto; right: 0; }
+
+@media (max-width: 640px) {
+  .tapi-sort__menu { min-width: 200px; }
+}
