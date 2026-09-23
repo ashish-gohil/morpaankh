@@ -707,7 +707,7 @@
         <details class="tapi-acc">
           <summary><span>Shipping &amp; returns</span><span class="tapi-acc__toggle">+</span></summary>
           <div class="tapi-acc__body">
-            <p>Free delivery on prepaid orders{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India, with a delivery fee shown at checkout{% endif %}. Defects or wrong items are put right at no cost within 7 days. Size or colour swaps on unworn pieces are welcome too, with the return courier taken off your refund. <a href="/pages/refund-policy">See full returns</a>.</p>
+            <p>Free delivery on prepaid orders{% if section.settings.payment_perks != blank %}. Cash on Delivery available across India, with a delivery fee shown at checkout{% endif %}. If a piece arrives torn, broken or simply wrong, we replace it free within 7 days and cover the courier both ways. Want a different size instead? We exchange it where we have that size, with the delivery both ways on you. Change of mind returns are not accepted, and anything coming back must be unworn with its tags on. <a href="/pages/refund-policy">See full returns</a>.</p>
           </div>
         </details>
       </div>
@@ -934,8 +934,13 @@
       "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
       "merchantReturnDays": 7,
       "returnMethod": "https://schema.org/ReturnByMail",
+      {%- comment -%} Two different cases, so the general returnFees stays the conservative
+        one (a size exchange is paid by the customer both ways) and the defect case declares
+        its own free return. Never widen returnFees to FreeReturn: that would tell Google
+        every return is free, which is only true when the fault is ours. {%- endcomment -%}
       "returnFees": "https://schema.org/ReturnFeesCustomerResponsibility",
-      "refundType": "https://schema.org/FullRefund",
+      "itemDefectReturnFees": "https://schema.org/FreeReturn",
+      "refundType": ["https://schema.org/ExchangeRefund", "https://schema.org/FullRefund"],
       "merchantReturnLink": {{ request.origin | append: '/pages/refund-policy' | json }}
     }
   ]
