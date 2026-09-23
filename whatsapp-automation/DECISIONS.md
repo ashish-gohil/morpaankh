@@ -604,3 +604,25 @@ example of why cleanup must never be able to fail the work it belongs to.
 `cancelLinkIfAny` can no longer throw. **The DLQ message should be redriven
 (`node scripts/replay-dlq.mjs`) after the deploy, not before**, or it will
 simply fail a sixth time.
+
+### Deployed and proven live (2026-09-23 16:06 UTC)
+All 11 functions deployed, including the new `wa-error-reporter`, with two
+subscription filters on each of the ten log groups.
+
+The whole chain was then proven on the real DLQ message rather than a synthetic
+one. The `orders/cancelled` record for #1150 was redriven, hit the same Razorpay
+"cannot cancel an already paid link" failure, and this time:
+
+1. the failure was logged as `soft: true` with the label, order id, link id and
+   stack, and the record **completed** instead of failing;
+2. both queues went to zero, so nothing returned to the DLQ;
+3. the subscription filter picked the error line up and the reporter published
+   it to SNS about one second later (`error-reporter: reported sig=E7i0fic`);
+4. a second identical error was suppressed by the 15 minute throttle
+   (`already reported in this window`).
+
+**The one thing still not working is delivery of those emails.** Both SNS email
+subscriptions are `PendingConfirmation`, so the topic publishes and nothing
+arrives. Fresh confirmation mails were re-sent to morpaankh.collection@gmail.com
+and ashishgohil148@gmail.com; until someone clicks "Confirm subscription" in
+them, every alarm and every error report is being published into a void.
