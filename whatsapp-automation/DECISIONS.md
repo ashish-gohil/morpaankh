@@ -244,3 +244,49 @@ read `dryRun`, `sendAllowlist`, `orderAllowlist`, `ownerAlertPhones` and a
 `flows` map from CDK context). **Defaults verified safe**: an unparameterised
 `cdk synth` still yields `DRY_RUN=true`, empty allowlists and all four flows
 `false`. The staged flip itself was NOT applied - the sandbox blocks it.
+
+### L. Full trigger audit (2026-09-23) - three silent failures found
+
+Order #1150 (owner's own COD test order, 18:27Z) produced no message. Root
+cause was not Flow A logic:
+
+**BUG 1 (critical, fixed): every timer in all four flows was dead.** The FIFO
+queue had `ContentBasedDeduplication: false`, and EventBridge Scheduler's SQS
+target can only supply a `MessageGroupId`, never a `MessageDeduplicationId`.
+Every timer delivery failed with InvalidParameterValue, and because schedules
+carry `ActionAfterCompletion: DELETE` the schedule then erased itself. No
+error in our logs, no DLQ message, no alarm - the timer simply never existed.
+That killed the COD confirm, reminder, fallback, high-risk check, review ask
+and every NDR timer. Fixed by enabling contentBasedDeduplication (ingest is
+unaffected, it passes an explicit dedup id). **Verified live end to end**:
+orders/create replay -> schedule created -> fired -> worker `kind:timer` ->
+`cod_confirm_v1` delivered (real wamid) -> order tagged `wa-cod-sent` ->
+state `confirm_sent`.
+
+**BUG 2 (critical, fixed): `hasTag(tags,'RTO')` matched every order.** hasTag
+is a substring match and COD King tags every order `LOW/MEDIUM/HIGH RTO Risk`.
+So Flow B skipped the review ask on 100% of orders (reason 'rto') and the
+daily digest counted every order as RTO. Added `hasRtoTag` (matches 'rto' but
+not '...risk') and used it in flowB + digest. Digest over the last 40 real
+orders now reports rto=5, not 40.
+
+**BUG 3 (fixed earlier): a skipped send still marked the order confirmed**,
+so a staged rollout tagged real orders `wa-cod-sent` and then never messaged
+them once the allowlist came off.
+
+Trigger inventory, all checked: Shopify webhook -> ingest -> SQS -> worker
+PROVEN; Scheduler timer -> SQS -> worker PROVEN (after fix); WhatsApp status
+callback PROVEN; Razorpay webhook signature + routing PROVEN; recurring rules
+(poll 08:00-22:00 IST hourly, reconcile 02:30 IST, digest 09:30 IST) all
+ENABLED and running with zero errors in 24h; `track-active` enqueue passes an
+explicit dedup id so it was never affected. Still unproven: a customer button
+tap (needs a real tap), and the Delhivery write endpoints.
+
+**OPEN RISK before the allowlist comes off: the prepaid conversion is still
+hard-gated.** A synthetic `payment_link.paid` for #1150 reached
+`flowA.onPaymentPaid` and `convertToPrepaid` threw as designed
+(`CONVERSION_VERIFIED` unset). The guard is correct, but it means that if a
+real customer takes the prepaid offer, **Razorpay collects the money and the
+Shopify order is never converted**; the message retries and lands in the DLQ.
+Harmless today because the allowlist blocks customers. Either finish the C3
+conversion verification or disable the prepaid-offer path before going wide.
