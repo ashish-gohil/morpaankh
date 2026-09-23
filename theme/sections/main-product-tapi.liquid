@@ -556,6 +556,40 @@
             </div>
           {%- endif -%}
 
+        {%- comment -%} More offers, sharing an edge with the ticket above. The two are one
+          offer block: the recommended code, then the rest of them. Collapsed by
+          default so only ONE offer competes for attention above the fold. Reuses
+          pdp_offer_ids + pdp_hero_id computed in the offers block above; skips the
+          hero so it never repeats. {%- endcomment -%}
+        {%- if section.settings.show_offers and pdp_offer_ids.size > 1 -%}
+          <details class="tapi-acc tapi-pdp__more-offers">
+            <summary><span>More offers ({{ pdp_offer_ids.size | minus: 1 }})</span><span class="tapi-acc__toggle">+</span></summary>
+            <div class="tapi-acc__body tapi-pdp__more-body">
+              <ul class="tapi-pdp__more-list">
+                {%- for id in pdp_offer_ids -%}
+                  {%- if id == pdp_hero_id -%}{%- continue -%}{%- endif -%}
+                  {%- liquid
+                    assign mo_base = 'tapi_offer' | append: id
+                    assign k_code = mo_base | append: '_code'
+                    assign mo_code = settings[k_code] | strip | upcase
+                    assign k_label = mo_base | append: '_label'
+                    assign mo_label = settings[k_label]
+                  -%}
+                  <li>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+                    <span>{{ mo_label | default: mo_code }}</span>
+                    <button type="button" class="tapi-code-chip" data-tapi-copy="{{ mo_code }}" aria-label="Copy code {{ mo_code }}">
+                      <span class="tapi-code-chip__code">{{ mo_code }}</span>
+                      <span class="tapi-code-chip__label" data-copy-label>Copy</span>
+                    </button>
+                  </li>
+                {%- endfor -%}
+              </ul>
+              <p class="tapi-pdp__offers-note">One code per order &middot; the best one is applied for you in the cart.</p>
+            </div>
+          </details>
+        {%- endif -%}
+
         {%- comment -%}
           Fit feedback tile — disabled on request. Un-wrap this comment block
           (remove the {%- comment -%} / {%- endcomment -%} lines) to restore
@@ -607,38 +641,6 @@
         {%- if product.selling_plan_groups.size > 0 -%}{% comment %}reserved{% endcomment %}{%- endif -%}
       {%- endform -%}
 
-      {%- comment -%} More offers — the non-recommended codes, collapsed by
-        default so only ONE offer competes for attention above the fold. Reuses
-        pdp_offer_ids + pdp_hero_id computed in the offers block above; skips the
-        hero so it never repeats. {%- endcomment -%}
-      {%- if section.settings.show_offers and pdp_offer_ids.size > 1 -%}
-        <details class="tapi-acc tapi-pdp__more-offers">
-          <summary><span>More offers ({{ pdp_offer_ids.size | minus: 1 }})</span><span class="tapi-acc__toggle">+</span></summary>
-          <div class="tapi-acc__body tapi-pdp__more-body">
-            <ul class="tapi-pdp__more-list">
-              {%- for id in pdp_offer_ids -%}
-                {%- if id == pdp_hero_id -%}{%- continue -%}{%- endif -%}
-                {%- liquid
-                  assign mo_base = 'tapi_offer' | append: id
-                  assign k_code = mo_base | append: '_code'
-                  assign mo_code = settings[k_code] | strip | upcase
-                  assign k_label = mo_base | append: '_label'
-                  assign mo_label = settings[k_label]
-                -%}
-                <li>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.59 13.41 12 22l-8.59-8.59A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.41.59L22 12a2 2 0 0 1-1.41 1.41Z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
-                  <span>{{ mo_label | default: mo_code }}</span>
-                  <button type="button" class="tapi-code-chip" data-tapi-copy="{{ mo_code }}" aria-label="Copy code {{ mo_code }}">
-                    <span class="tapi-code-chip__code">{{ mo_code }}</span>
-                    <span class="tapi-code-chip__label" data-copy-label>Copy</span>
-                  </button>
-                </li>
-              {%- endfor -%}
-            </ul>
-            <p class="tapi-pdp__offers-note">One code per order &middot; the best one is applied for you in the cart.</p>
-          </div>
-        </details>
-      {%- endif -%}
 
       {%- comment -%} Then the reassurance, last in the buy column: how it ships, how
         they can pay, and what happens if something is wrong. It closes the block rather

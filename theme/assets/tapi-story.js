@@ -13,6 +13,18 @@
 
   function parseJSON(s, fallback) { try { return JSON.parse(s); } catch (e) { return fallback; } }
 
+  // Bandwidth tier from the Network Information API (where supported).
+  //   'save' = Data Saver / 2g, 'lite' = 3g, 'full' = 4g / unknown.
+  function netTier() {
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return 'full';
+    if (c.saveData) return 'save';
+    var t = c.effectiveType || '';
+    if (t === 'slow-2g' || t === '2g') return 'save';
+    if (t === '3g') return 'lite';
+    return 'full';
+  }
+
   function itemFromTile(tile) {
     return {
       video: tile.getAttribute('data-video') || '',
@@ -202,6 +214,12 @@
     if (!m) { this.video.play().catch(function () {}); }
   };
 
+  Player.prototype._playVideo = function () {
+    var self = this;
+    var pp = this.video.play();
+    if (pp && pp.catch) { pp.catch(function () { if (!self.muted) self.setMuted(true); }); }
+  };
+
   Player.prototype.load = function (i) {
     if (i < 0) { return; }
     if (i >= this.items.length) { this.close(); return; }
@@ -221,16 +239,16 @@
     // fall back to muted so the clip still plays (and flip the icon).
     this.video.muted = this.muted;
     this._syncMute();
+    // Show the product image while the clip buffers so the stage never flashes
+    // black; the first video frame paints over it.
+    if (item.image) { this.video.poster = item.image; } else { this.video.removeAttribute('poster'); }
+    // Play the mp4 directly: instant start, full source clarity. (No adaptive HLS
+    // for these short clips — it added a library + manifest delay and started
+    // blurry while it ramped up.)
     this.video.src = item.video;
-    this.video.currentTime = 0;
+    try { this.video.currentTime = 0; } catch (e) {}
     this.video.load();
-    var selfp = this;
-    var pp = this.video.play();
-    if (pp && pp.catch) {
-      pp.catch(function () {
-        if (!selfp.muted) { selfp.setMuted(true); }
-      });
-    }
+    this._playVideo();
 
     // Card.
     this.titleEl.textContent = item.title;
@@ -320,15 +338,38 @@
     playerFor(playerEl).open(items, Math.max(0, playableStart));
   }
 
+  /* Dismissing the bubble lasts the visit, not forever: someone who closes it on
+     one product does not want it back on the next, but they should get it again
+     next time they come. sessionStorage throws in a private window, so every
+     touch is guarded and the bubble simply stays visible if it is unavailable. */
+  var VB_KEY = 'tapi:vbubble-hidden';
+  function vbubbleHidden() {
+    try { return sessionStorage.getItem(VB_KEY) === '1'; } catch (e) { return false; }
+  }
+  function hideVbubble(wrap) {
+    wrap.hidden = true;
+    try { sessionStorage.setItem(VB_KEY, '1'); } catch (e) { /* no-op */ }
+  }
+
   function boot() {
     if (!document.__tapiStoryWired) {
       document.__tapiStoryWired = true;
       document.addEventListener('click', onTileClick);
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-vbubble-close]');
+        if (!btn) return;
+        e.stopPropagation();          // never let the close reach the tile behind it
+        var wrap = btn.closest('[data-vbubble-wrap]');
+        if (wrap) hideVbubble(wrap);
+      }, true);
     }
+    document.querySelectorAll('[data-vbubble-wrap]').forEach(function (w) {
+      if (vbubbleHidden()) w.hidden = true;
+    });
     // Wire PDP bubble previews (muted loop) if present.
     document.querySelectorAll('[data-vbubble-video]').forEach(function (v) {
       if (v.__wired) return; v.__wired = true;
-      if (reduceMotion) return;
+      if (reduceMotion || netTier() === 'save') return;
       var src = v.getAttribute('data-src');
       if (src && !v.src) { v.src = src; v.muted = true; v.loop = true; v.playsInline = true; v.play().catch(function () {}); }
     });

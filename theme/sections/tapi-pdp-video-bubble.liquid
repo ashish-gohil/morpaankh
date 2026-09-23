@@ -38,6 +38,7 @@
   {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
 
   <div class="tapi-vbubble-scope" data-story-scope>
+    <div class="tapi-vbubble-wrap" data-vbubble-wrap>
     <button
       type="button"
       class="tapi-vbubble"
@@ -60,6 +61,13 @@
         {% if pvpre != blank %}poster="{{ pvpre | image_url: width: 180 }}"{% endif %}
       ></video>
     </button>
+    {%- comment -%} A sibling, not a child: a button inside a button is invalid and
+      the browser drops it. Small on purpose, it should be findable without ever
+      competing with the video it sits on. {%- endcomment -%}
+    <button type="button" class="tapi-vbubble__close" data-vbubble-close aria-label="Hide the video preview">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    </div>
     {%- render 'tapi-story-player' -%}
   </div>
 {%- endif -%}

@@ -2688,7 +2688,27 @@ details[open] > summary .icon-caret {
    whole PDP lower stack shares one symmetric beat. editorial-band + .tapi-rv are
    already md via the global rules; this scopes the stock section to the product. */
 .template-product .related-products {
-  padding-block: var(--section-pad-md) !important;
+  padding-block: var(--section-pad-sm) !important;
+}
+
+/* Tightened from the md tier to sm. Measured on the live page, the md tier was
+   leaving 96px between the last accordion line and the studio note, and 164px
+   between the studio note and "You may also like": two bands' worth of padding
+   meeting in the middle. On a page whose job is to sell one piece those are
+   voids, not breathing room. sm halves them to 48 and 116, and the bands stay
+   symmetric top to bottom, which is the part that matters. */
+.template-product .tapi-editorial-band,
+.template-product .tapi-rv {
+  padding-top: var(--section-pad-sm) !important;
+  padding-bottom: var(--section-pad-sm) !important;
+}
+
+/* The product block's own bottom padding stacked on TOP of the studio band's
+   padding, so the first boundary was the loosest on the page. The band below
+   already supplies the gap. Mobile keeps its buy-bar clearance, which is
+   collision avoidance rather than a spacing choice. */
+@media (min-width: 750px) {
+  .template-product .tapi-pdp { padding-bottom: 0 !important; }
 }
 /* Related products loads async and stays EMPTY when Shopify returns no
    recommendations for a product (common on a small catalog) — Dawn's loader
@@ -3220,3 +3240,38 @@ body.gradient { background-image: var(--mor-pattern); background-attachment: scr
 
 /* Pressed wash for nav flyout entries (hover = cream-2, press = hairline) */
 .tapi-nav-flyout__link:active { background: var(--mor-hairline); }
+
+/* Hide the Google Merchant Center "Customer Reviews" badge site-wide (merchant
+   does not want it shown). It is injected by the Google & YouTube channel, not the
+   theme; CSS catches it even if re-injected. To stop it at source, disable the
+   Customer Reviews badge in Google Merchant Center / the Google sales channel. */
+#google-merchantwidget-iframe-wrapper { display: none !important; }
+
+/* Force the mobile sticky checkout bar to be FULLY OPAQUE at all times — override
+   for Shopify's cached {% stylesheet %} bundle (styles.css), which can keep serving
+   an older compiled copy of the section CSS that faded the bar's opacity mid-scroll
+   (cart text showed through the checkout button). This lives in a directly-linked
+   asset that always updates on push, and uses body.template-cart specificity +
+   !important so it wins over the stale bundle regardless of load order. The bar still
+   retracts by sliding (transform); only the opacity fade is neutralised. */
+@media (max-width: 989px) {
+  body.template-cart .tapi-cart-stickybar,
+  body.template-cart .tapi-cart-stickybar.is-hidden {
+    opacity: 1 !important;
+    background-color: var(--tapi-cream, #f5efe1) !important;
+  }
+
+  /* THE actual "text shows through the bar as you scroll" cause: the sticky bar
+     lives inside <cart-items>, which creates its own stacking context (both
+     isolation:isolate AND position:relative + z-index:0). That traps the fixed bar
+     inside cart-items, so its z-index:80 cannot rise above the LATER cart-footer
+     section — the footer then paints over the bar when scrolled into its zone.
+     Neutralise BOTH triggers on the cart so cart-items no longer forms a stacking
+     context; the fixed bar then resolves at page level and always paints above the
+     footer. (position stays relative for the cart's loading overlays.) */
+  body.template-cart cart-items.isolate,
+  body.template-cart cart-items {
+    isolation: auto !important;
+    z-index: auto !important;
+  }
+}

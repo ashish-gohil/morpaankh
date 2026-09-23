@@ -27,11 +27,13 @@
   position: relative;
   /* 24px above and below, the same beat the buy column uses between every
      other block. Adjacent margins collapse with the CTA row below. */
-  margin: var(--space-lg) 0;
-  padding: var(--space-lg);
+  /* Bottom margin is 0: More offers sits directly beneath and the two share
+     an edge. The 24px below the pair comes from the CTA row's own margin. */
+  margin: var(--space-lg) 0 0;
+  padding: var(--space-md);
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), var(--tk-wash));
   border: 1px solid var(--tk-edge);
   border-radius: var(--radius-md, 8px);
@@ -57,7 +59,7 @@
   flex: 1 1 auto;
   min-width: 0;
   align-self: stretch;
-  padding-right: var(--space-lg);
+  padding-right: var(--space-md);
   border-right: 1px dashed var(--tk-rule);
 }
 
@@ -72,11 +74,16 @@
 }
 
 .tapi-ticket__head {
+  /* Body font, not the display serif. Cormorant sets numerals old style, so
+     the 1 and the 5 in "150" dropped below the baseline and the amount, the one
+     thing on the card that has to be read at a glance, read as decoration. */
   margin: var(--space-xs) 0 0;
-  font-family: var(--font-serif, "Cormorant Garamond", Georgia, serif);
-  font-size: clamp(2.2rem, 5.6vw, 2.8rem);
-  font-weight: 700;
-  line-height: 1.12;
+  font-family: var(--font-body-family);
+  font-size: clamp(1.9rem, 5vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
   color: var(--mor-charcoal, #2c2826);
 }
 
@@ -174,13 +181,13 @@
   .tapi-ticket {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--space-md);
-    padding: var(--space-lg);
+    gap: var(--space-sm);
+    padding: var(--space-md);
   }
   .tapi-ticket__text {
     align-self: auto;
     padding-right: 0;
-    padding-bottom: var(--space-md);
+    padding-bottom: var(--space-sm);
     border-right: 0;
     border-bottom: 1px dashed var(--tk-rule);
   }
@@ -195,6 +202,21 @@
   .tapi-ticket__chip { transition: none; }
   .tapi-ticket__chip:active { transform: none; }
   .tapi-ticket__chip::after { display: none; animation: none; }
+}
+
+/* The ticket and More offers are one offer block, so they share an edge rather
+   than sitting apart. The lower card pulls up 1px so the two hairlines become
+   one, the touching corners square off, and the ticket's inner stamp opens at
+   the bottom and carries into the card below. */
+.tapi-ticket:has(+ .tapi-pdp__more-offers) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.tapi-ticket:has(+ .tapi-pdp__more-offers)::before { border-bottom: 0; }
+.tapi-ticket + .tapi-pdp__more-offers {
+  margin-top: -1px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 /* Copy affordance: 44px touch target, keyboard focus ring, press feedback.
