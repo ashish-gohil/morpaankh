@@ -12,11 +12,22 @@
  * down, block or fail anything a customer is waiting on. If this function is
  * broken, the service keeps working and only the reporting is lost.
  *
- * It is NOT subscribed to its own log group, so it cannot feed itself.
+ * It is NOT subscribed to its own log group, so it cannot feed itself, and
+ * neither delivery channel can break the other or the function.
+ *
+ * It reports on TWO channels on purpose. Email carries the full detail, but an
+ * SNS email subscription is worthless until the recipient clicks a confirmation
+ * link, and those links sat unclicked in a spam folder for days while every
+ * alarm published into a void. WhatsApp to the owner needs no confirmation step
+ * and is already proven to reach this owner's handset, so it carries the short
+ * version and guarantees somebody actually finds out.
  */
 import { gunzipSync } from 'node:zlib';
 import { config } from '../config.mjs';
 import { table } from '../store/table.mjs';
+import { realClients } from '../clients/index.mjs';
+import { tpl } from '../worker/send.mjs';
+import { soft } from '../lib/resilience.mjs';
 import { log } from '../log.mjs';
 
 const THROTTLE_SECONDS = 15 * 60;
@@ -160,12 +171,42 @@ export const handler = async (event) => {
 
   const { subject, body } = formatReport({ logGroup, logStream, events: logEvents });
   const topicArn = process.env.ALERT_TOPIC_ARN;
-  if (!topicArn) {
-    log.warn('error-reporter: no ALERT_TOPIC_ARN, cannot send', { sig });
-    return { ok: false };
-  }
-  const a = await sns();
-  await a.client.send(new a.PublishCommand({ TopicArn: topicArn, Subject: subject, Message: body }));
-  log.info('error-reporter: reported', { sig, logGroup, events: logEvents.length });
-  return { ok: true, reported: true };
+  // Both channels are attempted independently: a failure in one must not stop
+  // the other, and neither may throw, or CloudWatch Logs would redeliver this
+  // batch and report the same fault again.
+  const emailed = !topicArn
+    ? null
+    : await soft('publishAlert', async () => {
+        const a = await sns();
+        await a.client.send(new a.PublishCommand({ TopicArn: topicArn, Subject: subject, Message: body }));
+        return true;
+      }, { sig });
+  const pinged = await notifyOwnerOnWhatsApp(logGroup, logEvents[0]);
+
+  log.info('error-reporter: reported', { sig, logGroup, events: logEvents.length, emailed: Boolean(emailed), pinged: Boolean(pinged) });
+  return { ok: true, reported: true, emailed: Boolean(emailed), whatsapp: Boolean(pinged) };
 };
+
+/**
+ * The short version, straight to the owner's phone.
+ *
+ * Uses the same approved ops_alert template the flows use, so it needs no new
+ * Meta review. The body parameter is capped because a template body has a hard
+ * 1024 character limit and Meta rejects the whole send if it is exceeded.
+ */
+async function notifyOwnerOnWhatsApp(logGroup, event) {
+  if (!config.ownerAlertPhones.length) return null;
+  const d = describe(event);
+  const fn = fnName(logGroup);
+  const orderId = d.fields.orderId ? `#${d.fields.orderId}` : fn;
+  const detail = `${fn} failed: ${d.summary}${d.soft ? ' (non-fatal, the customer and the order are fine)' : ''}`;
+  const deps = { clients: realClients };
+  let sent = null;
+  for (const phone of config.ownerAlertPhones) {
+    sent = await soft('ownerWhatsAppAlert', () =>
+      tpl(deps, phone, 'ops_alert', { order_number: orderId, alert_text: detail.slice(0, 500) }, {}),
+      { logGroup },
+    );
+  }
+  return sent;
+}

@@ -228,6 +228,9 @@ class WaAutomationStack extends cdk.Stack {
     });
     table.grantReadWriteData(errorReporter); // throttling ledger
     topic.grantPublish(errorReporter);
+    // Needed for the WhatsApp owner ping. This function is created after the
+    // shared grant loop above, so it has to ask for the secret explicitly.
+    secret.grantRead(errorReporter);
 
     // Log groups are created here only so the subscription filters have
     // something to attach to; Lambda writes to these same names by convention.

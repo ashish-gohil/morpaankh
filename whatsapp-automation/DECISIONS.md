@@ -626,3 +626,26 @@ subscriptions are `PendingConfirmation`, so the topic publishes and nothing
 arrives. Fresh confirmation mails were re-sent to morpaankh.collection@gmail.com
 and ashishgohil148@gmail.com; until someone clicks "Confirm subscription" in
 them, every alarm and every error report is being published into a void.
+
+### The alert emails were never going to arrive (2026-09-23)
+The owner reported receiving nothing. The metrics settle it: the topic delivered
+**4 notifications on 22 Sep 21:42 IST with 0 failures**, so AWS sent the
+confirmation mails and nothing bounced. They are sitting in a spam or promotions
+folder, unopened, which is why both subscriptions are still
+`PendingConfirmation` and every alarm for the last two days published into a
+void. Re-subscribing does not reliably resend, because SNS matches the existing
+pending subscription rather than creating a new one.
+
+An alerting channel that only works once somebody finds an email in spam is not
+an alerting channel. The reporter now sends on **two independent channels**:
+SNS email carries the full report, and a WhatsApp ops_alert to the owner carries
+the short version. WhatsApp needs no confirmation step and is already proven to
+reach this owner's handset. Neither channel can break the other or the function;
+both go through `soft`.
+
+Proving it turned up one more gap, exactly the way it was designed to: the first
+attempt returned `whatsapp: false` and the soft log named the reason precisely,
+`secretsmanager:GetSecretValue ... no identity-based policy allows`. The
+reporter is created after the shared grant loop, so it never got secret read.
+Fixed with `secret.grantRead(errorReporter)`. Retested: `whatsapp: true`, and
+the worker logged the Meta callbacks `sent` then `delivered`.
