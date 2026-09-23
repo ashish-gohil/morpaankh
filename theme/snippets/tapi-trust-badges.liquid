@@ -16,6 +16,11 @@
   something the store does not do. Shipping & returns on the product page and
   the FAQ carry the full version.
 
+  The prepaid row earns its place twice: it is the delivery promise AND the
+  reason to pay now. Prepaid orders skip the confirmation call a COD order
+  waits on, so they genuinely do get packed first and arrive sooner, and
+  saying so moves more orders to prepaid than the free delivery line alone.
+
   Cash on Delivery is the one conditional. It renders only when `cod` is
   passed, which the product page ties to the payment-perks setting, this
   store's flag for "the COD app is live". Until then the store never offers a
@@ -39,7 +44,7 @@
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 6.5h11v10H2zM13 9.5h4l3 3.5v3.5h-7z"/><circle cx="6" cy="18.5" r="1.7"/><circle cx="16.5" cy="18.5" r="1.7"/></svg>
     <span class="tapi-assure__copy">
       <span class="tapi-assure__title">Free delivery on prepaid orders</span>
-      <span class="tapi-assure__sub">Pay online and we ship to you at no extra cost</span>
+      <span class="tapi-assure__sub">Packed on priority and on its way sooner, with nothing extra to pay</span>
     </span>
   </li>
   {%- if cod -%}
