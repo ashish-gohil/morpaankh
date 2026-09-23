@@ -65,13 +65,24 @@ describe('classify', () => {
 });
 
 describe('computeAmounts', () => {
-  it('removes COD fee + applies discount; saving = discount + fee', () => {
+  it('saves exactly prepaidTotalSavingInr, with the COD fee counted inside it', () => {
     const a = computeAmounts(normalizeOrder(codOrder()), RULES);
-    expect(a.discountPaise).toBe(10000); // ₹100
+    // Rs 100 total: Rs 50 COD fee no longer charged + Rs 50 line discount.
+    // The fee must NOT stack on top of the discount, or we give away Rs 150.
     expect(a.codFeePaise).toBe(5000);
-    expect(a.feeMatches).toBe(true); // 50.0 attr == ₹50 line
-    expect(a.newTotalPaise).toBe(149900 - 10000 - 5000); // 134900
-    expect(a.savingPaise).toBe(15000);
+    expect(a.discountPaise).toBe(5000);
+    expect(a.savingPaise).toBe(10000);
+    expect(a.newTotalPaise).toBe(149900 - 10000); // 139900
+    expect(a.feeMatches).toBe(true); // 50.0 attr == Rs 50 line
+  });
+
+  it('never discounts below zero when the COD fee already covers the saving', () => {
+    const order = codOrder({
+      shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: '150.00' } } }] },
+    });
+    const a = computeAmounts(normalizeOrder(order), RULES);
+    expect(a.discountPaise).toBe(0);
+    expect(a.savingPaise).toBe(15000); // the fee alone
   });
   it('flags a fee mismatch (no offer should be made)', () => {
     const a = computeAmounts(normalizeOrder(codOrder({ shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: '99.00' } } }] } })), RULES);

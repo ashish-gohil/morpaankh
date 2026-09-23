@@ -58,7 +58,7 @@ export const TEMPLATES = {
       order_number: '#1234',
       new_total: 'Rs 1,399',
       order_total: 'Rs 1,499',
-      saving: 'Rs 150',
+      saving: 'Rs 100',
       valid_until: '21 Sep, 8:00 PM',
     },
     buttons: [urlBtn('Pay online'), qr('Keep Cash on Delivery', 'A', 'keep_cod')],

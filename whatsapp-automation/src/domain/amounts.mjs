@@ -10,14 +10,18 @@
 import { toPaise } from '../lib/money.mjs';
 
 export function computeAmounts(n, rules) {
-  const discountPaise = rules.prepaidDiscountInr * 100;
   const removeCod = rules.removeCodFee;
   const codFeePaise = n.codFeePaise || 0;
   const codkValuePaise = n.codkAmountValue != null ? toPaise(n.codkAmountValue) : null;
   const feeMatches = codkValuePaise == null ? false : codkValuePaise === codFeePaise;
 
-  const newTotalPaise = n.currentTotalPaise - discountPaise - (removeCod ? codFeePaise : 0);
-  const savingPaise = discountPaise + (removeCod ? codFeePaise : 0);
+  // The COD fee we stop charging counts toward the promised saving, so the
+  // customer saves exactly prepaidTotalSavingInr and not that plus the fee.
+  const targetSavingPaise = rules.prepaidTotalSavingInr * 100;
+  const creditedFeePaise = removeCod ? codFeePaise : 0;
+  const discountPaise = Math.max(0, targetSavingPaise - creditedFeePaise);
+  const savingPaise = discountPaise + creditedFeePaise;
+  const newTotalPaise = n.currentTotalPaise - savingPaise;
 
   return {
     codFeePaise,

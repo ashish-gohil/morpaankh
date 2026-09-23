@@ -12,13 +12,13 @@ export const SESSION = {
   confirmed_with_offer: {
     type: 'cta_url',
     body:
-      'Thank you, {{customer_name}}. Your order {{order_number}} is confirmed. If you would like to pay online instead, you pay {{new_total}} rather than {{order_total}} and save {{saving}}. This is valid until {{valid_until}}.',
+      'Thank you, {{customer_name}}. Your order {{order_number}} is confirmed. If you would like to pay online instead, you pay {{new_total}} rather than {{order_total}} and save {{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner. This is valid until {{valid_until}}.',
     ctaText: 'Pay {{new_total}}',
   },
   pay_online_offer: {
     type: 'cta_url',
     body:
-      'Thank you, {{customer_name}}. You can pay {{new_total}} online instead of {{order_total}} and save {{saving}}. The link is valid until {{valid_until}}.',
+      'Thank you, {{customer_name}}. You can pay {{new_total}} online instead of {{order_total}} and save {{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner. The link is valid until {{valid_until}}.',
     ctaText: 'Pay {{new_total}}',
   },
   keep_cod_ack: {

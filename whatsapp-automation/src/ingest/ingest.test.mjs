@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { handler as shopifyHandler } from './shopify.mjs';
 import { handler as whatsappHandler } from './whatsapp.mjs';
+import { razorpayIngest } from './razorpay.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _drainQueue } from '../queue.mjs';
 import { _resetSecrets } from '../secrets.mjs';
@@ -80,5 +81,21 @@ describe('whatsapp GET verification', () => {
       queryStringParameters: { 'hub.mode': 'subscribe', 'hub.verify_token': 'nope', 'hub.challenge': '4242' },
     });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('razorpay payment_link.paid carries the real payment id', () => {
+  it('uses pay_... not plink_... so a refund can actually succeed', () => {
+    const body = {
+      event: 'payment_link.paid',
+      payload: {
+        payment_link: { entity: { id: 'plink_abc', notes: { shopify_order_id: '123' } } },
+        payment: { entity: { id: 'pay_xyz', amount: 104900 } },
+      },
+    };
+    const [item] = razorpayIngest.toItems({ 'x-razorpay-event-id': 'evt_1' }, body);
+    expect(item.message.entity.payment_id).toBe('pay_xyz');
+    expect(item.message.entity.amount_paid).toBe(104900);
+    expect(item.groupId).toBe('order:123');
   });
 });

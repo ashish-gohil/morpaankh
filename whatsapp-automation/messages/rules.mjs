@@ -5,7 +5,10 @@
  */
 export const RULES = {
   // money
-  prepaidDiscountInr: 100,
+  // TOTAL the customer saves versus the COD price, inclusive of the COD fee
+  // we stop charging. The line discount is derived from this, so the saving
+  // is always exactly this number and never fee + discount stacked.
+  prepaidTotalSavingInr: 100,
   removeCodFee: true,
 
   // Flow A timings (minutes/hours)
