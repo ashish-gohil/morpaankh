@@ -336,19 +336,22 @@
  * -------------------------------------------------------------------------- */
 .tapi-trust {
   list-style: none;
-  margin: 2rem 0 0;
-  padding: 1.6rem 1.8rem;
+  /* Sits directly under .tapi-assure in the buy column, so it matches it on
+     padding, radius and surface and differs only in border weight. The old
+     20px margin stacked on the column's own 24px gap. */
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.2rem 1.8rem;
+  gap: var(--space-sm) var(--space-lg);
   background: var(--mor-surface-raised, #FAF6EC);
   border: 1px solid var(--mor-hairline, rgba(44, 40, 38, 0.1));
-  border-radius: 0; /* boxy pass: in-flow panels are square-cornered */
+  border-radius: var(--radius-md, 8px);
 }
 .tapi-trust__item {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-sm);
   min-width: 0;
 }
 .tapi-trust__item svg {
@@ -369,7 +372,7 @@
 /* Narrow info columns (mobile, and the desktop buy column under ~420px) stack to
  * one badge per row so the two-line label never truncates. */
 @media (max-width: 749px) {
-  .tapi-trust { grid-template-columns: 1fr; gap: 1.1rem; padding: 1.5rem 1.6rem; }
+  .tapi-trust { grid-template-columns: 1fr; gap: var(--space-sm); padding: var(--space-md); }
   .tapi-trust__label { font-size: var(--fs-sm); }
 }
 

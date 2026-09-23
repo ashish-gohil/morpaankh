@@ -1201,7 +1201,10 @@
   .tapi-fit-feedback__bar.in > span { width: var(--w); }
   .tapi-fit-feedback__legend { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--tapi-warm-grey); }
 
-  .tapi-pdp__cta-row { display: flex; gap: 1.2rem; align-items: stretch; }
+  /* The buy form is a plain block with no rhythm of its own, so the size row
+     sat 4px off the Add to bag button. Put it on the column's 24px beat;
+     margins collapse with the offer ticket above when that renders. */
+  .tapi-pdp__cta-row { display: flex; gap: var(--space-sm); align-items: stretch; margin-top: var(--space-lg); }
   .tapi-pdp__qty { display: flex; align-items: center; border: 1px solid var(--tapi-hairline-2); height: 56px; flex: 0 0 auto; }
   .tapi-pdp__qty button { width: 44px; height: 100%; background: transparent; border: none; font-size: var(--fs-lg); cursor: pointer; }
   .tapi-pdp__qty input { width: 44px; height: 100%; text-align: center; border: none; background: transparent; font-family: inherit; font-size: var(--fs-base); font-variant-numeric: tabular-nums; appearance: textfield; }
@@ -1212,7 +1215,7 @@
      (Shop Pay etc.) inside a closed shadow DOM that keeps its own styling; the
      unbranded "Buy it now" fallback and the "more options" link are light-DOM, so
      we style those to match the old terracotta CTA (full width, 56px, brand tokens). */
-  .tapi-pdp__dynamic-checkout { margin-top: 1.2rem; }
+  .tapi-pdp__dynamic-checkout { margin-top: var(--space-sm); }  /* paired tight under Add to bag */
   .tapi-pdp__dynamic-checkout[hidden] { display: none; }
   .tapi-pdp__dynamic-checkout .shopify-payment-button__button {
     width: 100%; min-height: 56px !important; border-radius: var(--tapi-radius, 2px);

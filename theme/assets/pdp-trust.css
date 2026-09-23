@@ -179,10 +179,13 @@
    read as a line drawing at 22px.
    ------------------------------------------------------------------ */
 .tapi-assure {
-  margin: 1.8rem 0 0;
-  padding: 1.6rem 1.8rem;
+  /* No margin of its own: this is a direct child of the buy column, which
+     already sets a 24px gap between blocks. A margin here stacked on top of
+     that gap and pushed it to 42px, out of step with everything else. */
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
   display: grid;
-  gap: 1.3rem;
+  gap: var(--space-md);
   background: var(--mor-surface-raised, #faf6ec);
   border: 1px solid rgba(176, 137, 71, 0.38);
   border: 1px solid color-mix(in srgb, var(--mor-gold, #b08947) 38%, transparent);
@@ -192,13 +195,13 @@
 .tapi-assure__row {
   display: flex;
   align-items: flex-start;
-  gap: 1.1rem;
+  gap: var(--space-sm);
   min-width: 0;
 }
 
 .tapi-assure__row svg {
   flex: 0 0 auto;
-  margin-top: 0.2rem;
+  margin-top: 2px;   /* optical: centres the 22px glyph on the title cap height */
   color: var(--mor-gold-deep, #8f6e34);
 }
 
@@ -214,7 +217,7 @@
 
 .tapi-assure__sub {
   display: block;
-  margin-top: 0.3rem;
+  margin-top: var(--space-2xs);
   font-size: var(--fs-xs, 12px);
   line-height: 1.4;
   color: var(--mor-text-muted, #6b5d54);
@@ -225,5 +228,5 @@
    available" holds one, and the two tiles stop lining up. Stacked, both
    statements read straight across and the block stays quiet. */
 @media (max-width: 749px) {
-  .tapi-assure { padding: 1.5rem 1.6rem; }
+  .tapi-assure { padding: var(--space-md); }
 }
