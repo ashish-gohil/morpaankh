@@ -588,3 +588,19 @@ service quota increase for Lambda concurrent executions (the default is 1000);
 it is free and usually granted quickly. Until then the exposure is limited by
 the 360s visibility timeout, which paces retries at roughly one per six minutes
 per message rather than in a tight loop.
+
+### Caught live while writing the above
+Checking the DLQ at the end of this work turned up one real message, which is
+the same bug class in production. A customer cancelled order #1150 after paying.
+`onStop` tried to cancel the payment link, Razorpay answered "cannot cancel or
+expire an already paid / partially paid link", and that threw out of the
+handler. The `orders/cancelled` record failed five times at roughly six minute
+intervals (the visibility timeout) and was parked in the DLQ, so Flow A was
+never marked stopped for that order.
+
+Nothing reached the customer and no money moved, and there are no live
+schedules for #1150, so the practical damage was nil. But it is a perfect
+example of why cleanup must never be able to fail the work it belongs to.
+`cancelLinkIfAny` can no longer throw. **The DLQ message should be redriven
+(`node scripts/replay-dlq.mjs`) after the deploy, not before**, or it will
+simply fail a sixth time.
