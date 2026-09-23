@@ -354,3 +354,35 @@ convertToPrepaid returns, with a regression test.
 Note for future testing: firing a synthetic `payment_link.paid` at a real
 order exercises the conversion path against that real order. Use a throwaway
 order, not a live one.
+
+### O. Prepaid conversion live + three money bugs (2026-09-23)
+
+Owner paid Rs 1049 on #1150 (pay_TfKlu9dIc0fDrz, UPI, captured). Conversion
+authored and verified: orderEditBegin -> remove COD fee line -> Rs discount on
+the top line -> commit -> assert outstanding == captured -> orderMarkAsPaid.
+#1150 is now PAID, netPayment 1049.00, outstanding 0.00, tagged
+wa-prepaid-converted + PREPAID-CONVERTED. CONVERSION_VERIFIED is now CDK
+context and is true.
+
+Three money bugs found while reconciling:
+1. **Would have refunded a paying customer.** onPaymentPaid called classify()
+   afresh, but classify is explicitly a once-at-first-sight decision: a
+   converted order reads back PAID, so a retried or duplicate Razorpay webhook
+   took the "no longer eligible" branch. It genuinely attempted a refund at
+   03:55:42. Now uses the stored class, returns early when already converted
+   (records convertedAt), and the guard was observed working live.
+2. **Refunds could never succeed.** The ingest passed the payment_link entity,
+   whose id is plink_..., to the refund endpoint, which rejects it. The refund
+   above failed only because of this. A customer genuinely owed money would
+   never have been repaid. Ingest now carries payment.entity.id + amount.
+3. **Saving was Rs 150, not Rs 100.** prepaidDiscountInr stacked on top of the
+   waived Rs 50 COD fee. Replaced with prepaidTotalSavingInr: the line discount
+   is target minus waived fee, clamped at zero, so the saving is exactly the
+   promised number.
+
+Owner copy decisions: offer copy says "save Rs 100 extra" and mentions priority
+dispatch, and never mentions the COD fee. OPEN: whether to put the offer into
+cod_confirm_v1, which is an APPROVED UTILITY template. Offer wording risks a
+MARKETING reclassification (opt-in + marketing caps + higher cost), so the
+session message after the Pay online tap carries it for now at zero approval
+cost.
