@@ -908,10 +908,13 @@
 {%- comment -%} Shipping + return policy nodes referenced by @id from every Offer above.
   Values are ground truth from the store: delivery profile ships domestic at Rs 0,
   FAQ promises 1-2 day dispatch and 3-7 day transit, refund policy gives a 7-day
-  window. Defect/wrong-item returns are free (we pay pickup); voluntary size or
-  colour swaps are customer-paid return postage, hence returnFees =
-  ReturnFeesCustomerResponsibility (NOT FreeReturn). If shipping rates or the
-  return window change in admin, update this block to match. {%- endcomment -%}
+  window. Three return cases, and only one is free: our mistake (wrong piece,
+  wrong size sent, torn, broken or defective) is replaced free both ways, a
+  voluntary size exchange is customer-paid both ways, and a change of mind is
+  refused outright. Hence returnFees = ReturnFeesCustomerResponsibility for the
+  general case (NOT FreeReturn) with itemDefectReturnFees declaring the free one.
+  Colour swaps are no longer offered. If shipping rates or the return window
+  change in admin, update this block to match. {%- endcomment -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org/",
