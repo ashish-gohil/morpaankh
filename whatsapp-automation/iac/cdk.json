@@ -15,7 +15,7 @@
     "graphVersion": "v25.0",
     "alertEmail": "morpaankh.collection@gmail.com,ashishgohil148@gmail.com",
     "dryRun": false,
-    "sendAllowlist": "+917048459816",
+    "sendAllowlist": "",
     "ownerAlertPhones": "+917048459816",
     "flows": {
       "A": {

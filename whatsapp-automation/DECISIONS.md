@@ -666,3 +666,44 @@ Both now convert the order regardless, tell the customer, tag the order
 later fulfillment update still retries the edit. Strictly better than the DLQ on
 every axis: the customer is served, and what remains is one courier record a
 human can fix before dispatch.
+
+## R. Live to real customers (2026-09-23)
+
+`sendAllowlist` removed. `SEND_ALLOWLIST=""` on all 11 functions, `DRY_RUN=false`,
+Flow A enabled from 2026-09-22T18:16:41Z. Every real customer who places an
+order from now on is messaged.
+
+### Checked before flipping it, not after
+- **Every enabled path has an approved template.** cod_confirm, cod_reminder,
+  prepaid_offer, prepaid_confirmed, prepaid_refund, ops_alert and ops_error all
+  have an APPROVED version to fall back to while the new copy is in review.
+- **Two did not, and one of them would have broken real orders.**
+  `order_confirmed` (the prepaid and partial confirmation) had BOTH its versions
+  PENDING, so every prepaid order would have thrown and gone to the DLQ.
+  `order_shipped` has no fallback by design and already degraded gracefully.
+- **No backlog blast.** Zero one-time schedules existed, and the only order
+  created since the start date is #1150, which was fully processed. Orders
+  skipped as `not_allowlisted` were deliberately left unmarked and their timers
+  had already fired, so nothing re-fires at a customer now.
+
+### The confirmation now waits for its template instead of failing
+A template in review must not cost a customer their confirmation. Throwing sent
+a real order to the DLQ; dropping it left the customer with silence forever.
+`onCodTimer` now catches a template-unusable error on the non-COD branch and
+re-arms its own timer two hours out, up to twelve times. The confirmation
+therefore goes out by itself the moment Meta approves, with no redeploy and no
+DLQ redrive. After a day of trying it gives up and tells the owner rather than
+retrying forever.
+
+### What a customer actually receives today
+COD orders, which is nearly all of them, get `cod_confirm_v1`: the older copy,
+no product photo, buttons Confirm / Pay online / Cancel. Everything downstream
+of a tap works, including the prepaid conversion. Prepaid and partial orders get
+nothing yet and are queued to be confirmed once `order_confirmed` is approved.
+The dispatch message stays silent until `order_shipped_v1` is approved.
+
+### Sending cap
+The number is CONNECTED, quality GREEN, **TIER_250**: 250 unique customers per
+24 hours. That is a consequence of the rejected business verification, not of
+this change. Current volume is far below it, but it is the ceiling until
+verification passes.

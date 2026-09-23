@@ -121,10 +121,21 @@ export async function onCodTimer(orderId, deps) {
   // PREPAID and PARTIAL customers get a thank-you with their order details and
   // nothing else: there is nothing for them to confirm, and no COD chase.
   if (cls !== 'COD') {
-    const res = await tpl(deps, n.verifiedPhone, 'order_confirmed', confirmVars(n), {
-      orderId: n.numericId,
-      imageUrl: heroImageUrl(n),
-    });
+    let res;
+    try {
+      res = await tpl(deps, n.verifiedPhone, 'order_confirmed', confirmVars(n), {
+        orderId: n.numericId,
+        imageUrl: heroImageUrl(n),
+      });
+    } catch (e) {
+      // Both versions of this one can be in review at the same time, unlike the
+      // COD templates which always have an approved fallback. Throwing would
+      // send a real customer's order to the DLQ; dropping it would leave them
+      // with silence forever. Come back later instead, so the confirmation goes
+      // out by itself once Meta approves, with no redeploy and no redrive.
+      if (!isTemplateUnusable(e)) throw e;
+      return deferConfirm(orderId, st, now, e);
+    }
     if (res?.skipped) {
       log.info('flowA confirm: send skipped, order left unmarked', { orderId, skip: res.skipped });
       return;
@@ -186,6 +197,28 @@ async function armTimer(orderId, step, at) {
     withRetry(`scheduleTimer:${step}`, () => scheduleTimer({ flow: 'A', orderId, step, at }), { idempotent: true }),
     { orderId, step },
   );
+}
+
+
+/**
+ * Postpone the confirmation until its template exists.
+ *
+ * Bounded so an order cannot be retried forever: after a day of trying, the
+ * owner is told rather than the order quietly rotting. Rescheduling the same
+ * timer name replaces it, so this can never pile up duplicates.
+ */
+const CONFIRM_DEFER_HOURS = 2;
+const CONFIRM_DEFER_MAX = 12; // 24h of trying
+
+async function deferConfirm(orderId, st, now, err) {
+  const tries = (st.flowA?.confirmDeferred || 0) + 1;
+  if (tries > CONFIRM_DEFER_MAX) {
+    log.error('flowA confirm: template still not approved after a day, giving up', { orderId, err: err.message });
+    return;
+  }
+  await patchFlowA(orderId, { confirmDeferred: tries });
+  log.info('flowA confirm: template not approved yet, trying again later', { orderId, tries, waCode: err.waCode });
+  await armTimer(orderId, 'cod', addHours(now, CONFIRM_DEFER_HOURS));
 }
 
 // ---- taps -------------------------------------------------------------------

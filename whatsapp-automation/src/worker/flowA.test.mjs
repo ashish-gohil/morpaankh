@@ -3,6 +3,7 @@ import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
 import { setOptOut } from '../store/phoneProfile.mjs';
+import { getState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import * as A from './flowA.run.mjs';
@@ -483,5 +484,41 @@ describe('Flow A: an unverified courier API must not strand a real payment', () 
     await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
     await A.onFulfillmentCreate('12345', deps); // the AWB webhook arrives again
     expect(calls).toBeGreaterThan(1);
+  });
+});
+
+describe('Flow A: a template still in review must not cost a customer their confirmation', () => {
+  const prepaid = () => codOrder({ displayFinancialStatus: 'PAID' });
+
+  it('comes back later instead of failing the order or dropping it', async () => {
+    const { clients, deps } = setup(prepaid());
+    const real = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (a.name.startsWith('order_confirmed')) {
+        throw Object.assign(new Error('template does not exist'), { waCode: 132001 });
+      }
+      return real(a);
+    };
+    // must not throw: a real order may not go to the DLQ over a pending review
+    await expect(A.onCodTimer('12345', deps)).resolves.not.toThrow();
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    // and it is queued to try again rather than forgotten
+    expect(_peekTimers().map((t) => t.name)).toContain('A-12345-cod');
+
+    // Meta approves it; the next attempt delivers
+    clients.whatsapp.sendTemplate = real;
+    await A.onCodTimer('12345', deps);
+    expect(names(clients.whatsapp)).toContain('order_confirmed_v1');
+    expect(tagsAdded(clients.shopify)).toContain('wa-order-confirmed');
+  });
+
+  it('stops trying after a day and tells the owner', async () => {
+    const { clients, deps } = setup(prepaid());
+    clients.whatsapp.sendTemplate = async () => {
+      throw Object.assign(new Error('template does not exist'), { waCode: 132001 });
+    };
+    for (let i = 0; i < 14; i += 1) await A.onCodTimer('12345', deps);
+    const st = await getState('12345');
+    expect(st.flowA.confirmDeferred).toBeLessThanOrEqual(13);
   });
 });
