@@ -11,6 +11,21 @@ export function hasTag(tags, needle) {
   return (tags || []).some((t) => String(t).toLowerCase().includes(n));
 }
 
+/**
+ * True when the order carries a real RTO tag.
+ *
+ * Deliberately NOT hasTag(tags, 'RTO'): hasTag is a substring match and COD
+ * King tags EVERY order "LOW RTO Risk" / "MEDIUM RTO Risk" / "HIGH RTO Risk",
+ * so 'RTO' matches every order ever placed. That silently suppressed every
+ * Flow B review ask and made the digest count all orders as RTO.
+ */
+export function hasRtoTag(tags) {
+  return (tags || []).some((t) => {
+    const s = String(t).toLowerCase();
+    return s.includes('rto') && !s.includes('risk');
+  });
+}
+
 /** 'HIGH' | 'MEDIUM' | 'LOW' | null from the COD King RTO risk tags. */
 export function riskTag(tags) {
   for (const level of ['HIGH', 'MEDIUM', 'LOW']) if (hasTag(tags, `${level} RTO Risk`)) return level;

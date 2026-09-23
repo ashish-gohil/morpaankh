@@ -6,7 +6,7 @@
  */
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { hasTag } from '../domain/order.mjs';
+import { hasRtoTag } from '../domain/order.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
 import { validateReview, moderationStatus } from '../domain/review.mjs';
 import { formatINR } from '../lib/money.mjs';
@@ -26,7 +26,7 @@ const nowOf = (deps) => deps.now || new Date();
 function reviewSkipReason(n) {
   if (!n) return 'no-order';
   if (n.cancelledAt) return 'cancelled';
-  if (hasTag(n.tags, 'RTO')) return 'rto';
+  if (hasRtoTag(n.tags)) return 'rto';
   if (String(n.financialStatus || '').toUpperCase().includes('REFUNDED')) return 'refunded';
   if (!afterStart(n, config.flows.B.startAt)) return 'before-startAt';
   return null;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeOrder, hasTag, riskTag } from './order.mjs';
+import { normalizeOrder, hasTag, riskTag, hasRtoTag } from './order.mjs';
 import { classify } from './classify.mjs';
 import { computeAmounts } from './amounts.mjs';
 import { flowAEligible, excludeFromAll } from './eligibility.mjs';
@@ -94,5 +94,26 @@ describe('eligibility', () => {
     expect(flowAEligible(normalizeOrder(codOrder()), 'PARTIAL', { startAt }).reason).toBe('class-PARTIAL');
     expect(flowAEligible(normalizeOrder(codOrder()), 'COD', { startAt: '2026-12-01T00:00:00Z' }).reason).toBe('before-startAt');
     expect(flowAEligible(normalizeOrder(codOrder()), 'COD', {}).reason).toBe('before-startAt'); // no startAt => nothing qualifies
+  });
+});
+
+describe('hasRtoTag vs the COD King risk tags', () => {
+  it('does not treat "LOW/MEDIUM/HIGH RTO Risk" as an RTO', () => {
+    // every COD King order carries one of these, so a substring match on 'RTO'
+    // silently suppressed every Flow B review ask and broke the digest counts
+    expect(hasRtoTag(['LOW RTO Risk', '✅ COD-Verified'])).toBe(false);
+    expect(hasRtoTag(['MEDIUM RTO Risk'])).toBe(false);
+    expect(hasRtoTag(['HIGH RTO Risk'])).toBe(false);
+  });
+
+  it('still detects a real RTO tag, including an emoji prefixed one', () => {
+    expect(hasRtoTag(['RTO'])).toBe(true);
+    expect(hasRtoTag(['❌ RTO', 'LOW RTO Risk'])).toBe(true);
+    expect(hasRtoTag(['rto'])).toBe(true);
+  });
+
+  it('is false for no tags', () => {
+    expect(hasRtoTag([])).toBe(false);
+    expect(hasRtoTag(undefined)).toBe(false);
   });
 });
