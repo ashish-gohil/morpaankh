@@ -97,3 +97,142 @@ describe('Flow B', () => {
     expect(_peekTimers()).toHaveLength(0);
   });
 });
+
+/*
+ * Loopholes found by walking every decision point in Flow B before it is
+ * switched on for the first time. All of these were reachable in production.
+ */
+describe('Flow B kill switch actually stops it', () => {
+  it('does not send a review ask from a timer armed before the flow was turned off', async () => {
+    const { clients, deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    config.flows.B = { enabled: false, startAt: '2020-01-01T00:00:00Z' };
+    await B.onReviewTimer('12345', deps);
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  it('does not send the reminder either', async () => {
+    const { clients, deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+    const afterAsk = clients.whatsapp.sent.length;
+    config.flows.B = { enabled: false, startAt: '2020-01-01T00:00:00Z' };
+    await B.onReviewReminder('12345', deps);
+    expect(clients.whatsapp.sent).toHaveLength(afterAsk);
+  });
+});
+
+describe('Flow B never sends a second thank-you code', () => {
+  it('records the review before the bookkeeping that can fail', async () => {
+    const { clients, deps } = setup();
+    await B.onReviewTimer('12345', deps);
+    clients.shopify.tagsAdd = async () => {
+      throw new Error('shopify is down');
+    };
+    await B.onReviewSubmit('12345', submission, deps);
+    await B.onReviewSubmit('12345', submission, deps); // redelivery
+    const codes = clients.whatsapp.sent.filter((s) => /THANKS-/.test(s.body || ''));
+    expect(codes).toHaveLength(1);
+  });
+
+  it('survives a failure publishing the review to the product page', async () => {
+    const { clients, deps } = setup();
+    await B.onReviewTimer('12345', deps);
+    clients.shopify.appendProductReview = async () => {
+      throw new Error('metafield write failed');
+    };
+    await expect(B.onReviewSubmit('12345', submission, deps)).resolves.toBeUndefined();
+    expect(clients.whatsapp.sent.filter((s) => /THANKS-/.test(s.body || ''))).toHaveLength(1);
+  });
+});
+
+describe('Flow B answers a submission it cannot read', () => {
+  const bad = { ...submission, review: 'nope' }; // under the 10 char minimum
+
+  it('does not leave the customer in silence', async () => {
+    const { clients, deps } = setup();
+    config.ownerAlertPhones = [];
+    await B.onReviewTimer('12345', deps);
+    const before = clients.whatsapp.sent.length;
+    await B.onReviewSubmit('12345', bad, deps);
+    expect(clients.whatsapp.sent.length).toBeGreaterThan(before);
+  });
+
+  it('tells the owner to follow up by hand', async () => {
+    const { clients, deps } = setup();
+    config.ownerAlertPhones = ['+919999999999'];
+    await B.onReviewTimer('12345', deps);
+    await B.onReviewSubmit('12345', bad, deps);
+    expect(clients.whatsapp.sent.some((s) => /could not be read/i.test(JSON.stringify(s)))).toBe(true);
+  });
+
+  it('does not record it as reviewed, so a real one can still come', async () => {
+    const { clients, deps } = setup();
+    await B.onReviewTimer('12345', deps);
+    await B.onReviewSubmit('12345', bad, deps);
+    await B.onReviewSubmit('12345', submission, deps);
+    expect(clients.whatsapp.sent.filter((s) => /THANKS-/.test(s.body || ''))).toHaveLength(1);
+  });
+});
+
+describe('Flow B thank-you code survives a collision', () => {
+  it('generates another code when Shopify says that one is taken', async () => {
+    const { clients, deps } = setup();
+    await B.onReviewTimer('12345', deps);
+    let n = 0;
+    const real = clients.shopify.createDiscountCode;
+    clients.shopify.createDiscountCode = async (a) => {
+      n += 1;
+      if (n === 1) throw new Error('Discount code already exists');
+      return real(a);
+    };
+    await B.onReviewSubmit('12345', submission, deps);
+    expect(n).toBe(2);
+    expect(clients.whatsapp.sent.filter((s) => /THANKS-/.test(s.body || ''))).toHaveLength(1);
+  });
+});
+
+/*
+ * `untrackedDeliveryAssumeDays` sat in RULES read by nothing. The only two
+ * things that start Flow B are a Shopify delivery event and the Delhivery
+ * poller, so an order shipped by any other courier had no delivery signal at
+ * all and was never asked for a review.
+ */
+describe('Flow B still reaches an order shipped without a Delhivery waybill', () => {
+  const untracked = () =>
+    setup(
+      order({
+        fulfillments: [{ status: 'SUCCESS', createdAt: '2026-09-18T06:00:00Z', trackingInfo: [{ number: 'BD9', company: 'Bluedart' }] }],
+      }),
+    );
+
+  it('schedules the ask from the dispatch date when no delivery event can come', async () => {
+    const { deps } = untracked();
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    expect(_peekTimers().map((t) => t.name)).toContain('B-12345-review_ask');
+  });
+
+  it('lets a real delivery override the assumed date', async () => {
+    const { deps } = untracked();
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    const assumed = _peekTimers().find((t) => t.name === 'B-12345-review_ask').at;
+    await B.onDelivered('12345', '2026-09-19T05:00:00Z', deps);
+    const real = _peekTimers().find((t) => t.name === 'B-12345-review_ask').at;
+    expect(new Date(real).getTime()).toBeLessThan(new Date(assumed).getTime());
+  });
+
+  it('does not re-arm once the ask has already gone out', async () => {
+    const { deps } = untracked();
+    await B.onReviewTimer('12345', deps);
+    _resetTimers();
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    expect(_peekTimers()).toHaveLength(0);
+  });
+
+  it('stays quiet while the flow is off', async () => {
+    const { deps } = untracked();
+    config.flows.B = { enabled: false, startAt: '2020-01-01T00:00:00Z' };
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    expect(_peekTimers()).toHaveLength(0);
+  });
+});

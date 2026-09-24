@@ -78,7 +78,7 @@ const ORDER_FIELDS = `
   customer { id firstName }
   shippingAddress { zip city }
   shippingLines(first: 10) { nodes { title originalPriceSet { shopMoney { amount } } } }
-  fulfillments(first: 10) { status displayStatus trackingInfo { number company } }
+  fulfillments(first: 10) { status displayStatus createdAt trackingInfo { number company } }
   lineItems(first: 50) { nodes {
     id title quantity variantTitle
     product { id }

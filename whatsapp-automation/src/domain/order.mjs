@@ -44,10 +44,15 @@ export function normalizeOrder(o) {
   const fulfillments = (o.fulfillments || []).map((f) => ({
     status: f.status,
     displayStatus: f.displayStatus,
+    createdAt: f.createdAt || null,
     awb: f.trackingInfo?.[0]?.number || null,
     company: f.trackingInfo?.[0]?.company || null,
   }));
   const delhiveryAwb = fulfillments.find((f) => /delhivery/i.test(f.company || ''))?.awb || null;
+  // When it actually left us. Needed for the assumed-delivery date on orders
+  // shipped without a trackable waybill; `now` would be wrong on a redelivered
+  // fulfillments/update days after the fact.
+  const fulfilledAt = fulfillments.map((f) => f.createdAt).filter(Boolean).sort()[0] || null;
 
   return {
     gid: o.id,
@@ -69,6 +74,7 @@ export function normalizeOrder(o) {
     cancelledAt: o.cancelledAt,
     riskTag: riskTag(tags),
     fulfillments,
+    fulfilledAt,
     delhiveryAwb,
     lineItems: (o.lineItems?.nodes || []).map((li) => ({
       id: li.id,

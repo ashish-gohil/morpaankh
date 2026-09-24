@@ -35,7 +35,7 @@ export const RULES = {
   // review code
   reviewCodePercent: 5,
   reviewCodeMinSubtotalInr: 1500,
-  reviewCodeValidDays: 30,
+  reviewCodeValidDays: 60,
   reviewTextMin: 10,
   reviewTextMax: 600,
 

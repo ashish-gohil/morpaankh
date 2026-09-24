@@ -29,6 +29,7 @@ import { isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing }
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
+import { onUntrackedFulfillment } from './flowB.run.mjs';
 import { OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from '../../messages/session.mjs';
 import { log } from '../log.mjs';
 import { soft, withRetry } from '../lib/resilience.mjs';
@@ -607,7 +608,17 @@ export async function onStop(orderId, deps) {
  */
 export async function onFulfillmentCreate(orderId, deps) {
   const n = await getNorm(deps, orderId);
-  if (!n || !n.delhiveryAwb) return;
+  if (!n) return;
+  if (!n.delhiveryAwb) {
+    // Shipped by someone other than Delhivery: no waybill to track, so no
+    // delivery event will ever arrive and Flow B would never hear about this
+    // order. Fall back to the assumed-delivery date. Soft, because a review
+    // ask is never worth failing a fulfillment record.
+    if (n.fulfillments.length) {
+      await soft('flowB:untrackedFulfillment', () => onUntrackedFulfillment(orderId, n.fulfilledAt, deps), { orderId });
+    }
+    return;
+  }
   await setAwbMap(n.delhiveryAwb, n.numericId);
   const st = await getState(orderId);
   if (st?.flowA?.pendingCourierPrepaid) {
