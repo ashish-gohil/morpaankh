@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { handler as shopifyHandler } from './shopify.mjs';
 import { handler as whatsappHandler } from './whatsapp.mjs';
 import { razorpayIngest } from './razorpay.mjs';
+import { whatsappIngest } from './whatsapp.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _drainQueue } from '../queue.mjs';
 import { _resetSecrets } from '../secrets.mjs';
@@ -97,5 +98,60 @@ describe('razorpay payment_link.paid carries the real payment id', () => {
     expect(item.message.entity.payment_id).toBe('pay_xyz');
     expect(item.message.entity.amount_paid).toBe(104900);
     expect(item.groupId).toBe('order:123');
+  });
+});
+
+/*
+ * Meta announces a template rejection, pause or quality disable through this
+ * same webhook. The ingest only read `messages` and `statuses`, so every one of
+ * those was acked and dropped, and a paused template became a silent outage.
+ */
+describe('whatsapp ingest: template status changes', () => {
+  const body = (event, name = 'order_shipped_v1', reason = null) => ({
+    entry: [
+      {
+        time: 1790000000,
+        changes: [
+          {
+            field: 'message_template_status_update',
+            value: { event, message_template_name: name, message_template_language: 'en', reason },
+          },
+        ],
+      },
+    ],
+  });
+
+  it('turns a PAUSED notice into a message for the worker', () => {
+    const items = whatsappIngest.toItems({}, body('PAUSED', 'order_shipped_v1', 'QUALITY'));
+    expect(items).toHaveLength(1);
+    expect(items[0].message).toMatchObject({
+      kind: 'wa_template_status',
+      name: 'order_shipped_v1',
+      event: 'PAUSED',
+      reason: 'QUALITY',
+    });
+  });
+
+  it('dedupes on name plus event', () => {
+    const a = whatsappIngest.toItems({}, body('REJECTED'))[0];
+    const b = whatsappIngest.toItems({}, body('REJECTED'))[0];
+    expect(a.dedupId).toBe(b.dedupId);
+    expect(whatsappIngest.toItems({}, body('APPROVED'))[0].dedupId).not.toBe(a.dedupId);
+  });
+
+  it('still reads messages and statuses from the same payload', () => {
+    const mixed = {
+      entry: [
+        {
+          time: 1790000000,
+          changes: [
+            { field: 'messages', value: { messages: [{ id: 'wamid.1', from: '919812345678', type: 'text', text: { body: 'hi' } }] } },
+            { field: 'message_template_status_update', value: { event: 'APPROVED', message_template_name: 'cod_confirm_v2' } },
+          ],
+        },
+      ],
+    };
+    const kinds = whatsappIngest.toItems({}, mixed).map((i) => i.message.kind);
+    expect(kinds).toEqual(['wa_inbound', 'wa_template_status']);
   });
 });

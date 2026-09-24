@@ -29,6 +29,7 @@ import { isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing }
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
+import { OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from '../../messages/session.mjs';
 import { log } from '../log.mjs';
 import { soft, withRetry } from '../lib/resilience.mjs';
 
@@ -716,6 +717,7 @@ function confirmVars(n, amt) {
     order_total: formatINR(n.currentTotalPaise),
     cod_total: formatINR(n.currentTotalPaise),
     prepaid_total: formatINR(amt ? amt.newTotalPaise : n.currentTotalPaise),
+    gift_line: amt?.gift ? OFFER_GIFT_LINE : OFFER_NO_GIFT_LINE,
   };
 }
 
@@ -747,6 +749,7 @@ function offerVars(n, amt, now, link) {
     order_total: formatINR(n.currentTotalPaise),
     cod_total: formatINR(n.currentTotalPaise),
     saving: formatINR(savingPaise),
+    gift_line: amt?.gift ? OFFER_GIFT_LINE : OFFER_NO_GIFT_LINE,
     valid_until: formatIST(until),
   };
 }

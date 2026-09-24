@@ -56,6 +56,24 @@ export const whatsappIngest = {
             dedupId: `wa-status-${st.id}-${st.status}`,
           });
         }
+        // Meta tells us the moment it rejects, pauses or disables a template.
+        // Only `messages` and `statuses` were read, so every one of these was
+        // acked and thrown away: a template could be paused for quality and the
+        // first anyone would know is customers not being messaged. order_shipped
+        // has no fallback version, so for that one a pause is a silent outage.
+        if (ch.field === 'message_template_status_update') {
+          items.push({
+            message: {
+              kind: 'wa_template_status',
+              name: v.message_template_name,
+              language: v.message_template_language,
+              event: v.event,
+              reason: v.reason || v.other_info?.title || null,
+            },
+            groupId: `template:${v.message_template_name || 'unknown'}`,
+            dedupId: `wa-tpl-${v.message_template_name}-${v.event}-${entry.time || ''}`,
+          });
+        }
       }
     }
     return items;

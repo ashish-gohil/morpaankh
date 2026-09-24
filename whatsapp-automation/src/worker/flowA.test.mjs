@@ -179,7 +179,7 @@ describe('Flow A exclusions + guards', () => {
     await A.onCodTimer('12345', deps); // step = confirm_sent
     await A.onFallback('12345', deps);
     await A.onFallback('12345', deps);
-    const offers = clients.whatsapp.sent.filter((s) => s.type === 'template' && s.name === 'prepaid_offer_v2');
+    const offers = clients.whatsapp.sent.filter((s) => s.type === 'template' && s.name === 'prepaid_offer_v3');
     expect(offers).toHaveLength(1);
   });
 });
@@ -280,17 +280,17 @@ describe('Flow A quotes only what it can actually charge', () => {
   it('quotes the open payment link, not a total that changed after it was made', async () => {
     const order = codOrder();
     const { clients, deps } = setup(order);
-    await A.onConfirm('12345', deps); // creates the link at 1499 - 100 = 1399
-    expect(clients.razorpay.links[0].args.amountPaise).toBe(139900);
+    await A.onConfirm('12345', deps); // creates the link at 1499 - 150 = 1349
+    expect(clients.razorpay.links[0].args.amountPaise).toBe(134900);
 
     // the order is edited afterwards; the link still charges the old amount
     order.currentTotalPriceSet = { shopMoney: { amount: '1999.00' } };
     await A.onPayOnline('12345', deps);
 
     const last = clients.whatsapp.sent.filter((s) => s.type === 'cta_url').pop();
-    expect(last.buttonText).toBe('Pay ₹1,399');
-    expect(last.body).toContain('₹1,399');
-    expect(last.body).not.toContain('₹1,899');
+    expect(last.buttonText).toBe('Pay ₹1,349');
+    expect(last.body).toContain('₹1,349');
+    expect(last.body).not.toContain('₹1,849');
   });
 
   it('keeps the prepaid nudge alive when a Pay online tap never becomes a payment', async () => {

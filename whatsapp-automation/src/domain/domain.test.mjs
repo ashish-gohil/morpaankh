@@ -65,14 +65,18 @@ describe('classify', () => {
 });
 
 describe('computeAmounts', () => {
-  it('saves exactly prepaidTotalSavingInr, with the COD fee counted inside it', () => {
+  it('saves exactly the tier amount, with the COD fee counted inside it', () => {
     const a = computeAmounts(normalizeOrder(codOrder()), RULES);
-    // Rs 100 total: Rs 50 COD fee no longer charged + Rs 50 line discount.
-    // The fee must NOT stack on top of the discount, or we give away Rs 150.
+    // Rs 1,499 order less the Rs 50 fee is Rs 1,449 of goods, so the Rs 150
+    // tier. Rs 150 total: Rs 50 COD fee no longer charged + Rs 100 line
+    // discount. The fee must NOT stack on top of the discount, or we give away
+    // Rs 200.
     expect(a.codFeePaise).toBe(5000);
-    expect(a.discountPaise).toBe(5000);
-    expect(a.savingPaise).toBe(10000);
-    expect(a.newTotalPaise).toBe(149900 - 10000); // 139900
+    expect(a.discountPaise).toBe(10000);
+    expect(a.savingPaise).toBe(15000);
+    expect(a.newTotalPaise).toBe(149900 - 15000); // 134900
+    expect(a.savingInr).toBe(150);
+    expect(a.gift).toBe(true);
     expect(a.feeMatches).toBe(true); // 50.0 attr == Rs 50 line
   });
 
@@ -182,5 +186,56 @@ describe('what the customer sees of their own order', () => {
   it('skips a line item with no photo and takes the next one', () => {
     const u = heroImageUrl(order([li({ image: null }), li({ title: 'Bel' })]));
     expect(u).toMatch(/sahaj\.jpg/);
+  });
+});
+
+/*
+ * The prepaid saving is tiered on the ORDER VALUE, which is the merchandise
+ * total with the COD fee taken out. Getting the side of the line wrong is a
+ * real Rs 50 either way, so the boundary is pinned here.
+ */
+describe('prepaid saving tiers', () => {
+  const at = (goodsInr, feeInr = 50) =>
+    computeAmounts(
+      normalizeOrder(
+        codOrder({
+          currentTotalPriceSet: { shopMoney: { amount: String(goodsInr + feeInr) } },
+          totalPriceSet: { shopMoney: { amount: String(goodsInr + feeInr) } },
+          shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: String(feeInr) } } }] },
+          customAttributes: [
+            { key: '_otpVerifiedPhoneNumber', value: '919812345678' },
+            { key: '_codkAmountType', value: 'cod' },
+            { key: '_codkAmountValue', value: `${feeInr}.0` },
+          ],
+        }),
+      ),
+      RULES,
+    );
+
+  it('gives Rs 150 and a gift at exactly the Rs 1,299 threshold', () => {
+    const a = at(1299);
+    expect(a.savingInr).toBe(150);
+    expect(a.gift).toBe(true);
+  });
+
+  it('gives Rs 100 and no gift one rupee below it', () => {
+    const a = at(1298);
+    expect(a.savingInr).toBe(100);
+    expect(a.gift).toBe(false);
+  });
+
+  it('tiers on the goods, not on the goods plus the COD fee', () => {
+    // Rs 1,260 of goods + Rs 50 fee is Rs 1,310 charged, but the order is
+    // Rs 1,260, so it is the lower tier. Tiering on the charged total would
+    // hand out Rs 150 on the strength of a fee we are about to stop charging.
+    const a = at(1260);
+    expect(a.orderValuePaise).toBe(126000);
+    expect(a.savingInr).toBe(100);
+  });
+
+  it('never lets the saving push the total below what the tier promises', () => {
+    const a = at(2000);
+    expect(a.savingPaise).toBe(15000);
+    expect(a.newTotalPaise).toBe(205000 - 15000);
   });
 });

@@ -8,23 +8,38 @@
  */
 import { encodePayload } from '../src/lib/ids.mjs';
 
+/**
+ * The one line in the prepaid offer that changes with the saving tier.
+ *
+ * Always a real benefit, never blank: an empty line would leave a hole in the
+ * middle of the list, and for the Meta templates an empty variable is rejected
+ * outright. flowA picks by `amt.gift`.
+ */
+export const OFFER_GIFT_LINE = '*A gift from us*, wrapped in with your order';
+export const OFFER_NO_GIFT_LINE = '*Nothing to arrange* at the door on the day';
+
 export const SESSION = {
   confirmed_with_offer: {
     type: 'cta_url',
     body:
-      'Thank you, {{customer_name}}. Order {{order_number}} is confirmed and we are getting it ready.\n\n' +
-      'If you would rather pay now, it comes to {{new_total}} instead of {{order_total}}, so you keep ' +
-      '{{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner.\n\n' +
-      'The link stays open until {{valid_until}}. Nothing about your order changes until you use it.',
+      'Thank you, {{customer_name}}. Order {{order_number}} is confirmed and we have started getting it ready.\n\n' +
+      'You can still switch to paying online, and it is worth the thirty seconds:\n\n' +
+      '*You pay {{new_total}}* instead of {{order_total}}\n' +
+      '*{{saving}} stays with you*\n' +
+      '{{gift_line}}\n' +
+      '*Packed first and dispatched on priority*, so it reaches you sooner\n\n' +
+      'The link is open until {{valid_until}}. Nothing about your order changes unless you use it.',
     ctaText: 'Pay {{new_total}}',
   },
   pay_online_offer: {
     type: 'cta_url',
     body:
-      'Here you go, {{customer_name}}. Paying now brings order {{order_number}} to {{new_total}} instead of ' +
-      '{{order_total}}, so you keep {{saving}} extra. Prepaid orders are packed and dispatched on priority, ' +
-      'so yours reaches you sooner.\n\n' +
-      'The link stays open until {{valid_until}}. Nothing about your order changes until you use it.',
+      'Here it is, {{customer_name}}. Your link for order {{order_number}}.\n\n' +
+      '*You pay {{new_total}}* instead of {{order_total}}\n' +
+      '*{{saving}} stays with you*\n' +
+      '{{gift_line}}\n' +
+      '*Packed first and dispatched on priority*, so it reaches you sooner\n\n' +
+      'The link is open until {{valid_until}}. Nothing about your order changes unless you use it.',
     ctaText: 'Pay {{new_total}}',
   },
   keep_cod_ack: {

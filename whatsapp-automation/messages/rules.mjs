@@ -5,10 +5,19 @@
  */
 export const RULES = {
   // money
-  // TOTAL the customer saves versus the COD price, inclusive of the COD fee
-  // we stop charging. The line discount is derived from this, so the saving
-  // is always exactly this number and never fee + discount stacked.
-  prepaidTotalSavingInr: 100,
+  // TOTAL the customer saves versus the COD price, inclusive of the COD fee we
+  // stop charging. The line discount is derived from this, so the saving is
+  // always exactly the tier number and never fee + discount stacked.
+  //
+  // Tiered on the ORDER VALUE, which here means the merchandise total WITHOUT
+  // the COD fee: that is the number the customer thinks of as "my order", and
+  // the fee is the thing we are about to stop charging, so counting it would
+  // push a Rs 1,260 order over the line on the strength of a charge that is
+  // about to disappear. Highest threshold first; the list is read top down.
+  prepaidTiers: [
+    { minOrderInr: 1299, savingInr: 150, gift: true },
+    { minOrderInr: 0, savingInr: 100, gift: false },
+  ],
   removeCodFee: true,
 
   // Flow A timings (minutes/hours)

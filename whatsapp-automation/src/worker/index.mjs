@@ -14,11 +14,18 @@ import { getState, runOnce, updateMessageStatus } from '../store/orderState.mjs'
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
 import { isOptedOut, setOptOut, touchInbound, setUndeliverable, getAwaiting } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
+import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
 import { ownerAlert } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
 import * as flowC from './flowC.run.mjs';
+
+// Derived from the registry, never hand-listed, so adding a template without a
+// legacy version cannot silently drop off this list.
+const NO_FALLBACK = new Set(
+  Object.keys(TEMPLATES).filter((k) => !LEGACY[k]).map((k) => TEMPLATES[k].name),
+);
 
 const OPT_OUT = new Set(['STOP', 'UNSUBSCRIBE', 'OPT OUT']);
 const OPT_IN = new Set(['START']);
@@ -264,10 +271,40 @@ async function onTimer(m) {
   }
 }
 
+// ---- WhatsApp template status changes ---------------------------------------
+/**
+ * Meta approved, rejected, paused or disabled one of our templates.
+ *
+ * A paused or rejected template stops customer messages, and for the keys with
+ * no LEGACY fallback (order_shipped, delivered_review, review_reminder) it stops
+ * them silently. This is the only advance warning Meta gives, so it goes
+ * straight to the owner rather than into a log nobody reads.
+ */
+const TEMPLATE_BAD = new Set(['REJECTED', 'PAUSED', 'DISABLED', 'FLAGGED', 'PENDING_DELETION']);
+
+async function onTemplateStatus(m) {
+  const bad = TEMPLATE_BAD.has(String(m.event || '').toUpperCase());
+  log[bad ? 'error' : 'info']('wa template status', { name: m.name, event: m.event, reason: m.reason, language: m.language });
+  metric('TemplateStatus', 1, { event: m.event || 'unknown' });
+  if (!bad) return;
+  const noFallback = NO_FALLBACK.has(m.name);
+  await soft('templateStatusAlert', () =>
+    ownerAlert(
+      deps(),
+      m.name || 'template',
+      `WhatsApp has set the ${m.name} template to ${m.event}${m.reason ? ` (${m.reason})` : ''}.${
+        noFallback ? ' This one has NO older version to fall back on, so those messages stop completely until it is fixed.' : ' The previous version is being sent meanwhile.'
+      }`,
+    ),
+    { name: m.name, event: m.event },
+  );
+}
+
 const routes = {
   shopify: onShopify,
   wa_inbound: onWaInbound,
   wa_status: onWaStatus,
+  wa_template_status: onTemplateStatus,
   razorpay: onRazorpay,
   delhivery: onDelhivery,
   timer: onTimer,

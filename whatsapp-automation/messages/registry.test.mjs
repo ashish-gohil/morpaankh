@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { TEMPLATES, LEGACY, renderTemplate, toPositionalBody, placeholderOrder } from './templates.mjs';
-import { SESSION, renderSession } from './session.mjs';
+import { SESSION, renderSession, OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from './session.mjs';
 import * as labels from './labels.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -70,6 +70,8 @@ describe('no em/en dash and no emoji anywhere in customer copy', () => {
     ...labels.RTO_REASONS.map((r) => r.label),
     ...labels.NDR_OPTIONS.map((o) => o.label),
     ...Object.values(labels.COURIER_STATUS_TEXT),
+    OFFER_GIFT_LINE,
+    OFFER_NO_GIFT_LINE,
     labels.THEME_WHATSAPP_NOTICE,
     labels.ORDER_EDIT_DISCOUNT_DESCRIPTION,
     flowJson,
@@ -137,6 +139,6 @@ const IMG = 'https://cdn.shopify.com/s/files/1/x/sample.jpg?width=800&height=800
 
 // sample vars for session cta rendering
 function sampleVars(key) {
-  const base = { customer_name: 'A', order_number: '#1', new_total: 'Rs 1,499', order_total: 'Rs 1,599', saving: 'Rs 100', valid_until: '21 Sep' };
+  const base = { customer_name: 'A', order_number: '#1', new_total: 'Rs 1,499', order_total: 'Rs 1,599', saving: 'Rs 150', gift_line: 'a gift from us', valid_until: '21 Sep' };
   return base;
 }

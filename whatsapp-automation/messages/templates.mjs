@@ -44,6 +44,14 @@ export const TEMPLATES = {
   // invites Meta to reclassify it as MARKETING, which would bring opt-in
   // requirements, per-user frequency caps and a higher per-message price to
   // every order confirmation we send.
+  // DELIBERATELY unchanged, and deliberately WITHOUT the gift wording that the
+  // prepaid offer carries. This is UTILITY and it is the message every single
+  // order gets. "A gift from us" is promotional, and promotional wording here
+  // invites Meta to reclassify the template as MARKETING, which would put
+  // opt-in, per-user frequency caps and a higher price on EVERY order
+  // confirmation. The tiered saving still reaches the customer here, because
+  // the two amounts are variables: only the gift is held back to the offer
+  // message and the session replies, which are free to be promotional.
   cod_confirm: {
     name: 'cod_confirm_v2',
     language: 'en',
@@ -60,7 +68,7 @@ export const TEMPLATES = {
       order_number: '#1234',
       item_line: 'Khili Dhoop, size M',
       cod_total: 'Rs 1,499',
-      prepaid_total: 'Rs 1,399',
+      prepaid_total: 'Rs 1,349',
     },
     buttons: [
       qr('Pay online now', 'A', 'pay_online'),
@@ -69,6 +77,7 @@ export const TEMPLATES = {
     ],
   },
 
+  // Same reasoning as cod_confirm: UTILITY, so no offer wording.
   cod_reminder: {
     name: 'cod_reminder_v2',
     language: 'en',
@@ -84,7 +93,7 @@ export const TEMPLATES = {
       order_number: '#1234',
       item_line: 'Khili Dhoop, size M',
       cod_total: 'Rs 1,499',
-      prepaid_total: 'Rs 1,399',
+      prepaid_total: 'Rs 1,349',
     },
     buttons: [
       qr('Pay online now', 'A', 'pay_online'),
@@ -96,23 +105,26 @@ export const TEMPLATES = {
   // This one IS an offer, so MARKETING is the honest category. It is capped by
   // RULES.marketingCapDays and carries the opt-out footer Meta expects.
   prepaid_offer: {
-    name: 'prepaid_offer_v2',
+    name: 'prepaid_offer_v3',
     language: 'en',
     category: 'MARKETING',
     header: imageHeader(SAMPLE_PRODUCT_IMAGE),
     body:
       'Hello {{customer_name}}, your order {{order_number}} is still set to cash on delivery.\n\n' +
       '{{item_line}}\n\n' +
-      'Pay online and it comes to {{prepaid_total}} instead of {{cod_total}}, so you keep {{saving}} extra. ' +
-      'Prepaid orders are packed and dispatched on priority, so yours reaches you sooner.\n\n' +
-      'The link below stays open until {{valid_until}}. If you would rather not, tap Keep cash on delivery and nothing changes.',
+      '*Pay online and you pay {{prepaid_total}}* instead of {{cod_total}}\n' +
+      '*{{saving}} stays with you*\n' +
+      '{{gift_line}}\n' +
+      '*Packed first and dispatched on priority*, so it reaches you sooner\n\n' +
+      'The link below is open until {{valid_until}}. If you would rather not, tap Keep cash on delivery and nothing changes.',
     examples: {
       customer_name: 'Aarav',
       order_number: '#1234',
       item_line: 'Khili Dhoop, size M',
-      prepaid_total: 'Rs 1,399',
+      prepaid_total: 'Rs 1,349',
       cod_total: 'Rs 1,499',
-      saving: 'Rs 100',
+      saving: 'Rs 150',
+      gift_line: 'A gift from us, wrapped in with your order',
       valid_until: '21 Sep, 8:00 PM',
     },
     buttons: [urlBtn('Pay online'), qr('Keep cash on delivery', 'A', 'keep_cod')],
@@ -361,24 +373,31 @@ export const LEGACY = {
     buttons: [qr('Confirm order', 'A', 'confirm'), qr('Pay online', 'A', 'pay_online'), qr('Cancel order', 'A', 'cancel')],
   },
 
+  // v2, NOT v1: v2 is the version Meta has approved and that goes out today.
+  // prepaid_offer_v3 above adds the tiered saving and the gift, and until Meta
+  // approves it every send lands here, keeping the product photo rather than
+  // dropping all the way back to the plain v1.
   prepaid_offer: {
-    name: 'prepaid_offer_v1',
+    name: 'prepaid_offer_v2',
     language: 'en',
     category: 'MARKETING',
+    header: imageHeader(SAMPLE_PRODUCT_IMAGE),
     body:
-      'Hello {{customer_name}},\n' +
-      'Thank you for your order {{order_number}}.\n\n' +
-      'If you pay online now, you pay {{new_total}} instead of {{order_total}} and save {{saving}}. This is valid until {{valid_until}}.\n\n' +
-      'If you prefer Cash on Delivery, please tap Keep Cash on Delivery.',
+      'Hello {{customer_name}}, your order {{order_number}} is still set to cash on delivery.\n\n' +
+      '{{item_line}}\n\n' +
+      'Pay online and it comes to {{prepaid_total}} instead of {{cod_total}}, so you keep {{saving}} extra. ' +
+      'Prepaid orders are packed and dispatched on priority, so yours reaches you sooner.\n\n' +
+      'The link below stays open until {{valid_until}}. If you would rather not, tap Keep cash on delivery and nothing changes.',
     examples: {
       customer_name: 'Aarav',
       order_number: '#1234',
-      new_total: 'Rs 1,399',
-      order_total: 'Rs 1,499',
+      item_line: 'Khili Dhoop, size M',
+      prepaid_total: 'Rs 1,399',
+      cod_total: 'Rs 1,499',
       saving: 'Rs 100',
       valid_until: '21 Sep, 8:00 PM',
     },
-    buttons: [urlBtn('Pay online'), qr('Keep Cash on Delivery', 'A', 'keep_cod')],
+    buttons: [urlBtn('Pay online'), qr('Keep cash on delivery', 'A', 'keep_cod')],
     footer: 'Reply STOP to stop these messages',
   },
 
