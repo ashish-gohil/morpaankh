@@ -400,7 +400,12 @@ export async function onPaymentPaid(orderId, entity, deps) {
     // "no longer eligible" and refund a customer who did nothing wrong. That
     // is exactly what a duplicate or retried Razorpay webhook would do.
     const cls = stNow?.class || (n ? classify(n) : 'UNKNOWN');
-    const paymentId = entity?.payment_id || entity?.id || null;
+    // ONLY the real pay_... id. entity.id on a payment_link.paid webhook is a
+    // plink_..., which the refund endpoint rejects with "not a valid id", so
+    // this fallback meant a refund that had to happen silently did not. The
+    // ingest now carries payment_id explicitly; when it is genuinely absent a
+    // refund needs a human, not a guess at the id.
+    const paymentId = entity?.payment_id || null;
     const paidPaise = entity?.amount_paid != null ? Math.round(entity.amount_paid) : null;
 
     // A read failure is NOT a reason to send someone's money back. getNorm
@@ -421,7 +426,15 @@ export async function onPaymentPaid(orderId, entity, deps) {
     }
 
     if (n.cancelledAt || cls !== 'COD') {
-      await refundOnce(deps, orderId, paymentId, paidPaise ?? 0);
+      const r = await refundOnce(deps, orderId, paymentId, paidPaise ?? 0);
+      // refundOnce returns null when there is no usable payment id. Sending the
+      // refund message anyway told the customer their money was on its way back
+      // when nothing had been refunded, which is the one lie this service must
+      // never tell. No refund, no message: the owner gets it instead.
+      if (!r) {
+        await ownerAlert(deps, n.name, 'URGENT: payment received on an order that is no longer eligible, but it could NOT be refunded automatically. Refund this by hand in Razorpay');
+        return { refundFailed: true };
+      }
       await notifyRefund(deps, n, orderId, paidPaise, now);
       await ownerAlert(deps, n.name, 'payment received but order no longer eligible, refunded');
       return { refunded: true };
@@ -460,7 +473,11 @@ export async function onPaymentPaid(orderId, entity, deps) {
           );
         }
       } else {
-        await refundOnce(deps, orderId, paymentId, paidPaise ?? amt.newTotalPaise);
+        const r = await refundOnce(deps, orderId, paymentId, paidPaise ?? amt.newTotalPaise);
+        if (!r) {
+          await ownerAlert(deps, n.name, 'URGENT: paid online but the courier is past editing AND the refund could not be issued automatically. Refund this by hand in Razorpay before dispatch');
+          return { refundFailed: true };
+        }
         await notifyRefund(deps, n, orderId, paidPaise, now);
         await ownerAlert(deps, n.name, 'payment received but courier not editable, refunded');
         return { refunded: true };
@@ -610,6 +627,22 @@ export async function onFulfillmentCreate(orderId, deps) {
   } catch (e) {
     if (!isTemplateUnusable(e)) throw e;
     log.warn('flowA shipped: template not usable, no dispatch message sent', { orderId, waCode: e.waCode });
+    // order_shipped has no LEGACY fallback, so an unusable template means the
+    // customer is told NOTHING about their dispatch. That was a WARN in a log
+    // nobody reads, and three real orders went out silently on 24 Sept before
+    // anyone noticed. Tell the owner, once per order so a second fulfillment
+    // update does not repeat it.
+    await soft('shippedTemplateAlert', () =>
+      runOnce(orderId, 'shipped-template-alert', async () => {
+        await ownerAlert(
+          deps,
+          n.name,
+          'dispatch message NOT sent: the order_shipped template is not approved on WhatsApp. Message this customer the tracking link by hand and get the template approved',
+        );
+        return { alerted: true };
+      }),
+      { orderId, waCode: e.waCode },
+    );
   }
 }
 

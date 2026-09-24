@@ -18,7 +18,16 @@ export function makeFakeRazorpay() {
       cancelled.push(id);
       return { ok: true };
     },
+    // Razorpay's refund endpoint only accepts a pay_... id. The fake used to
+    // accept anything, which is why a plink_... reaching it went unnoticed in
+    // tests and only showed up as a failed refund in production.
     async refund(paymentId, amountPaise) {
+      if (!/^pay_/.test(String(paymentId || ''))) {
+        const e = new Error(`razorpay POST /payments/${paymentId}/refund failed: ${paymentId} is not a valid id`);
+        /** @type {any} */ (e).status = 400;
+        /** @type {any} */ (e).description = `${paymentId} is not a valid id`;
+        throw e;
+      }
       const r = { id: `rfnd_fake_${refunds.length + 1}`, paymentId, amountPaise };
       refunds.push(r);
       return { id: r.id };

@@ -34,6 +34,7 @@ async function call(method, path, body) {
     if (!res.ok) {
       const e = new Error(`razorpay ${method} ${path} failed: ${json.error?.description || res.status}`);
       e.status = res.status;
+      e.description = json.error?.description || '';
       throw e;
     }
     return json;
@@ -61,9 +62,24 @@ export const razorpay = {
     return { id: j.id, shortUrl: j.short_url };
   },
 
+  // Razorpay refuses to cancel a link that is already paid, already cancelled
+  // or already expired, and all three are the normal case here: this runs right
+  // after a successful conversion, on cancellation and on RTO. Treating the
+  // refusal as a failure logged an ERROR, burned a SoftFailure metric and woke
+  // the owner by email AND WhatsApp on every single successful payment, which
+  // is how a real alert gets ignored. The link is closed either way, so a
+  // terminal state IS the outcome we wanted.
   async cancelLink(id) {
     if (config.dryRun) return { ok: true, skipped: 'dry_run' };
-    await call('POST', `/payment_links/${id}/cancel`);
+    try {
+      await call('POST', `/payment_links/${id}/cancel`);
+    } catch (e) {
+      // Only the "already in a terminal state" refusal. Anything else (a bad
+      // id, auth, an outage) still throws so it reaches the owner.
+      if (!/cannot cancel or expire/i.test(/** @type {any} */ (e).description || '')) throw e;
+      log.info('razorpay link was already closed', { id, reason: /** @type {any} */ (e).description });
+      return { ok: true, alreadyClosed: true };
+    }
     return { ok: true };
   },
 

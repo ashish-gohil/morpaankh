@@ -522,3 +522,89 @@ describe('Flow A: a template still in review must not cost a customer their conf
     expect(st.flowA.confirmDeferred).toBeLessThanOrEqual(13);
   });
 });
+
+/*
+ * Regression: the three faults the live logs showed between 22 and 24 Sept.
+ * Every one of them was invisible to the suite because the fakes were kinder
+ * than the real providers.
+ */
+describe('Flow A refunds only with a real payment id', () => {
+  const noPayEntity = { id: 'plink_TfKl4KKqyc4wS5', amount_paid: 134900 };
+
+  it('does not send a plink_ id to the refund endpoint', async () => {
+    const order = codOrder({ cancelledAt: '2026-09-20T07:00:00Z' });
+    const { clients, deps } = setup(order);
+    config.ownerAlertPhones = [PHONE];
+
+    await A.onPaymentPaid('12345', noPayEntity, deps);
+
+    expect(clients.razorpay.refunds).toHaveLength(0);
+  });
+
+  it('never tells the customer money is on its way back when it is not', async () => {
+    const order = codOrder({ cancelledAt: '2026-09-20T07:00:00Z' });
+    const { clients, deps } = setup(order);
+    config.ownerAlertPhones = [PHONE];
+
+    await A.onPaymentPaid('12345', noPayEntity, deps);
+
+    expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_refund'))).toBe(false);
+    expect(clients.whatsapp.sent.some((s) => /could NOT be refunded/i.test(JSON.stringify(s)))).toBe(true);
+  });
+
+  it('still refunds normally when the webhook carries the pay_ id', async () => {
+    const order = codOrder({ cancelledAt: '2026-09-20T07:00:00Z' });
+    const { clients, deps } = setup(order);
+
+    await A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 }, deps);
+
+    expect(clients.razorpay.refunds).toHaveLength(1);
+    expect(clients.razorpay.refunds[0].paymentId).toBe('pay_1');
+    expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_refund'))).toBe(true);
+  });
+});
+
+/*
+ * Live 24 Sept: order_shipped_v1 is not approved on the WABA and the key has no
+ * LEGACY fallback, so three real orders shipped with the customer told nothing.
+ * The only trace was a WARN. The fulfillment record must still survive, but the
+ * owner has to hear about it.
+ */
+describe('Flow A dispatch message when the template is not approved', () => {
+  function shippedWithUnusableTemplate() {
+    const order = codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB9', company: 'Delhivery' }] }] });
+    const { clients, deps } = setup(order);
+    config.ownerAlertPhones = [PHONE];
+    const realSend = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (a.name === 'order_shipped_v1') {
+        const e = new Error('template does not exist');
+        /** @type {any} */ (e).waCode = 132001;
+        throw e;
+      }
+      return realSend(a);
+    };
+    return { clients, deps };
+  }
+
+  it('does not fail the fulfillment record', async () => {
+    const { deps } = shippedWithUnusableTemplate();
+    await expect(A.onFulfillmentCreate('12345', deps)).resolves.toBeUndefined();
+  });
+
+  it('tells the owner the customer was never messaged', async () => {
+    const { clients, deps } = shippedWithUnusableTemplate();
+    await A.onFulfillmentCreate('12345', deps);
+    const alerts = clients.whatsapp.sent.filter((s) => /dispatch message NOT sent/i.test(JSON.stringify(s)));
+    expect(alerts).toHaveLength(1);
+  });
+
+  it('alerts once per order, not once per fulfillment update', async () => {
+    const { clients, deps } = shippedWithUnusableTemplate();
+    await A.onFulfillmentCreate('12345', deps);
+    await A.onFulfillmentCreate('12345', deps);
+    await A.onFulfillmentCreate('12345', deps);
+    const alerts = clients.whatsapp.sent.filter((s) => /dispatch message NOT sent/i.test(JSON.stringify(s)));
+    expect(alerts).toHaveLength(1);
+  });
+});

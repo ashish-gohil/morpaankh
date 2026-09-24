@@ -81,3 +81,49 @@ describe('real clients ride out a transient provider failure', () => {
     globalThis.fetch = real;
   });
 });
+
+/*
+ * Regression: closing a Razorpay payment link.
+ *
+ * Every successful prepaid conversion ends by cancelling the link, and by then
+ * the link IS paid, so Razorpay refuses. That refusal was logged at ERROR,
+ * counted as a SoftFailure and pushed through the error reporter, which emailed
+ * AND WhatsApped the owner on the happy path. Live logs 23-24 Sept.
+ */
+describe('razorpay cancelLink is idempotent about a link that is already closed', () => {
+  const refuse = (description) => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ error: { description } }),
+    text: async () => '{}',
+  });
+
+  async function cancelWith(response) {
+    const { config } = await import('../config.mjs');
+    const { razorpay } = await import('./razorpay.mjs');
+    const realFetch = globalThis.fetch;
+    const realDry = config.dryRun;
+    config.dryRun = false;
+    globalThis.fetch = async () => response;
+    try {
+      return await razorpay.cancelLink('plink_TfKl4KKqyc4wS5');
+    } finally {
+      globalThis.fetch = realFetch;
+      config.dryRun = realDry;
+    }
+  }
+
+  it('treats an already paid link as closed, not as a failure', async () => {
+    const r = await cancelWith(refuse('cannot cancel or expire an already paid / partially paid link'));
+    expect(r).toMatchObject({ ok: true, alreadyClosed: true });
+  });
+
+  it('treats an already cancelled link as closed', async () => {
+    const r = await cancelWith(refuse('cannot cancel or expire a cancelled link'));
+    expect(r).toMatchObject({ ok: true, alreadyClosed: true });
+  });
+
+  it('still throws on a refusal that is NOT a terminal link state', async () => {
+    await expect(cancelWith(refuse('The api key provided is invalid'))).rejects.toThrow(/invalid/);
+  });
+})
