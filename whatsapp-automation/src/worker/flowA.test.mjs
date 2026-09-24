@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
-import { setOptOut } from '../store/phoneProfile.mjs';
+import { setOptOut, setUndeliverable } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
@@ -640,5 +640,76 @@ describe('Flow A cancel on an already cancelled order', () => {
     const { clients, deps } = setup();
     await A.onCancelYes('12345', deps);
     expect(clients.shopify.calls.filter((c) => c.op === 'orderCancel')).toHaveLength(1);
+  });
+});
+
+/*
+ * An unreadable courier status used to fall into the else-branch and REFUND a
+ * customer who had just paid. mapCourierStatus returns UNKNOWN for a tracking
+ * call that came back empty or with a string Delhivery has not shown us before,
+ * so a courier API hiccup reversed a real payment.
+ */
+describe('Flow A refuses to decide on a courier status it cannot read', () => {
+  const paid = { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 };
+  const shipped = (courier) =>
+    setup(
+      codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB9', company: 'Delhivery' }] }] }),
+      courier,
+    );
+
+  it('does not refund when the courier returns a status we do not recognise', async () => {
+    const { clients, deps } = shipped({ statuses: { AWB9: { status: 'Something Delhivery invented' } } });
+    await expect(A.onPaymentPaid('12345', paid, deps)).rejects.toThrow(/could not be read/);
+    expect(clients.razorpay.refunds).toHaveLength(0);
+  });
+
+  it('does not refund when tracking comes back empty', async () => {
+    const { clients, deps } = shipped({ statuses: {} });
+    await expect(A.onPaymentPaid('12345', paid, deps)).rejects.toThrow(/could not be read/);
+    expect(clients.razorpay.refunds).toHaveLength(0);
+  });
+
+  it('still refunds when the courier genuinely says it is too late', async () => {
+    const { clients, deps } = shipped({ statuses: { AWB9: { status: 'Out for delivery' } } });
+    await A.onPaymentPaid('12345', paid, deps);
+    expect(clients.razorpay.refunds).toHaveLength(1);
+  });
+
+  it('still converts when the courier says it is editable', async () => {
+    const { clients, deps } = shipped({ statuses: { AWB9: { status: 'Manifested' } } });
+    await A.onPaymentPaid('12345', paid, deps);
+    expect(clients.razorpay.refunds).toHaveLength(0);
+    expect(tagsAdded(clients.shopify)).toContain('PREPAID-CONVERTED');
+  });
+});
+
+/*
+ * Meta says 131026 once; setUndeliverable recorded it and nothing read it, so
+ * the dead number kept being billed for every future message and dragging the
+ * number's quality rating down.
+ */
+describe('Flow A stops messaging a number WhatsApp says is dead', () => {
+  it('skips the confirmation for an undeliverable number', async () => {
+    const { clients, deps } = setup();
+    await setUndeliverable(PHONE);
+    await A.onCodTimer('12345', deps);
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  it('leaves the order unmarked so nothing downstream thinks it was told', async () => {
+    const { deps } = setup();
+    await setUndeliverable(PHONE);
+    await A.onCodTimer('12345', deps);
+    expect((await getState('12345'))?.flowA?.codConfirmAt).toBeUndefined();
+  });
+
+  it('still reaches the owner, whose alerts must never go quiet', async () => {
+    const { clients, deps } = setup();
+    config.ownerAlertPhones = [PHONE];
+    await setUndeliverable(PHONE);
+    await A.onCodTimer('12345', deps);
+    const { ownerAlert } = await import('./send.mjs');
+    await ownerAlert({ clients }, '#1234', 'something needs you');
+    expect(clients.whatsapp.sent.length).toBeGreaterThan(0);
   });
 });

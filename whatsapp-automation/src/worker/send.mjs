@@ -6,7 +6,8 @@ import { config } from '../config.mjs';
 import { normalizeOrder } from '../domain/order.mjs';
 import { TEMPLATES, LEGACY, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession } from '../../messages/session.mjs';
-import { log, metric } from '../log.mjs';
+import { log, metric, maskPhone } from '../log.mjs';
+import { isUndeliverable } from '../store/phoneProfile.mjs';
 import { soft } from '../lib/resilience.mjs';
 
 /**
@@ -59,6 +60,20 @@ async function dispatch(deps, phone, def, vars, ctx) {
 export async function tpl(deps, phone, key, vars, ctx = {}) {
   const primary = TEMPLATES[key];
   if (!primary) throw new Error(`unknown template: ${key}`);
+
+  // Meta tells us once, with error 131026, that a number cannot receive
+  // WhatsApp. setUndeliverable recorded that and NOTHING ever read it, so the
+  // same dead number kept getting every confirmation, reminder and marketing
+  // nudge for every future order. Each one is billed and each one drags the
+  // number's quality rating down, which is what 131049 throttling is made of.
+  // Owner alert numbers are exempt: losing those silently is how the dead
+  // worker went unnoticed for ten hours.
+  if (!config.ownerAlertPhones.includes(phone) && (await isUndeliverable(phone))) {
+    log.info('template: recipient is undeliverable, not sending', { key, phone: maskPhone(phone) });
+    metric('SendSkippedUndeliverable', 1, { key });
+    return { skipped: 'undeliverable', templateName: primary.name };
+  }
+
   const fallback = LEGACY[key] || null;
 
   // A template with an image header cannot be sent without an image, so a

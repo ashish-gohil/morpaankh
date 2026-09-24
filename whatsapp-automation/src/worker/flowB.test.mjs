@@ -213,10 +213,15 @@ describe('Flow B still reaches an order shipped without a Delhivery waybill', ()
   });
 
   it('lets a real delivery override the assumed date', async () => {
+    // Both dates have to be genuinely ahead of the wall clock: scheduleTimer
+    // floors anything already past to now+1min, which would otherwise collapse
+    // the two and hide the ordering this test is about.
+    const dispatch = new Date(Date.now() + 2 * 86400000).toISOString();
+    const delivered = new Date(Date.now() + 3 * 86400000).toISOString();
     const { deps } = untracked();
-    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    await B.onUntrackedFulfillment('12345', dispatch, deps);
     const assumed = _peekTimers().find((t) => t.name === 'B-12345-review_ask').at;
-    await B.onDelivered('12345', '2026-09-19T05:00:00Z', deps);
+    await B.onDelivered('12345', delivered, deps);
     const real = _peekTimers().find((t) => t.name === 'B-12345-review_ask').at;
     expect(new Date(real).getTime()).toBeLessThan(new Date(assumed).getTime());
   });

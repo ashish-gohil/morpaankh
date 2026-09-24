@@ -69,3 +69,27 @@ describe('caps + formatting', () => {
     expect(formatISTDate(d)).toBe('20 Sep');
   });
 });
+
+/*
+ * A one-time EventBridge schedule whose at() has already passed is accepted and
+ * then never invoked, so the timer vanishes with no error anywhere. Reachable
+ * on real data: a late delivery webhook puts deliveredAt + 48h in the past.
+ */
+describe('a timer is never scheduled in the past', () => {
+  it('floors a past time to just ahead of now', async () => {
+    const { scheduleTimer, _peekTimers, _resetTimers } = await import('../timers/schedule.mjs');
+    _resetTimers();
+    await scheduleTimer({ flow: 'B', orderId: '1', step: 'review_ask', at: new Date(Date.now() - 86400000) });
+    const t = _peekTimers().find((x) => x.name === 'B-1-review_ask');
+    expect(new Date(t.at).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('leaves a future time exactly as it was', async () => {
+    const { scheduleTimer, _peekTimers, _resetTimers } = await import('../timers/schedule.mjs');
+    _resetTimers();
+    const at = new Date(Date.now() + 3 * 3600 * 1000);
+    await scheduleTimer({ flow: 'A', orderId: '2', step: 'cod', at });
+    const t = _peekTimers().find((x) => x.name === 'A-2-cod');
+    expect(new Date(t.at).getTime()).toBe(at.getTime());
+  });
+});

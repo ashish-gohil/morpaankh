@@ -459,7 +459,19 @@ export async function onPaymentPaid(orderId, entity, deps) {
     const amt = computeAmounts(n, RULES);
     if (n.delhiveryAwb) {
       const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
-      if (isCourierEditable(mapCourierStatus(t))) {
+      const courierState = mapCourierStatus(t);
+      // An unreadable courier state is NOT a reason to send someone's money
+      // back. mapCourierStatus returns UNKNOWN both for a genuinely odd status
+      // and for a tracking call that came back empty or with a string Delhivery
+      // has not shown us before, and the else-branch below refunds. That is the
+      // same mistake the getNorm-null path was fixed for: throw instead, so SQS
+      // retries while the poller refreshes the status, and a real dead end parks
+      // in the DLQ where a human sees it rather than silently reversing a
+      // payment the customer meant to make.
+      if (!t || courierState === 'UNKNOWN') {
+        throw new Error(`payment received but the courier status for ${n.delhiveryAwb} could not be read, refusing to decide`);
+      }
+      if (isCourierEditable(courierState)) {
         // Delhivery's edit-to-prepaid field names are still unverified against
         // a live waybill, so this call can fail for reasons that have nothing
         // to do with the customer. Letting it throw parked a real payment in

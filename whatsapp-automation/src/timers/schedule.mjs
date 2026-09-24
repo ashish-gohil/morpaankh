@@ -15,6 +15,21 @@ import { log } from '../log.mjs';
 const isAws = () => config.queueBackend === 'aws';
 const timers = new Map(); // name -> { at, message, groupId }
 
+/**
+ * A one-time EventBridge schedule whose at() has already passed is accepted and
+ * then never invoked, so the timer is lost with no error anywhere.
+ *
+ * This is reachable on real data: onDelivered schedules at deliveredAt + 48h,
+ * and a delivery event that arrives late (a backfilled webhook, the nightly
+ * reconciliation noticing an old delivery, a DLQ redrive) puts that moment in
+ * the past, which silently means no review ask for that customer, ever. Same
+ * for the assumed-delivery date on an old fulfillment. Floor it instead.
+ */
+function notInThePast(at, now = new Date()) {
+  const floor = new Date(now.getTime() + 60 * 1000);
+  return at instanceof Date && at.getTime() > floor.getTime() ? at : floor;
+}
+
 function messageFor(flow, orderId, step, extra) {
   return { kind: 'timer', flow, orderId: String(orderId), step, ...(extra || {}) };
 }
@@ -41,6 +56,7 @@ async function aws() {
 /** Create or replace a one-time timer. @param {{flow,orderId,step,at:Date,extra?}} */
 export async function scheduleTimer({ flow, orderId, step, at, extra }) {
   const name = timerName(flow, orderId, step);
+  at = notInThePast(at);
   const message = messageFor(flow, orderId, step, extra);
   const groupId = `order:${orderId}`;
   if (!isAws()) {

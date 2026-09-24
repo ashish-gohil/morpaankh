@@ -55,6 +55,19 @@ export async function getAwaiting(phone, now = new Date()) {
 }
 
 // human takeover (coexistence echoes)
+//
+// NOT BUILT. Nothing calls setHumanTakeover and nothing calls inHumanTakeover,
+// and RULES.humanTakeoverHours is referenced nowhere else in the service, so
+// treat these three as a design that was never wired up rather than as working
+// behaviour. It matters because this number is in COEXISTENCE mode: the owner
+// answers from the WhatsApp app on their phone, and the bot will happily send a
+// template into the middle of that conversation.
+//
+// Finishing it needs a piece we do not have yet: the Meta app must be
+// subscribed to the `message_echoes` webhook field so we see messages the owner
+// sent by hand. Once those arrive, call setHumanTakeover(phone, +12h) on each
+// echo and add inHumanTakeover to the guard in send.mjs tpl(), next to the
+// opt-out and undeliverable checks.
 export const setHumanTakeover = (phone, until) => patch(phone, { humanTakeoverUntil: until });
 export async function inHumanTakeover(phone, now = new Date()) {
   const p = await getProfile(phone);
@@ -73,6 +86,8 @@ export async function canAskReview(phone, now, days) {
 export const markReviewAsk = (phone, now = new Date()) => patch(phone, { lastReviewAskAt: now.toISOString() });
 
 export const setUndeliverable = (phone) => patch(phone, { undeliverable: true, undeliverableAt: new Date().toISOString() });
+/** Meta has told us (131026) this number cannot receive WhatsApp. */
+export const isUndeliverable = async (phone) => Boolean((await getProfile(phone)).undeliverable);
 
 /** Increment and return the RTO count for a phone (drives rto-count-<n> + cod-block). */
 export async function markRto(phone) {
