@@ -3,7 +3,7 @@ import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
 import { _resetSecrets } from '../secrets.mjs';
-import { getAwaiting } from '../store/phoneProfile.mjs';
+import { getAwaiting, setOptOut } from '../store/phoneProfile.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import * as C from './flowC.run.mjs';
@@ -118,5 +118,32 @@ describe('Flow C: RTO', () => {
     const { deps } = setup();
     await C.onRtoReason('12345', 'other', deps);
     expect((await getAwaiting(PHONE)).type).toBe('rto_other');
+  });
+});
+
+/*
+ * Flow A checks opt-out in five places and Flow B in three. Flow C checked it
+ * in none, so a customer who had sent STOP still got NDR and RTO templates.
+ */
+describe('Flow C honours opt-out', () => {
+  it('does not send ndr_action to a phone that opted out', async () => {
+    const { clients, deps } = setup();
+    await setOptOut(PHONE, true);
+    await C.onNdr('12345', deps);
+    expect(sentTemplate(clients.whatsapp, 'ndr_action_v2')).toBe(false);
+    expect(sentTemplate(clients.whatsapp, 'ndr_action_v1')).toBe(false);
+  });
+
+  it('does not ask an opted-out customer why the parcel came back', async () => {
+    const { clients, deps } = setup();
+    await setOptOut(PHONE, true);
+    await C.onRtoTimer('12345', deps);
+    expect(clients.whatsapp.sent.filter((s) => String(s.name || '').startsWith('rto_reason'))).toHaveLength(0);
+  });
+
+  it('still sends to a customer who has not opted out', async () => {
+    const { clients, deps } = setup();
+    await C.onNdr('12345', deps);
+    expect(sentTemplate(clients.whatsapp, 'ndr_action_v2')).toBe(true);
   });
 });

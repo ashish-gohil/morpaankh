@@ -18,9 +18,13 @@ export function makeFakeShopify({ orders = {} } = {}) {
       if (o) o.tags = [...(Array.isArray(o.tags) ? o.tags : String(o.tags || '').split(',').filter(Boolean)), ...tags];
       return { ok: true };
     },
+    // Shopify answers a cancel on an already cancelled order with a
+    // userError, and the real client throws on userErrors. The fake used to
+    // accept it silently, so the DLQ path it caused was invisible in tests.
     async orderCancel(orderGid, opts) {
       calls.push({ op: 'orderCancel', orderGid, opts });
       const o = store.get(orderGid);
+      if (o?.cancelledAt) throw new Error('orderCancel errors: [{"message":"Order has already been cancelled."}]');
       if (o) o.cancelledAt = new Date().toISOString();
       return { ok: true };
     },

@@ -608,3 +608,37 @@ describe('Flow A dispatch message when the template is not approved', () => {
     expect(alerts).toHaveLength(1);
   });
 });
+
+/*
+ * "Yes, cancel it" on an order that is ALREADY cancelled (the owner did it in
+ * Shopify, or COD King did). orderCancel returns a userError for that and the
+ * client throws on userErrors, so the record failed five times into the DLQ and
+ * the customer was never answered, on an order already in the state they asked
+ * for.
+ */
+describe('Flow A cancel on an already cancelled order', () => {
+  const cancelled = () => setup(codOrder({ cancelledAt: '2026-09-20T07:00:00Z' }));
+
+  it('does not call orderCancel again', async () => {
+    const { clients, deps } = cancelled();
+    await A.onCancelYes('12345', deps);
+    expect(clients.shopify.calls.filter((c) => c.op === 'orderCancel')).toHaveLength(0);
+  });
+
+  it('still confirms the cancellation to the customer', async () => {
+    const { clients, deps } = cancelled();
+    await A.onCancelYes('12345', deps);
+    expect(clients.whatsapp.sent.some((s) => /cancel/i.test(JSON.stringify(s)))).toBe(true);
+  });
+
+  it('does not throw, so the record is never parked in the DLQ', async () => {
+    const { deps } = cancelled();
+    await expect(A.onCancelYes('12345', deps)).resolves.toBeUndefined();
+  });
+
+  it('still cancels an order that is genuinely open', async () => {
+    const { clients, deps } = setup();
+    await A.onCancelYes('12345', deps);
+    expect(clients.shopify.calls.filter((c) => c.op === 'orderCancel')).toHaveLength(1);
+  });
+});

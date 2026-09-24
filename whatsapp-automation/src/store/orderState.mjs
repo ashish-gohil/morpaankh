@@ -9,6 +9,7 @@
  */
 import { table, VersionConflict } from './table.mjs';
 import { RULES } from '../../messages/rules.mjs';
+import { setWamidMap } from './maps.mjs';
 
 const pk = (id) => `ORDER#${id}`;
 
@@ -88,10 +89,15 @@ export async function runOnce(id, action, fn) {
   return result;
 }
 
-/** Log an outbound message by wamid. */
+/**
+ * Log an outbound message by wamid, and the reverse lookup that lets a delivery
+ * status webhook find its way back to the order. Every send records here, so
+ * this is the one place that has to know about both.
+ */
 export async function recordMessage(id, wamid, data) {
   if (!wamid) return;
   await table.put({ PK: pk(id), SK: `MSG#${wamid}`, wamid, ...data, at: new Date().toISOString() });
+  await setWamidMap(wamid, { orderId: String(id), key: data?.key || null });
 }
 
 /** Update a stored message's status (from WhatsApp status webhooks). */

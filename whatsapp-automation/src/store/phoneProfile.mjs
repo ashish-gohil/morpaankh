@@ -37,7 +37,22 @@ export async function windowOpen(phone, now = new Date(), safetyMinutes = 10) {
 // awaiting free-text (address / other reason)
 export const setAwaiting = (phone, awaiting) => patch(phone, { awaiting });
 export const clearAwaiting = (phone) => patch(phone, { awaiting: null });
-export const getAwaiting = async (phone) => (await getProfile(phone)).awaiting || null;
+/**
+ * The open question this phone still owes an answer to, or null.
+ *
+ * `until` was written by every setAwaiting caller and read by NONE, so an
+ * unanswered question stayed open forever: a customer asked for their address
+ * after a failed delivery, never replied, and then months later sent an
+ * unrelated "hi" that was read as the address for a long-closed order (and
+ * pushed to the courier as an address edit). Expiring it here means every
+ * caller gets it, which is the only place that is true.
+ */
+export async function getAwaiting(phone, now = new Date()) {
+  const a = (await getProfile(phone)).awaiting;
+  if (!a) return null;
+  if (a.until && new Date(a.until).getTime() <= now.getTime()) return null;
+  return a;
+}
 
 // human takeover (coexistence echoes)
 export const setHumanTakeover = (phone, until) => patch(phone, { humanTakeoverUntil: until });

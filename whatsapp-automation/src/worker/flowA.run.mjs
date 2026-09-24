@@ -287,6 +287,20 @@ export async function onCancelYes(orderId, deps) {
   if (!n) return;
   await touchInbound(n.verifiedPhone, nowOf(deps));
 
+  // Already cancelled, by the owner in Shopify, by COD King, or by a tap whose
+  // runOnce record has since aged out. orderCancel returns a userError for an
+  // order that is already cancelled and the client throws on userErrors, so
+  // this used to fail the record five times into the DLQ AND leave the customer
+  // with no answer at all, on an order that is in exactly the state they asked
+  // for. Confirm it and stop.
+  if (n.cancelledAt) {
+    log.info('flowA cancel: order is already cancelled, acknowledging', { orderId });
+    await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
+    await cancelLinkIfAny(deps, orderId);
+    await sess(deps, n.verifiedPhone, 'cancel_done', { order_number: n.name });
+    return;
+  }
+
   if (!n.delhiveryAwb || n.fulfillments.length === 0) {
     await runOnce(orderId, 'cancel', async () => {
       await deps.clients.shopify.orderCancel(n.gid, { reason: 'CUSTOMER', staffNote: 'WhatsApp customer cancel' });

@@ -9,7 +9,7 @@ import { RTO_REASONS, COD_BLOCK_REASONS } from '../../messages/labels.mjs';
 import { classifyAddressReply } from '../domain/ndr.mjs';
 import { addHours, addDays, nextWindowTime, withinWindow } from '../lib/time.mjs';
 import { getState, patchFlowC, runOnce } from '../store/orderState.mjs';
-import { touchInbound, setAwaiting, clearAwaiting, markRto } from '../store/phoneProfile.mjs';
+import { isOptedOut, touchInbound, setAwaiting, clearAwaiting, markRto } from '../store/phoneProfile.mjs';
 import { scheduleTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert } from './send.mjs';
 import * as flowA from './flowA.run.mjs';
@@ -23,6 +23,10 @@ export async function onNdr(orderId, deps) {
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
+  // Flow C had NO opt-out check anywhere, while A and B both honour it, so a
+  // customer who had sent STOP still received NDR and RTO templates. Opt-out is
+  // a hard guardrail, not a per-flow preference.
+  if (await isOptedOut(n.verifiedPhone)) return;
   // Send only inside the NDR window; otherwise defer to the next window start.
   if (!withinWindow(now, RULES.ndrSendWindow)) {
     return scheduleTimer({ flow: 'C', orderId, step: 'ndr', at: nextWindowTime(now, RULES.ndrSendWindow) });
@@ -114,6 +118,7 @@ export async function onRto(orderId, deps) {
 export async function onRtoTimer(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n || !n.verifiedPhone) return;
+  if (await isOptedOut(n.verifiedPhone)) return;
   const st = await getState(orderId);
   if (st?.flowC?.rtoReasonAskedAt) return;
   const res = await tpl(deps, n.verifiedPhone, 'rto_reason', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId });

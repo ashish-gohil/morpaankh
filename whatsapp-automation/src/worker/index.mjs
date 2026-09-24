@@ -10,10 +10,12 @@ import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
 import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { getSecrets } from '../secrets.mjs';
-import { getState } from '../store/orderState.mjs';
-import { getAwbMap } from '../store/maps.mjs';
+import { getState, runOnce, updateMessageStatus } from '../store/orderState.mjs';
+import { getAwbMap, getWamidMap } from '../store/maps.mjs';
 import { isOptedOut, setOptOut, touchInbound, setUndeliverable, getAwaiting } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
+import { ownerAlert } from './send.mjs';
+import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
 import * as flowC from './flowC.run.mjs';
@@ -95,6 +97,15 @@ async function onWaInbound(m) {
   const p = rawPayload ? decodePayload(rawPayload) : null;
 
   if (p) {
+    // Button payloads are "v1|A|<orderId>|cancel_yes" in CLEAR TEXT: unlike the
+    // Flow token they carry no signature, and the order id is the plain Shopify
+    // number. The review path right above already refuses a phone that does not
+    // own the order; the taps did not, so one of them (cancel_yes) would cancel
+    // a stranger's order for anyone who could get a payload in front of us.
+    // Same check, same place in the flow.
+    if (!(await ownsOrder(p.orderId, phone))) {
+      return log.warn('tap: phone does not own this order, ignoring', { flow: p.flow, action: p.action });
+    }
     if (p.flow === 'A') return routeFlowATap(p.orderId, p.action);
     if (p.flow === 'C') return routeFlowCTap(p.orderId, p.action);
     return;
@@ -108,6 +119,18 @@ async function onWaInbound(m) {
     if (awaiting.type === 'address') return flowC.onAddressText(awaiting.orderId, rawText, deps());
     if (awaiting.type === 'rto_other') return flowC.onRtoOtherText(awaiting.orderId, rawText, deps());
   }
+}
+
+/**
+ * Does this phone own this order?
+ *
+ * Unknown order, or an order whose verified phone we never stored, is allowed
+ * through: those predate the state row and refusing them would break real
+ * customers. A STORED phone that disagrees is refused.
+ */
+async function ownsOrder(orderId, phone) {
+  const st = await getState(orderId);
+  return !st?.verifiedPhone || st.verifiedPhone === phone;
 }
 
 function routeFlowCTap(orderId, action) {
@@ -160,7 +183,34 @@ async function onWaStatus(m) {
   if (st.status === 'failed' && code === 131026 && st.recipient_id) {
     await setUndeliverable(`+${st.recipient_id}`); // 131026 = undeliverable number
   }
-  // Fuller per-message status history (wamid -> order) lands with Flow D metrics.
+  if (st.status !== 'failed' || !st.id) return;
+
+  // A send that Meta ACCEPTED is only queued. When it later fails, the order has
+  // already been marked sent (codConfirmAt, reviewAsked, ...) and nothing ever
+  // revisits it, so on 23 Sept every message failed 131042 "no payment method"
+  // while the orders all read as confirmed. The log named a phone and a code and
+  // no order, so there was no list of who to make good with afterwards.
+  // Resolve the wamid, record the failure on the order, and name it to the owner.
+  const map = await getWamidMap(st.id);
+  if (!map?.orderId) return;
+  await soft('updateMessageStatus', () => updateMessageStatus(map.orderId, st.id, st.status, st.errors), { wamid: st.id });
+  const d = deps();
+  const stateRow = await getState(map.orderId);
+  const orderName = stateRow?.name || map.orderId;
+  // Once per order per message kind: a template that failed for an account-wide
+  // reason fails for every order at once, and the owner needs one line each, not
+  // one per retry.
+  await soft('sendFailedAlert', () =>
+    runOnce(map.orderId, `send-failed:${map.key || 'unknown'}`, async () => {
+      await ownerAlert(
+        d,
+        orderName,
+        `the ${map.key || 'WhatsApp'} message was accepted by WhatsApp and then FAILED to deliver (${code || 'no code'}: ${err?.title || 'unknown'}). This customer has not been told. Contact them and resend once the cause is fixed`,
+      );
+      return { alerted: true };
+    }),
+    { orderId: map.orderId, wamid: st.id },
+  );
 }
 
 // ---- Delhivery courier events (poll or push) --------------------------------
