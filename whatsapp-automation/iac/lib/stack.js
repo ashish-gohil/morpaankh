@@ -140,6 +140,18 @@ class WaAutomationStack extends cdk.Stack {
     };
     const redirectFn = makeFn('pay-redirect', 'src/ingest/pay-redirect.handler');
     const onboardingFn = makeFn('onboarding', 'src/ingest/onboarding.handler');
+    // The storefront signup popup's save endpoint. Public and unsigned (a browser
+    // cannot hold an HMAC secret), so it defends itself: origin allowlist, honeypot,
+    // per-IP rate limit. No reserved concurrency for the same reason as the worker
+    // below -- this account's total limit is 10 and any reservation drops the
+    // unreserved pool under AWS's minimum. The per-IP cap is the real throttle.
+    const subscribeFn = makeFn('subscribe', 'src/ingest/subscribe.handler', {
+      // The live storefront origins are built into the handler. These extras let
+      // `shopify theme dev` on localhost reach the endpoint while a change is
+      // being tested. Safe to drop: CORS guards the browser, and the honeypot,
+      // per-IP rate limit and field validation are what actually guard the route.
+      env: { SUBSCRIBE_ORIGINS: 'http://127.0.0.1:9292 http://localhost:9292' },
+    });
 
     // worker (all side effects). No reserved concurrency: this account's total
     // limit is 10 and a reservation would drop the unreserved pool below AWS's
@@ -156,7 +168,7 @@ class WaAutomationStack extends cdk.Stack {
     const digestFn = makeFn('digest', 'src/timers/digest.handler', { timeout: Duration.seconds(120) });
 
     // ---- grants -----------------------------------------------------------
-    const allFns = [...Object.values(ingest), redirectFn, onboardingFn, worker, pollFn, reconcileFn, digestFn];
+    const allFns = [...Object.values(ingest), redirectFn, onboardingFn, subscribeFn, worker, pollFn, reconcileFn, digestFn];
     for (const fn of allFns) {
       table.grantReadWriteData(fn);
       secret.grantRead(fn);
@@ -187,6 +199,7 @@ class WaAutomationStack extends cdk.Stack {
     route('/p/{token}', [HttpMethod.GET], redirectFn);
     route('/onboarding', [HttpMethod.GET], onboardingFn);
     route('/onboarding/exchange', [HttpMethod.POST], onboardingFn);
+    route('/subscribe', [HttpMethod.POST, HttpMethod.OPTIONS], subscribeFn);
 
     // ---- recurring schedules (IST via cron in UTC) ------------------------
     // Delhivery poll hourly 08:00-22:00 IST == 02:30-16:30 UTC.
