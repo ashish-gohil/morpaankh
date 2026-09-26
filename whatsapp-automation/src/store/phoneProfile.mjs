@@ -2,8 +2,10 @@
  * phoneProfile.mjs — PHONE#<e164>/PROFILE: opt-out, 24h window, awaiting-state,
  * human takeover, and the per-phone caps (marketing, review asks).
  */
-import { table } from './table.mjs';
+import { table, VersionConflict } from './table.mjs';
 import { withinDays } from '../lib/time.mjs';
+import { RULES } from '../../messages/rules.mjs';
+import { log } from '../log.mjs';
 
 const pk = (phone) => `PHONE#${phone}`;
 const DAY = 86400 * 1000;
@@ -11,14 +13,28 @@ const DAY = 86400 * 1000;
 export async function getProfile(phone) {
   return (await table.get(pk(phone), 'PROFILE')) || { PK: pk(phone), SK: 'PROFILE', phone };
 }
-async function save(profile) {
-  await table.put({ ...profile, PK: pk(profile.phone), SK: 'PROFILE', updatedAt: new Date().toISOString() });
-}
+/**
+ * Merge fields into the profile. Retries once on a version conflict.
+ *
+ * This used to read the whole profile and put it back wholesale, with no
+ * version check, so two writers for the same phone silently lost one of the two
+ * writes. That is not theoretical: the queue serializes by ORDER, not by phone,
+ * so a customer with two open orders has two records in flight at once. The
+ * write that loses is arbitrary, and the one that matters most is the smallest:
+ * a customer sends STOP (setOptOut) while a timer for their other order stamps
+ * lastMarketingAt, the stamp is written over the opt-out, and we keep marketing
+ * to someone who asked us to stop. Same shape erases `undeliverable` and
+ * `awaiting`. table.update is conditional on the version it read, so the loser
+ * now throws and retries against the winner's row instead of overwriting it.
+ */
 async function patch(phone, fields) {
-  const p = await getProfile(phone);
-  const next = { ...p, ...fields };
-  await save(next);
-  return next;
+  const attrs = { ...fields, phone };
+  try {
+    return await table.update(pk(phone), 'PROFILE', attrs);
+  } catch (e) {
+    if (e instanceof VersionConflict) return table.update(pk(phone), 'PROFILE', attrs);
+    throw e;
+  }
 }
 
 // opt-out
@@ -26,7 +42,24 @@ export const isOptedOut = async (phone) => Boolean((await getProfile(phone)).opt
 export const setOptOut = (phone, optOut) => patch(phone, { optOut, optOutAt: optOut ? new Date().toISOString() : null });
 
 // inbound / 24h session window
-export const touchInbound = (phone, now = new Date()) => patch(phone, { lastInboundAt: now.toISOString() });
+/**
+ * Record an inbound message, and take the number off the undeliverable list.
+ *
+ * An inbound message is the strongest proof there is that this number receives
+ * WhatsApp: it just sent us one. Without this clear, a number that bounced once
+ * with 131026 stayed blocked even after its owner installed WhatsApp and wrote
+ * to us by hand, and every later order of theirs went unanswered.
+ */
+export async function touchInbound(phone, now = new Date()) {
+  const p = await getProfile(phone);
+  const fields = { lastInboundAt: now.toISOString() };
+  if (p.undeliverable) {
+    fields.undeliverable = false;
+    fields.undeliverableAt = null;
+    log.info('phone: inbound message clears the undeliverable flag', {});
+  }
+  return patch(phone, fields);
+}
 export async function windowOpen(phone, now = new Date(), safetyMinutes = 10) {
   const p = await getProfile(phone);
   if (!p.lastInboundAt) return false;
@@ -86,13 +119,42 @@ export async function canAskReview(phone, now, days) {
 export const markReviewAsk = (phone, now = new Date()) => patch(phone, { lastReviewAskAt: now.toISOString() });
 
 export const setUndeliverable = (phone) => patch(phone, { undeliverable: true, undeliverableAt: new Date().toISOString() });
-/** Meta has told us (131026) this number cannot receive WhatsApp. */
-export const isUndeliverable = async (phone) => Boolean((await getProfile(phone)).undeliverable);
+/** A delivered message, or an inbound one, proves the number works after all. */
+export const clearUndeliverable = (phone) => patch(phone, { undeliverable: false, undeliverableAt: null });
+
+/**
+ * Meta has told us (131026) this number cannot receive WhatsApp, recently.
+ *
+ * 131026 is NOT a permanent verdict. Meta returns it when the number has no
+ * WhatsApp account, when its owner has not accepted the current terms, and when
+ * their app is too old to render the message. All three get fixed by the
+ * customer without telling us. Treating the first bounce as final meant one bad
+ * moment silenced that customer across every future order, for good, including
+ * their dispatch and delivery updates. Expire it instead, so the number gets
+ * one more chance later, and the flag still does its job in the window that
+ * matters: no repeat billing and no quality-rating damage today.
+ */
+export async function isUndeliverable(phone, now = new Date()) {
+  const p = await getProfile(phone);
+  if (!p.undeliverable) return false;
+  if (!p.undeliverableAt) return true; // flagged before we recorded a time: stay safe
+  return withinDays(p.undeliverableAt, now, RULES.undeliverableRetryDays);
+}
 
 /** Increment and return the RTO count for a phone (drives rto-count-<n> + cod-block). */
 export async function markRto(phone) {
-  const p = await getProfile(phone);
-  const rtoCount = (p.rtoCount || 0) + 1;
-  await save({ ...p, rtoCount });
-  return rtoCount;
+  // Read-increment-write, so it needs the version it read as the condition:
+  // patch() alone would retry with a count computed from the losing row and
+  // two RTOs landing together would count as one, which is the difference
+  // between a cod-block and none.
+  for (let i = 0; i < 3; i += 1) {
+    const p = await getProfile(phone);
+    try {
+      const next = await table.update(pk(phone), 'PROFILE', { phone, rtoCount: (p.rtoCount || 0) + 1 }, p.version || 0);
+      return next.rtoCount;
+    } catch (e) {
+      if (!(e instanceof VersionConflict) || i === 2) throw e;
+    }
+  }
+  throw new Error('markRto: unreachable');
 }

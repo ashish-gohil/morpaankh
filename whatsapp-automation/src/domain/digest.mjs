@@ -16,6 +16,10 @@ const RULES_TAGS = [
   ['ndr', 'wa-ndr'],
   ['rto', null], // real RTO tag only; see hasRtoTag (a substring match on 'RTO' hits every '* RTO Risk' order)
   ['noPhone', 'wa-no-verified-phone'],
+  // Written when a delivery status comes back failed. Counted separately from
+  // the "asked" tags because those only mean WhatsApp accepted the send: a
+  // digest built from them alone reported customers as reached who never were.
+  ['undelivered', 'wa-undeliverable'],
 ];
 
 /** @param {{tags:string[]}[]} orders  orders updated in the window */
@@ -28,6 +32,7 @@ export function summarizeDigest(orders) {
   const line =
     `${counts.cod} COD asked, ${counts.confirmed} confirmed, ${counts.converted} prepaid, ` +
     `${counts.cancelled} cancelled, ${counts.holds} held, ${counts.delivered} delivered, ` +
-    `${counts.reviewed} reviews, ${counts.ndr} NDR, ${counts.rto} RTO, ${counts.noPhone} no-verified-phone`;
+    `${counts.reviewed} reviews, ${counts.ndr} NDR, ${counts.rto} RTO, ${counts.noPhone} no-verified-phone, ` +
+    `${counts.undelivered} NOT reached`;
   return { counts, line };
 }

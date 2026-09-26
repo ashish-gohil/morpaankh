@@ -194,10 +194,19 @@ class WaAutomationStack extends cdk.Stack {
       schedule: events.Schedule.expression('cron(30 2-16 * * ? *)'),
       targets: [new targets.LambdaFunction(pollFn)],
     });
-    // Reconciliation 02:30 IST == 21:00 UTC (prev day).
+    // Reconciliation 02:30 IST == 21:00 UTC (prev day). Full pass: the order
+    // sweep plus webhook subscriptions plus re-tracking every active AWB.
     new events.Rule(this, 'ReconcileRule', {
       schedule: events.Schedule.expression('cron(0 21 * * ? *)'),
-      targets: [new targets.LambdaFunction(reconcileFn)],
+      targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'full' }) })],
+    });
+    // The order sweep alone, every hour. An order whose confirmation was lost has
+    // to be found in minutes, not at 02:30 the next morning: the message says
+    // "your order is confirmed, reply to cancel", and a day late it is worthless.
+    // Nightly was the only pass before, and it did not look at orders at all.
+    new events.Rule(this, 'ReconcileOrdersRule', {
+      schedule: events.Schedule.expression('cron(15 * * * ? *)'),
+      targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'orders' }) })],
     });
     // Digest 09:30 IST == 04:00 UTC.
     new events.Rule(this, 'DigestRule', {
@@ -280,7 +289,12 @@ class WaAutomationStack extends cdk.Stack {
     alarm('dlq-not-empty', dlq.metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(5) }), 1);
     const emf = (metricName) =>
       new cw.Metric({ namespace: 'WAAutomation', metricName, statistic: 'Sum', period: Duration.minutes(15) });
-    alarm('whatsapp-failures', emf('MessageFailed'), 5);
+    // Threshold 1, not 5. This store takes one or two orders a day, so five
+    // failed sends inside one 15-minute window is not reachable: on 26 Sept
+    // EVERY confirmation failed to deliver and this alarm stayed green, because
+    // two is not five. At this volume a single customer who was not reached is
+    // worth an email.
+    alarm('whatsapp-failures', emf('MessageFailed'), 1);
     alarm('courier-failures', emf('CourierError'), 5);
 
     // Only the worker was alarmed before, so an ingest Lambda that threw on

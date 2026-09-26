@@ -12,7 +12,7 @@ import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { getState, runOnce, updateMessageStatus } from '../store/orderState.mjs';
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
-import { isOptedOut, setOptOut, touchInbound, setUndeliverable, getAwaiting } from '../store/phoneProfile.mjs';
+import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, getAwaiting } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
 import { ownerAlert } from './send.mjs';
@@ -187,10 +187,25 @@ async function onWaStatus(m) {
     title: err?.title,
     detail: err?.error_data?.details,
   });
-  if (st.status === 'failed' && code === 131026 && st.recipient_id) {
-    await setUndeliverable(`+${st.recipient_id}`); // 131026 = undeliverable number
+  if (st.recipient_id) {
+    const ph = `+${st.recipient_id}`;
+    if (st.status === 'failed' && code === 131026) await setUndeliverable(ph);
+    // Delivery is the one fact that outranks a past bounce: this handset just
+    // took a message. Let it undo the block rather than waiting out the expiry.
+    if (st.status === 'delivered') await soft('clearUndeliverable', () => clearUndeliverable(ph), {});
   }
-  if (st.status !== 'failed' || !st.id) return;
+  if (!st.id) return;
+
+  // EVERY outcome is recorded, not just failures. Only failures used to be, so
+  // a message that reached a customer looked exactly like one that never left:
+  // both had a MSG# row with no status at all. There was no way to answer "did
+  // they get it?" for any order, which is why a run of silent bounces read as
+  // "the confirmation job stopped working" instead of "these two numbers are
+  // not on WhatsApp". updateMessageStatus only moves the status forward.
+  const map = await getWamidMap(st.id);
+  if (!map?.orderId) return;
+  await soft('updateMessageStatus', () => updateMessageStatus(map.orderId, st.id, st.status, st.errors), { wamid: st.id });
+  if (st.status !== 'failed') return;
 
   // A send that Meta ACCEPTED is only queued. When it later fails, the order has
   // already been marked sent (codConfirmAt, reviewAsked, ...) and nothing ever
@@ -198,12 +213,21 @@ async function onWaStatus(m) {
   // while the orders all read as confirmed. The log named a phone and a code and
   // no order, so there was no list of who to make good with afterwards.
   // Resolve the wamid, record the failure on the order, and name it to the owner.
-  const map = await getWamidMap(st.id);
-  if (!map?.orderId) return;
-  await soft('updateMessageStatus', () => updateMessageStatus(map.orderId, st.id, st.status, st.errors), { wamid: st.id });
   const d = deps();
   const stateRow = await getState(map.orderId);
   const orderName = stateRow?.name || map.orderId;
+
+  // The order carries a tag saying we messaged this customer (wa-cod-sent,
+  // wa-order-confirmed). That tag is written when Meta ACCEPTS the send, and
+  // acceptance is not delivery, so the Shopify admin showed "messaged" for
+  // customers who got nothing and the daily digest counted them as reached.
+  // One tag, on the order, is what makes this recoverable by a human: the owner
+  // can filter the admin for it and phone them.
+  await soft(
+    'tagsAdd:wa-undeliverable',
+    () => d.clients.shopify.tagsAdd(`gid://shopify/Order/${map.orderId}`, ['wa-undeliverable']),
+    { orderId: map.orderId },
+  );
   // Once per order per message kind: a template that failed for an account-wide
   // reason fails for every order at once, and the owner needs one line each, not
   // one per retry.

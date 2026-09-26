@@ -94,7 +94,7 @@ async function getOrder(numericOrGid) {
   return data.order;
 }
 
-/** Orders updated on/after sinceISO (id + tags only). Used by digest + reconcile. */
+/** Orders updated on/after sinceISO (id + createdAt + tags). Used by digest + reconcile. */
 async function ordersUpdatedSince(sinceISO) {
   const out = [];
   let cursor = null;
@@ -102,7 +102,7 @@ async function ordersUpdatedSince(sinceISO) {
     const data = await graphql(
       `query Iter($q: String!, $after: String){
          orders(first: 100, after: $after, query: $q, sortKey: UPDATED_AT){
-           edges { cursor node { id tags } } pageInfo { hasNextPage endCursor }
+           edges { cursor node { id createdAt tags } } pageInfo { hasNextPage endCursor }
          } }`,
       { q: `updated_at:>='${sinceISO}'`, after: cursor },
       { idempotent: true },

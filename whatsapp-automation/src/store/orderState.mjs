@@ -100,9 +100,27 @@ export async function recordMessage(id, wamid, data) {
   await setWamidMap(wamid, { orderId: String(id), key: data?.key || null });
 }
 
-/** Update a stored message's status (from WhatsApp status webhooks). */
+// sent -> delivered -> read is the normal order, and `failed` is terminal.
+// Webhooks are not ordered, so a status can arrive after a later one.
+const STATUS_RANK = { sent: 1, delivered: 2, read: 3, failed: 4 };
+
+/**
+ * Update a stored message's status (from WhatsApp status webhooks).
+ *
+ * `status` only ever moves forward. Every status used to be written blindly,
+ * which was harmless while only failures were recorded, but now that the whole
+ * lifecycle lands here a late-arriving `sent` would overwrite `failed` and take
+ * its errors with it, turning the one record that proves a customer was never
+ * reached back into a clean send. The full sequence is still kept in `history`.
+ */
 export async function updateMessageStatus(id, wamid, status, errors) {
   const cur = (await table.get(pk(id), `MSG#${wamid}`)) || { PK: pk(id), SK: `MSG#${wamid}`, wamid };
   const history = [...(cur.history || []), { status, at: new Date().toISOString(), errors }];
-  await table.put({ ...cur, status, errors, history });
+  const keepCurrent = (STATUS_RANK[cur.status] || 0) > (STATUS_RANK[status] || 0);
+  await table.put({
+    ...cur,
+    status: keepCurrent ? cur.status : status,
+    errors: errors || cur.errors,
+    history,
+  });
 }

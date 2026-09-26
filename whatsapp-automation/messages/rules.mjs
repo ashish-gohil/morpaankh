@@ -48,6 +48,11 @@ export const RULES = {
   marketingCapDays: 7,
   reviewAskCapDays: 14,
   humanTakeoverHours: 12,
+  // How long a 131026 bounce keeps a number on the do-not-send list. Meta sends
+  // that code for causes the customer fixes themselves (no WhatsApp account yet,
+  // terms not accepted, app too old), so it must expire or one bad day silences
+  // them forever. See isUndeliverable in store/phoneProfile.mjs.
+  undeliverableRetryDays: 30,
   windowSafetyMinutes: 10,
 
   // RTO
