@@ -78,16 +78,28 @@ export function cleanName(raw) {
     .slice(0, 60);
 }
 
-const FIND = `query FindSubscriber($q: String!) {
-  customers(first: 1, query: $q) {
-    nodes {
-      id
-      tags
-      defaultEmailAddress { emailAddress marketingState }
-      defaultPhoneNumber { phoneNumber }
-    }
+/* An EXACT lookup, deliberately not customers(query:). The customer search
+ * index lags a create by several seconds, so a second submit moments after the
+ * first found nothing, fell through to customerCreate and died on "Email has
+ * already been taken" -- a 502 for someone who simply double tapped. This
+ * reads through the identifier instead of the index. */
+const BY_IDENTIFIER = `query FindSubscriber($id: CustomerIdentifierInput!) {
+  customerByIdentifier(identifier: $id) {
+    id
+    tags
+    defaultEmailAddress { emailAddress marketingState }
+    defaultPhoneNumber { phoneNumber }
   }
 }`;
+
+/** The email is the identity here, so it is checked first; the phone catches
+ *  someone signing up again under a new address. */
+async function findExisting({ email, phone }) {
+  const byEmail = await shopify.graphql(BY_IDENTIFIER, { id: { emailAddress: email } }, { idempotent: true });
+  if (byEmail && byEmail.customerByIdentifier) return byEmail.customerByIdentifier;
+  const byPhone = await shopify.graphql(BY_IDENTIFIER, { id: { phoneNumber: phone } }, { idempotent: true });
+  return (byPhone && byPhone.customerByIdentifier) || null;
+}
 
 const CREATE = `mutation CreateSubscriber($input: CustomerInput!) {
   customerCreate(input: $input) {
@@ -103,6 +115,18 @@ const UPDATE = `mutation UpdateSubscriber($input: CustomerInput!) {
   }
 }`;
 
+/* emailMarketingConsent is a valid field on CustomerInput and passes schema
+ * validation on customerUpdate, but the API refuses it at runtime: "To update
+ * emailMarketingConsent, please use the customerEmailMarketingConsentUpdate
+ * Mutation instead". It IS accepted on customerCreate, so only the update path
+ * needs this second call. */
+const CONSENT = `mutation SubscriberConsent($input: CustomerEmailMarketingConsentUpdateInput!) {
+  customerEmailMarketingConsentUpdate(input: $input) {
+    customer { id defaultEmailAddress { marketingState } }
+    userErrors { field message }
+  }
+}`;
+
 const consent = () => ({
   marketingState: 'SUBSCRIBED',
   marketingOptInLevel: 'SINGLE_OPT_IN',
@@ -114,8 +138,7 @@ const consent = () => ({
  * Exported so the test can drive it without an HTTP event.
  */
 export async function saveSubscriber({ email, phone, name }) {
-  const found = await shopify.graphql(FIND, { q: `email:"${email}" OR phone:"${phone}"` }, { idempotent: true });
-  const existing = found?.customers?.nodes?.[0] || null;
+  const existing = await findExisting({ email, phone });
 
   if (config.dryRun) {
     log.info('subscribe dry run', { existing: Boolean(existing), phone: maskPhone(phone) });
@@ -127,13 +150,13 @@ export async function saveSubscriber({ email, phone, name }) {
     if (name) input.firstName = name;
     const d = await shopify.graphql(CREATE, { input });
     const errs = d?.customerCreate?.userErrors || [];
-    /* A phone already on another customer is the one create error worth
-     * recovering from: Shopify rejects the whole mutation, and retrying without
-     * the phone would drop it silently. Fall back to updating that customer. */
     if (errs.length) {
-      if (errs.some((e) => /phone/i.test(String(e.field)) && /taken|in use/i.test(e.message))) {
-        const byPhone = await shopify.graphql(FIND, { q: `phone:"${phone}"` }, { idempotent: true });
-        const owner = byPhone?.customers?.nodes?.[0];
+      /* Either field can collide: the email when two submits race past the
+       * lookup above, the phone when it already belongs to someone else.
+       * Shopify rejects the whole mutation in both cases, and retrying without
+       * the offending field would drop it silently, so re-read and update. */
+      if (errs.some((e) => /taken|in use|already/i.test(e.message))) {
+        const owner = await findExisting({ email, phone });
         if (owner) return updateSubscriber(owner, { phone, name });
       }
       throw new Error(`customerCreate: ${JSON.stringify(errs)}`);
@@ -152,7 +175,7 @@ export async function saveSubscriber({ email, phone, name }) {
 
 async function updateSubscriber(existing, { phone, name }) {
   const tags = Array.from(new Set([...(existing.tags || []), ...SUBSCRIBER_TAGS]));
-  const input = { id: existing.id, tags, emailMarketingConsent: consent() };
+  const input = { id: existing.id, tags };
 
   const onFile = existing.defaultPhoneNumber?.phoneNumber || '';
   if (!onFile) {
@@ -174,6 +197,16 @@ async function updateSubscriber(existing, { phone, name }) {
   const d = await shopify.graphql(UPDATE, { input });
   const errs = d?.customerUpdate?.userErrors || [];
   if (errs.length) throw new Error(`customerUpdate: ${JSON.stringify(errs)}`);
+
+  /* Skipped when they are already subscribed: nothing to change, and it avoids
+   * re-stamping consentUpdatedAt over the date they actually opted in. */
+  if (existing.defaultEmailAddress?.marketingState !== 'SUBSCRIBED') {
+    const c = await shopify.graphql(CONSENT, {
+      input: { customerId: existing.id, emailMarketingConsent: consent() },
+    });
+    const cErrs = c?.customerEmailMarketingConsentUpdate?.userErrors || [];
+    if (cErrs.length) throw new Error(`consentUpdate: ${JSON.stringify(cErrs)}`);
+  }
   return { status: 'already' };
 }
 

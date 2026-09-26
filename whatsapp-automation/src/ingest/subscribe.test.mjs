@@ -76,7 +76,7 @@ describe('guards', () => {
   });
 
   it('rate limits the sixth attempt from one IP', async () => {
-    shopify.graphql.mockResolvedValue({ customers: { nodes: [] }, customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: GOOD.phone } } } });
+    shopify.graphql.mockResolvedValue({ customerByIdentifier: null, customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: GOOD.phone } } } });
     const ip = '203.0.113.9';
     for (let i = 0; i < 5; i++) expect((await post(GOOD, { ip })).statusCode).toBe(200);
     const sixth = await post(GOOD, { ip });
@@ -86,26 +86,37 @@ describe('guards', () => {
 });
 
 describe('saving', () => {
+  /* The lookup is two exact reads (email, then phone), not one search, so the
+   * mocks below queue them in that order. */
+  const none = () => ({ customerByIdentifier: null });
+  /* Subscribed by default so the update tests need no consent mock; the two
+   * consent tests below override marketingState explicitly. */
+  const found = (c) => ({
+    customerByIdentifier: { defaultEmailAddress: { marketingState: 'SUBSCRIBED' }, ...c },
+  });
+  const updated = { customerUpdate: { userErrors: [], customer: { id: 'x' } } };
+
   it('creates a customer carrying the phone, consent and both tags', async () => {
     shopify.graphql
-      .mockResolvedValueOnce({ customers: { nodes: [] } })
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce(none())
       .mockResolvedValueOnce({ customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', tags: [], defaultPhoneNumber: { phoneNumber: GOOD.phone } } } });
 
     const r = await post(GOOD);
     expect(r.statusCode).toBe(200);
     expect(body(r)).toEqual({ ok: true, status: 'created' });
 
-    const input = shopify.graphql.mock.calls[1][1].input;
+    const input = shopify.graphql.mock.calls[2][1].input;
     expect(input.phone).toBe('+919876543210');
     expect(input.firstName).toBe('Asha');
     expect(input.emailMarketingConsent.marketingState).toBe('SUBSCRIBED');
     expect(input.tags).toEqual(['popup-subscriber', 'whatsapp-optin']);
   });
 
-  it('updates an existing customer, keeps their tags, and says already', async () => {
+  it('updates the customer found by email, keeps their tags, and says already', async () => {
     shopify.graphql
-      .mockResolvedValueOnce({ customers: { nodes: [{ id: 'gid://shopify/Customer/7', tags: ['vip'], defaultPhoneNumber: null }] } })
-      .mockResolvedValueOnce({ customerUpdate: { userErrors: [], customer: { id: 'gid://shopify/Customer/7' } } });
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/7', tags: ['vip'], defaultPhoneNumber: null }))
+      .mockResolvedValueOnce(updated);
 
     expect(body(await post(GOOD))).toEqual({ ok: true, status: 'already' });
     const input = shopify.graphql.mock.calls[1][1].input;
@@ -114,10 +125,20 @@ describe('saving', () => {
     expect(input.phone).toBe('+919876543210'); // had none on file, so fill it
   });
 
+  it('finds them by phone when they sign up again under a new email', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/10', tags: [], defaultPhoneNumber: { phoneNumber: GOOD.phone } }))
+      .mockResolvedValueOnce(updated);
+
+    expect(body(await post(GOOD))).toEqual({ ok: true, status: 'already' });
+    expect(shopify.graphql.mock.calls[2][1].input.id).toBe('gid://shopify/Customer/10');
+  });
+
   it('never overwrites a number already on file, and flags the conflict', async () => {
     shopify.graphql
-      .mockResolvedValueOnce({ customers: { nodes: [{ id: 'gid://shopify/Customer/8', tags: [], defaultPhoneNumber: { phoneNumber: '+919000000001' } }] } })
-      .mockResolvedValueOnce({ customerUpdate: { userErrors: [], customer: { id: 'gid://shopify/Customer/8' } } });
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/8', tags: [], defaultPhoneNumber: { phoneNumber: '+919000000001' } }))
+      .mockResolvedValueOnce(updated);
 
     await post(GOOD);
     const input = shopify.graphql.mock.calls[1][1].input;
@@ -125,16 +146,61 @@ describe('saving', () => {
     expect(input.tags).toContain('phone-mismatch');
   });
 
-  it('recovers when the phone already belongs to another customer', async () => {
+  /* Regression: this returned 502 in production. Two submits seconds apart both
+   * passed the lookup, and the second died on "Email has already been taken"
+   * instead of reporting that they were already on the list. */
+  it('recovers when the create collides on an email that the lookup missed', async () => {
     shopify.graphql
-      .mockResolvedValueOnce({ customers: { nodes: [] } })
-      .mockResolvedValueOnce({ customerCreate: { userErrors: [{ field: ['phone'], message: 'Phone has already been taken' }] } })
-      .mockResolvedValueOnce({ customers: { nodes: [{ id: 'gid://shopify/Customer/9', tags: [], defaultPhoneNumber: { phoneNumber: GOOD.phone } }] } })
-      .mockResolvedValueOnce({ customerUpdate: { userErrors: [], customer: { id: 'gid://shopify/Customer/9' } } });
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce({ customerCreate: { userErrors: [{ field: ['email'], message: 'Email has already been taken' }] } })
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/11', tags: [], defaultPhoneNumber: null }))
+      .mockResolvedValueOnce(updated);
 
     const r = await post(GOOD);
     expect(r.statusCode).toBe(200);
-    expect(shopify.graphql.mock.calls[3][1].input.id).toBe('gid://shopify/Customer/9');
+    expect(body(r)).toEqual({ ok: true, status: 'already' });
+    expect(shopify.graphql.mock.calls[4][1].input.id).toBe('gid://shopify/Customer/11');
+  });
+
+  it('recovers when the phone already belongs to another customer', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce({ customerCreate: { userErrors: [{ field: ['phone'], message: 'Phone has already been taken' }] } })
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/9', tags: [], defaultPhoneNumber: { phoneNumber: GOOD.phone } }))
+      .mockResolvedValueOnce(updated);
+
+    const r = await post(GOOD);
+    expect(r.statusCode).toBe(200);
+    expect(shopify.graphql.mock.calls[5][1].input.id).toBe('gid://shopify/Customer/9');
+  });
+
+  /* emailMarketingConsent is rejected by customerUpdate at runtime even though
+   * it validates against the schema, so consent on the update path is its own
+   * mutation. This is what a live 502 taught us. */
+  it('sets consent through its own mutation when they were not subscribed', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/12', tags: [], defaultPhoneNumber: null, defaultEmailAddress: { marketingState: 'NOT_SUBSCRIBED' } }))
+      .mockResolvedValueOnce(updated)
+      .mockResolvedValueOnce({ customerEmailMarketingConsentUpdate: { userErrors: [], customer: { id: 'x' } } });
+
+    expect(body(await post(GOOD))).toEqual({ ok: true, status: 'already' });
+    const [query, vars] = shopify.graphql.mock.calls[2];
+    expect(query).toContain('customerEmailMarketingConsentUpdate');
+    expect(vars.input.customerId).toBe('gid://shopify/Customer/12');
+    expect(vars.input.emailMarketingConsent.marketingState).toBe('SUBSCRIBED');
+    // and never on customerUpdate, which is what Shopify refuses
+    expect(shopify.graphql.mock.calls[1][1].input.emailMarketingConsent).toBeUndefined();
+  });
+
+  it('leaves consent alone when they are already subscribed', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/13', tags: [] }))
+      .mockResolvedValueOnce(updated);
+    await post(GOOD);
+    expect(shopify.graphql).toHaveBeenCalledTimes(2);
   });
 
   it('reports a Shopify failure as 502 without leaking the reason', async () => {
