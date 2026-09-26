@@ -525,6 +525,14 @@
       {% render 'tapi-bottom-nav' %}
     {%- endunless -%}
 
+    {%- comment -%}
+      Subscriber signup popup. Renders no markup of its own: the section only
+      emits its settings as JSON and defers the script, which builds the dialog
+      if and when it decides to open. Static so its settings are site wide and
+      live in one place in the theme editor.
+    {%- endcomment -%}
+    {% section 'tapi-subscribe-popup' %}
+
     <ul hidden>
       <li id="a11y-refresh-page-message">{{ 'accessibility.refresh_page' | t }}</li>
       <li id="a11y-new-window-message">{{ 'accessibility.link_messages.new_window' | t }}</li>

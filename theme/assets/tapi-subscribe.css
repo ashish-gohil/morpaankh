@@ -1,0 +1,322 @@
+/* tapi-subscribe.css — signup popup. Glass card on the Morpaankh token scale.
+ *
+ * Every value here comes from a token in theme-variables.css. The px tokens
+ * (--space-* / --fs-* / --radius-*) are used rather than the rem ones because
+ * Dawn sets a 62.5% root, so 1rem is 10px and an input below 16px makes iOS
+ * Safari zoom the page on focus.
+ *
+ * Layering: 200 sits above page content (the theme's sticky chrome tops out
+ * near 101) but well below the cart drawer / search modal at 1000+. That is
+ * deliberate: if one of those opens over the popup it should win, and the JS
+ * already waits for them to close before opening at all.
+ */
+
+.tapi-sub {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: var(--space-md);
+  /* dvh, not vh: the iOS and Instagram in-app toolbars make vh taller than the
+     visible area, which pushed the card's lower half under the keyboard. */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.tapi-sub[hidden] { display: none; }
+
+.tapi-sub__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(44, 40, 38, 0.52); /* --mor-charcoal at low alpha */
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity var(--mor-dur-base) var(--mor-ease-out);
+}
+
+.tapi-sub__card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  /* Never taller than the visible viewport, and scroll inside instead, so the
+     card stays usable with the soft keyboard open. */
+  max-height: calc(100dvh - var(--space-xl));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-xl) var(--space-lg) var(--space-lg);
+  border-radius: var(--radius-md);
+  text-align: center;
+
+  /* The glass. 0.88 alpha keeps charcoal body text well past AA on top of
+     whatever is behind: any lower and the contrast depended on the page. */
+  background: rgba(250, 246, 236, 0.88); /* --mor-ivory */
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  /* 16px is the ceiling that still scrolls smoothly on mid-range Android. */
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+  box-shadow: var(--mor-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity var(--mor-dur-base) var(--mor-ease-out),
+              transform var(--mor-dur-base) var(--mor-ease-out);
+}
+
+/* Browsers without backdrop-filter (older Android WebView, Firefox with the
+   flag off) get a solid brand surface rather than a washed out transparent box. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tapi-sub__card { background: var(--mor-ivory); }
+  .tapi-sub__scrim { background: rgba(44, 40, 38, 0.68); }
+}
+
+.tapi-sub.is-open .tapi-sub__scrim { opacity: 1; }
+.tapi-sub.is-open .tapi-sub__card { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tapi-sub__scrim,
+  .tapi-sub__card { transition-duration: 1ms; transform: none; }
+}
+
+/* ---- close ---------------------------------------------------------------- */
+
+.tapi-sub__close {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  /* 44px hit area even though the glyph is small. */
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mor-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--mor-dur-fast) var(--mor-ease);
+}
+.tapi-sub__close:hover { color: var(--mor-text); }
+.tapi-sub__close svg { width: 15px; height: 15px; }
+
+/* ---- copy ---------------------------------------------------------------- */
+
+.tapi-sub__eyebrow {
+  margin: 0 0 var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mor-gold-deep);
+}
+
+.tapi-sub__title {
+  margin: 0 0 var(--space-xs);
+  font-family: var(--font-serif);
+  font-size: var(--mor-h3);
+  font-weight: var(--font-heading-weight);
+  line-height: var(--mor-leading-snug);
+  color: var(--mor-text);
+}
+
+.tapi-sub__sub {
+  margin: 0 auto var(--space-lg);
+  max-width: 32ch;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  line-height: var(--mor-leading-body);
+  color: var(--mor-text-muted);
+}
+
+/* ---- form --------------------------------------------------------------- */
+
+.tapi-sub__form { display: grid; gap: var(--space-sm); text-align: left; }
+
+.tapi-sub__label {
+  display: block;
+  margin-bottom: var(--space-2xs);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mor-text-muted);
+}
+.tapi-sub__optional { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+.tapi-sub__input,
+.tapi-sub__dial {
+  width: 100%;
+  /* 16px floor: anything smaller and iOS Safari zooms in on focus. */
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  color: var(--mor-text);
+  background: var(--mor-paper);
+  border: 1px solid var(--mor-hairline-2);
+  border-radius: var(--inputs-radius);
+  padding: var(--space-sm);
+  /* 44px minimum touch height without relying on the padding maths. */
+  min-height: 44px;
+  transition: border-color var(--mor-dur-fast) var(--mor-ease),
+              box-shadow var(--mor-dur-fast) var(--mor-ease);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.tapi-sub__input:focus-visible,
+.tapi-sub__dial:focus-visible {
+  outline: none;
+  border-color: var(--mor-primary);
+  box-shadow: 0 0 0 2px var(--mor-primary-wash);
+}
+.tapi-sub__input[aria-invalid='true'] { border-color: var(--mor-accent-deep); }
+
+.tapi-sub__tel { display: flex; gap: var(--space-xs); }
+.tapi-sub__dial { width: auto; flex: 0 0 auto; padding-right: var(--space-lg); background: var(--mor-paper); }
+.tapi-sub__tel .tapi-sub__input { flex: 1 1 auto; min-width: 0; }
+
+.tapi-sub__err {
+  display: block;
+  margin-top: var(--space-2xs);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  /* accent-deep, not the softer accent: this has to clear AA on the glass. */
+  color: var(--mor-accent-deep);
+}
+.tapi-sub__err:empty { display: none; }
+
+/* The honeypot. Off screen rather than display:none, because some bots skip
+   hidden inputs but fill anything in the DOM that is focusable. */
+.tapi-sub__hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- actions ------------------------------------------------------------ */
+
+.tapi-sub__submit {
+  margin-top: var(--space-2xs);
+  width: 100%;
+  min-height: 48px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--color-button-text));
+  background: var(--mor-primary);
+  border: 0;
+  border-radius: var(--buttons-radius);
+  cursor: pointer;
+  transition: background var(--mor-dur-fast) var(--mor-ease);
+}
+.tapi-sub__submit:hover:not(:disabled) { background: var(--mor-primary-deep); }
+.tapi-sub__submit:active:not(:disabled) { background: var(--mor-primary-press); }
+.tapi-sub__submit:disabled { opacity: 0.6; cursor: default; }
+
+.tapi-sub__decline {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-xs) 0;
+  min-height: 44px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  color: var(--mor-text-muted);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.tapi-sub__decline:hover { color: var(--mor-text); }
+
+.tapi-sub__consent {
+  margin: var(--space-2xs) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+  /* warm-grey, not the lighter muted: --fs-2xs is small enough that the
+     subtler tone would fall under AA. */
+  color: var(--mor-text-muted);
+  text-align: center;
+}
+.tapi-sub__consent a { color: inherit; text-decoration: underline; }
+
+/* ---- success ------------------------------------------------------------ */
+
+.tapi-sub__code {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-xs);
+}
+.tapi-sub__code output {
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--mor-primary);
+  background: var(--mor-primary-wash);
+  border: 1px dashed var(--mor-primary-soft);
+  border-radius: var(--radius-sm);
+}
+.tapi-sub__copy {
+  flex: 0 0 auto;
+  min-width: 80px;
+  min-height: 48px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mor-primary);
+  background: var(--mor-paper);
+  border: 1px solid var(--mor-primary);
+  border-radius: var(--buttons-radius);
+  cursor: pointer;
+}
+.tapi-sub__copy:hover { background: var(--mor-primary-wash); }
+
+.tapi-sub__note {
+  margin: 0 0 var(--space-lg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-2xs);
+  color: var(--mor-text-muted);
+}
+
+.tapi-sub__go {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 48px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--color-button-text));
+  background: var(--mor-primary);
+  border-radius: var(--buttons-radius);
+  text-decoration: none;
+}
+.tapi-sub__go:hover { background: var(--mor-primary-deep); color: rgb(var(--color-button-text)); }
+
+/* Narrow phones: 360px leaves 328px of card after the 16px gutters. */
+@media (max-width: 400px) {
+  .tapi-sub__card { padding: var(--space-lg) var(--space-md) var(--space-md); }
+  .tapi-sub__code output { font-size: var(--fs-base); letter-spacing: 0.1em; }
+  .tapi-sub__copy { min-width: 68px; }
+}

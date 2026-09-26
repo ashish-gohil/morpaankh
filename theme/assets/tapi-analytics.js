@@ -64,7 +64,8 @@
     view_item: 'ViewContent',
     add_to_cart: 'AddToCart',
     begin_checkout: 'InitiateCheckout',
-    add_to_wishlist: 'AddToWishlist'
+    add_to_wishlist: 'AddToWishlist',
+    generate_lead: 'Lead'
   };
 
   function track(name, params) {
@@ -77,14 +78,17 @@
         window.dataLayer.push(dl);
       }
       if (cfg.metaPixelId && window.fbq && META_EVENTS[name]) {
-        var first = (params.items && params.items[0]) || {};
-        window.fbq('track', META_EVENTS[name], {
-          content_type: 'product',
-          content_name: String(first.item_name || ''),
-          content_ids: first.item_id ? [String(first.item_id)] : [],
-          currency: params.currency || 'INR',
-          value: Number(params.value || 0)
-        });
+        var payload = { currency: params.currency || 'INR', value: Number(params.value || 0) };
+        var first = (params.items && params.items[0]) || null;
+        /* Lead has no product behind it. Send the product fields only when there
+         * IS an item, rather than an empty content_ids, which Meta's event
+         * diagnostics flags as a broken product event. */
+        if (first) {
+          payload.content_type = 'product';
+          payload.content_name = String(first.item_name || '');
+          payload.content_ids = first.item_id ? [String(first.item_id)] : [];
+        }
+        window.fbq('track', META_EVENTS[name], payload);
       }
       if (cfg.debug && window.console) console.info('[tapi-analytics]', name, params);
     } catch (e) { /* analytics must never break the store */ }

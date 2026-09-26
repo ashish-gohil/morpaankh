@@ -1,0 +1,209 @@
+{%- comment -%}
+  tapi-subscribe-popup — the subscriber signup popup.
+
+  This section renders no markup. Its only job is to hand assets/tapi-subscribe.js
+  one config object built from the settings below, so every string and timing is
+  editable in the theme editor without touching code. The dialog itself is built
+  in JS when it decides to open, which is why there is no layout shift and
+  nothing extra in the first paint.
+
+  Rendered statically from layout/theme.liquid, so these settings live in one
+  place and apply site wide rather than per template.
+
+  The save endpoint is the wa-automation service's POST /subscribe. Shopify's own
+  {% form 'customer' %} cannot be used: it persists the email and its tags, but
+  any other contact[...] field lands in the merchant's contact notification, so
+  the WhatsApp number would be silently dropped.
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign privacy = shop.privacy_policy.url | default: '/policies/privacy-policy'
+  assign delay_ms = s.delay_seconds | times: 1000
+-%}
+
+{%- if s.enable and s.endpoint != blank -%}
+  {%- comment -%}
+    Non blocking: the popup is hidden until JS opens it seconds later, so this
+    stylesheet never needs to be on the critical path. Same pattern the layout
+    already uses for component-cart-items.css.
+  {%- endcomment -%}
+  <link rel="stylesheet" href="{{ 'tapi-subscribe.css' | asset_url }}" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="{{ 'tapi-subscribe.css' | asset_url }}"></noscript>
+
+  <script type="application/json" id="tapi-subscribe-config">
+    {
+      "enabled": true,
+      "endpoint": {{ s.endpoint | json }},
+      "delayMs": {{ delay_ms | json }},
+      "resnoozeDays": {{ s.resnooze_days | json }},
+      "customerSubscribed": {% if customer and customer.accepts_marketing %}true{% else %}false{% endif %},
+      "eyebrow": {{ s.eyebrow | json }},
+      "headline": {{ s.headline | json }},
+      "subtext": {{ s.subtext | json }},
+      "buttonText": {{ s.button_text | json }},
+      "declineText": {{ s.decline_text | json }},
+      "consentText": {{ s.consent_text | json }},
+      "privacyUrl": {{ privacy | json }},
+      "offerCode": {{ s.offer_code | json }},
+      "offerNote": {{ s.offer_note | json }},
+      "successHeadline": {{ s.success_headline | json }},
+      "alreadyHeadline": {{ s.already_headline | json }},
+      "successText": {{ s.success_text | json }},
+      "continueText": {{ s.continue_text | json }},
+      "successRedirect": {{ s.success_redirect | json }},
+      "leadValue": {{ s.lead_value | json }}
+    }
+  </script>
+  <script src="{{ 'tapi-subscribe.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Signup popup",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "enable",
+      "label": "Enable the popup",
+      "default": false
+    },
+    {
+      "type": "header",
+      "content": "Timing"
+    },
+    {
+      "type": "range",
+      "id": "delay_seconds",
+      "label": "Show after",
+      "unit": "s",
+      "min": 2,
+      "max": 30,
+      "step": 1,
+      "default": 5
+    },
+    {
+      "type": "range",
+      "id": "resnooze_days",
+      "label": "If closed, hide for",
+      "unit": "d",
+      "min": 1,
+      "max": 60,
+      "step": 1,
+      "default": 7,
+      "info": "Once someone subscribes they never see it again, whatever this is set to."
+    },
+    {
+      "type": "header",
+      "content": "Offer copy"
+    },
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Eyebrow",
+      "default": "Welcome offer"
+    },
+    {
+      "type": "text",
+      "id": "headline",
+      "label": "Headline",
+      "default": "₹150 off your first order"
+    },
+    {
+      "type": "textarea",
+      "id": "subtext",
+      "label": "Subtext",
+      "default": "Join our list for first look at new arrivals. Your code is ready the moment you sign up."
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Subscribe button",
+      "default": "Get my code"
+    },
+    {
+      "type": "text",
+      "id": "decline_text",
+      "label": "Decline link",
+      "default": "No, thanks"
+    },
+    {
+      "type": "textarea",
+      "id": "consent_text",
+      "label": "Consent line",
+      "default": "By subscribing you agree to receive offers from Morpaankh on email and WhatsApp. You can unsubscribe anytime.",
+      "info": "A link to the store privacy policy is added after this automatically."
+    },
+    {
+      "type": "header",
+      "content": "After signup"
+    },
+    {
+      "type": "text",
+      "id": "offer_code",
+      "label": "Discount code",
+      "default": "WELCOME150",
+      "info": "Must match an active discount code in Discounts. The Continue button applies it to the visitor's session."
+    },
+    {
+      "type": "text",
+      "id": "offer_note",
+      "label": "Code conditions",
+      "default": "on orders above ₹1,199"
+    },
+    {
+      "type": "text",
+      "id": "success_headline",
+      "label": "Success headline",
+      "default": "Your code is ready"
+    },
+    {
+      "type": "text",
+      "id": "already_headline",
+      "label": "Headline if already subscribed",
+      "default": "You are already on the list"
+    },
+    {
+      "type": "textarea",
+      "id": "success_text",
+      "label": "Success text",
+      "default": "Welcome to Morpaankh. Use this at checkout."
+    },
+    {
+      "type": "text",
+      "id": "continue_text",
+      "label": "Continue button",
+      "default": "Continue shopping"
+    },
+    {
+      "type": "text",
+      "id": "success_redirect",
+      "label": "Continue button goes to",
+      "default": "/collections/all",
+      "info": "A path on this store, for example /collections/all"
+    },
+    {
+      "type": "header",
+      "content": "Advanced"
+    },
+    {
+      "type": "text",
+      "id": "endpoint",
+      "label": "Save endpoint",
+      "default": "https://dqpboq7r05.execute-api.ap-south-1.amazonaws.com/subscribe",
+      "info": "The wa-automation service's /subscribe route. Leave blank to switch the popup off entirely."
+    },
+    {
+      "type": "range",
+      "id": "lead_value",
+      "label": "Lead value for analytics",
+      "unit": "Rs",
+      "min": 0,
+      "max": 1000,
+      "step": 25,
+      "default": 150,
+      "info": "Reported to GA4 as generate_lead and to Meta as Lead. No personal data is sent."
+    }
+  ]
+}
+{% endschema %}
