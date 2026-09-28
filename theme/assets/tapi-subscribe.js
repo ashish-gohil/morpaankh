@@ -512,19 +512,12 @@
      * before the stylesheet has landed. If either is not ready, keep checking
      * for as long as cfg.waitLimitMs before giving up on this page view. */
     function attempt() {
-      /* Never open into a tab nobody is looking at. setTimeout keeps running in
-       * a background tab but requestAnimationFrame does not, so open() would
-       * lock the page and leave the card invisible on top of it until the
-       * visitor came back. Waiting here also means the delay is five seconds of
-       * attention rather than five seconds of wall clock, and hidden time is
-       * not counted against the wait limit. */
-      if (document.hidden) {
-        document.addEventListener('visibilitychange', function again() {
-          document.removeEventListener('visibilitychange', again);
-          attempt();
-        });
-        return;
-      }
+      /* Fires on the clock, hidden tab or not. What made a background tab
+       * dangerous was never the timer: it was that open() locked the page and
+       * then relied on requestAnimationFrame, which does not run while hidden,
+       * to reveal the card. The timeout behind that frame callback in open()
+       * closes it, so the card is always revealed and the visitor never finds
+       * an unscrollable page under an invisible overlay. */
       if (!otherOverlayOpen() && stylesReady(instance.root)) {
         instance.open();
         return;
