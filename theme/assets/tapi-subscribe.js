@@ -309,10 +309,16 @@
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
       if (gutter > 0) document.body.style.paddingRight = gutter + 'px';
-      // Next frame, so the opening transition has a start state to animate from.
-      requestAnimationFrame(function () {
+      /* Next frame, so the transition has a start state to animate from. The
+       * timeout is the safety net: if the frame callback is starved, which is
+       * what happens the moment a tab goes to the background, the card must
+       * still be revealed rather than sit invisible over a locked page. Adding
+       * the class twice is harmless. */
+      var reveal = function () {
         root.classList.add('is-open');
-      });
+      };
+      requestAnimationFrame(reveal);
+      setTimeout(reveal, 120);
       (nameEl || card).focus({ preventScroll: true });
     }
 
@@ -506,6 +512,19 @@
      * before the stylesheet has landed. If either is not ready, keep checking
      * for as long as cfg.waitLimitMs before giving up on this page view. */
     function attempt() {
+      /* Never open into a tab nobody is looking at. setTimeout keeps running in
+       * a background tab but requestAnimationFrame does not, so open() would
+       * lock the page and leave the card invisible on top of it until the
+       * visitor came back. Waiting here also means the delay is five seconds of
+       * attention rather than five seconds of wall clock, and hidden time is
+       * not counted against the wait limit. */
+      if (document.hidden) {
+        document.addEventListener('visibilitychange', function again() {
+          document.removeEventListener('visibilitychange', again);
+          attempt();
+        });
+        return;
+      }
       if (!otherOverlayOpen() && stylesReady(instance.root)) {
         instance.open();
         return;
