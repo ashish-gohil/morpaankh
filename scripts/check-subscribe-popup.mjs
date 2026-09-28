@@ -41,6 +41,7 @@ block = block
   .replace(/\{%\s*if customer and customer\.accepts_marketing\s*%\}true\{%\s*else\s*%\}false\{%\s*endif\s*%\}/g, 'false')
   .replace(/\{\{\s*delay_ms\s*\|\s*json\s*\}\}/g, JSON.stringify(defaults.delay_seconds * 1000))
   .replace(/\{\{\s*privacy\s*\|\s*json\s*\}\}/g, JSON.stringify('/policies/privacy-policy'))
+  .replace(/\{\{\s*'[^']+'\s*\|\s*asset_url\s*\|\s*json\s*\}\}/g, JSON.stringify('/cdn/shop/t/2/assets/tapi-subscribe.css'))
   .replace(/\{\{\s*s\.([a-z_]+)\s*\|\s*json\s*\}\}/g, (_, id) => {
     assert.ok(id in defaults, `config reads s.${id} but the schema has no such setting`);
     return JSON.stringify(defaults[id]);
@@ -54,6 +55,17 @@ for (const id of Object.keys(defaults)) {
   assert.ok(section.includes('s.' + id), `schema setting "${id}" is never used in the config block`);
 }
 ok('every schema setting reaches the config');
+
+/* Nothing this component owns may sit on the page load. The dialog is built and
+ * its stylesheet fetched at the delay, so a <link> back in the section would
+ * quietly spend a request on styles nothing can use for another five seconds. */
+assert.ok(
+  !/<link[^>]+tapi-subscribe\.css/.test(section),
+  'the section must not link the stylesheet; the script pulls it in when it opens',
+);
+assert.ok(cfg.cssUrl && cfg.cssUrl.endsWith('tapi-subscribe.css'), 'the config must carry cssUrl');
+assert.ok(/defer/.test(section.match(/<script src=[^>]*tapi-subscribe\.js[^>]*>/)[0]), 'the script must be deferred');
+ok('nothing from this component loads before it is needed');
 
 assert.equal(cfg.offerCode, 'WELCOME150');
 assert.ok(String(cfg.offerNote).includes('1,199'), 'the code conditions should name the minimum');

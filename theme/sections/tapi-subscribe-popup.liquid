@@ -27,17 +27,18 @@
 
 {%- if s.enable and s.endpoint != blank -%}
   {%- comment -%}
-    Non blocking: the popup is hidden until JS opens it seconds later, so this
-    stylesheet never needs to be on the critical path. Same pattern the layout
-    already uses for component-cart-items.css.
+    The stylesheet is deliberately NOT linked here. The popup is not in the
+    document until JS opens it seconds later, so a link in the page would spend
+    a request during load on styles nothing can use yet. The URL is handed to
+    the script instead, which pulls it in at the moment it is needed. A
+    <noscript> copy would be dead weight for the same reason: without JS there
+    is no dialog for it to style.
   {%- endcomment -%}
-  <link rel="stylesheet" href="{{ 'tapi-subscribe.css' | asset_url }}" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="{{ 'tapi-subscribe.css' | asset_url }}"></noscript>
-
   <script type="application/json" id="tapi-subscribe-config">
     {
       "enabled": true,
       "endpoint": {{ s.endpoint | json }},
+      "cssUrl": {{ 'tapi-subscribe.css' | asset_url | json }},
       "delayMs": {{ delay_ms | json }},
       "resnoozeDays": {{ s.resnooze_days | json }},
       "customerSubscribed": {% if customer and customer.accepts_marketing %}true{% else %}false{% endif %},

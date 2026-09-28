@@ -493,8 +493,8 @@
     // The success panel takes focus on submit, so it needs to be focusable.
     card.querySelector('[data-sub-successtitle]').setAttribute('tabindex', '-1');
 
-    /* In the document from here on, but still hidden. Being attached is what
-     * lets stylesReady() resolve computed styles before anything is shown. */
+    /* Attached but hidden. This is also what lets stylesReady() resolve
+     * computed styles before anything is shown. */
     if (document.body) document.body.appendChild(root);
 
     return { root: root, open: open, close: dismiss };
@@ -502,28 +502,43 @@
 
   /* ---- boot ------------------------------------------------------------- */
 
+  /** Pull the stylesheet in only when the popup is about to need it. Nothing
+   *  about this component should cost a request while the visitor is still
+   *  loading the page they actually came for. */
+  function ensureStyles(href) {
+    if (!href || document.querySelector('link[data-tapi-sub-css]')) return;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.setAttribute('data-tapi-sub-css', '');
+    document.head.appendChild(link);
+  }
+
   function start(cfg) {
     if (!shouldShow(cfg)) return;
 
-    var instance = mount(cfg);
+    var instance = null;
     var waited = 0;
 
-    /* Open after the delay, but never on top of another overlay and never
-     * before the stylesheet has landed. If either is not ready, keep checking
-     * for as long as cfg.waitLimitMs before giving up on this page view. */
+    /* Everything costly happens here, at the delay, and not a moment earlier:
+     * the stylesheet request, the dialog markup, its listeners. Page load
+     * carries the deferred script and this one timer, nothing else.
+     *
+     * Fires on the clock whether or not the tab is visible. What made a hidden
+     * tab dangerous was never the timer: it was that open() locked the page and
+     * then leaned on requestAnimationFrame, which does not run while hidden, to
+     * reveal the card. The timeout behind that frame callback closes it. */
     function attempt() {
-      /* Fires on the clock, hidden tab or not. What made a background tab
-       * dangerous was never the timer: it was that open() locked the page and
-       * then relied on requestAnimationFrame, which does not run while hidden,
-       * to reveal the card. The timeout behind that frame callback in open()
-       * closes it, so the card is always revealed and the visitor never finds
-       * an unscrollable page under an invisible overlay. */
-      if (!otherOverlayOpen() && stylesReady(instance.root)) {
-        instance.open();
-        return;
-      }
-      waited += 300;
-      if (waited < cfg.waitLimitMs) setTimeout(attempt, 300);
+      if (otherOverlayOpen()) return retry();
+      ensureStyles(cfg.cssUrl);
+      if (!instance) instance = mount(cfg);
+      if (!stylesReady(instance.root)) return retry();
+      instance.open();
+    }
+
+    function retry() {
+      waited += 250;
+      if (waited < cfg.waitLimitMs) setTimeout(attempt, 250);
     }
 
     setTimeout(attempt, cfg.delayMs);
@@ -532,6 +547,7 @@
   var DEFAULTS = {
     enabled: true,
     endpoint: '',
+    cssUrl: '',
     delayMs: 5000,
     resnoozeDays: 7,
     waitLimitMs: 30000,
