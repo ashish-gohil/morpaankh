@@ -265,6 +265,10 @@ class WaAutomationStack extends cdk.Stack {
       'wa-ingest-delhivery',
       'wa-pay-redirect',
       'wa-onboarding',
+      // Added late, and missed by this list for two days: a failed signup save
+      // is caught and answered as a 502, so it raises no Lambda error and no
+      // alarm. This filter is the only thing that tells anyone about it.
+      'wa-subscribe',
       'wa-poll-delhivery',
       'wa-reconcile',
       'wa-digest',
