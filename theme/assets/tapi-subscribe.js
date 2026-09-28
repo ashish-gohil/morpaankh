@@ -12,6 +12,9 @@
  * Saving goes to config.endpoint, not to Shopify's {% form 'customer' %}. That
  * form only persists the email and its tags; any other contact[...] field lands
  * in the merchant's contact notification, so the WhatsApp number would be lost.
+ *
+ * Required: name and WhatsApp number. Email is optional, because the number is
+ * the channel this list is actually for.
  */
 (function () {
   if (window.__tapiSubscribe) return;
@@ -81,12 +84,32 @@
     return true;
   }
 
+  /** The stylesheet is loaded asynchronously, so it can still be in flight when
+   *  the delay elapses. Opening before it lands dumps an unstyled form into the
+   *  page flow, which is what "the UI breaks for a moment" looks like. Probe a
+   *  declaration only this stylesheet sets: computed styles resolve on a hidden
+   *  element, so nothing has to be shown to check. */
+  function stylesReady(node) {
+    try {
+      return window.getComputedStyle(node).position === 'fixed';
+    } catch (e) {
+      return true; // cannot tell: better to show than to swallow the popup
+    }
+  }
+
   /* ---- validation ------------------------------------------------------- */
 
   var EMAIL_RE = /^[^\s@"'<>\\]+@[^\s@"'<>\\]+\.[A-Za-z]{2,}$/;
 
+  function validateName(v) {
+    if (!v) return 'Please tell us your name.';
+    return v.length >= 2 ? '' : 'That looks a little short. Please enter your name.';
+  }
+
+  /** Optional. Empty passes; anything typed still has to be an address, so a
+   *  half finished one is caught here rather than saved and left undeliverable. */
   function validateEmail(v) {
-    if (!v) return 'Please enter your email so we can send the code.';
+    if (!v) return '';
     return EMAIL_RE.test(v) ? '' : 'That email does not look right. Please check it.';
   }
 
@@ -131,6 +154,11 @@
     '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" ' +
     'stroke-linecap="round" aria-hidden="true" focusable="false">' +
     '<path d="M1 1l12 12M13 1L1 13"/></svg>';
+
+  var TICK_SVG =
+    '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<path d="M4 11.5l4.5 4.5L18 6.5"/></svg>';
 
   function el(tag, attrs, html) {
     var n = document.createElement(tag);
@@ -185,42 +213,46 @@
         '<h2 class="tapi-sub__title" id="' + titleId + '">' + esc(cfg.headline) + '</h2>' +
         '<p class="tapi-sub__sub" id="' + subId + '">' + esc(cfg.subtext) + '</p>' +
         '<form class="tapi-sub__form" novalidate>' +
-          '<div>' +
-            '<label class="tapi-sub__label" for="tapi-sub-name">Name ' +
-              '<span class="tapi-sub__optional">(optional)</span></label>' +
-            '<input class="tapi-sub__input" id="tapi-sub-name" name="name" type="text" ' +
-              'autocomplete="given-name" enterkeyhint="next">' +
+          '<div class="tapi-sub__field">' +
+            '<label class="tapi-sub__label" for="tapi-sub-name">Name</label>' +
+            '<input class="tapi-sub__input" id="tapi-sub-name" name="name" type="text" required ' +
+              'autocomplete="name" enterkeyhint="next" aria-describedby="tapi-sub-name-err">' +
+            '<span class="tapi-sub__err" id="tapi-sub-name-err" role="alert"></span>' +
           '</div>' +
-          '<div>' +
-            '<label class="tapi-sub__label" for="tapi-sub-email">Email</label>' +
-            '<input class="tapi-sub__input" id="tapi-sub-email" name="email" type="email" required ' +
-              'autocomplete="email" inputmode="email" enterkeyhint="next" ' +
-              'aria-describedby="tapi-sub-email-err">' +
-            '<span class="tapi-sub__err" id="tapi-sub-email-err" role="alert"></span>' +
-          '</div>' +
-          '<div>' +
+          '<div class="tapi-sub__field">' +
             '<label class="tapi-sub__label" for="tapi-sub-phone">WhatsApp number</label>' +
             '<div class="tapi-sub__tel">' +
               '<select class="tapi-sub__dial" id="tapi-sub-dial" aria-label="Country calling code">' +
                 dialOptions +
               '</select>' +
               '<input class="tapi-sub__input" id="tapi-sub-phone" name="phone" type="tel" required ' +
-                'autocomplete="tel-national" inputmode="numeric" enterkeyhint="done" ' +
+                'autocomplete="tel-national" inputmode="numeric" enterkeyhint="next" ' +
                 'aria-describedby="tapi-sub-phone-err">' +
             '</div>' +
             '<span class="tapi-sub__err" id="tapi-sub-phone-err" role="alert"></span>' +
           '</div>' +
+          '<div class="tapi-sub__field">' +
+            '<label class="tapi-sub__label" for="tapi-sub-email">Email ' +
+              '<span class="tapi-sub__optional">(optional)</span></label>' +
+            '<input class="tapi-sub__input" id="tapi-sub-email" name="email" type="email" ' +
+              'autocomplete="email" inputmode="email" enterkeyhint="done" ' +
+              'aria-describedby="tapi-sub-email-err">' +
+            '<span class="tapi-sub__err" id="tapi-sub-email-err" role="alert"></span>' +
+          '</div>' +
           /* Honeypot. Named innocuously and left out of the tab order. */
           '<input class="tapi-sub__hp" name="hp" type="text" tabindex="-1" autocomplete="off" ' +
             'aria-hidden="true" value="">' +
-          '<button type="submit" class="tapi-sub__submit" data-sub-submit>' + esc(cfg.buttonText) + '</button>' +
-          '<span class="tapi-sub__err" data-sub-formerr role="alert"></span>' +
-          '<p class="tapi-sub__consent">' + esc(cfg.consentText) + ' ' +
-            '<a href="' + esc(cfg.privacyUrl) + '" target="_blank" rel="noopener">Privacy policy</a></p>' +
-          '<button type="button" class="tapi-sub__decline" data-sub-close>' + esc(cfg.declineText) + '</button>' +
+          '<div class="tapi-sub__actions">' +
+            '<p class="tapi-sub__err tapi-sub__formerr" data-sub-formerr role="alert"></p>' +
+            '<button type="submit" class="tapi-sub__submit" data-sub-submit>' + esc(cfg.buttonText) + '</button>' +
+            '<p class="tapi-sub__consent">' + esc(cfg.consentText) + ' ' +
+              '<a href="' + esc(cfg.privacyUrl) + '" target="_blank" rel="noopener">Privacy policy</a></p>' +
+            '<button type="button" class="tapi-sub__decline" data-sub-close>' + esc(cfg.declineText) + '</button>' +
+          '</div>' +
         '</form>' +
       '</div>' +
       '<div data-sub-success hidden>' +
+        '<div class="tapi-sub__tick" aria-hidden="true">' + TICK_SVG + '</div>' +
         '<h2 class="tapi-sub__title" data-sub-successtitle>' + esc(cfg.successHeadline) + '</h2>' +
         '<p class="tapi-sub__sub">' + esc(cfg.successText) + '</p>' +
         '<div class="tapi-sub__code">' +
@@ -242,12 +274,14 @@
     var hpEl = form.querySelector('[name="hp"]');
     var submitEl = card.querySelector('[data-sub-submit]');
     var formErr = card.querySelector('[data-sub-formerr]');
+    var nameErr = card.querySelector('#tapi-sub-name-err');
     var emailErr = card.querySelector('#tapi-sub-email-err');
     var phoneErr = card.querySelector('#tapi-sub-phone-err');
 
     var lastFocus = null;
     var prevHtmlOverflow = '';
     var prevBodyOverflow = '';
+    var prevBodyPadRight = '';
 
     function dial() {
       return cfg.dialCodes[Number(dialEl.value) || 0];
@@ -265,22 +299,28 @@
       root.hidden = false;
       /* Lock the page behind the dialog. The card scrolls internally, so an
        * overflow lock is enough and avoids the scroll-position jump that a
-       * position:fixed body causes. */
+       * position:fixed body causes. The padding replaces the width the
+       * scrollbar was holding, otherwise the whole page shifts sideways the
+       * instant the popup opens. */
+      var gutter = window.innerWidth - document.documentElement.clientWidth;
       prevHtmlOverflow = document.documentElement.style.overflow;
       prevBodyOverflow = document.body.style.overflow;
+      prevBodyPadRight = document.body.style.paddingRight;
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      if (gutter > 0) document.body.style.paddingRight = gutter + 'px';
       // Next frame, so the opening transition has a start state to animate from.
       requestAnimationFrame(function () {
         root.classList.add('is-open');
       });
-      (emailEl || card).focus({ preventScroll: true });
+      (nameEl || card).focus({ preventScroll: true });
     }
 
     function teardown() {
       root.classList.remove('is-open');
       document.documentElement.style.overflow = prevHtmlOverflow;
       document.body.style.overflow = prevBodyOverflow;
+      document.body.style.paddingRight = prevBodyPadRight;
       var done = function () {
         root.hidden = true;
       };
@@ -333,6 +373,9 @@
 
     // Re-validate on blur, not on every keystroke: an error that appears while
     // someone is still typing their address reads as broken.
+    nameEl.addEventListener('blur', function () {
+      setErr(nameEl, nameErr, validateName(nameEl.value.trim()));
+    });
     emailEl.addEventListener('blur', function () {
       setErr(emailEl, emailErr, validateEmail(emailEl.value.trim()));
     });
@@ -369,11 +412,13 @@
       e.preventDefault();
       formErr.textContent = '';
 
+      var name = nameEl.value.trim();
       var email = emailEl.value.trim();
-      var okEmail = setErr(emailEl, emailErr, validateEmail(email));
+      var okName = setErr(nameEl, nameErr, validateName(name));
       var okPhone = setErr(phoneEl, phoneErr, validatePhone(phoneEl.value, dial()));
-      if (!okEmail || !okPhone) {
-        (okEmail ? phoneEl : emailEl).focus();
+      var okEmail = setErr(emailEl, emailErr, validateEmail(email));
+      if (!okName || !okPhone || !okEmail) {
+        (okName ? (okPhone ? emailEl : phoneEl) : nameEl).focus();
         return;
       }
 
@@ -381,7 +426,7 @@
       submitEl.textContent = cfg.sendingText;
 
       var payload = {
-        name: nameEl.value.trim(),
+        name: name,
         email: email,
         phone: dial().code + phoneEl.value.replace(/\D/g, ''),
         hp: hpEl.value,
@@ -415,7 +460,10 @@
             return;
           }
           var err = (r.body && r.body.error) || '';
-          if (err === 'invalid_email') {
+          if (err === 'invalid_name') {
+            setErr(nameEl, nameErr, 'Please tell us your name.');
+            nameEl.focus();
+          } else if (err === 'invalid_email') {
             setErr(emailEl, emailErr, 'That email does not look right. Please check it.');
             emailEl.focus();
           } else if (err === 'invalid_phone') {
@@ -439,6 +487,10 @@
     // The success panel takes focus on submit, so it needs to be focusable.
     card.querySelector('[data-sub-successtitle]').setAttribute('tabindex', '-1');
 
+    /* In the document from here on, but still hidden. Being attached is what
+     * lets stylesReady() resolve computed styles before anything is shown. */
+    if (document.body) document.body.appendChild(root);
+
     return { root: root, open: open, close: dismiss };
   }
 
@@ -450,17 +502,16 @@
     var instance = mount(cfg);
     var waited = 0;
 
-    /* Open after the delay, but never on top of another overlay. If one is up,
-     * keep checking for as long as cfg.waitLimitMs before giving up on this
-     * page view, so a visitor who leaves the cart drawer open is not shown a
-     * popup stacked on it. */
+    /* Open after the delay, but never on top of another overlay and never
+     * before the stylesheet has landed. If either is not ready, keep checking
+     * for as long as cfg.waitLimitMs before giving up on this page view. */
     function attempt() {
-      if (!otherOverlayOpen()) {
+      if (!otherOverlayOpen() && stylesReady(instance.root)) {
         instance.open();
         return;
       }
-      waited += 700;
-      if (waited < cfg.waitLimitMs) setTimeout(attempt, 700);
+      waited += 300;
+      if (waited < cfg.waitLimitMs) setTimeout(attempt, 300);
     }
 
     setTimeout(attempt, cfg.delayMs);
@@ -510,6 +561,7 @@
       return start(withDefaults(cfg));
     },
     // Underscored: exported for scripts/check-subscribe-popup.mjs, not API.
+    _validateName: validateName,
     _validateEmail: validateEmail,
     _validatePhone: validatePhone,
     _shouldShow: function (cfg) {

@@ -769,11 +769,14 @@ button.shopify-payment-button__button--unbranded {
 /* ============================================================
    Inputs — remove dark/blue focus rings everywhere
    ============================================================ */
-input, textarea, select, button, .field__input, .button {
+/* The signup popup is excluded throughout: it ships its own field styling so
+   it still renders correctly outside this theme, and it needs a visible focus
+   ring plus a 16px minimum that these rules would otherwise override. */
+input:not(.tapi-sub__input), textarea, select:not(.tapi-sub__dial), button, .field__input, .button {
   outline: none !important;
   box-shadow: none !important;
 }
-input:focus, textarea:focus, select:focus,
+input:not(.tapi-sub__input):not(.tapi-sub__dial):focus, textarea:focus, select:not(.tapi-sub__input):not(.tapi-sub__dial):focus,
 .field__input:focus, .field__input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
@@ -1037,9 +1040,14 @@ sticky-header.shopify-section-header-hidden { transform: none !important; }
    custom search inputs (modal + results page). Those own their full styling via
    .tapi-search-bar__input / .tapi-tsearch__input; without these exclusions this
    high-specificity reset forced a 1px border + 4.8rem box on them, which read as
-   a second border nested inside the search field. One style source per field. */
-input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input):not(.tapi-tsearch__input):not(.tapi-search-bar__input),
-select:not(.tapi-footer__field select),
+   a second border nested inside the search field. One style source per field.
+
+   The signup popup's fields (.tapi-sub__input / .tapi-sub__dial) are excluded
+   for the same reason, plus one of its own: the !important font-size here is
+   14px, and an input under 16px makes iOS Safari zoom the page the moment it
+   is focused, which is exactly what a popup must not do. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input):not(.tapi-tsearch__input):not(.tapi-search-bar__input):not(.tapi-sub__input),
+select:not(.tapi-footer__field select):not(.tapi-sub__dial),
 textarea:not(.tapi-footer__field textarea),
 .field__input:not(.tapi-footer__field .field__input):not(.tapi-tsearch__input):not(.tapi-search-bar__input) {
   height: 4.8rem;
@@ -1063,8 +1071,8 @@ textarea:not(.tapi-footer__field textarea) {
   line-height: 1.6;
   padding: 1.2rem 1.4rem;
 }
-input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input):not(.tapi-tsearch__input):not(.tapi-search-bar__input):focus,
-select:not(.tapi-footer__field select):focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not(.tapi-footer__field input):not(.tapi-tsearch__input):not(.tapi-search-bar__input):not(.tapi-sub__input):focus,
+select:not(.tapi-footer__field select):not(.tapi-sub__dial):focus,
 textarea:not(.tapi-footer__field textarea):focus,
 .field__input:not(.tapi-footer__field .field__input):not(.tapi-tsearch__input):not(.tapi-search-bar__input):focus {
   border-color: var(--tapi-charcoal) !important;
@@ -1181,7 +1189,7 @@ html { scroll-behavior: smooth; }
    ============================================================ */
 
 /* Our brand chevron (single source of truth) */
-select:not(.tapi-footer__field select) {
+select:not(.tapi-footer__field select):not(.tapi-sub__dial) {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%232C2826' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
   background-repeat: no-repeat !important;
   background-position: right 1.4rem center !important;
@@ -1200,8 +1208,8 @@ select:not(.tapi-footer__field select) {
   transition: border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
               background-color 200ms;
 }
-select:not(.tapi-footer__field select):hover,
-select:not(.tapi-footer__field select):focus {
+select:not(.tapi-footer__field select):not(.tapi-sub__dial):hover,
+select:not(.tapi-footer__field select):not(.tapi-sub__dial):focus {
   border-color: var(--tapi-charcoal) !important;
   background-color: var(--tapi-cream) !important;
 }

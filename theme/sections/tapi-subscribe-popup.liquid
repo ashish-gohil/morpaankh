@@ -14,6 +14,9 @@
   {% form 'customer' %} cannot be used: it persists the email and its tags, but
   any other contact[...] field lands in the merchant's contact notification, so
   the WhatsApp number would be silently dropped.
+
+  Required fields are the name and the WhatsApp number. Email is optional, so
+  the consent copy below has to stay true for someone who leaves it blank.
 {%- endcomment -%}
 
 {%- liquid
@@ -113,7 +116,7 @@
       "type": "textarea",
       "id": "subtext",
       "label": "Subtext",
-      "default": "Join our list for first look at new arrivals. Your code is ready the moment you sign up."
+      "default": "First look at new arrivals, straight to your WhatsApp. Your code is ready the moment you sign up."
     },
     {
       "type": "text",
@@ -131,7 +134,7 @@
       "type": "textarea",
       "id": "consent_text",
       "label": "Consent line",
-      "default": "By subscribing you agree to receive offers from Morpaankh on email and WhatsApp. You can unsubscribe anytime.",
+      "default": "By subscribing you agree to receive offers from Morpaankh on WhatsApp, and by email if you add one. You can unsubscribe anytime.",
       "info": "A link to the store privacy policy is added after this automatically."
     },
     {

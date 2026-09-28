@@ -7,7 +7,7 @@
  *   1. The Liquid config block stops being valid JSON (a missing comma, a
  *      setting renamed in the schema but not in the block). The popup then
  *      never opens and nothing is logged anywhere a merchant would look.
- *   2. The phone or email rules drift from what the /subscribe endpoint
+ *   2. The name, phone or email rules drift from what the /subscribe endpoint
  *      enforces, so the form accepts input the server then rejects.
  *
  * No framework: a handful of asserts and a DOM stub just wide enough to let the
@@ -98,6 +98,40 @@ new Function(readFileSync(join(THEME, 'assets/tapi-subscribe.js'), 'utf8'))();
 const S = window.TapiSubscribe;
 assert.ok(S, 'tapi-subscribe.js did not export TapiSubscribe');
 
+/* Name and WhatsApp number are required; email is not. The server enforces the
+ * same split, so a change on one side without the other shows up here. */
+const js = readFileSync(join(THEME, 'assets/tapi-subscribe.js'), 'utf8');
+assert.match(js, /id="tapi-sub-name"[^>]*\brequired\b/, 'the name field must be required');
+assert.match(js, /id="tapi-sub-phone"[^>]*\brequired\b/, 'the phone field must be required');
+assert.ok(
+  !/id="tapi-sub-email"[^>]*\brequired\b/.test(js),
+  'the email field must NOT be required',
+);
+assert.ok(js.includes('(optional)'), 'the optional field should say so in its label');
+ok('name and number are required, email is optional');
+
+assert.equal(S._validateName('Asha'), '');
+assert.notEqual(S._validateName(''), '');
+assert.notEqual(S._validateName('A'), '');
+ok('name rule matches the server: at least 2 characters');
+
+/* base.css hides every empty div, and the scrim is one. Drop the counter-rule
+ * and the overlay silently stops rendering, which reads as a design problem
+ * rather than a missing line of CSS. */
+const css = readFileSync(join(THEME, 'assets/tapi-subscribe.css'), 'utf8');
+assert.match(css, /\.tapi-sub__scrim:empty\s*\{[^}]*display:\s*block/, 'the scrim needs its :empty counter-rule or base.css hides it');
+ok('scrim survives the theme-wide empty-div rule');
+
+/* theme-variables.css carries several global field resets with !important
+ * (font-size, background, the focus ring). Each one excludes the components
+ * that style their own fields, the way the footer form already is. Lose one of
+ * those exclusions and the popup's inputs silently drop to 14px, which makes
+ * iOS Safari zoom the page the moment a field is focused. */
+const vars = readFileSync(join(THEME, 'assets/theme-variables.css'), 'utf8');
+const excl = (vars.match(/:not\(\.tapi-sub__(input|dial)\)/g) || []).length;
+assert.ok(excl >= 10, `popup fields are excluded from only ${excl} of the global field resets`);
+ok('popup fields stay out of the theme-wide field resets');
+
 const IN = { code: '+91', digits: 10 };
 assert.equal(S._validatePhone('9876543210', IN), '');
 assert.notEqual(S._validatePhone('5876543210', IN), ''); // must start 6-9
@@ -109,8 +143,8 @@ ok('Indian mobile rule matches the server: 10 digits starting 6-9');
 assert.equal(S._validateEmail('asha@example.com'), '');
 assert.notEqual(S._validateEmail('asha@example'), '');
 assert.notEqual(S._validateEmail('a"b@example.com'), ''); // server rejects quotes too
-assert.notEqual(S._validateEmail(''), '');
-ok('email rule matches the server');
+assert.equal(S._validateEmail(''), ''); // optional: blank passes on both sides
+ok('email rule matches the server, blank included');
 
 // ---- 3. the show/hide gate ------------------------------------------------
 

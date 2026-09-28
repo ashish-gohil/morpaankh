@@ -9,6 +9,10 @@
  * near 101) but well below the cart drawer / search modal at 1000+. That is
  * deliberate: if one of those opens over the popup it should win, and the JS
  * already waits for them to close before opening at all.
+ *
+ * Blur budget: 8px on the full viewport scrim, 14px on the 420px card. The
+ * scrim is the expensive one because it filters the whole screen, so it stays
+ * the lower of the two; the tint carries the depth instead.
  */
 
 .tapi-sub {
@@ -25,15 +29,35 @@
 }
 .tapi-sub[hidden] { display: none; }
 
+/* ---- overlay -------------------------------------------------------------
+   Two layers in one paint: a radial that keeps the middle of the screen
+   lighter than the edges, so the card reads as lit rather than pasted on, over
+   a charcoal-to-forest wash that matches the brand rather than going neutral
+   black. Alpha is high enough that the card clears AA whatever is behind it. */
+
 .tapi-sub__scrim {
   position: absolute;
   inset: 0;
-  background: rgba(44, 40, 38, 0.52); /* --mor-charcoal at low alpha */
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: radial-gradient(
+    115% 85% at 50% 42%,
+    rgba(44, 40, 38, 0.44) 0%,
+    rgba(44, 40, 38, 0.68) 58%,
+    rgba(26, 43, 34, 0.78) 100%
+  ); /* --mor-charcoal into --mor-primary-press */
+  -webkit-backdrop-filter: blur(8px) saturate(115%);
+  backdrop-filter: blur(8px) saturate(115%);
   opacity: 0;
   transition: opacity var(--mor-dur-base) var(--mor-ease-out);
 }
+
+/* base.css ends with `div:empty { display: none }`, and the scrim is exactly
+   that: a div with no children. Without this counter-rule it is never painted,
+   so the card floats over an undimmed page and tap-outside-to-close has a
+   zero sized target. Dawn's own .cart-drawer__overlay:empty carries the same
+   line for the same reason. */
+.tapi-sub__scrim:empty { display: block; }
+
+/* ---- card ---------------------------------------------------------------- */
 
 .tapi-sub__card {
   position: relative;
@@ -44,30 +68,43 @@
   max-height: calc(100dvh - var(--space-xl));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: var(--space-xl) var(--space-lg) var(--space-lg);
-  border-radius: var(--radius-md);
+  /* Top padding clears the 44px close button, so a two line headline can never
+     run under it. */
+  padding: var(--space-2xl) var(--space-lg) var(--space-lg);
+  border-radius: calc(var(--radius-md) * 2);
   text-align: center;
 
-  /* The glass. 0.88 alpha keeps charcoal body text well past AA on top of
-     whatever is behind: any lower and the contrast depended on the page. */
-  background: rgba(250, 246, 236, 0.88); /* --mor-ivory */
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  /* 16px is the ceiling that still scrolls smoothly on mid-range Android. */
-  -webkit-backdrop-filter: blur(16px) saturate(135%);
-  backdrop-filter: blur(16px) saturate(135%);
-  box-shadow: var(--mor-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  /* The glass: a sheen falling off over the top 40% on a 0.9 ivory base. Any
+     lower and charcoal body text stopped clearing AA over a dark photo. */
+  background-color: rgba(250, 246, 236, 0.9); /* --mor-ivory */
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.58) 0%,
+    rgba(255, 255, 255, 0.14) 38%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  /* Layered: a long soft drop for lift, a tight one to seat the edge, and an
+     inner highlight along the top so the rim catches light. */
+  box-shadow:
+    0 40px 80px -44px rgba(26, 43, 34, 0.58),
+    0 4px 14px -8px rgba(44, 40, 38, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
 
   opacity: 0;
-  transform: translateY(12px);
-  transition: opacity var(--mor-dur-base) var(--mor-ease-out),
-              transform var(--mor-dur-base) var(--mor-ease-out);
+  transform: translateY(14px) scale(0.965);
+  transition:
+    opacity var(--mor-dur-base) var(--mor-ease-out),
+    transform var(--mor-dur-slow) var(--mor-ease-out);
 }
 
 /* Browsers without backdrop-filter (older Android WebView, Firefox with the
    flag off) get a solid brand surface rather than a washed out transparent box. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .tapi-sub__card { background: var(--mor-ivory); }
-  .tapi-sub__scrim { background: rgba(44, 40, 38, 0.68); }
+  .tapi-sub__card { background-color: var(--mor-ivory); }
+  .tapi-sub__scrim { background: rgba(44, 40, 38, 0.74); }
 }
 
 .tapi-sub.is-open .tapi-sub__scrim { opacity: 1; }
@@ -75,7 +112,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tapi-sub__scrim,
-  .tapi-sub__card { transition-duration: 1ms; transform: none; }
+  .tapi-sub__card { transition-duration: 1ms; }
+  .tapi-sub__card { transform: none; }
 }
 
 /* ---- close ---------------------------------------------------------------- */
@@ -94,45 +132,70 @@
   background: none;
   color: var(--mor-text-muted);
   cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: color var(--mor-dur-fast) var(--mor-ease);
+  border-radius: var(--radius-pill);
+  transition:
+    color var(--mor-dur-fast) var(--mor-ease),
+    background-color var(--mor-dur-fast) var(--mor-ease);
 }
-.tapi-sub__close:hover { color: var(--mor-text); }
-.tapi-sub__close svg { width: 15px; height: 15px; }
+.tapi-sub__close:hover {
+  color: var(--mor-text);
+  background-color: rgba(255, 255, 255, 0.55);
+}
+.tapi-sub__close svg { width: 14px; height: 14px; }
 
-/* ---- copy ---------------------------------------------------------------- */
+/* ---- header copy ---------------------------------------------------------- */
 
 .tapi-sub__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
   margin: 0 0 var(--space-sm);
   font-family: var(--font-sans);
   font-size: var(--fs-xs);
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mor-gold-deep);
 }
+/* Flanking rules, the same move the section headers use, so the eyebrow reads
+   as a label rather than a stray line of small text. */
+.tapi-sub__eyebrow::before,
+.tapi-sub__eyebrow::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 22px;
+  height: 1px;
+  background: var(--mor-gold);
+  opacity: 0.55;
+}
 
 .tapi-sub__title {
-  margin: 0 0 var(--space-xs);
+  margin: 0 auto var(--space-xs);
+  max-width: 22ch;
   font-family: var(--font-serif);
   font-size: var(--mor-h3);
   font-weight: var(--font-heading-weight);
   line-height: var(--mor-leading-snug);
+  letter-spacing: 0.005em;
   color: var(--mor-text);
 }
 
 .tapi-sub__sub {
-  margin: 0 auto var(--space-lg);
-  max-width: 32ch;
+  margin: 0 auto var(--space-xl);
+  max-width: 30ch;
   font-family: var(--font-sans);
   font-size: var(--fs-sm);
   line-height: var(--mor-leading-body);
   color: var(--mor-text-muted);
 }
 
-/* ---- form --------------------------------------------------------------- */
+/* ---- form ----------------------------------------------------------------
+   One gap value down the whole form. Each field owns its label, input and
+   error, so the rhythm cannot drift when an error appears and disappears. */
 
-.tapi-sub__form { display: grid; gap: var(--space-sm); text-align: left; }
+.tapi-sub__form { display: grid; gap: var(--space-md); text-align: left; }
+.tapi-sub__field { min-width: 0; }
 
 .tapi-sub__label {
   display: block;
@@ -140,11 +203,17 @@
   font-family: var(--font-sans);
   font-size: var(--fs-xs);
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--mor-text-muted);
 }
-.tapi-sub__optional { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tapi-sub__optional {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--mor-warm-grey);
+  opacity: 0.8;
+}
 
 .tapi-sub__input,
 .tapi-sub__dial {
@@ -154,28 +223,52 @@
   font-size: var(--fs-base);
   line-height: 1.4;
   color: var(--mor-text);
-  background: var(--mor-paper);
+  /* Translucent rather than flat white: a solid field on a glass card looks
+     like a hole punched through it. */
+  background-color: rgba(255, 255, 255, 0.74);
   border: 1px solid var(--mor-hairline-2);
-  border-radius: var(--inputs-radius);
-  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
   /* 44px minimum touch height without relying on the padding maths. */
-  min-height: 44px;
-  transition: border-color var(--mor-dur-fast) var(--mor-ease),
-              box-shadow var(--mor-dur-fast) var(--mor-ease);
+  min-height: 48px;
+  transition:
+    border-color var(--mor-dur-fast) var(--mor-ease),
+    background-color var(--mor-dur-fast) var(--mor-ease),
+    box-shadow var(--mor-dur-fast) var(--mor-ease);
   -webkit-appearance: none;
   appearance: none;
 }
+.tapi-sub__input::placeholder { color: var(--mor-warm-grey); opacity: 0.55; }
+.tapi-sub__input:hover,
+.tapi-sub__dial:hover { border-color: var(--mor-warm-grey); }
+.tapi-sub__input:focus,
+.tapi-sub__dial:focus,
 .tapi-sub__input:focus-visible,
 .tapi-sub__dial:focus-visible {
   outline: none;
+  background-color: var(--mor-paper);
   border-color: var(--mor-primary);
-  box-shadow: 0 0 0 2px var(--mor-primary-wash);
+  box-shadow: 0 0 0 3px var(--mor-primary-wash);
 }
 .tapi-sub__input[aria-invalid='true'] { border-color: var(--mor-accent-deep); }
 
 .tapi-sub__tel { display: flex; gap: var(--space-xs); }
-.tapi-sub__dial { width: auto; flex: 0 0 auto; padding-right: var(--space-lg); background: var(--mor-paper); }
 .tapi-sub__tel .tapi-sub__input { flex: 1 1 auto; min-width: 0; }
+.tapi-sub__dial {
+  width: auto;
+  flex: 0 0 auto;
+  padding-right: var(--space-xl);
+  /* appearance:none removed the native arrow, which left the select looking
+     like a dead text box. This mirrors the brand chevron in theme-variables.css
+     rather than reusing it, because that rule also forces 14px type and an
+     opaque ivory fill, and the component has to stand on its own outside this
+     theme. Colour is --mor-warm-grey (#6B5D54) inlined: a CSS var cannot be
+     used inside a data URI. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B5D54' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-sm) center;
+  cursor: pointer;
+}
 
 .tapi-sub__err {
   display: block;
@@ -199,27 +292,50 @@
   pointer-events: none;
 }
 
-/* ---- actions ------------------------------------------------------------ */
+/* ---- actions -------------------------------------------------------------
+   Submit, consent and decline are one block with their own internal spacing,
+   so the form gap does not have to serve both a field gap and a footer gap. */
+
+.tapi-sub__actions { display: grid; gap: var(--space-xs); margin-top: var(--space-2xs); }
 
 .tapi-sub__submit {
-  margin-top: var(--space-2xs);
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   font-family: var(--font-sans);
   font-size: var(--fs-sm);
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgb(var(--color-button-text));
   background: var(--mor-primary);
   border: 0;
-  border-radius: var(--buttons-radius);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background var(--mor-dur-fast) var(--mor-ease);
+  box-shadow: 0 10px 24px -14px rgba(26, 43, 34, 0.9);
+  transition:
+    background var(--mor-dur-fast) var(--mor-ease),
+    box-shadow var(--mor-dur-fast) var(--mor-ease),
+    transform var(--mor-dur-fast) var(--mor-ease);
 }
-.tapi-sub__submit:hover:not(:disabled) { background: var(--mor-primary-deep); }
-.tapi-sub__submit:active:not(:disabled) { background: var(--mor-primary-press); }
-.tapi-sub__submit:disabled { opacity: 0.6; cursor: default; }
+.tapi-sub__submit:hover:not(:disabled) {
+  background: var(--mor-primary-deep);
+  box-shadow: 0 14px 28px -14px rgba(26, 43, 34, 0.95);
+}
+.tapi-sub__submit:active:not(:disabled) {
+  background: var(--mor-primary-press);
+  transform: translateY(1px);
+}
+.tapi-sub__submit:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+
+.tapi-sub__consent {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-2xs);
+  line-height: 1.55;
+  color: var(--mor-text-muted);
+  text-align: center;
+}
+.tapi-sub__consent a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 .tapi-sub__decline {
   display: block;
@@ -229,6 +345,7 @@
   min-height: 44px;
   font-family: var(--font-sans);
   font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
   color: var(--mor-text-muted);
   background: none;
   border: 0;
@@ -238,19 +355,23 @@
 }
 .tapi-sub__decline:hover { color: var(--mor-text); }
 
-.tapi-sub__consent {
-  margin: var(--space-2xs) 0 0;
-  font-family: var(--font-sans);
-  font-size: var(--fs-2xs);
-  line-height: 1.5;
-  /* warm-grey, not the lighter muted: --fs-2xs is small enough that the
-     subtler tone would fall under AA. */
-  color: var(--mor-text-muted);
-  text-align: center;
-}
-.tapi-sub__consent a { color: inherit; text-decoration: underline; }
+/* The form level error sits above the button, where the eye already is after a
+   failed submit. */
+.tapi-sub__formerr { text-align: center; margin: 0; }
 
-/* ---- success ------------------------------------------------------------ */
+/* ---- success -------------------------------------------------------------- */
+
+.tapi-sub__tick {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--space-md);
+  color: var(--mor-primary);
+  background: var(--mor-primary-wash);
+  border-radius: var(--radius-pill);
+}
+.tapi-sub__tick svg { width: 22px; height: 22px; }
 
 .tapi-sub__code {
   display: flex;
@@ -262,7 +383,7 @@
   flex: 1 1 auto;
   display: grid;
   place-items: center;
-  min-height: 48px;
+  min-height: 52px;
   padding: var(--space-xs) var(--space-sm);
   font-family: var(--font-sans);
   font-size: var(--fs-lg);
@@ -271,22 +392,23 @@
   color: var(--mor-primary);
   background: var(--mor-primary-wash);
   border: 1px dashed var(--mor-primary-soft);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 }
 .tapi-sub__copy {
   flex: 0 0 auto;
-  min-width: 80px;
-  min-height: 48px;
+  min-width: 84px;
+  min-height: 52px;
   font-family: var(--font-sans);
   font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--mor-primary);
-  background: var(--mor-paper);
+  background: rgba(255, 255, 255, 0.74);
   border: 1px solid var(--mor-primary);
-  border-radius: var(--buttons-radius);
+  border-radius: var(--radius-md);
   cursor: pointer;
+  transition: background var(--mor-dur-fast) var(--mor-ease);
 }
 .tapi-sub__copy:hover { background: var(--mor-primary-wash); }
 
@@ -301,22 +423,35 @@
   display: grid;
   place-items: center;
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   font-family: var(--font-sans);
   font-size: var(--fs-sm);
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgb(var(--color-button-text));
   background: var(--mor-primary);
-  border-radius: var(--buttons-radius);
+  border-radius: var(--radius-md);
   text-decoration: none;
+  box-shadow: 0 10px 24px -14px rgba(26, 43, 34, 0.9);
 }
 .tapi-sub__go:hover { background: var(--mor-primary-deep); color: rgb(var(--color-button-text)); }
 
 /* Narrow phones: 360px leaves 328px of card after the 16px gutters. */
 @media (max-width: 400px) {
-  .tapi-sub__card { padding: var(--space-lg) var(--space-md) var(--space-md); }
+  .tapi-sub { padding: var(--space-sm); }
+  .tapi-sub__card { padding: var(--space-xl) var(--space-md) var(--space-md); }
+  .tapi-sub__sub { margin-bottom: var(--space-lg); }
   .tapi-sub__code output { font-size: var(--fs-base); letter-spacing: 0.1em; }
-  .tapi-sub__copy { min-width: 68px; }
+  .tapi-sub__copy { min-width: 72px; }
+  .tapi-sub__eyebrow::before,
+  .tapi-sub__eyebrow::after { width: 16px; }
+}
+
+/* Short viewports (landscape phone, keyboard open) get their vertical air back
+   rather than forcing the card into an internal scroll. */
+@media (max-height: 640px) {
+  .tapi-sub__card { padding-top: var(--space-xl); padding-bottom: var(--space-md); }
+  .tapi-sub__sub { margin-bottom: var(--space-md); }
+  .tapi-sub__tick { width: 44px; height: 44px; margin-bottom: var(--space-sm); }
 }
