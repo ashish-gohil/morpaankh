@@ -181,6 +181,19 @@ localStore.set('k', 'done');
 assert.equal(S._shouldShow(base), false);
 ok('never returns once someone has subscribed');
 
+/* The escape hatch: a device that already subscribed must still be able to see
+ * it for a check, but never on a page the popup is banned from. */
+localStore.set('k', 'done');
+window.location.search = '?tapi-popup=force';
+assert.equal(S._shouldShow(base), true, 'force override should beat a stored suppression');
+window.location.pathname = '/cart';
+assert.equal(S._shouldShow(base), false, 'force override must NOT beat the page exclusions');
+window.location.pathname = '/';
+window.location.search = '';
+assert.equal(S._shouldShow(base), false);
+localStore.delete('k');
+ok('?tapi-popup=force shows it again for testing, but never on excluded pages');
+
 localStore.set('k', String(Date.now() + 86400000));
 assert.equal(S._shouldShow(base), false);
 localStore.set('k', String(Date.now() - 1000));

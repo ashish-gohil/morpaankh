@@ -74,10 +74,24 @@
     );
   }
 
+  /** Escape hatch for testing on a device that has already seen it. Once
+   *  someone subscribes or dismisses, the popup is correctly gone for 7 days or
+   *  forever, which makes "is it broken or is it just me" impossible to answer
+   *  on a phone without clearing site data. ?tapi-popup=force answers it. */
+  function forced() {
+    try {
+      return /[?&]tapi-popup=force(&|$)/.test(window.location.search);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function shouldShow(cfg) {
     if (!cfg.enabled) return false;
-    if (cfg.customerSubscribed) return false;
+    // Page exclusions hold even when forced: a popup over the cart is never right.
     if (onExcludedPage(cfg.excludeSegments)) return false;
+    if (forced()) return true;
+    if (cfg.customerSubscribed) return false;
     var raw = store.get(cfg.storageKey);
     if (raw === DONE) return false;
     if (raw && Number(raw) > Date.now()) return false;
