@@ -8,12 +8,29 @@
   the theme editor so empty slots are obvious.
 {%- endcomment -%}
 {%- liquid
+  # Primary source: featured products' OWN video media (auto — "gather all product
+  # videos"). Fallback: manual clip blocks (uploaded video files).
+  assign use_products = false
+  if section.settings.products.count > 0
+    assign use_products = true
+  endif
   assign playable = 0
-  for block in section.blocks
-    if block.settings.video != blank
-      assign playable = playable | plus: 1
-    endif
-  endfor
+  if use_products
+    for product in section.settings.products
+      for m in product.media
+        if m.media_type == 'video'
+          assign playable = playable | plus: 1
+          break
+        endif
+      endfor
+    endfor
+  else
+    for block in section.blocks
+      if block.settings.video != blank
+        assign playable = playable | plus: 1
+      endif
+    endfor
+  endif
 -%}
 
 {%- if playable > 0 or request.design_mode -%}
@@ -39,85 +56,54 @@
         </button>
 
         <ul class="tapi-watchbuy__rail" data-story-rail data-wb-rail role="list">
-          {%- for block in section.blocks -%}
-            {%- liquid
-              assign product = block.settings.product
-              assign vsrc = ''
-              assign vpre = ''
-              if block.settings.video != blank
-                for s in block.settings.video.sources
-                  if s.format == 'mp4'
-                    assign vsrc = s.url
+          {%- if use_products -%}
+            {%- for product in section.settings.products -%}
+              {%- liquid
+                assign vsrc = ''
+                assign poster = blank
+                for m in product.media
+                  if m.media_type == 'video' and vsrc == blank
+                    # Pick the smallest-height mp4 for a fast, light inline preview.
+                    assign vmin = 99999
+                    for s in m.sources
+                      if s.format == 'mp4' and s.height < vmin
+                        assign vmin = s.height
+                        assign vsrc = s.url
+                      endif
+                    endfor
+                    assign poster = m.preview_image
                   endif
                 endfor
-                assign vpre = block.settings.video.preview_image
-              endif
-              # Poster fallback chain: picked poster -> video's own frame -> product image
-              assign poster = block.settings.poster | default: vpre
-              if poster == blank and product != blank
-                assign poster = product.featured_image
-              endif
-              # Size option position for the player's size chips
-              assign spos = 0
-              assign size_found = false
-              if product != blank
-                for opt in product.options_with_values
-                  assign onm = opt.name | downcase
-                  if onm == 'size'
-                    assign spos = opt.position | minus: 1
-                    assign size_found = true
-                  endif
-                endfor
-              endif
-            -%}
-            {%- assign vjson = '[]' -%}
-            {%- if product != blank -%}
-              {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
-            {%- endif -%}
-            {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
-            <li class="tapi-watchbuy__cell" {{ block.shopify_attributes }}>
-              <button
-                type="button"
-                class="tapi-watchbuy__tile"
-                {% if vsrc != blank %}data-story-tile{% endif %}
-                data-video="{{ vsrc }}"
-                {% if product != blank %}
-                  data-handle="{{ product.handle }}"
-                  data-url="{{ product.url }}"
-                  data-title="{{ product.title | escape }}"
-                  data-price="{{ product.price | money }}"
-                  data-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
-                  data-has-size="{{ size_found }}"
-                  data-variants="{{ vjson | escape }}"
-                  data-variant-count="{{ product.variants.size }}"
-                {% endif %}
-                aria-label="Play video{% if product != blank %} for {{ product.title | escape }}{% endif %}"
-              >
-                {%- if poster != blank -%}
-                  {{ poster | image_url: width: 640 | image_tag:
-                     loading: 'lazy', widths: '320, 480, 640, 860',
-                     sizes: '(min-width: 750px) 34vw, 66vw',
-                     alt: '', class: 'tapi-watchbuy__poster' }}
-                {%- else -%}
-                  <span class="tapi-watchbuy__poster tapi-watchbuy__poster--empty" aria-hidden="true"></span>
-                {%- endif -%}
-                {%- if vsrc != blank -%}
-                  <video class="tapi-watchbuy__vid" data-wb-video muted loop playsinline preload="none" aria-hidden="true"></video>
-                {%- endif -%}
-                <span class="tapi-watchbuy__play" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </span>
-                {%- if product != blank -%}
-                  <span class="tapi-watchbuy__cap">
-                    <span class="tapi-watchbuy__cap-title">{{ product.title }}</span>
-                    <span class="tapi-watchbuy__cap-price">{{ product.price | money }}</span>
-                  </span>
-                {%- elsif request.design_mode -%}
-                  <span class="tapi-watchbuy__cap"><span class="tapi-watchbuy__cap-title">Add a clip + product</span></span>
-                {%- endif -%}
-              </button>
-            </li>
-          {%- endfor -%}
+                if poster == blank
+                  assign poster = product.featured_image
+                endif
+              -%}
+              {%- if vsrc != blank -%}
+                {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: product, design_mode: request.design_mode -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- else -%}
+            {%- for block in section.blocks -%}
+              {%- liquid
+                assign vsrc = ''
+                if block.settings.video != blank
+                  assign vmin = 99999
+                  for s in block.settings.video.sources
+                    if s.format == 'mp4' and s.height < vmin
+                      assign vmin = s.height
+                      assign vsrc = s.url
+                    endif
+                  endfor
+                endif
+                assign poster = block.settings.poster | default: block.settings.video.preview_image
+                if poster == blank and block.settings.product != blank
+                  assign poster = block.settings.product.featured_image
+                endif
+              -%}
+              {%- if vsrc == blank and request.design_mode == false -%}{%- continue -%}{%- endif -%}
+              {%- render 'tapi-watchbuy-tile', vsrc: vsrc, poster: poster, product: block.settings.product, shopify_attrs: block.shopify_attributes, design_mode: request.design_mode -%}
+            {%- endfor -%}
+          {%- endif -%}
         </ul>
 
         <button type="button" class="tapi-watchbuy__arrow tapi-watchbuy__arrow--next" data-wb-next aria-label="Next clip">
@@ -198,6 +184,9 @@
   }
   .tapi-watchbuy__cell.is-active .tapi-watchbuy__play { opacity: 0; }
   .tapi-watchbuy__cell.is-active .tapi-watchbuy__tile:hover .tapi-watchbuy__play { opacity: 0.9; transform: translate(-50%, -50%) scale(1.06); }
+  /* Constrained connection / reduced motion: no inline autoplay, so keep the play
+     affordance visible on the active tile to invite a tap (opens the player). */
+  .tapi-watchbuy__stage.wb-nodata .tapi-watchbuy__cell.is-active .tapi-watchbuy__play { opacity: 0.92; }
   .tapi-watchbuy__cap { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 2; display: flex; flex-direction: column; gap: 2px; text-align: left; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1); }
   .tapi-watchbuy__cell.is-active .tapi-watchbuy__cap { opacity: 1; transform: none; }
   .tapi-watchbuy__cap-title { font-family: var(--font-heading-family); font-size: var(--fs-base); font-weight: 500; color: var(--mor-cream); line-height: 1.25; letter-spacing: -0.006em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
@@ -244,6 +233,27 @@
       var prevBtn = stage.querySelector('[data-wb-prev]');
       var nextBtn = stage.querySelector('[data-wb-next]');
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Bandwidth tier from the Network Information API (where supported):
+      //   'save' = Data Saver on, or 2g -> no inline autoplay (poster + tap to open)
+      //   'lite' = 3g                    -> autoplay the light 480p clip, no preloading
+      //   'full' = 4g / unknown          -> autoplay + preload neighbours for instant snaps
+      function netTier() {
+        var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (!c) return 'full';
+        if (c.saveData) return 'save';
+        var t = c.effectiveType || '';
+        if (t === 'slow-2g' || t === '2g') return 'save';
+        if (t === '3g') return 'lite';
+        return 'full';
+      }
+      var tier = netTier();
+      // Inline preview only has the one heavy mp4 rendition Liquid exposes, so
+      // autoplay it only on a fast link. On 3g/2g/Save-Data the active tile stays a
+      // poster with a visible play button; tapping opens the full-screen player.
+      var noAuto = reduce || tier !== 'full';
+      if (noAuto) stage.classList.add('wb-nodata');
+      var keepRadius = tier === 'full' ? 1 : 0;  // how many neighbours keep their buffer
+
       var active = -1;
       var raf = 0;
 
@@ -252,17 +262,44 @@
         var tile = cell.querySelector('.tapi-watchbuy__tile');
         if (!v || !tile) return;
         var src = tile.getAttribute('data-video');
-        if (src && !v.getAttribute('src')) v.setAttribute('src', src);
+        if (src && !v.getAttribute('src')) { v.setAttribute('preload', 'auto'); v.setAttribute('src', src); }
         v.muted = true;
+        // Cross-fade the clip in only once real frames are ready, so the poster
+        // holds instead of flashing black — smooth and premium.
+        var reveal = function () { v.classList.add('is-playing'); };
+        v.addEventListener('playing', reveal, { once: true });
         var p = v.play();
-        if (p && p.catch) p.catch(function () {});
-        v.classList.add('is-playing');
+        if (p && p.catch) p.catch(function () { v.removeEventListener('playing', reveal); });
       }
       function stopCell(cell) {
         var v = cell.querySelector('[data-wb-video]');
         if (!v) return;
         v.classList.remove('is-playing');
         try { v.pause(); } catch (e) {}
+      }
+      // Free the buffer of clips far from the active one: mobile browsers cap how
+      // many videos can hold data at once, and 9 buffered clips turns janky. Only
+      // the active clip (+ neighbours on fast links) keeps its src.
+      function releaseCell(cell) {
+        var v = cell.querySelector('[data-wb-video]');
+        if (!v) return;
+        v.classList.remove('is-playing');
+        try { v.pause(); } catch (e) {}
+        if (v.getAttribute('src')) { v.removeAttribute('src'); try { v.load(); } catch (e) {} }
+      }
+      function preloadNeighbour(i) {
+        if (tier !== 'full' || i < 0 || i >= cells.length) return;
+        var cell = cells[i];
+        var v = cell.querySelector('[data-wb-video]');
+        var tile = cell.querySelector('.tapi-watchbuy__tile');
+        if (!v || !tile) return;
+        var src = tile.getAttribute('data-video');
+        if (src && !v.getAttribute('src')) { v.setAttribute('preload', 'metadata'); v.setAttribute('src', src); }
+      }
+      function syncBuffers() {
+        for (var i = 0; i < cells.length; i++) {
+          if (Math.abs(i - active) > keepRadius) releaseCell(cells[i]);
+        }
       }
 
       function update() {
@@ -279,7 +316,10 @@
         if (active > -1 && cells[active]) { cells[active].classList.remove('is-active'); stopCell(cells[active]); }
         active = best;
         cells[active].classList.add('is-active');
-        if (!reduce) playCell(cells[active]);
+        if (!noAuto) playCell(cells[active]);
+        preloadNeighbour(active - 1);
+        preloadNeighbour(active + 1);
+        syncBuffers();
         if (prevBtn) prevBtn.disabled = active <= 0;
         if (nextBtn) nextBtn.disabled = active >= cells.length - 1;
       }
@@ -303,13 +343,32 @@
       if ('IntersectionObserver' in window) {
         new IntersectionObserver(function (entries) {
           entries.forEach(function (en) {
-            if (en.isIntersecting) { if (active > -1 && !reduce) playCell(cells[active]); }
+            if (en.isIntersecting) { if (active > -1 && !noAuto) playCell(cells[active]); }
             else { cells.forEach(stopCell); }
           });
         }, { threshold: 0.2 }).observe(stage);
       }
 
-      // Centre the first tile, then light up the active one.
+      // Initial position: DON'T centre the first clip (that leaves a big empty gap
+      // beside it on wide screens, where the coverflow's side padding sits). Instead
+      // centre the clip that has just enough tiles to its left to fill the start, so
+      // the row reads full from the left edge. Earlier clips stay reachable — scroll
+      // left to bring the first clip to centre (the empty space beside it then is
+      // expected) or tap any tile for the full-screen player. Clamped so small clip
+      // counts still keep a tile on the right.
+      function initPosition() {
+        var colW = cells[0].getBoundingClientRect().width || 1;
+        var gap = parseFloat(getComputedStyle(rail).columnGap) || 0;
+        var fitLeft = Math.round((rail.clientWidth / 2) / (colW + gap));
+        var startIndex = Math.max(0, Math.min(fitLeft, Math.max(0, cells.length - 2)));
+        if (startIndex <= 0) { update(); return; }
+        var rr = rail.getBoundingClientRect();
+        var cr = cells[startIndex].getBoundingClientRect();
+        rail.scrollLeft += (cr.left + cr.width / 2) - (rr.left + rr.width / 2);
+        update();
+      }
+      initPosition();
+      // Re-run after paint in case fonts/layout shift the measurements.
       requestAnimationFrame(function () { update(); });
     }
 
@@ -330,7 +389,9 @@
   "settings": [
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "In motion" },
     { "type": "text", "id": "heading", "label": "Heading", "default": "Watch and buy" },
-    { "type": "text", "id": "subtitle", "label": "Subtitle", "default": "See the drape, the fall, the real colour. Tap to shop the look." }
+    { "type": "text", "id": "subtitle", "label": "Subtitle", "default": "See the drape, the fall, the real colour. Tap to shop the look." },
+    { "type": "header", "content": "Videos" },
+    { "type": "product_list", "id": "products", "label": "Products to feature", "limit": 12, "info": "Each product's own uploaded video is used automatically (portrait 9:16 works best). Leave empty to use the manual clip blocks below instead." }
   ],
   "blocks": [
     {

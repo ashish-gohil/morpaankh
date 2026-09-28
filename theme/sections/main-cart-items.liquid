@@ -26,6 +26,7 @@
 
 <script src="{{ 'quantity-popover.js' | asset_url }}" defer="defer"></script>
 <script src="{{ 'tapi-offers.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'tapi-cart-sticky.js' | asset_url }}" defer="defer"></script>
 
 <cart-items class="gradient color-{{ section.settings.color_scheme }} isolate{% if cart == empty %} is-empty{% else %} section-{{ section.id }}-padding{% endif %}">
   <div class="page-width">
@@ -530,6 +531,45 @@
       </aside>
     {%- endif -%}
 
+    {%- comment -%} Mobile sticky checkout bar — a premium, always-reachable CTA that
+      mirrors the PDP buy bar. It carries the amount payable and a "you save" badge, and
+      retracts (tapi-cart-sticky.js, IntersectionObserver) once the real footer checkout
+      button is on screen, so there is never a duplicate CTA at rest. Registered in
+      cart.js getSectionsToRender so the amount + badge refresh on quantity change;
+      :empty + cart!=empty hide it when the cart empties. Mobile only — desktop uses the
+      sticky aside above. Kept below COD King's max z-index so its OTP / partial-payment
+      modal always covers this bar. {%- endcomment -%}
+    {%- if cart != empty -%}
+      {%- comment -%} Total saving = product markdown (MRP/compare_at minus price) PLUS
+        every applied cart/line discount (promo code, automatic). Recomputed on each
+        section re-render, so it tracks quantity and live promo-code switches. {%- endcomment -%}
+      {%- assign tapi_compare_savings = 0 -%}
+      {%- for item in cart.items -%}
+        {%- if item.variant.compare_at_price and item.variant.compare_at_price > item.variant.price -%}
+          {%- assign tapi_line_cs = item.variant.compare_at_price | minus: item.variant.price | times: item.quantity -%}
+          {%- assign tapi_compare_savings = tapi_compare_savings | plus: tapi_line_cs -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- assign tapi_total_savings = tapi_compare_savings | plus: cart.total_discount -%}
+      <div class="tapi-cart-stickybar" id="tapi-cart-stickybar">
+        <form action="{{ routes.cart_url }}" method="post" class="tapi-cart-stickybar__form">
+          {%- if tapi_total_savings > 0 -%}
+            <span class="tapi-cart-stickybar__badge">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true" focusable="false"><path d="M8.6 1.6H13a1.4 1.4 0 011.4 1.4v4.4a1.4 1.4 0 01-.4 1L7.6 14a1.4 1.4 0 01-2 0L1.6 10a1.4 1.4 0 010-2l6.4-6.4a1.4 1.4 0 01.6-.4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="10.4" cy="5.6" r="1" fill="currentColor"/></svg>
+              You save {{ tapi_total_savings | money }}
+            </span>
+          {%- endif -%}
+          <button type="submit" name="checkout" class="tapi-cart-stickybar__btn">
+            <span class="tapi-cart-stickybar__cta">
+              {{ 'sections.cart.checkout' | t }}
+              <svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><path d="M4 10h11M10.5 5 15.5 10l-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="tapi-cart-stickybar__amt tnum">{{ cart.total_price | money }}</span>
+          </button>
+        </form>
+      </div>
+    {%- endif -%}
+
     </div>{%- comment -%} /.tapi-cart-grid {%- endcomment -%}
   </div>
 </cart-items>
@@ -654,6 +694,133 @@
 
   @media (prefers-reduced-motion: reduce) {
     .tapi-ship-meter__fill { transition: none; }
+  }
+
+  /* ===== Mobile sticky checkout bar (premium; mirrors the PDP buy bar) ===== */
+  /* Hidden by default (desktop uses the sticky aside). :empty keeps it hidden when
+     cart.js swaps in an empty cart's contents. */
+  .tapi-cart-stickybar { display: none; }
+  .tapi-cart-stickybar:empty { display: none !important; }
+
+  @media (max-width: 989px) {
+    .tapi-cart-stickybar {
+      display: block;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 80;
+      padding: 1rem 1.6rem;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+      background-color: #f5efe1;
+      background-color: var(--tapi-cream, #f5efe1);
+      isolation: isolate;
+      border-top: 1px solid var(--tapi-hairline-2, rgba(44, 40, 38, 0.12));
+      box-shadow: 0 -10px 30px rgba(44, 40, 38, 0.10);
+      /* Slide-only reveal/retract — NEVER fade opacity, or the bar goes
+         semi-transparent mid-transition and cart text shows through it. The bar
+         stays fully opaque at all times; it is hidden purely by sliding off-screen. */
+      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 0.42s;
+      will-change: transform;
+    }
+    /* Retracts once the real footer checkout button is on screen (tapi-cart-sticky.js).
+       Hidden by sliding down + visibility only — opacity stays 1 so it is always opaque. */
+    .tapi-cart-stickybar.is-hidden {
+      transform: translateY(130%);
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Stack the save tag ABOVE the button, both in normal flow inside the bar's
+       opaque background. The tag never straddles above the bar and is never
+       absolutely positioned over the button, so page content scrolling underneath
+       is fully occluded — no bleed-through, no text overlapping the button. */
+    .tapi-cart-stickybar__form {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.7rem;
+    }
+
+    /* Save tag — a compact pill sitting on its own line above the button. */
+    .tapi-cart-stickybar__badge {
+      align-self: flex-end;
+      max-width: 100%;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.9rem;
+      background: var(--tapi-ivory, #fcfaf4);
+      color: var(--mor-primary, #2E4B3C);
+      border: 1px solid var(--tapi-hairline, #e5ddc8);
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tapi-cart-stickybar__badge svg { flex: 0 0 auto; color: var(--tapi-terracotta, #b7472a); }
+
+    /* Checkout button — full width, deep green, serif amount for a luxe feel. */
+    .tapi-cart-stickybar__btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.2rem;
+      min-height: 5.6rem;
+      margin: 0;
+      padding: 0 1.8rem;
+      border: 0;
+      cursor: pointer;
+      background: var(--mor-primary, #2E4B3C);
+      color: var(--tapi-ivory, #fcfaf4);
+      transition: transform 0.14s ease, background 0.2s ease;
+    }
+    .tapi-cart-stickybar__btn:active { transform: scale(0.99); }
+    .tapi-cart-stickybar__cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .tapi-cart-stickybar__cta svg { flex: 0 0 auto; }
+    .tapi-cart-stickybar__amt {
+      font-family: var(--font-body-family, Inter, sans-serif);
+      font-size: clamp(1.9rem, 5.4vw, 2.15rem);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.005em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    /* Checkout intent owns the bottom edge on the cart: hide the global mobile
+       bottom nav here (mirrors the PDP, where the buy bar replaces it) so there is
+       one clean CTA, not two stacked bars. */
+    .template-cart .tapi-botnav { display: none !important; }
+
+    /* The "Shop with AI" assistant pill (#ads-agent-host, a fixed shadow-DOM widget
+       pinned bottom-centre) sat directly on top of the checkout bar, its text
+       overlapping the button. Hide it on the cart so the checkout CTA is clean — it
+       still shows on every other page. */
+    .template-cart #ads-agent-host { display: none !important; }
+
+    /* Reserve space so the fixed bar never covers the last section (featured rail).
+       Overrides the bottom nav's body padding (the nav is hidden here). */
+    body.template-cart { padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px)) !important; }
+  }
+
+  @media (max-width: 989px) and (prefers-reduced-motion: reduce) {
+    /* No motion: snap in/out via the same off-screen slide (still fully opaque),
+       just with no transition. Never fade opacity. */
+    .tapi-cart-stickybar { transition: none; }
+    .tapi-cart-stickybar__btn:active { transform: none; }
   }
 {% endstylesheet %}
 

@@ -1,0 +1,70 @@
+{%- comment -%}
+  One Watch & Buy tile. Shared by both section sources (auto product_list + manual
+  clip blocks) so the markup and shoppable data-attributes stay identical.
+  Params:
+    vsrc         - mp4 URL string. Used for the inline muted preview and the
+                   full-screen player. Blank + design_mode shows an editor placeholder.
+    poster       - image (tile thumbnail / first frame)
+    product      - product object (optional; drives shop data + caption)
+    shopify_attrs- block.shopify_attributes string (editor block mode only)
+    design_mode  - request.design_mode
+{%- endcomment -%}
+{%- liquid
+  assign spos = 0
+  assign size_found = false
+  if product != blank
+    for opt in product.options_with_values
+      assign onm = opt.name | downcase
+      if onm == 'size'
+        assign spos = opt.position | minus: 1
+        assign size_found = true
+      endif
+    endfor
+  endif
+-%}
+{%- assign vjson = '[]' -%}
+{%- if product != blank -%}
+  {%- capture vjson -%}[{% for v in product.variants %}{% unless forloop.first %},{% endunless %}{"id":{{ v.id }},"size":{% if size_found %}{{ v.options[spos] | json }}{% else %}null{% endif %},"a":{{ v.available }}}{% endfor %}]{%- endcapture -%}
+{%- endif -%}
+<li class="tapi-watchbuy__cell" {{ shopify_attrs }}>
+  <button
+    type="button"
+    class="tapi-watchbuy__tile"
+    {% if vsrc != blank %}data-story-tile{% endif %}
+    data-video="{{ vsrc }}"
+    {% if product != blank %}
+      data-handle="{{ product.handle }}"
+      data-url="{{ product.url }}"
+      data-title="{{ product.title | escape }}"
+      data-price="{{ product.price | money }}"
+      data-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
+      data-has-size="{{ size_found }}"
+      data-variants="{{ vjson | escape }}"
+      data-variant-count="{{ product.variants.size }}"
+    {% endif %}
+    aria-label="Play video{% if product != blank %} for {{ product.title | escape }}{% endif %}"
+  >
+    {%- if poster != blank -%}
+      {{ poster | image_url: width: 640 | image_tag:
+         loading: 'lazy', widths: '320, 480, 640, 860',
+         sizes: '(min-width: 750px) 34vw, 66vw',
+         alt: '', class: 'tapi-watchbuy__poster' }}
+    {%- else -%}
+      <span class="tapi-watchbuy__poster tapi-watchbuy__poster--empty" aria-hidden="true"></span>
+    {%- endif -%}
+    {%- if vsrc != blank -%}
+      <video class="tapi-watchbuy__vid" data-wb-video muted loop playsinline preload="none" aria-hidden="true"></video>
+    {%- endif -%}
+    <span class="tapi-watchbuy__play" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </span>
+    {%- if product != blank -%}
+      <span class="tapi-watchbuy__cap">
+        <span class="tapi-watchbuy__cap-title">{{ product.title }}</span>
+        <span class="tapi-watchbuy__cap-price">{{ product.price | money }}</span>
+      </span>
+    {%- elsif design_mode -%}
+      <span class="tapi-watchbuy__cap"><span class="tapi-watchbuy__cap-title">Add a clip + product</span></span>
+    {%- endif -%}
+  </button>
+</li>

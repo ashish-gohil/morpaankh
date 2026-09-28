@@ -12,6 +12,18 @@
     "tapi_catalog_strip": {
       "type": "tapi-catalog-strip",
       "blocks": {
+        "festive": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "",
+            "link": "shopify://collections/festive",
+            "label": "Festive",
+            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM.jpg",
+            "placeholder_name": "F",
+            "tint": "#b08947"
+          }
+        },
         "coord": {
           "type": "tile",
           "settings": {
@@ -48,30 +60,6 @@
             "tint": "#9d3c23"
           }
         },
-        "short_kurti": {
-          "type": "tile",
-          "settings": {
-            "enable": true,
-            "collection": "short-kurti",
-            "link": "shopify://collections/short-kurti",
-            "label": "Short Kurti",
-            "image": "shopify://shop_images/photo_6219828727785394378_x.jpg",
-            "placeholder_name": "Short Kurti",
-            "tint": "#8a6d3b"
-          }
-        },
-        "festive": {
-          "type": "tile",
-          "settings": {
-            "enable": true,
-            "collection": "",
-            "link": "shopify://collections/festive",
-            "label": "Festive",
-            "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.13_AM.jpg",
-            "placeholder_name": "F",
-            "tint": "#b08947"
-          }
-        },
         "newin": {
           "type": "tile",
           "settings": {
@@ -82,6 +70,18 @@
             "image": "shopify://shop_images/WhatsApp_Image_2026-05-30_at_10.01.12_AM_1.jpg",
             "placeholder_name": "N",
             "tint": "#3a3633"
+          }
+        },
+        "short_kurti": {
+          "type": "tile",
+          "settings": {
+            "enable": true,
+            "collection": "short-kurti",
+            "link": "shopify://collections/short-kurti",
+            "label": "Short Kurti",
+            "image": "shopify://shop_images/photo_6219828727785394378_x.jpg",
+            "placeholder_name": "Short Kurti",
+            "tint": "#8a6d3b"
           }
         },
         "tunic": {
@@ -97,12 +97,12 @@
         }
       },
       "block_order": [
+        "festive",
         "coord",
         "three_piece",
         "one_piece",
-        "short_kurti",
-        "festive",
         "newin",
+        "short_kurti",
         "tunic"
       ],
       "settings": {
@@ -116,7 +116,9 @@
           "type": "slide",
           "settings": {
             "image": "shopify://shop_images/Keep_this_exact_garment_unchanged_202606111114_2016a7d9-fbf6-4d7d-b8c6-2d4a31234129.jpg",
-            "image_mobile": "shopify://shop_images/WhatsApp_Image_2026-08-10_at_3.19.37_PM.jpg",
+            "link": "",
+            "image_mobile": "shopify://shop_images/Gemini_Generated_Image_u45mgou45mgou45m_1.jpg",
+            "link_mobile": "shopify://products/anaar",
             "caption": "Saanjh · Kurta sets",
             "mono": "Saanjh",
             "tint": "#b7472a"
@@ -126,7 +128,9 @@
           "type": "slide",
           "settings": {
             "image": "shopify://shop_images/Gemini_Generated_Image_2hiast2hiast2hia.png",
+            "link": "",
             "image_mobile": "shopify://shop_images/WhatsAppImage2026-06-07at3.57.42PM.jpg",
+            "link_mobile": "shopify://collections/all",
             "caption": "Amba · Co-ord sets",
             "mono": "Amba",
             "tint": "#7a8761"
@@ -136,6 +140,8 @@
           "type": "slide",
           "settings": {
             "image": "shopify://shop_images/Gemini_Generated_Image_3moe4g3moe4g3moe.png",
+            "link": "",
+            "link_mobile": "",
             "video_mobile": "shopify://files/videos/WhatsApp Video 2026-06-07 at 3.22.19 PM.mp4",
             "caption": "Mehfil · Festive edit",
             "mono": "Mehfil",
@@ -146,7 +152,9 @@
           "type": "slide",
           "settings": {
             "image": "shopify://shop_images/Gemini_Generated_Image_62omib62omib62om.png",
+            "link": "",
             "image_mobile": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201119.jpg",
+            "link_mobile": "",
             "caption": "Dhoop · New arrivals",
             "mono": "Dhoop",
             "tint": "#9d3c23"
@@ -156,7 +164,9 @@
           "type": "slide",
           "settings": {
             "image": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201052.jpg",
+            "link": "",
             "image_mobile": "shopify://shop_images/Hyperphotorealistic_editorial_fashion_hero_for_202606201052.jpg",
+            "link_mobile": "",
             "caption": "Haldi · Exactly as pictured",
             "mono": "Haldi",
             "tint": "#b08947"
@@ -273,15 +283,6 @@
         "intro": ""
       }
     },
-    "story": {
-      "type": "tapi-editorial-break",
-      "settings": {
-        "quote": "Where stories bloom.",
-        "body": "Morpaankh comes out of Surat, from a family that has spent generations in the textile trade. Every cotton kurta set, co-ord and festive piece is chosen against one standard, honest fabric, a fit made for real bodies, and what you see in the photo is exactly what arrives at your door.",
-        "cta_text": "Our story",
-        "link": "shopify://pages/about"
-      }
-    },
     "tapi_featured": {
       "type": "tapi-featured-products",
       "settings": {
@@ -292,12 +293,32 @@
         "view_all_text": "View all products"
       }
     },
-    "recently_viewed": {
-      "type": "tapi-recently-viewed",
+    "tapi_watch_buy": {
+      "type": "tapi-watch-buy",
       "settings": {
-        "heading": "Recently viewed",
-        "products_to_show": 8,
-        "color_scheme": "background-1"
+        "products": [
+          "bagh-bahar",
+          "anaar",
+          "haldi",
+          "morani",
+          "toran",
+          "rangoli",
+          "chandni",
+          "sarson",
+          "ghera"
+        ],
+        "eyebrow": "In motion",
+        "heading": "Watch and buy",
+        "subtitle": "See the drape, the fall, the real colour. Tap to shop the look."
+      }
+    },
+    "story": {
+      "type": "tapi-editorial-break",
+      "settings": {
+        "quote": "Where stories bloom.",
+        "body": "Morpaankh comes out of Surat, from a family that has spent generations in the textile trade. Every cotton kurta set, co-ord and festive piece is chosen against one standard, honest fabric, a fit made for real bodies, and what you see in the photo is exactly what arrives at your door.",
+        "cta_text": "Our story",
+        "link": "shopify://pages/about"
       }
     },
     "studio_strip": {
@@ -394,33 +415,13 @@
         "heading": "Worn and loved"
       }
     },
-    "tapi_watch_buy": {
-      "type": "tapi-watch-buy",
-      "blocks": {
-        "clip_1": {
-          "type": "clip",
-          "settings": {}
-        },
-        "clip_2": {
-          "type": "clip",
-          "settings": {}
-        },
-        "clip_3": {
-          "type": "clip",
-          "settings": {}
-        },
-        "clip_4": {
-          "type": "clip",
-          "settings": {}
-        }
-      },
-      "block_order": [
-        "clip_1",
-        "clip_2",
-        "clip_3",
-        "clip_4"
-      ],
-      "settings": {}
+    "recently_viewed": {
+      "type": "tapi-recently-viewed",
+      "settings": {
+        "heading": "Recently viewed",
+        "products_to_show": 8,
+        "color_scheme": "background-1"
+      }
     }
   },
   "order": [

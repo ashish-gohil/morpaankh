@@ -945,6 +945,65 @@
     });
   }
 
+  // Fully close the mobile menu drawer. The full-screen dim backdrop is
+  // `.header__icon--menu[aria-expanded='true']::before` (base.css) — tied to the
+  // summary's aria-expanded, NOT to [open]. Dawn's closeMenuDrawer only clears
+  // aria-expanded on a KEYBOARD close, so a click-close leaves aria-expanded=true:
+  // the backdrop stays visible + clickable, and since the details is now closed a
+  // tap on it re-opens the drawer. So we clear aria-expanded ourselves (kills the
+  // backdrop) and force the rest of the teardown independent of Dawn's rAF.
+  function forceCloseDrawer(drawer) {
+    if (!drawer) return;
+    var details = drawer.querySelector('details');
+    var summary = drawer.querySelector('summary');
+    if (typeof drawer.closeMenuDrawer === 'function') {
+      // elementToFocus is required: HeaderDrawer.closeMenuDrawer no-ops without it.
+      try { drawer.closeMenuDrawer(new Event('click'), summary); } catch (_) {}
+    }
+    if (summary) summary.setAttribute('aria-expanded', 'false');  // removes the backdrop ::before
+    if (details) {
+      details.classList.remove('menu-opening');
+      details.querySelectorAll('.menu-opening').forEach(function (el) { el.classList.remove('menu-opening'); });
+      details.querySelectorAll('details[open]').forEach(function (d) { d.removeAttribute('open'); });
+      details.removeAttribute('open');
+    }
+    document.body.className = document.body.className.replace(/\boverflow-hidden-[\w-]+\b/g, '').replace(/\s{2,}/g, ' ').trim();
+    var sh = document.querySelector('.section-header');
+    if (sh) sh.classList.remove('menu-open');
+  }
+
+  // Same-page anchor links in the mobile menu drawer (e.g. "/#watch-buy"): close
+  // the drawer so its scroll-lock + dim backdrop go away and it stops covering
+  // the page, then smooth-scroll to the target below the sticky header. Matching
+  // is by PATH only (query strings like ?fbclid / ?utm are ignored, so ad and
+  // campaign traffic still gets the close). Cross-page links fall through to
+  // normal navigation. Delegated on document so one listener covers header
+  // re-renders in the editor.
+  function setupDrawerAnchorLinks() {
+    if (document.__tapiDrawerAnchors) return; document.__tapiDrawerAnchors = true;
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest ? e.target.closest('#menu-drawer a[href]') : null;
+      if (!link) return;
+      var url;
+      try { url = new URL(link.href, location.href); } catch (_) { return; }
+      // A hash link pointing at an element on THIS page (ignore the query string).
+      if (!url.hash || url.pathname !== location.pathname) return;
+      var target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      if (!target) return;
+      e.preventDefault();
+      forceCloseDrawer(link.closest('header-drawer, menu-drawer'));
+      // Wait out the drawer's close animation before scrolling so the motion is
+      // visible and nothing overlays the target.
+      setTimeout(function () {
+        try { history.replaceState(null, '', url.hash); } catch (_) {}
+        var sticky = document.querySelector('sticky-header');
+        var offset = sticky ? sticky.getBoundingClientRect().height : 0;
+        var y = target.getBoundingClientRect().top + window.pageYOffset - offset - 8;
+        window.scrollTo({ top: y < 0 ? 0 : y, behavior: reduce ? 'auto' : 'smooth' });
+      }, reduce ? 0 : 420);
+    });
+  }
+
   function boot() {
     setupReveal(document);
     setupCountUp(document);
@@ -954,6 +1013,7 @@
     setupCustomSelect(document);
     setupSelectOutsideClose();
     setupTapiSearch(document);
+    setupDrawerAnchorLinks();
   }
 
   if (document.readyState === 'loading') {
