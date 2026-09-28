@@ -4,7 +4,7 @@ vi.mock('../clients/shopify.mjs', () => ({ shopify: { graphql: vi.fn() } }));
 
 import { shopify } from '../clients/shopify.mjs';
 import { config } from '../config.mjs';
-import { handler, normalizePhone, normalizeEmail, cleanName } from './subscribe.mjs';
+import { handler, normalizePhone, normalizeEmail, cleanName, splitName } from './subscribe.mjs';
 
 const ORIGIN = 'https://www.morpaankh.in';
 let ipSeq = 0;
@@ -43,6 +43,12 @@ describe('normalizers', () => {
   it('strips control characters from the name', () => {
     expect(cleanName(' As\u0000ha \n')).toBe('Asha');
   });
+  it('splits a typed name into the two fields Shopify shows', () => {
+    expect(splitName('Asha')).toEqual({ firstName: 'Asha' });
+    expect(splitName('Asha  Verma')).toEqual({ firstName: 'Asha', lastName: 'Verma' });
+    expect(splitName('Asha Rani Verma')).toEqual({ firstName: 'Asha', lastName: 'Rani Verma' });
+    expect(splitName('  ')).toBeNull();
+  });
 });
 
 describe('guards', () => {
@@ -69,9 +75,12 @@ describe('guards', () => {
     expect(shopify.graphql).not.toHaveBeenCalled();
   });
 
-  it('rejects a bad email and a bad phone before touching Shopify', async () => {
-    expect(body(await post({ ...GOOD, email: 'nope' })).error).toBe('invalid_email');
+  it('rejects a missing name, a bad phone and a typo-ed email before touching Shopify', async () => {
+    expect(body(await post({ ...GOOD, name: '' })).error).toBe('invalid_name');
+    expect(body(await post({ ...GOOD, name: 'A' })).error).toBe('invalid_name');
     expect(body(await post({ ...GOOD, phone: '12345' })).error).toBe('invalid_phone');
+    // Optional does not mean anything goes: a half typed address is still 422.
+    expect(body(await post({ ...GOOD, email: 'nope' })).error).toBe('invalid_email');
     expect(shopify.graphql).not.toHaveBeenCalled();
   });
 
@@ -92,7 +101,10 @@ describe('saving', () => {
   /* Subscribed by default so the update tests need no consent mock; the two
    * consent tests below override marketingState explicitly. */
   const found = (c) => ({
-    customerByIdentifier: { defaultEmailAddress: { marketingState: 'SUBSCRIBED' }, ...c },
+    customerByIdentifier: {
+      defaultEmailAddress: { emailAddress: GOOD.email, marketingState: 'SUBSCRIBED' },
+      ...c,
+    },
   });
   const updated = { customerUpdate: { userErrors: [], customer: { id: 'x' } } };
 
@@ -201,6 +213,60 @@ describe('saving', () => {
       .mockResolvedValueOnce(updated);
     await post(GOOD);
     expect(shopify.graphql).toHaveBeenCalledTimes(2);
+  });
+
+  /* The popup makes the email optional: WhatsApp is the channel this list is
+   * for. Shopify accepts a customer with "a name, phone number or email
+   * address", so the name and phone are enough to create one. */
+  it('creates a customer with no email at all, and asks for no consent', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce({ customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/20', tags: [], defaultPhoneNumber: { phoneNumber: GOOD.phone } } } });
+
+    const r = await post({ phone: GOOD.phone, name: 'Asha Verma' });
+    expect(body(r)).toEqual({ ok: true, status: 'created' });
+
+    // One lookup, not two: with no email there is nothing to look up by.
+    expect(shopify.graphql).toHaveBeenCalledTimes(2);
+    expect(shopify.graphql.mock.calls[0][1].id.phoneNumber).toBe(GOOD.phone);
+
+    const input = shopify.graphql.mock.calls[1][1].input;
+    expect(input.phone).toBe(GOOD.phone);
+    expect(input.firstName).toBe('Asha');
+    expect(input.lastName).toBe('Verma');
+    expect(input.tags).toEqual(['popup-subscriber', 'whatsapp-optin']);
+    expect(input.email).toBeUndefined();
+    expect(input.emailMarketingConsent).toBeUndefined();
+  });
+
+  it('adds an email to a record that has none, and then asks for consent', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/21', tags: [], defaultEmailAddress: null, defaultPhoneNumber: { phoneNumber: GOOD.phone } }))
+      .mockResolvedValueOnce(updated)
+      .mockResolvedValueOnce({ customerEmailMarketingConsentUpdate: { userErrors: [], customer: { id: 'x' } } });
+
+    expect(body(await post(GOOD))).toEqual({ ok: true, status: 'already' });
+    expect(shopify.graphql.mock.calls[1][1].input.email).toBe(GOOD.email);
+    expect(shopify.graphql.mock.calls[2][0]).toContain('customerEmailMarketingConsentUpdate');
+  });
+
+  it('never overwrites an address already on file', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(none())
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/22', tags: [], defaultEmailAddress: { emailAddress: 'old@example.com', marketingState: 'SUBSCRIBED' }, defaultPhoneNumber: { phoneNumber: GOOD.phone } }))
+      .mockResolvedValueOnce(updated);
+
+    await post(GOOD);
+    expect(shopify.graphql.mock.calls[2][1].input.email).toBeUndefined();
+  });
+
+  it('skips consent entirely for a signup with no email on either side', async () => {
+    shopify.graphql
+      .mockResolvedValueOnce(found({ id: 'gid://shopify/Customer/23', tags: [], defaultEmailAddress: null, defaultPhoneNumber: { phoneNumber: GOOD.phone } }))
+      .mockResolvedValueOnce(updated);
+
+    expect(body(await post({ phone: GOOD.phone, name: 'Asha' }))).toEqual({ ok: true, status: 'already' });
+    expect(shopify.graphql).toHaveBeenCalledTimes(2); // lookup + update, no consent
   });
 
   it('reports a Shopify failure as 502 without leaking the reason', async () => {

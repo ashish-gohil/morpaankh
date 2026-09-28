@@ -8,6 +8,12 @@
  * and the popup asks for a WhatsApp number as a REQUIRED field. So the save
  * goes through the Admin API instead.
  *
+ * Required: name and phone. Email is OPTIONAL, because WhatsApp is the channel
+ * this list exists for. Shopify accepts a customer with "a name, phone number
+ * or email address", so a create always has enough to go on. Email marketing
+ * consent is only meaningful when there is an address, so both consent calls
+ * are skipped for a signup without one.
+ *
  * This is the one public, unsigned route in the service. Every other ingest
  * verifies a provider HMAC on the raw body; a browser cannot hold a secret, so
  * this route's defences are its own: an origin allowlist, a honeypot, a per-IP
@@ -74,8 +80,20 @@ export function normalizePhone(raw) {
 export function cleanName(raw) {
   return String(raw || '')
     .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60);
+}
+
+/** One typed name into Shopify's two fields. First word is the given name and
+ *  the remainder the family name, which is the convention the admin shows and
+ *  the order forms already use. A single word stays a first name. */
+export function splitName(raw) {
+  const clean = cleanName(raw);
+  if (!clean) return null;
+  const i = clean.indexOf(' ');
+  if (i === -1) return { firstName: clean };
+  return { firstName: clean.slice(0, i), lastName: clean.slice(i + 1) };
 }
 
 /* An EXACT lookup, deliberately not customers(query:). The customer search
@@ -92,11 +110,14 @@ const BY_IDENTIFIER = `query FindSubscriber($id: CustomerIdentifierInput!) {
   }
 }`;
 
-/** The email is the identity here, so it is checked first; the phone catches
- *  someone signing up again under a new address. */
+/** Email first when there is one, because it is the identifier most of the
+ *  store's other records are keyed on; the phone catches a signup under a new
+ *  address, and is the only lookup when no email was given. */
 async function findExisting({ email, phone }) {
-  const byEmail = await shopify.graphql(BY_IDENTIFIER, { id: { emailAddress: email } }, { idempotent: true });
-  if (byEmail && byEmail.customerByIdentifier) return byEmail.customerByIdentifier;
+  if (email) {
+    const byEmail = await shopify.graphql(BY_IDENTIFIER, { id: { emailAddress: email } }, { idempotent: true });
+    if (byEmail && byEmail.customerByIdentifier) return byEmail.customerByIdentifier;
+  }
   const byPhone = await shopify.graphql(BY_IDENTIFIER, { id: { phoneNumber: phone } }, { idempotent: true });
   return (byPhone && byPhone.customerByIdentifier) || null;
 }
@@ -146,8 +167,13 @@ export async function saveSubscriber({ email, phone, name }) {
   }
 
   if (!existing) {
-    const input = { email, phone, tags: SUBSCRIBER_TAGS, emailMarketingConsent: consent() };
-    if (name) input.firstName = name;
+    const input = { phone, tags: SUBSCRIBER_TAGS, ...(splitName(name) || {}) };
+    /* Consent rides along on the create. It is rejected on customerUpdate but
+     * accepted here, which is why only the update path needs CONSENT. */
+    if (email) {
+      input.email = email;
+      input.emailMarketingConsent = consent();
+    }
     const d = await shopify.graphql(CREATE, { input });
     const errs = d?.customerCreate?.userErrors || [];
     if (errs.length) {
@@ -157,7 +183,7 @@ export async function saveSubscriber({ email, phone, name }) {
        * the offending field would drop it silently, so re-read and update. */
       if (errs.some((e) => /taken|in use|already/i.test(e.message))) {
         const owner = await findExisting({ email, phone });
-        if (owner) return updateSubscriber(owner, { phone, name });
+        if (owner) return updateSubscriber(owner, { email, phone, name });
       }
       throw new Error(`customerCreate: ${JSON.stringify(errs)}`);
     }
@@ -169,11 +195,11 @@ export async function saveSubscriber({ email, phone, name }) {
     return { status: 'created' };
   }
 
-  await updateSubscriber(existing, { phone, name });
+  await updateSubscriber(existing, { email, phone, name });
   return { status: 'already' };
 }
 
-async function updateSubscriber(existing, { phone, name }) {
+async function updateSubscriber(existing, { email, phone, name }) {
   const tags = Array.from(new Set([...(existing.tags || []), ...SUBSCRIBER_TAGS]));
   const input = { id: existing.id, tags };
 
@@ -192,15 +218,28 @@ async function updateSubscriber(existing, { phone, name }) {
     });
     metric('SubscribePhoneMismatch', 1);
   }
-  if (name) input.firstName = name;
+  /* Same rule as the phone: fill a blank, never overwrite what is on file.
+   * A mismatch here is only a log, not a tag, because the email is the
+   * optional field and a second address is not the conflict a phone one is. */
+  const emailOnFile = existing.defaultEmailAddress?.emailAddress || '';
+  if (email && !emailOnFile) {
+    input.email = email;
+  } else if (email && emailOnFile !== email) {
+    log.warn('subscribe email differs from the address on file', { customerId: existing.id });
+    metric('SubscribeEmailMismatch', 1);
+  }
+
+  Object.assign(input, splitName(name) || {});
 
   const d = await shopify.graphql(UPDATE, { input });
   const errs = d?.customerUpdate?.userErrors || [];
   if (errs.length) throw new Error(`customerUpdate: ${JSON.stringify(errs)}`);
 
-  /* Skipped when they are already subscribed: nothing to change, and it avoids
-   * re-stamping consentUpdatedAt over the date they actually opted in. */
-  if (existing.defaultEmailAddress?.marketingState !== 'SUBSCRIBED') {
+  /* Skipped when there is no address to consent with, and when they are already
+   * subscribed: nothing to change, and it avoids re-stamping consentUpdatedAt
+   * over the date they actually opted in. */
+  const hasEmail = Boolean(emailOnFile || input.email);
+  if (hasEmail && existing.defaultEmailAddress?.marketingState !== 'SUBSCRIBED') {
     const c = await shopify.graphql(CONSENT, {
       input: { customerId: existing.id, emailMarketingConsent: consent() },
     });
@@ -266,11 +305,15 @@ export const handler = async (event) => {
     return json(200, { ok: true, status: 'created' }, cors);
   }
 
-  const email = normalizeEmail(body.email);
-  if (!email) return json(422, { ok: false, error: 'invalid_email' }, cors);
+  const name = cleanName(body.name);
+  if (name.length < 2) return json(422, { ok: false, error: 'invalid_name' }, cors);
   const phone = normalizePhone(body.phone);
   if (!phone) return json(422, { ok: false, error: 'invalid_phone' }, cors);
-  const name = cleanName(body.name);
+  /* Optional, but not forgiving: a typo is rejected rather than saved as an
+   * address that will never deliver. Blank is the only way to skip it. */
+  const typedEmail = String(body.email || '').trim();
+  const email = typedEmail ? normalizeEmail(typedEmail) : null;
+  if (typedEmail && !email) return json(422, { ok: false, error: 'invalid_email' }, cors);
 
   const ip = event?.requestContext?.http?.sourceIp || '';
   if (!(await withinRate(ip))) {
@@ -280,7 +323,7 @@ export const handler = async (event) => {
 
   try {
     const { status } = await saveSubscriber({ email, phone, name });
-    log.info('subscribe saved', { status, phone: maskPhone(phone) });
+    log.info('subscribe saved', { status, email: Boolean(email), phone: maskPhone(phone) });
     metric('SubscribeSaved', 1, { status });
     return json(200, { ok: true, status }, cors);
   } catch (e) {
