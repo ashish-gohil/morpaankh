@@ -1,0 +1,493 @@
+/* tapi-pdp.css - the product page's own styles.
+ *
+ * These lived in a stylesheet block inside main-product-tapi.liquid. Shopify
+ * concatenates every section's stylesheet block into one compiled_assets/
+ * styles.css and serves it render-blocking on EVERY page, whether or not the
+ * section renders there, so 30KB of product page CSS sat in front of the first
+ * paint of the homepage, the collections and the cart.
+ *
+ * Moved out so it loads only where it is used. layout/theme.liquid links it for
+ * request.page_type == 'product', deliberately just BEFORE base.css, which is
+ * the cascade position it held inside the bundle: 25 of these selectors are
+ * also styled in theme-variables.css and 2 in tapi-ux.css, and those still win
+ * exactly as before. No other section's stylesheet touches any of these 201
+ * selectors, so nothing re-orders.
+ */
+.tapi-pdp { padding-top: 2.4rem; padding-bottom: 4.8rem; }
+  .tapi-pdp__breadcrumb { font-size: var(--fs-xs); color: var(--mor-text-muted); margin-bottom: 2.4rem; }
+  .tapi-pdp__breadcrumb a { color: var(--mor-text-muted); text-decoration: none; transition: color 200ms; }
+  .tapi-pdp__breadcrumb a:hover { color: var(--tapi-terracotta); }
+  .tapi-pdp__breadcrumb span:last-child { color: var(--tapi-charcoal); }
+
+  .tapi-pdp__breadcrumb.page-width,
+  .tapi-pdp__layout.page-width {
+    max-width: var(--tapi-max, 144rem) !important;
+    margin-inline: auto;
+    padding-inline: var(--tapi-gutter, 16px) !important;
+    box-sizing: border-box;
+  }
+  .tapi-pdp__layout { display: grid; grid-template-columns: 80px 1fr 1fr; gap: clamp(2.4rem, 4vw, 5.6rem); align-items: start; }
+  .tapi-pdp__gallery { display: contents; }
+  .tapi-pdp__gallery-thumbs {
+    display: flex; flex-direction: column; gap: 0.8rem; position: sticky; top: 130px;
+    max-height: calc(100vh - 150px); overflow-y: auto; scrollbar-width: none; padding-right: 2px;
+  }
+  .tapi-pdp__gallery-thumbs::-webkit-scrollbar { display: none; }
+  .tapi-pdp__thumb { width: 72px; height: 90px; border: 1px solid var(--tapi-hairline-2); padding: 2px; background: transparent; cursor: pointer; transition: border-color 200ms; overflow: hidden; }
+  .tapi-pdp__thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .tapi-pdp__thumb.is-active { border-color: var(--tapi-charcoal); }
+  .tapi-pdp__gallery-main { position: sticky; top: 130px; align-self: start; min-height: 600px; }
+  .tapi-pdp__gallery-stage { position: relative; }
+  /* Per-colour grouping: media not assigned to the selected colour is removed from
+     every surface (main slide, thumb, dot, full-screen slide + thumb) by tapi-motion.js. */
+  .tapi-pdp__main-img.is-filtered-out,
+  .tapi-pdp__thumb.is-filtered-out,
+  .tapi-pdp__dot.is-filtered-out,
+  .tapi-lightbox__slide.is-filtered-out,
+  .tapi-lightbox__thumb.is-filtered-out { display: none !important; }
+  .tapi-pdp__main-img { display: none; position: relative; overflow: hidden; }
+  .tapi-pdp__main-img.is-active { display: block; animation: tapi-rise 480ms cubic-bezier(0.16,1,0.3,1); }
+  .tapi-pdp__main-img img {
+    width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover;
+    transition: transform 1200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms ease;
+    will-change: transform;
+  }
+
+  /* ---- Image skeleton: an on-brand cream shimmer fills each gallery slot until
+     its photo paints, then the image fades in over it. Progressive enhancement —
+     the .is-loading / .is-loaded classes are added by the section script, so with
+     JS off the images just render normally. Space is already reserved (aspect-ratio
+     on the main image, fixed thumb box, min-height on the stage) so there's no CLS. */
+  .tapi-pdp__main-img.is-loading,
+  .tapi-pdp__thumb.is-loading {
+    background-color: var(--mor-cream-2);
+    background-image: linear-gradient(100deg,
+      var(--mor-cream-2) 28%, rgba(255, 255, 255, 0.6) 50%, var(--mor-cream-2) 72%);
+    background-size: 200% 100%;
+    animation: tapi-shimmer 1.4s ease-in-out infinite;
+  }
+  .tapi-pdp__main-img.is-loading img,
+  .tapi-pdp__thumb.is-loading img { opacity: 0; }
+  .tapi-pdp__main-img.is-loaded img,
+  .tapi-pdp__thumb.is-loaded img { opacity: 1; }
+  .tapi-pdp__thumb img { transition: opacity 400ms ease; }
+  @keyframes tapi-shimmer {
+    0%   { background-position: 150% 0; }
+    100% { background-position: -150% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-pdp__main-img.is-loading,
+    .tapi-pdp__thumb.is-loading { animation: none; background-image: none; }
+    .tapi-pdp__thumb img { transition: none; }
+  }
+  @media (hover: hover) {
+    .tapi-pdp__main-img:hover img { transform: scale(1.04); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-pdp__main-img img { transition: none; }
+    .tapi-pdp__main-img:hover img { transform: none; }
+  }
+
+  /* Prev / next navigation overlay — sits on the main image, mid-height,
+     subtle by default and steps forward on hover. Hidden until the user
+     hovers (or always on touch). */
+  .tapi-pdp__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(248, 244, 237, 0.34);
+    border: 0;
+    color: var(--tapi-charcoal);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
+                background 200ms,
+                transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: 2;
+    backdrop-filter: saturate(1.08) blur(10px);
+    -webkit-backdrop-filter: saturate(1.08) blur(10px);
+  }
+  .tapi-pdp__nav:hover { background: var(--tapi-cream); }
+  .tapi-pdp__nav:active { transform: translateY(-50%) scale(0.94); }
+  .tapi-pdp__nav--prev { left: 1.2rem; }
+  .tapi-pdp__nav--next { right: 1.2rem; }
+  .tapi-pdp__gallery-stage:hover .tapi-pdp__nav,
+  .tapi-pdp__nav:focus-visible { opacity: 1; }
+  /* Touch devices have no hover — show the nav at low opacity always */
+  @media (hover: none) {
+    .tapi-pdp__nav { opacity: 0.72; }
+  }
+
+  /* Dot indicators — visible at all times, centered under the main image */
+  .tapi-pdp__dots {
+    display: flex; justify-content: center; gap: 8px;
+    margin-top: 1.6rem;
+  }
+  .tapi-pdp__dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--tapi-hairline-2);
+    border: none;
+    cursor: pointer;
+    transition: background 200ms, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 0;
+  }
+  .tapi-pdp__dot:hover { background: var(--tapi-warm-grey); }
+  .tapi-pdp__dot.is-active { background: var(--tapi-charcoal); transform: scale(1.25); }
+  @keyframes tapi-rise { from { opacity: 0; transform: translate3d(0,12px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+
+  .tapi-pdp__info { display: flex; flex-direction: column; gap: 2.4rem; min-width: 0; }
+  .tapi-pdp__title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.2rem; }
+  .tapi-pdp__tags { display: flex; gap: 0.8rem; flex: 0 0 auto; margin-top: 0.6rem; }
+  .tapi-pdp__title { font-family: var(--font-heading-family); font-size: clamp(2.8rem, 4.4vw, 4.4rem); line-height: 1.08; letter-spacing: -0.012em; font-weight: 500; margin: 0; flex: 0 1 auto; min-width: 0; }
+  .tapi-pdp__subtitle { color: var(--tapi-warm-grey); margin: -1.8rem 0 0; font-size: clamp(1.4rem, 1.4vw, 1.7rem); line-height: 1.6; }
+
+  .tapi-pdp__rating { display: flex; align-items: center; gap: 1.2rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--tapi-hairline); }
+  /* Stars use the shared fractional-fill .tapi-stars component (pdp-trust.css) —
+     same gold glyphs, size and true half-star support as the old reviews band. */
+  .tapi-pdp__rating .tapi-stars { font-size: var(--fs-lg); }
+  .tapi-pdp__rating-num { font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__divider { width: 1px; height: 16px; background: var(--tapi-hairline-2); }
+  .tapi-pdp__rating-count { font-size: var(--fs-sm); color: var(--tapi-warm-grey); }
+
+  .tapi-pdp__price { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
+  .tapi-pdp__price-now { font-family: var(--font-body-family); font-size: 3.2rem; font-weight: 600; letter-spacing: 0.01em; color: var(--mor-charcoal); font-variant-numeric: tabular-nums; }
+  .tapi-pdp__price-was { font-size: var(--fs-base); color: var(--mor-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+  .tapi-pdp__price-note { font-size: var(--fs-xs); color: var(--mor-text-muted); margin: -1.8rem 0 0; }
+
+  /* Payment perks line under the buy button — prepaid/COD nudge. Reads as a
+     calm trust cue (not a loud promo) so it feels premium. Gold shield = the
+     "save online" reassurance. */
+
+  /* Inside the buy form now, directly under the pickers, so it carries the
+     column's 24px beat itself: the form is a plain block with no gap. */
+  .tapi-pdp__quickactions { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-lg); }
+
+  .tapi-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; border-radius: var(--radius-pill); }
+  .tapi-tag--charcoal   { background: var(--tapi-charcoal); color: var(--tapi-cream); }
+  .tapi-tag--sage       { background: var(--tapi-sage-wash); color: var(--tapi-sage-deep); }
+  .tapi-tag--terracotta { background: var(--tapi-terracotta-wash); color: var(--tapi-terracotta-deep); }
+
+  .tapi-pdp__group { display: flex; flex-direction: column; gap: 1.2rem; }
+  .tapi-pdp__group-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .tapi-pdp__group-meta { font-size: var(--fs-xs); color: var(--mor-text-muted); }
+  .tapi-pdp__guide-link { font-size: var(--fs-xs); color: var(--tapi-charcoal); position: relative; padding-bottom: 2px; text-decoration: none; transition: color 200ms; }
+  .tapi-pdp__guide-link::after { content:""; position: absolute; left:0; bottom:0; height:1px; width:100%; background: currentColor; transform: scaleX(0); transform-origin: right; transition: transform 360ms cubic-bezier(0.22,1,0.36,1); }
+  .tapi-pdp__guide-link:hover::after { transform: scaleX(1); transform-origin: left; }
+
+  /* Swatches are dots only — equal-sized circles with consistent spacing,
+     regardless of colour-name length. The selected colour's NAME is shown once,
+     in the group head (data-color-label), so the row stays clean (luxury PDP
+     pattern: COS / Aritzia). aria-label + title carry the name per swatch. */
+  .tapi-pdp__colors { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: center; }
+  .tapi-pdp__color { display: inline-flex; cursor: pointer; background: transparent; border: 0; padding: 0; line-height: 0; border-radius: 50%; }
+  .tapi-pdp__color:focus-visible { outline: 2px solid var(--mor-accent); outline-offset: 3px; }
+  .tapi-pdp__color-dot {
+    width: 34px; height: 34px; border-radius: 50%; display: block;
+    border: 1px solid var(--tapi-hairline-2);
+    transition: box-shadow 240ms, border-color 240ms, transform 240ms cubic-bezier(0.22,1,0.36,1);
+  }
+  /* Active swatch — a crisp ring around the dot (cream gap + charcoal ring). */
+  .tapi-pdp__color.is-active .tapi-pdp__color-dot {
+    border-color: var(--tapi-charcoal);
+    box-shadow: 0 0 0 2px var(--tapi-cream), 0 0 0 3.5px var(--tapi-charcoal);
+  }
+  .tapi-pdp__color:hover .tapi-pdp__color-dot { transform: scale(1.08); }
+  /* Colour unavailable in the chosen size — dimmed with a hairline strike on
+     the dot. Still clickable (selecting it re-paints sizes for that colour). */
+  .tapi-pdp__color.is-out { opacity: 0.42; }
+  .tapi-pdp__color.is-out .tapi-pdp__color-dot { position: relative; }
+  .tapi-pdp__color.is-out .tapi-pdp__color-dot::after {
+    content: ""; position: absolute; inset: 0; margin: auto;
+    width: 132%; height: 1px; left: -16%;
+    background: var(--tapi-charcoal); transform: rotate(-45deg); opacity: 0.5;
+  }
+
+  .tapi-pdp__sizes { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  .tapi-pdp__size {
+    position: relative; height: 48px; min-width: 48px; padding: 0 1.4rem;
+    background: transparent; border: 1px solid var(--tapi-hairline-2); color: var(--tapi-charcoal);
+    font-family: inherit; font-size: var(--fs-sm); font-weight: 500; letter-spacing: 0.04em;
+    cursor: pointer; transition: border-color 200ms, background 200ms, color 200ms;
+  }
+  .tapi-pdp__size:hover { border-color: var(--tapi-charcoal); }
+  .tapi-pdp__size.is-active { background: var(--tapi-charcoal); color: var(--tapi-cream); border-color: var(--tapi-charcoal); }
+  .tapi-pdp__size.is-out { color: var(--mor-text-muted); cursor: not-allowed; }
+  .tapi-pdp__size.is-out::after { content:""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--tapi-muted); transform: rotate(-12deg); }
+  .tapi-pdp__size.is-low:not(.is-active)::before {
+    content:""; position: absolute; top: -6px; right: -6px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--tapi-terracotta);
+    animation: tapi-pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes tapi-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.65; } }
+  @media (prefers-reduced-motion: reduce) { .tapi-pdp__size.is-low::before { animation: none; } }
+  .tapi-pdp__stock-note { margin: 0; font-size: var(--fs-xs); color: var(--tapi-warm-grey); }
+  /* Until tapi-motion/inline JS fills it, the stock note is empty — collapse it so
+     the size group never carries a phantom 1.2rem gap below the swatches. */
+  .tapi-pdp__stock-note:empty { display: none; }
+
+  .tapi-fit-feedback { margin-top: 0; padding: 1.4rem; background: var(--tapi-cream-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+  .tapi-fit-feedback__bar { display: flex; height: 6px; background: var(--tapi-cream); border-radius: var(--radius-sm); overflow: hidden; margin: 0.8rem 0 0.6rem; }
+  .tapi-fit-feedback__bar > span { display: block; height: 100%; width: 0; transition: width 1200ms cubic-bezier(0.16,1,0.3,1); }
+  .tapi-fit-feedback__bar.in > span { width: var(--w); }
+  .tapi-fit-feedback__legend { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--tapi-warm-grey); }
+
+  /* The buy form is a plain block with no rhythm of its own, so the size row
+     sat 4px off the Add to bag button. Put it on the column's 24px beat;
+     margins collapse with the offer ticket above when that renders. */
+  .tapi-pdp__cta-row { display: flex; gap: var(--space-sm); align-items: stretch; margin-top: var(--space-lg); }
+  .tapi-pdp__qty { display: flex; align-items: center; border: 1px solid var(--tapi-hairline-2); height: 56px; flex: 0 0 auto; }
+  .tapi-pdp__qty button { width: 44px; height: 100%; background: transparent; border: none; font-size: var(--fs-lg); cursor: pointer; }
+  .tapi-pdp__qty input { width: 44px; height: 100%; text-align: center; border: none; background: transparent; font-family: inherit; font-size: var(--fs-base); font-variant-numeric: tabular-nums; appearance: textfield; }
+  .tapi-pdp__qty input::-webkit-outer-spin-button, .tapi-pdp__qty input::-webkit-inner-spin-button { appearance: none; }
+  .tapi-pdp__add { flex: 1; height: 56px; min-height: 56px !important; }
+
+  /* Native dynamic-checkout (Buy it now). Shopify renders branded express buttons
+     (Shop Pay etc.) inside a closed shadow DOM that keeps its own styling; the
+     unbranded "Buy it now" fallback and the "more options" link are light-DOM, so
+     we style those to match the old terracotta CTA (full width, 56px, brand tokens). */
+  .tapi-pdp__dynamic-checkout { margin-top: var(--space-sm); }  /* paired tight under Add to bag */
+  .tapi-pdp__dynamic-checkout[hidden] { display: none; }
+  .tapi-pdp__dynamic-checkout .shopify-payment-button__button {
+    width: 100%; min-height: 56px !important; border-radius: var(--tapi-radius, 2px);
+    font-family: var(--font-body-family); font-weight: 500; letter-spacing: 0.02em;
+  }
+  .tapi-pdp__dynamic-checkout .shopify-payment-button__button--unbranded {
+    background: var(--mor-accent); color: var(--mor-cream);
+  }
+  .tapi-pdp__dynamic-checkout .shopify-payment-button__button--unbranded:hover:not([disabled]) {
+    background: var(--mor-accent-deep);
+  }
+  .tapi-pdp__dynamic-checkout .shopify-payment-button__more-options {
+    margin-top: 0.8rem; font-size: var(--fs-xs); color: var(--tapi-warm-grey);
+  }
+
+  .tapi-pdp__accordions { display: flex; flex-direction: column; border-top: 1px solid var(--tapi-hairline); }
+  .tapi-acc { border-bottom: 1px solid var(--tapi-hairline); }
+  .tapi-acc summary { display: flex; justify-content: space-between; align-items: center; padding: 2rem 0; cursor: pointer; list-style: none; font-family: var(--font-heading-family); font-size: var(--fs-lg); letter-spacing: -0.005em; transition: color 240ms ease; }
+  .tapi-acc summary::-webkit-details-marker { display: none; }
+  .tapi-acc summary:hover { color: var(--tapi-terracotta); }
+  .tapi-acc[open] .tapi-acc__toggle { transform: rotate(45deg); color: var(--tapi-terracotta); }
+  .tapi-acc__toggle { font-size: 2.8rem; color: var(--tapi-charcoal); transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1), color 240ms ease; line-height: 1; display: inline-flex; align-items: center; justify-content: center; width: 2.8rem; height: 2.8rem; }
+  .tapi-acc__body { padding: 0 0 2.4rem; font-size: var(--fs-sm); line-height: 1.7; color: var(--tapi-warm-grey); animation: tapi-acc-open 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes tapi-acc-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-acc__toggle { transition: none; }
+    .tapi-acc__body { animation: none; }
+  }
+  .tapi-acc__body p { margin: 0 0 1rem; }
+
+  .tapi-fabric-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  .tapi-fabric-table tr { border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-fabric-table td { padding: 1.2rem 0; }
+  .tapi-fabric-table td:first-child { color: var(--mor-text-muted); width: 40%; letter-spacing: 0.04em; }
+
+  .tapi-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem; padding-bottom: 1.6rem; }
+  .tapi-model-grid > div { padding-bottom: 1.2rem; border-bottom: 1px dashed var(--tapi-hairline); }
+  .tapi-model-grid > div span { display: block; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--mor-text-muted); margin-bottom: 0.4rem; }
+  .tapi-model-grid > div strong { font-weight: 500; color: var(--tapi-charcoal); }
+  .tapi-model-grid__full { grid-column: 1 / -1; }
+
+  /* Pincode widget brand styling */
+  .tapi-pincode { border: 1px solid var(--tapi-hairline); background: var(--tapi-ivory); padding: 1.6rem; }
+  .tapi-pincode__head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+  .tapi-pincode__heading { font-family: var(--font-heading-family); font-size: var(--fs-base); }
+  .tapi-pincode__row { display: flex; gap: 0.8rem; }
+  .tapi-pincode__input { flex: 1; height: 4.4rem; padding: 0 1.2rem; border: 1px solid var(--tapi-hairline-2); background: var(--tapi-cream); }
+  .tapi-pincode__row .button { height: 4.4rem; }
+  .tapi-pincode__result { margin-top: 1.2rem; font-size: var(--fs-sm); }
+
+  /* Mobile sticky buy bar: a compact meta line (price + selected variant) above
+     a row of two equal-width buttons (Add to Cart / Buy Now). */
+  .tapi-pdp__mobile-cta {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0;
+    flex-direction: column; gap: 0.7rem;
+    background: var(--tapi-cream); border-top: 1px solid var(--tapi-hairline-2);
+    padding: 0.9rem 1.4rem; padding-bottom: calc(0.9rem + env(safe-area-inset-bottom));
+    z-index: 80; box-shadow: 0 -8px 24px rgba(44,40,38,0.06);
+  }
+  .tapi-pdp__mobile-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .tapi-pdp__mobile-price-wrap { display: flex; align-items: baseline; gap: 0.7rem; flex: 0 0 auto; }
+  .tapi-pdp__mobile-price { font-family: var(--font-body-family); font-size: var(--fs-lg); font-weight: 500; line-height: 1; }
+  .tapi-pdp__mobile-was { font-size: var(--fs-xs); color: var(--mor-text-muted); text-decoration: line-through; }
+  .tapi-pdp__mobile-sel {
+    font-size: var(--fs-xs); letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--tapi-warm-grey); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 55%; text-align: right;
+  }
+  .tapi-pdp__mobile-sel:empty { display: none; }
+  .tapi-pdp__mobile-actions { display: flex; gap: 0.8rem; }
+  .tapi-pdp__mobile-actions .button {
+    flex: 1 1 0; min-width: 0; height: 5rem; min-height: 5rem !important;
+    font-size: var(--fs-sm); padding: 0 1rem; white-space: nowrap;
+  }
+  .tapi-pdp__mobile-actions .button:disabled { opacity: 0.45; }
+
+  /* Tablet / mobile responsive */
+  @media (max-width: 1100px) {
+    .tapi-pdp__layout { grid-template-columns: 1fr; gap: 2.4rem; }
+    .tapi-pdp__gallery { display: contents; }
+    .tapi-pdp__gallery-thumbs {
+      flex-direction: row; flex-wrap: nowrap; overflow-x: auto; max-height: none;
+      position: static; order: 2; -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity; padding-bottom: 2px;
+    }
+    .tapi-pdp__gallery-thumbs .tapi-pdp__thumb { flex: 0 0 auto; scroll-snap-align: start; }
+    .tapi-pdp__gallery-main { position: static; order: 1; min-height: auto; }
+    .tapi-pdp__info { order: 3; }
+  }
+  @media (max-width: 749px) {
+    .tapi-pdp { padding-bottom: 13rem; }
+    .tapi-pdp__breadcrumb { display: none; }
+    .tapi-pdp__title { font-size: 3.2rem !important; }
+    .tapi-pdp__price-now { font-size: 2.6rem; }
+    .tapi-pdp__price-was { font-size: var(--fs-xs); }
+    .tapi-pdp__thumb { width: 56px; height: 70px; }
+    .tapi-pdp__cta-row { display: none !important; }
+    /* Keep the native dynamic-checkout button in the DOM so its web component
+       initializes and the sticky-bar Buy Now can relay a tap to it, but pull it
+       out of view — the sticky bar is the visible mobile control (no duplicate
+       button). Not display:none, which would deactivate the relay target. */
+    .tapi-pdp__dynamic-checkout {
+      position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+      pointer-events: none; opacity: 0;
+    }
+    .tapi-pdp__mobile-cta { display: flex; }
+  }
+
+  /* ===== Full-screen image viewer (lightbox) ===== */
+  /* Trigger button — bottom-right of the main image, reveals on hover (always
+     visible on touch). Mirrors the prev/next nav treatment. */
+  .tapi-pdp__zoom {
+    position: absolute; right: 1.2rem; bottom: 1.2rem; z-index: 2;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(248, 244, 237, 0.34); border: 0;
+    color: var(--tapi-charcoal); display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; opacity: 0;
+    backdrop-filter: saturate(1.08) blur(10px); -webkit-backdrop-filter: saturate(1.08) blur(10px);
+    transition: opacity 240ms cubic-bezier(0.22,1,0.36,1), background 200ms, transform 220ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-pdp__gallery-stage:hover .tapi-pdp__zoom,
+  .tapi-pdp__zoom:focus-visible { opacity: 1; }
+  .tapi-pdp__zoom:hover { background: var(--tapi-cream); }
+  .tapi-pdp__zoom:active { transform: scale(0.92); }
+  @media (hover: none) { .tapi-pdp__zoom { opacity: 0.82; } }
+
+  html.tapi-no-scroll, body.tapi-no-scroll { overflow: hidden; }
+
+  .tapi-lightbox { position: fixed; inset: 0; z-index: 120; }
+  .tapi-lightbox[hidden] { display: none; }
+  /* Parent-scoped selector (0,2,0) so it beats Dawn's `div:empty{display:none}`
+     reset (0,1,1) — the backdrop is an intentionally empty element. */
+  .tapi-lightbox .tapi-lightbox__backdrop {
+    display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: #1a1715; opacity: 0; transition: opacity 360ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-lightbox.is-open .tapi-lightbox__backdrop { opacity: 0.985; }
+  .tapi-lightbox__dialog {
+    position: relative; height: 100%; display: flex; flex-direction: column;
+    opacity: 0; transform: scale(0.985);
+    transition: opacity 320ms cubic-bezier(0.22,1,0.36,1), transform 420ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-lightbox.is-open .tapi-lightbox__dialog { opacity: 1; transform: none; }
+  .tapi-lightbox__bar {
+    position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+    padding: 1.6rem clamp(1.6rem, 4vw, 4rem); padding-top: calc(1.6rem + env(safe-area-inset-top));
+    color: rgba(248, 244, 237, 0.92);
+  }
+  .tapi-lightbox__counter { font-size: var(--fs-sm); letter-spacing: 0.14em; font-variant-numeric: tabular-nums; }
+  .tapi-lightbox__close {
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(248, 244, 237, 0.55);
+    background: rgba(26, 23, 21, 0.55); color: var(--tapi-cream);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.32);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background 200ms, color 200ms, border-color 200ms, transform 200ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-lightbox__close:hover { background: var(--tapi-cream); color: var(--tapi-charcoal); border-color: transparent; }
+  .tapi-lightbox__close:active { transform: scale(0.92); }
+  .tapi-lightbox__close:focus-visible { outline: 2px solid var(--tapi-cream); outline-offset: 3px; }
+  .tapi-lightbox__stage { position: relative; z-index: 2; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  .tapi-lightbox__slide {
+    position: absolute; inset: 0; margin: 0; display: none;
+    align-items: center; justify-content: center; padding: 0 clamp(1rem, 3vw, 3rem);
+  }
+  .tapi-lightbox__slide.is-active { display: flex; }
+  .tapi-lightbox__img {
+    max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-select: none;
+    cursor: zoom-in; touch-action: none; transform-origin: center center; will-change: transform;
+    transition: transform 360ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-lightbox__img.is-zoomed { cursor: zoom-out; transition: transform 120ms linear; }
+  .tapi-lightbox__video { max-width: 100%; max-height: 100%; }
+  .tapi-lightbox__external { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+  .tapi-lightbox__external iframe { width: min(100%, 160vh); aspect-ratio: 16 / 9; border: 0; }
+  .tapi-lightbox__playbtn {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(248, 244, 237, 0.92); color: var(--tapi-charcoal);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: transform 220ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-lightbox__playbtn:hover { transform: translate(-50%, -50%) scale(1.06); }
+  .tapi-lightbox__nav {
+    position: absolute; top: 50%; transform: translateY(-50%); z-index: 3;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(248, 244, 237, 0.08); border: 1px solid rgba(248, 244, 237, 0.22);
+    color: var(--tapi-cream); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background 200ms, transform 200ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .tapi-lightbox__nav:hover { background: rgba(248, 244, 237, 0.18); }
+  .tapi-lightbox__nav:active { transform: translateY(-50%) scale(0.94); }
+  .tapi-lightbox__nav--prev { left: clamp(0.8rem, 2vw, 2.4rem); }
+  .tapi-lightbox__nav--next { right: clamp(0.8rem, 2vw, 2.4rem); }
+  .tapi-lightbox__thumbs {
+    position: relative; z-index: 3; display: flex; gap: 0.8rem; justify-content: center;
+    padding: 1.6rem clamp(1.6rem, 4vw, 4rem) calc(1.6rem + env(safe-area-inset-bottom));
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .tapi-lightbox__thumbs::-webkit-scrollbar { display: none; }
+  .tapi-lightbox__thumb {
+    flex: 0 0 auto; width: 52px; height: 66px; padding: 0; cursor: pointer; overflow: hidden;
+    background: none; border: 1px solid transparent; opacity: 0.5;
+    transition: opacity 200ms, border-color 200ms;
+  }
+  .tapi-lightbox__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tapi-lightbox__thumb:hover { opacity: 0.85; }
+  .tapi-lightbox__thumb.is-active { opacity: 1; border-color: rgba(248, 244, 237, 0.85); }
+
+  @media (max-width: 749px) {
+    .tapi-lightbox__nav { display: none; }
+    .tapi-lightbox__thumbs { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-lightbox__backdrop, .tapi-lightbox__dialog, .tapi-lightbox__img { transition: none; }
+  }
+
+  /* ===== On-PDP size guide dialog ===== */
+  .tapi-sizeguide { border: none; padding: 0; max-width: 42rem; width: calc(100vw - 4rem);
+    border-radius: var(--mor-radius-md); background: var(--mor-cream); color: var(--mor-charcoal);
+    box-shadow: var(--mor-shadow-lg); }
+  .tapi-sizeguide::backdrop { background: rgba(38, 34, 30, 0.55); }
+  .tapi-sizeguide__panel { padding: 2.8rem; }
+  .tapi-sizeguide__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.6rem; margin-bottom: 1.4rem; }
+  .tapi-sizeguide__title { font-family: var(--font-heading-family); font-size: 2.4rem; font-weight: 500; letter-spacing: -0.01em; margin: 0.4rem 0 0; color: var(--mor-charcoal); }
+  .tapi-sizeguide__close { background: none; border: 0; font-size: 2.8rem; line-height: 1; cursor: pointer; color: var(--mor-text-muted); padding: 0 0.4rem; transition: color var(--mor-dur-base) var(--mor-ease); }
+  .tapi-sizeguide__close:hover { color: var(--mor-charcoal); }
+  .tapi-sizeguide__intro { font-size: var(--mor-text-sm); color: var(--mor-text-muted); line-height: 1.6; margin: 0 0 1.8rem; }
+  .tapi-sizeguide__scroll { overflow-x: auto; }
+  .tapi-sizeguide__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .tapi-sizeguide__table th, .tapi-sizeguide__table td { padding: 1rem 1.2rem; text-align: center; border-bottom: 1px solid var(--tapi-hairline); font-size: var(--fs-sm); }
+  .tapi-sizeguide__table thead th { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: var(--fs-xs); color: var(--mor-charcoal); }
+  .tapi-sizeguide__table tbody th { font-weight: 600; }
+  .tapi-sizeguide__table tbody tr:last-child th, .tapi-sizeguide__table tbody tr:last-child td { border-bottom: none; }
+  .tapi-sizeguide__tip { font-size: var(--fs-sm); color: var(--mor-text-muted); line-height: 1.6; margin: 1.8rem 0 2rem; }
+  .tapi-sizeguide__full { display: inline-block; font-size: var(--mor-text-sm); font-weight: 500; color: var(--mor-primary); text-decoration: none; }
+  .tapi-sizeguide__full:hover { text-decoration: underline; text-underline-offset: 4px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .tapi-sizeguide[open] { animation: tapi-sizeguide-in var(--mor-dur-base) var(--mor-ease); }
+    @keyframes tapi-sizeguide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }

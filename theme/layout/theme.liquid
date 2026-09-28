@@ -368,6 +368,15 @@
       }
     {% endstyle %}
 
+    {%- comment -%}
+      Product page styles, moved out of the section's stylesheet block so they
+      stop blocking the first paint of every other page. Placed here on purpose:
+      after Shopify's compiled_assets bundle and before base.css, which is the
+      exact cascade position they had inside that bundle.
+    {%- endcomment -%}
+    {%- if request.page_type == 'product' -%}
+      {{ 'tapi-pdp.css' | asset_url | stylesheet_tag: preload: true }}
+    {%- endif -%}
     {{ 'base.css' | asset_url | stylesheet_tag }}
     {{ 'theme-variables.css' | asset_url | stylesheet_tag }}
     {{ 'tapi-ux.css' | asset_url | stylesheet_tag }}
