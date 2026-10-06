@@ -98,6 +98,12 @@ class WaAutomationStack extends cdk.Stack {
       // Gates the live COD->prepaid order edit. Only 'true' once the
       // sequence has been verified against a real order (DECISIONS C3).
       CONVERSION_VERIFIED: props.conversionVerified === true ? 'true' : 'false',
+      // How Flow B asks for the review: 'flow' (native WhatsApp Flow) or
+      // 'link' (Google Form button). Carried here and not only flipped on the
+      // Lambda, because a later deploy would otherwise quietly put it back to
+      // 'flow', whose template Meta has not approved, and the review ask would
+      // stop with nothing reporting that it had.
+      REVIEW_VIA: props.reviewVia === 'link' ? 'link' : 'flow',
       ...Object.fromEntries(
         ['A', 'B', 'C', 'D'].flatMap((f) => [
           [`FLOW_${f}_ENABLED`, String(Boolean((props.flows || {})[f]?.enabled))],

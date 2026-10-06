@@ -7,16 +7,21 @@
  *   node scripts/pause-flow.mjs A off
  *   node scripts/pause-flow.mjs B on
  *   node scripts/pause-flow.mjs dryrun off
+ *   node scripts/pause-flow.mjs reviewvia link
  */
 import { config } from '../src/config.mjs';
 
 const [target, state] = process.argv.slice(2);
-if (!target || !['on', 'off'].includes(state)) {
-  console.error('usage: pause-flow.mjs <A|B|C|D|dryrun> <on|off>');
+const t = (target || '').toLowerCase();
+// `reviewvia` takes flow|link rather than on|off: it picks which review ask
+// Flow B sends, not whether it sends one.
+const states = t === 'reviewvia' ? ['flow', 'link'] : ['on', 'off'];
+if (!target || !states.includes(state)) {
+  console.error('usage: pause-flow.mjs <A|B|C|D|dryrun> <on|off> | reviewvia <flow|link>');
   process.exit(1);
 }
-const key = target.toLowerCase() === 'dryrun' ? 'DRY_RUN' : `FLOW_${target.toUpperCase()}_ENABLED`;
-const value = target.toLowerCase() === 'dryrun' ? (state === 'off' ? 'false' : 'true') : String(state === 'on');
+const key = t === 'dryrun' ? 'DRY_RUN' : t === 'reviewvia' ? 'REVIEW_VIA' : `FLOW_${target.toUpperCase()}_ENABLED`;
+const value = t === 'dryrun' ? (state === 'off' ? 'false' : 'true') : t === 'reviewvia' ? state : String(state === 'on');
 
 const c = await import('@aws-sdk/client-lambda');
 const lambda = new c.LambdaClient({ region: config.region });
