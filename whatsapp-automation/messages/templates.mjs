@@ -25,6 +25,14 @@ const urlBtn = (text) => ({ kind: 'url', text, urlPattern: '{{public}}/p/{{token
 /** A URL button whose variable suffix is appended to a fixed external base. */
 const trackBtn = (text) => ({ kind: 'url', text, base: 'https://www.delhivery.com/track/package/', example: '59152210001142' });
 const flowBtn = (text) => ({ kind: 'flow', text, flowKey: 'review' });
+/*
+ * The review form as a plain URL button. Used while the native review Flow
+ * cannot be published: Meta requires business verification to publish a Flow,
+ * and ours has not been through it yet. Deliberately the long
+ * docs.google.com/forms/d/e/ URL and not the forms.gle shortener, because Meta
+ * rejects URL-shortener domains in template buttons.
+ */
+const reviewFormBtn = (text) => ({ kind: 'url', text, base: `${REVIEW_FORM.base}?`, example: 'usp=pp_url' });
 
 /**
  * An IMAGE header. `sample` is only used at CREATE time: Meta wants a real
@@ -36,6 +44,37 @@ const imageHeader = (sample) => ({ format: 'IMAGE', sample });
 
 const SAMPLE_PRODUCT_IMAGE =
   'https://cdn.shopify.com/s/files/1/0998/6261/0292/files/WhatsAppImage2026-06-07at2.04.11PM.jpg?v=1780823415&width=800&height=800&crop=center';
+
+/*
+ * The Google Form behind the link-mode review ask.
+ *
+ * `entries` maps our field names to the form's own field ids. An id left empty
+ * is simply not prefilled, so a field can be added to the form and filled in
+ * here as a one-line change. Prefilling is what makes a response matchable
+ * back to an order: without it a submission is an anonymous row in a sheet.
+ */
+export const REVIEW_FORM = {
+  base: 'https://docs.google.com/forms/d/e/1FAIpQLSexH-9zalvftp0uRMgWqpcM1Ea1ioVcAeyJAp31NobdRSoYdg/viewform',
+  entries: {
+    name: 'entry.1498099268',
+    orderNumber: '', // add once the form has an order-number question
+  },
+};
+
+/**
+ * The part Meta appends to the URL button: the prefill query string.
+ *
+ * Always returns at least `usp=pp_url`, because a URL button variable cannot be
+ * empty and an empty one would make the whole send fail.
+ */
+export function reviewFormSuffix(vals = {}) {
+  const q = new URLSearchParams({ usp: 'pp_url' });
+  for (const [key, id] of Object.entries(REVIEW_FORM.entries)) {
+    const v = vals[key];
+    if (id && v != null && String(v) !== '') q.append(id, String(v));
+  }
+  return q.toString();
+}
 
 export const TEMPLATES = {
   // The first message a customer gets. Deliberately NOT written as an offer:
@@ -226,6 +265,26 @@ export const TEMPLATES = {
       'We would love to know how it fits and how it feels on. It takes a minute, and it shapes what we make next.',
     examples: { customer_name: 'Aarav', order_number: '#1234', delivered_date: '20 Sep' },
     buttons: [flowBtn('Rate your order')],
+  },
+
+  /*
+   * Same ask, same category, same copy as delivered_review: the ONLY difference
+   * is a URL button to the Google Form instead of a Flow button. The body is
+   * kept word for word identical on purpose. It was written to survive Meta's
+   * UTILITY review, and it says nothing about a reward, because reward wording
+   * in a UTILITY template invites reclassification to MARKETING. The thank-you
+   * code is shown on the form's own confirmation screen instead, where it costs
+   * nothing and needs no send.
+   */
+  delivered_review_link: {
+    name: 'delivered_review_link_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, your order {{order_number}} reached you on {{delivered_date}}.\n\n' +
+      'We would love to know how it fits and how it feels on. It takes a minute, and it shapes what we make next.',
+    examples: { customer_name: 'Aarav', order_number: '#1234', delivered_date: '20 Sep' },
+    buttons: [reviewFormBtn('Share your feedback')],
   },
 
   review_reminder: {

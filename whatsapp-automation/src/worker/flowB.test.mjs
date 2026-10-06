@@ -46,6 +46,7 @@ beforeEach(() => {
   _resetSecrets();
   process.env.FLOW_TOKEN_KEY = 'test-flow-key';
   config.flows.B = { enabled: true, startAt: '2020-01-01T00:00:00Z' };
+  config.reviewVia = 'flow';
   config.orderAllowlist = [];
   config.ownerAlertPhones = [];
 });
@@ -63,6 +64,28 @@ describe('Flow B', () => {
     expect(clients.whatsapp.sent.some((s) => s.type === 'template' && s.name === 'delivered_review_v1')).toBe(true);
     expect(tagsAdded(clients.shopify)).toContain('wa-review-asked');
     expect(_peekTimers().map((t) => t.name)).toContain('B-12345-review_reminder');
+  });
+
+  it('link mode sends the form button, prefilled, and arms no reminder', async () => {
+    config.reviewVia = 'link';
+    const { clients, deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+
+    const sent = clients.whatsapp.sent.find((s) => s.type === 'template');
+    expect(sent.name).toBe('delivered_review_link_v1');
+
+    // The order number has to ride along in the URL or the response lands in
+    // the sheet with nothing tying it to a buyer.
+    const urlBtn = sent.components.find((c) => c.sub_type === 'url');
+    const suffix = urlBtn.parameters[0].text;
+    expect(suffix).toContain('usp=pp_url');
+    expect(suffix).toContain('entry.1498099268=Aarav');
+
+    // Asked, tagged, and NOT reminded: a form cannot tell us it was filled in,
+    // so a reminder would nag the people who already answered.
+    expect(tagsAdded(clients.shopify)).toContain('wa-review-asked');
+    expect(_peekTimers().map((t) => t.name)).not.toContain('B-12345-review_reminder');
   });
 
   it('an ACTIVE review is stored, linked, coded, and thanked', async () => {

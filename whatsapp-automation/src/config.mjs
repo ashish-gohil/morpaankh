@@ -73,6 +73,12 @@ export const config = {
   ownerAlertPhones: list(process.env.OWNER_ALERT_PHONES),
 
   flows: { A: flow('A'), B: flow('B'), C: flow('C'), D: flow('D') },
+
+  // How Flow B asks for a review. 'flow' is the native WhatsApp Flow, which
+  // Meta will not let us publish until the business is verified; 'link' sends
+  // the same message with a Google Form button and arms no reminder, because a
+  // form cannot tell us it was filled in. Hot-swappable: no redeploy to switch.
+  reviewVia: (process.env.REVIEW_VIA || 'flow').toLowerCase(),
 };
 
 /** Redact a secret for safe logging: keep an 8-char prefix, mask the rest. */

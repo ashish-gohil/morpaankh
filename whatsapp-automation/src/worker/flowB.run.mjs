@@ -9,6 +9,7 @@ import { RULES } from '../../messages/rules.mjs';
 import { hasRtoTag } from '../domain/order.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
 import { validateReview, moderationStatus } from '../domain/review.mjs';
+import { reviewFormSuffix } from '../../messages/templates.mjs';
 import { formatINR } from '../lib/money.mjs';
 import { addHours, addDays, nextWindowTime, formatISTDate, endOfDayIST } from '../lib/time.mjs';
 import { signToken } from '../lib/ids.mjs';
@@ -117,20 +118,39 @@ export async function onReviewTimer(orderId, deps) {
   if (!n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) return;
   if (!(await canAskReview(n.verifiedPhone, now, RULES.reviewAskCapDays))) return;
 
-  const token = await flowToken(n.numericId, now);
-  const res = await tpl(
-    deps,
-    n.verifiedPhone,
-    'delivered_review',
-    { customer_name: n.firstName, order_number: n.name, delivered_date: formatISTDate(new Date(st?.flowB?.deliveredAt || now)) },
-    { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, true) },
-  );
+  // Two ways to ask, same message. 'flow' opens the native WhatsApp Flow, which
+  // reports the answers straight back to onReviewSubmit. 'link' opens the Google
+  // Form, which cannot report anything back: it is the stand-in while Meta
+  // refuses to publish the Flow (publishing one requires business verification).
+  const viaLink = config.reviewVia === 'link';
+  const vars = {
+    customer_name: n.firstName,
+    order_number: n.name,
+    delivered_date: formatISTDate(new Date(st?.flowB?.deliveredAt || now)),
+  };
+  const res = viaLink
+    ? await tpl(deps, n.verifiedPhone, 'delivered_review_link', vars, {
+        orderId: n.numericId,
+        // The URL button suffix. Prefilling the order number is what makes a
+        // sheet row traceable to an order; without it every response is
+        // anonymous and no code can be matched to a buyer.
+        token: reviewFormSuffix({ name: n.firstName, orderNumber: n.name }),
+      })
+    : await tpl(deps, n.verifiedPhone, 'delivered_review', vars, {
+        orderId: n.numericId,
+        flowToken: await flowToken(n.numericId, now),
+        flowActionData: flowData(n, true),
+      });
   if (res?.skipped) return;
   // reviewAsked is the only guard against asking the same customer twice, so it
   // is written before any step that could throw.
   await patchFlowB(orderId, { reviewAsked: true, askedAt: now.toISOString() });
   await soft('tagsAdd:wa-review-asked', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-review-asked']), { orderId });
   await soft('markReviewAsk', () => markReviewAsk(n.verifiedPhone, now), { orderId });
+  // A reminder is only safe when we can tell whether they already answered.
+  // In link mode nothing comes back, so `reviewed` is never set and every
+  // single customer would be reminded, including the ones who filled it in.
+  if (viaLink) return;
   await soft('scheduleTimer:review_reminder', () =>
     scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: nextWindowTime(addHours(now, RULES.reviewReminderAfterHours), RULES.reviewSendWindow) }),
     { orderId },
