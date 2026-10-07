@@ -4,6 +4,7 @@
  * edit / cancel. RTO: tag, stop other flows, capture the reason, apply cod-block
  * when warranted. All sends DRY_RUN + allowlist gated; writes idempotent.
  */
+import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { RTO_REASONS, COD_BLOCK_REASONS } from '../../messages/labels.mjs';
 import { classifyAddressReply } from '../domain/ndr.mjs';
@@ -18,8 +19,26 @@ import { soft } from '../lib/resilience.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
 
+/*
+ * Flow C had NO kill switch at all: `FLOW_C_ENABLED=false` was read by nothing
+ * here and by nothing in the worker's router, so the flow ran in full while it
+ * was supposed to be off. On 2026-09-29 that tagged three orders `RTO` in
+ * Shopify and force-stopped Flow A on them. The RTO tag also feeds the Meta
+ * exclusion audience, so an off flow was quietly shaping ad spend.
+ *
+ * Guarded at the two STARTERS and the RTO timer only. A customer who is already
+ * mid-conversation still gets their button tap honoured, because going silent
+ * on someone we just asked a question is worse than finishing the exchange.
+ */
+function flowCOff(where, orderId) {
+  if (config.flows.C.enabled) return false;
+  log.info('flowC: disabled, not starting', { where, orderId });
+  return true;
+}
+
 // ---- NDR --------------------------------------------------------------------
 export async function onNdr(orderId, deps) {
+  if (flowCOff('onNdr', orderId)) return;
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
@@ -103,6 +122,7 @@ export async function onAddressText(orderId, text, deps) {
 
 // ---- RTO --------------------------------------------------------------------
 export async function onRto(orderId, deps) {
+  if (flowCOff('onRto', orderId)) return;
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   if (!n) return;
@@ -116,6 +136,7 @@ export async function onRto(orderId, deps) {
 }
 
 export async function onRtoTimer(orderId, deps) {
+  if (flowCOff('onRtoTimer', orderId)) return;
   const n = await getNorm(deps, orderId);
   if (!n || !n.verifiedPhone) return;
   if (await isOptedOut(n.verifiedPhone)) return;

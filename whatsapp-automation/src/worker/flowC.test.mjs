@@ -45,12 +45,31 @@ beforeEach(() => {
   _resetTimers();
   _resetSecrets();
   config.ownerAlertPhones = ['+919999999999'];
+  config.flows.C = { enabled: true, startAt: '2020-01-01T00:00:00Z' };
 });
 
 const tagsAdded = (sh) => sh.calls.filter((c) => c.op === 'tagsAdd').flatMap((c) => c.tags);
 const courierCalls = (co) => co.calls;
 const sentText = (wa, re) => wa.sent.some((s) => re.test(s.body || ''));
 const sentTemplate = (wa, name) => wa.sent.some((s) => s.type === 'template' && s.name === name);
+
+describe('Flow C: the off switch', () => {
+  // FLOW_C_ENABLED used to be read by nothing in this flow or in the worker's
+  // router, so turning Flow C off left it running: it tagged three real orders
+  // `RTO` in Shopify and force-stopped Flow A on them on 2026-09-29.
+  it('does not start NDR or RTO, or tag anything, while disabled', async () => {
+    config.flows.C = { enabled: false, startAt: '2020-01-01T00:00:00Z' };
+    const { clients, deps } = setup();
+
+    await C.onNdr('12345', deps);
+    await C.onRto('12345', deps);
+    await C.onRtoTimer('12345', deps);
+
+    expect(tagsAdded(clients.shopify)).toEqual([]);
+    expect(clients.whatsapp.sent).toEqual([]);
+    expect(_peekTimers()).toEqual([]);
+  });
+});
 
 describe('Flow C: NDR', () => {
   it('sends ndr_action inside the window', async () => {
