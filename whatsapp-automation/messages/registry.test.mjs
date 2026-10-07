@@ -58,6 +58,27 @@ describe('session registry shape', () => {
   });
 });
 
+describe('the dispatch message does not claim the parcel has moved', () => {
+  /*
+   * order_shipped fires on Shopify fulfillments/create, which only means a
+   * label and an AWB exist. The courier has not collected anything yet, so any
+   * wording that says the parcel has left, is on its way, or is out for
+   * delivery is false for as long as it sits at MANIFESTED. Four live orders
+   * (#1176, #1177, #1180, #1182) were told it had left while Delhivery still
+   * read MANIFESTED.
+   */
+  it('TEMPLATES.order_shipped makes no claim of movement', () => {
+    const body = TEMPLATES.order_shipped.body.toLowerCase();
+    for (const claim of ['left us', 'on its way to you', 'out for delivery', 'dispatched', 'has shipped']) {
+      expect(body).not.toContain(claim);
+    }
+  });
+
+  it('and it warns that tracking is not live yet', () => {
+    expect(TEMPLATES.order_shipped.body.toLowerCase()).toContain('once the courier collects it');
+  });
+});
+
 describe('no em/en dash and no emoji anywhere in customer copy', () => {
   const strings = [];
   for (const t of [...Object.values(TEMPLATES), ...Object.values(LEGACY)]) {

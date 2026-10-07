@@ -232,7 +232,7 @@ describe('Flow A dispatch message', () => {
   it('tells a COD customer exactly what to keep ready, with the tracking number', async () => {
     const { clients, deps } = shipped();
     await A.onFulfillmentCreate('12345', deps);
-    const msg = clients.whatsapp.sent.find((s) => s.name === 'order_shipped_v1');
+    const msg = clients.whatsapp.sent.find((s) => s.name === 'order_shipped_v2');
     expect(msg).toBeDefined();
     const params = msg.components.find((c) => c.type === 'body').parameters.map((p) => p.text);
     expect(params).toContain('please keep ₹1,499 ready');
@@ -247,7 +247,7 @@ describe('Flow A dispatch message', () => {
       codOrder({ displayFinancialStatus: 'PAID', netPaymentSet: { shopMoney: { amount: '1499.00' } } }),
     );
     await A.onFulfillmentCreate('12345', deps);
-    const msg = clients.whatsapp.sent.find((s) => s.name === 'order_shipped_v1');
+    const msg = clients.whatsapp.sent.find((s) => s.name === 'order_shipped_v2');
     const params = msg.components.find((c) => c.type === 'body').parameters.map((p) => p.text);
     expect(params).toContain('nothing to pay, this order is prepaid');
   });
@@ -256,7 +256,7 @@ describe('Flow A dispatch message', () => {
     const { clients, deps } = shipped();
     await A.onFulfillmentCreate('12345', deps);
     await A.onFulfillmentCreate('12345', deps);
-    expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v1')).toHaveLength(1);
+    expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v2')).toHaveLength(1);
   });
 });
 
@@ -334,7 +334,7 @@ describe('Flow A tracking arrives late', () => {
     order.fulfillments = [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB9', company: 'Delhivery' }] }];
     await A.onFulfillmentCreate('12345', deps);
     await A.onFulfillmentCreate('12345', deps);
-    expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v1')).toHaveLength(1);
+    expect(clients.whatsapp.sent.filter((s) => s.name === 'order_shipped_v2')).toHaveLength(1);
   });
 });
 
@@ -565,10 +565,14 @@ describe('Flow A refunds only with a real payment id', () => {
 });
 
 /*
- * Live 24 Sept: order_shipped_v1 is not approved on the WABA and the key has no
+ * Live 24 Sept: order_shipped_v1 is not approved on the WABA and the key had no
  * LEGACY fallback, so three real orders shipped with the customer told nothing.
  * The only trace was a WARN. The fulfillment record must still survive, but the
  * owner has to hear about it.
+ *
+ * v1 is now the fallback for v2, so this case only arises when BOTH are
+ * unusable. That is the point of the fallback: one bad template no longer
+ * silences the dispatch message.
  */
 describe('Flow A dispatch message when the template is not approved', () => {
   function shippedWithUnusableTemplate() {
@@ -577,7 +581,7 @@ describe('Flow A dispatch message when the template is not approved', () => {
     config.ownerAlertPhones = [PHONE];
     const realSend = clients.whatsapp.sendTemplate;
     clients.whatsapp.sendTemplate = async (a) => {
-      if (a.name === 'order_shipped_v1') {
+      if (a.name === 'order_shipped_v2' || a.name === 'order_shipped_v1') {
         const e = new Error('template does not exist');
         /** @type {any} */ (e).waCode = 132001;
         throw e;

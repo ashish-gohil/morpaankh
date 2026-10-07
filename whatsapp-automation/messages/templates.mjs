@@ -231,17 +231,29 @@ export const TEMPLATES = {
   // system promised tracking details in keep_cod_ack and then never sent any.
   // payment_line carries the one sentence that differs between a prepaid and a
   // cash order, which keeps this to a single template.
+  /*
+   * Fires on Shopify fulfillments/create, which is when the AWB is attached at
+   * LABEL time. The courier has not collected anything yet, so v1's "has left
+   * us and is on its way to you" was a claim the parcel had moved when it was
+   * still on our table: orders #1176, #1177, #1180 and #1182 were all told it
+   * had left while Delhivery still read MANIFESTED, and tapping Track showed
+   * nothing. "dispatched" would be no better, because mapCourierStatus reads
+   * /dispatched/ as OUT_FOR_DELIVERY, the last mile.
+   *
+   * The last line exists because the tracking number is real but dead until
+   * pickup, and a Track button that shows nothing reads as a lost parcel.
+   */
   order_shipped: {
-    name: 'order_shipped_v1',
+    name: 'order_shipped_v2',
     language: 'en',
     category: 'UTILITY',
     body:
-      'Hello {{customer_name}}, order {{order_number}} has left us and is on its way to you.\n\n' +
+      'Hello {{customer_name}}, order {{order_number}} is packed and labelled and ready for pickup.\n\n' +
       'Item: {{item_line}}\n' +
       'At delivery: {{payment_line}}\n' +
       'Courier: {{courier}}\n' +
       'Tracking number: {{awb}}\n\n' +
-      'Tap below to follow it on its way.',
+      'Tracking starts updating once the courier collects it. Tap below to follow it.',
     examples: {
       customer_name: 'Aarav',
       order_number: '#1234',
@@ -385,6 +397,37 @@ export const TEMPLATES = {
  * here. Entries are dropped once their replacement is approved and stable.
  */
 export const LEGACY = {
+  /*
+   * The previous dispatch copy. It overclaims (it says the parcel has left when
+   * fulfillments/create only means a label exists), so it is NOT the copy we
+   * want, but it is the approved one and order_shipped had NO fallback at all:
+   * on 24 Sept three orders shipped in total silence because the template was
+   * briefly unusable and there was nothing to fall back to. An overclaiming
+   * message beats no message, and this entry means v2 can sit in review without
+   * anyone going dark.
+   */
+  order_shipped: {
+    name: 'order_shipped_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, order {{order_number}} has left us and is on its way to you.\n\n' +
+      'Item: {{item_line}}\n' +
+      'At delivery: {{payment_line}}\n' +
+      'Courier: {{courier}}\n' +
+      'Tracking number: {{awb}}\n\n' +
+      'Tap below to follow it on its way.',
+    examples: {
+      customer_name: 'Aarav',
+      order_number: '#1234',
+      item_line: 'Khili Dhoop, size M',
+      payment_line: 'please keep Rs 1,499 ready',
+      courier: 'Delhivery',
+      awb: '59152210001142',
+    },
+    buttons: [trackBtn('Track your order')],
+  },
+
   // Not older copy: the image-free twin of order_confirmed, used when a product
   // has no photo or Meta cannot fetch it. Without this a missing image would
   // mean a prepaid customer gets no confirmation at all.
