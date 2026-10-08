@@ -376,10 +376,21 @@ async function changeLineItemVariant({ order, lineItemId, newVariantId, carryDis
     id
     totalPriceSet{ shopMoney{ amount } }
     shippingLines{ id title }
-    lineItems(first:50){ nodes{ id quantity variant{ id } } }`;
+    lineItems(first:50){ nodes{ id quantity restockable variant{ id } } }
+    addedLineItems(first:50){ nodes{ id quantity variant{ id } } }`;
+  /*
+   * addedLineItems IS PART OF THE COUNT. A staged addition does NOT appear in
+   * calculatedOrder.lineItems, which only holds the order's original lines, so
+   * counting lineItems alone saw the swap as "one line became zero" and the
+   * invariant refused to commit EVERY time. The unit tests could not catch
+   * that: it is a fact about Shopify's response shape, and only the first live
+   * run on a throwaway order exposed it.
+   */
   const snapshot = (c) => ({
     total: c.totalPriceSet.shopMoney.amount,
-    lines: (c.lineItems?.nodes || []).filter((l) => (l.quantity ?? 0) > 0).length,
+    lines:
+      (c.lineItems?.nodes || []).filter((l) => (l.quantity ?? 0) > 0).length +
+      (c.addedLineItems?.nodes || []).filter((l) => (l.quantity ?? 0) > 0).length,
     shipping: (c.shippingLines || []).map((sl) => `${sl.id}:${sl.title}`).sort().join('|'),
   });
 
@@ -392,6 +403,23 @@ async function changeLineItemVariant({ order, lineItemId, newVariantId, carryDis
   const calc = begun.orderEditBegin.calculatedOrder;
   const before = snapshot(calc);
 
+  /*
+   * orderEditSetQuantity wants the CALCULATED line item id, not the order's
+   * line item id. Passing the order's id straight through is rejected with
+   * "Invalid id ... RESOURCE_NOT_FOUND", which is exactly what the first live
+   * attempt did. The two ids share a numeric suffix
+   * (gid://shopify/LineItem/371675... <-> gid://shopify/CalculatedLineItem/371675...)
+   * so the calculated line is LOOKED UP by that suffix rather than built by
+   * swapping the prefix: a lookup survives Shopify changing the shape, and a
+   * reconstruction would send a plausible id that silently names nothing.
+   */
+  const suffix = String(lineItemId).split('/').pop();
+  const calcLine =
+    (calc.lineItems?.nodes || []).find((l) => String(l.id).split('/').pop() === suffix) || null;
+  if (!calcLine) {
+    throw new Error(`changeLineItemVariant: no calculated line matches ${lineItemId}; nothing was changed`);
+  }
+
   // Redelivery: the target is already on the order, so a previous attempt got
   // through. Nothing to do, and nothing to undo.
   const already = (calc.lineItems?.nodes || []).some(
@@ -402,13 +430,15 @@ async function changeLineItemVariant({ order, lineItemId, newVariantId, carryDis
     return { ...plan, applied: true, method: 'already_applied' };
   }
 
-  // restock: true returns the garment they are NOT taking to sellable stock.
-  // Without it every swap quietly loses a unit of inventory.
+  // restock returns the garment they are NOT taking to sellable stock. Without
+  // it every swap quietly loses a unit of inventory. It is asked for only when
+  // Shopify says the line is restockable, so a line that cannot be restocked
+  // degrades to a plain removal instead of failing the whole change.
   const removed = await graphql(
-    `mutation Rm($id: ID!, $lineItemId: ID!){
-       orderEditSetQuantity(id:$id, lineItemId:$lineItemId, quantity:0, restock:true){ userErrors{ field message } }
+    `mutation Rm($id: ID!, $lineItemId: ID!, $restock: Boolean){
+       orderEditSetQuantity(id:$id, lineItemId:$lineItemId, quantity:0, restock:$restock){ userErrors{ field message } }
      }`,
-    { id: calc.id, lineItemId },
+    { id: calc.id, lineItemId: calcLine.id, restock: calcLine.restockable !== false },
   );
   const rmErrs = removed.orderEditSetQuantity?.userErrors || [];
   if (rmErrs.length) throw new Error(`orderEditSetQuantity: ${JSON.stringify(rmErrs)}`);
