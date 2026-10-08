@@ -34,6 +34,38 @@ export function riskTag(tags) {
 
 const attrMap = (arr) => Object.fromEntries((arr || []).map((a) => [a.key ?? a.name, a.value]));
 
+/*
+ * The line items the order actually stands at, not the ones it was placed with.
+ *
+ * Shopify keeps a removed line forever: `quantity` stays at what was bought and
+ * `currentQuantity` drops to 0. Reading `quantity` therefore describes history,
+ * so a hand-edited order named the wrong garment in every message, and through
+ * flowB it could publish a real review onto a product the customer no longer
+ * had. Order #1182 (XS removed, 2XL added by hand) is the live example; 12 of
+ * the last 150 orders have the same shape.
+ *
+ * The fallback matters as much as the filter. A cancelled or voided order has
+ * EVERY line at currentQuantity 0 (33 of the last 150), and dropping them all
+ * would leave itemLine and heroImageUrl with nothing to describe. For those the
+ * order as placed is the only truthful answer, so it is what we keep, with the
+ * original quantities.
+ */
+function liveLineItems(nodes) {
+  const shape = (li, quantity) => ({
+    id: li.id,
+    title: li.title,
+    quantity,
+    productGid: li.product?.id || null,
+    unitPaise: toPaise(li.originalUnitPriceSet?.shopMoney?.amount || 0),
+    size: sizeOf(li),
+    image: li.image?.url ? { url: li.image.url, width: li.image.width, height: li.image.height } : null,
+  });
+  // `?? li.quantity` keeps callers that never selected currentQuantity working.
+  const current = (li) => li.currentQuantity ?? li.quantity ?? 1;
+  const live = nodes.filter((li) => current(li) > 0).map((li) => shape(li, current(li)));
+  return live.length ? live : nodes.map((li) => shape(li, li.quantity ?? 1));
+}
+
 /** @param {any} o a GraphQL order (shopify.getOrder shape) */
 export function normalizeOrder(o) {
   if (!o) return null;
@@ -76,15 +108,7 @@ export function normalizeOrder(o) {
     fulfillments,
     fulfilledAt,
     delhiveryAwb,
-    lineItems: (o.lineItems?.nodes || []).map((li) => ({
-      id: li.id,
-      title: li.title,
-      quantity: li.quantity,
-      productGid: li.product?.id || null,
-      unitPaise: toPaise(li.originalUnitPriceSet?.shopMoney?.amount || 0),
-      size: sizeOf(li),
-      image: li.image?.url ? { url: li.image.url, width: li.image.width, height: li.image.height } : null,
-    })),
+    lineItems: liveLineItems(o.lineItems?.nodes || []),
     // COD King attributes
     codkAmountType: attrs._codkAmountType || null,
     codkAmountValue: attrs._codkAmountValue || null,

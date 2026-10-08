@@ -187,6 +187,56 @@ describe('what the customer sees of their own order', () => {
     const u = heroImageUrl(order([li({ image: null }), li({ title: 'Bel' })]));
     expect(u).toMatch(/sahaj\.jpg/);
   });
+
+  /*
+   * A removed line stays on the order with its original quantity and drops to
+   * currentQuantity 0. Reading quantity described the order as placed, so a
+   * hand-edited order named the wrong garment at dispatch. Order #1182 is the
+   * live shape: XS removed, 2XL added, same product and price.
+   */
+  const sized = (size, over) => li({
+    variant: { selectedOptions: [{ name: 'Size', value: size }] },
+    variantTitle: size,
+    ...over,
+  });
+
+  it('names the garment the customer is actually getting, not the removed one', () => {
+    const n = order([sized('XS', { currentQuantity: 0 }), sized('2XL', { currentQuantity: 1 })]);
+    expect(itemLine(n)).toBe('Sahaj, size 2XL');
+  });
+
+  it('does not count a removed line as "and 1 more item"', () => {
+    const n = order([sized('XS', { currentQuantity: 0 }), sized('2XL', { currentQuantity: 1 })]);
+    expect(itemLine(n)).not.toMatch(/more item/);
+  });
+
+  it('never puts the removed product photo in the message header', () => {
+    const n = order([
+      sized('XS', { currentQuantity: 0, image: { url: 'https://cdn/removed.jpg', width: 500, height: 500 } }),
+      sized('2XL', { currentQuantity: 1, image: { url: 'https://cdn/kept.jpg', width: 500, height: 500 } }),
+    ]);
+    expect(heroImageUrl(n)).toMatch(/kept\.jpg/);
+  });
+
+  it('still describes a voided order, where EVERY line is at currentQuantity 0', () => {
+    // 33 of the last 150 orders look like this. Dropping every line would leave
+    // the digest and any late message with nothing to name, so the order as
+    // placed is the truthful answer.
+    const n = order([sized('S', { currentQuantity: 0 })]);
+    expect(n.lineItems).toHaveLength(1);
+    expect(itemLine(n)).toBe('Sahaj, size S');
+  });
+
+  it('reports the quantity actually standing, not the quantity placed', () => {
+    expect(order([li({ quantity: 3, currentQuantity: 1 })]).lineItems[0].quantity).toBe(1);
+    expect(itemLine(order([li({ quantity: 3, currentQuantity: 1 })]))).toBe('Sahaj, size S');
+  });
+
+  it('is unchanged for an order whose lines never carried currentQuantity', () => {
+    // Every pre-existing caller and fixture is in this shape.
+    expect(itemLine(order([li({ quantity: 2 })]))).toBe('Sahaj, size S, 2 pieces');
+    expect(order([li()]).lineItems).toHaveLength(1);
+  });
 });
 
 /*

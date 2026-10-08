@@ -80,7 +80,7 @@ const ORDER_FIELDS = `
   shippingLines(first: 10) { nodes { title originalPriceSet { shopMoney { amount } } } }
   fulfillments(first: 10) { status displayStatus createdAt trackingInfo { number company } }
   lineItems(first: 50) { nodes {
-    id title quantity variantTitle
+    id title quantity currentQuantity variantTitle
     product { id }
     variant { selectedOptions { name value } }
     image { url width height }
@@ -242,7 +242,7 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
        orderEditBegin(id:$id){
          calculatedOrder{
            id
-           lineItems(first:50){ nodes{ id originalUnitPriceSet{ shopMoney{ amount } } } }
+           lineItems(first:50){ nodes{ id quantity originalUnitPriceSet{ shopMoney{ amount } } } }
            shippingLines{ id title }
          }
          userErrors{ field message }
@@ -267,7 +267,12 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
   }
 
   if (amounts.discountPaise > 0) {
-    const lines = calc.lineItems?.nodes || [];
+    // A removed line stays on the calculated order at quantity 0 with its
+    // original price intact, and it sorts first on a tie. On #1182 both lines
+    // are the same price, so the top-priced pick would have put the prepaid
+    // discount on the line the customer is not getting. This is the money
+    // path, so filter before sorting.
+    const lines = (calc.lineItems?.nodes || []).filter((li) => (li.quantity ?? 1) > 0);
     const top = lines
       .slice()
       .sort(

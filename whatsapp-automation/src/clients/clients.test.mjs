@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { whatsapp } from './whatsapp.mjs';
+import { shopify } from './shopify.mjs';
+import { config } from '../config.mjs';
 import { makeFakeClients } from './fakes/index.mjs';
 
 describe('real whatsapp client is safe by default (DRY_RUN)', () => {
@@ -127,3 +129,74 @@ describe('razorpay cancelLink is idempotent about a link that is already closed'
     await expect(cancelWith(refuse('The api key provided is invalid'))).rejects.toThrow(/invalid/);
   });
 })
+
+/*
+ * convertToPrepaid had no test of any kind, and it is the one place real money
+ * moves. It reads calculatedOrder.lineItems itself, so the normalizeOrder fix
+ * does not reach it.
+ */
+describe('convertToPrepaid never discounts a line the customer no longer has', () => {
+  it('skips the removed line even when it ties on price and sorts first', async () => {
+    // Order #1182's shape: XS removed, 2XL added, same product, same price. The
+    // removed line keeps its original price and comes back first, so the
+    // top-priced pick put the prepaid discount on the garment being returned to
+    // stock, leaving the customer's actual line at full price.
+    const realFetch = globalThis.fetch;
+    const prevDry = config.dryRun;
+    const prevVerified = process.env.CONVERSION_VERIFIED;
+    config.dryRun = false;
+    process.env.CONVERSION_VERIFIED = 'true';
+
+    const seen = [];
+    const reply = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify({ data }) });
+    globalThis.fetch = async (_url, init) => {
+      const { query, variables } = JSON.parse(init.body);
+      seen.push({ query, variables });
+      if (query.includes('orderEditBegin')) {
+        return reply({ orderEditBegin: {
+          calculatedOrder: {
+            id: 'gid://shopify/CalculatedOrder/1',
+            lineItems: { nodes: [
+              { id: 'gid://CalculatedLineItem/REMOVED', quantity: 0, originalUnitPriceSet: { shopMoney: { amount: '1249.00' } } },
+              { id: 'gid://CalculatedLineItem/KEPT', quantity: 1, originalUnitPriceSet: { shopMoney: { amount: '1249.00' } } },
+            ] },
+            shippingLines: [],
+          },
+          userErrors: [],
+        } });
+      }
+      if (query.includes('orderEditAddLineItemDiscount')) return reply({ orderEditAddLineItemDiscount: { userErrors: [] } });
+      if (query.includes('orderEditCommit')) {
+        return reply({ orderEditCommit: {
+          order: { id: 'gid://shopify/Order/1', totalOutstandingSet: { shopMoney: { amount: '1149.00' } } },
+          userErrors: [],
+        } });
+      }
+      if (query.includes('orderMarkAsPaid')) {
+        return reply({ orderMarkAsPaid: {
+          order: { id: 'gid://shopify/Order/1', displayFinancialStatus: 'PAID', netPaymentSet: { shopMoney: { amount: '1149.00' } } },
+          userErrors: [],
+        } });
+      }
+      throw new Error(`unexpected query: ${query.slice(0, 70)}`);
+    };
+
+    try {
+      const r = await shopify.convertToPrepaid({
+        order: { gid: 'gid://shopify/Order/1', numericId: '1' },
+        amounts: { discountPaise: 10000, codFeePaise: 5000, newTotalPaise: 114900 },
+        paymentId: 'pay_X',
+      });
+      expect(r.applied).toBe(true);
+    } finally {
+      globalThis.fetch = realFetch;
+      config.dryRun = prevDry;
+      if (prevVerified === undefined) delete process.env.CONVERSION_VERIFIED;
+      else process.env.CONVERSION_VERIFIED = prevVerified;
+    }
+
+    const disc = seen.find((c) => c.query.includes('orderEditAddLineItemDiscount'));
+    expect(disc).toBeTruthy();
+    expect(disc.variables.lineItemId).toBe('gid://CalculatedLineItem/KEPT');
+  });
+});
