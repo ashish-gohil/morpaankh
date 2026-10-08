@@ -5,9 +5,13 @@
  * reader so local runs need no dotenv dependency, and DRY_RUN defaults TRUE.
  * Secrets never live here — they come from src/secrets.mjs.
  *
- * Hot-swappable flags (per-flow enabled/startAt, DRY_RUN, allowlists) can be
- * overlaid at runtime from a DynamoDB config item without a redeploy; see
- * src/flags.mjs. This module holds the env-derived defaults.
+ * FLAGS ARE NOT HOT-SWAPPABLE. This comment used to promise a runtime overlay
+ * from a DynamoDB config item via src/flags.mjs; that module was never built,
+ * and `configBackend` below (fed by CONFIG_BACKEND in iac/lib/stack.js) is read
+ * here and consumed by nothing. Believing the old comment would mean flipping a
+ * flag and never deploying it, so: every value here comes from the environment
+ * at cold start. To change one without a full deploy use
+ * scripts/pause-flow.mjs, which rewrites the Lambda env vars directly.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

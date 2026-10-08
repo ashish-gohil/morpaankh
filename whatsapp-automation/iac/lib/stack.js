@@ -325,18 +325,32 @@ class WaAutomationStack extends cdk.Stack {
     // webhook, the provider would retry, give up, and the events would be lost
     // with nothing alerting. One alarm over the sum of errors across every
     // other function closes that.
-    const otherFns = [...Object.values(ingest), redirectFn, pollFn, reconcileFn, digestFn, errorReporter];
-    alarm(
-      'function-errors',
+    // CloudWatch allows at most 10 individual metrics in an alarm math
+    // expression, and this list was already at 9, which is why the two public
+    // intake endpoints could not simply be appended: synth fails with
+    // TooManyMetricsInMathExpression at 11. They get their own alarm instead,
+    // which is a truer grouping anyway - both are public HTTP endpoints that
+    // sit outside the queue-driven pipeline. The worker is in neither list on
+    // purpose, it has its own alarm above.
+    const pipelineFns = [...Object.values(ingest), redirectFn, pollFn, reconcileFn, digestFn, errorReporter];
+    const intakeFns = [onboardingFn, subscribeFn];
+    const sumErrors = (fns) =>
       new cw.MathExpression({
-        expression: otherFns.map((_, i) => `e${i}`).join(' + '),
+        expression: fns.map((_, i) => `e${i}`).join(' + '),
         usingMetrics: Object.fromEntries(
-          otherFns.map((f, i) => [`e${i}`, f.metricErrors({ period: Duration.minutes(5) })]),
+          fns.map((f, i) => [`e${i}`, f.metricErrors({ period: Duration.minutes(5) })]),
         ),
         period: Duration.minutes(5),
-      }),
-      1,
-    );
+      });
+    if (pipelineFns.length > 10 || intakeFns.length > 10) {
+      throw new Error('alarm math expression limit is 10 metrics; split the list further');
+    }
+    alarm('function-errors', sumErrors(pipelineFns), 1);
+    // subscribe is the signup popup's ONLY save path and it answers 502 on a
+    // caught failure, so it raises no Lambda error either. Nothing alarmed it,
+    // so an uncaught failure, a bad deploy or a Secrets Manager outage, would
+    // have taken the whole subscriber list offline silently.
+    alarm('intake-errors', sumErrors(intakeFns), 1);
 
     // ---- outputs ----------------------------------------------------------
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
