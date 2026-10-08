@@ -104,6 +104,7 @@ class WaAutomationStack extends cdk.Stack {
       // 'flow', whose template Meta has not approved, and the review ask would
       // stop with nothing reporting that it had.
       REVIEW_VIA: props.reviewVia === 'link' ? 'link' : 'flow',
+      VARIANT_CHANGE_ENABLED: String(Boolean(props.variantChangeEnabled)),
       ...Object.fromEntries(
         ['A', 'B', 'C', 'D'].flatMap((f) => [
           [`FLOW_${f}_ENABLED`, String(Boolean((props.flows || {})[f]?.enabled))],

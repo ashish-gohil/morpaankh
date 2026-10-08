@@ -81,10 +81,11 @@ const ORDER_FIELDS = `
   fulfillments(first: 10) { status displayStatus createdAt trackingInfo { number company } }
   lineItems(first: 50) { nodes {
     id title quantity currentQuantity variantTitle
-    product { id }
-    variant { selectedOptions { name value } }
+    product { id handle }
+    variant { id selectedOptions { name value } }
     image { url width height }
     originalUnitPriceSet { shopMoney { amount } }
+    discountAllocations { allocatedAmountSet { shopMoney { amount } } }
   } }
 `;
 
@@ -343,6 +344,154 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
   };
 }
 
+/**
+ * Swap one line item onto another variant of the SAME product. Nothing else.
+ *
+ * NOT IDEMPOTENT: it removes a line and adds a line. The caller wraps it in
+ * runOnce keyed by line AND target variant, and FIFO per-order serialization
+ * keeps two taps from interleaving.
+ *
+ * The invariant check before the commit is the real guard, because an order
+ * edit cannot be rolled back afterwards. It asserts on the CALCULATED order,
+ * where totalPriceSet reflects the staged changes. Note the trap: on the Order
+ * type the same field name is a pre-edit SNAPSHOT that does not move when a
+ * line is removed (order #1182 reads totalPrice 2548.00 against
+ * currentTotalPrice 1299.00), so asserting there would pass no matter what the
+ * edit did. Same field name, opposite meaning.
+ */
+async function changeLineItemVariant({ order, lineItemId, newVariantId, carryDiscountPaise = 0, staffNote }) {
+  const plan = { orderId: order.numericId, lineItemId, newVariantId };
+  if (config.dryRun) {
+    log.info('changeLineItemVariant plan (dry_run)', plan);
+    return { ...plan, applied: false, method: 'dry_run' };
+  }
+
+  // The invariant fields. There is no root `calculatedOrder(id:)` query - that
+  // field does not exist on QueryRoot - so the staged state is read from each
+  // mutation's OWN response instead. The discount comes in as an argument,
+  // read off the Order type by the caller: CalculatedLineItem's
+  // calculatedDiscountAllocations additionally requires read_returns, which
+  // this app does not hold.
+  const CALC = `
+    id
+    totalPriceSet{ shopMoney{ amount } }
+    shippingLines{ id title }
+    lineItems(first:50){ nodes{ id quantity variant{ id } } }`;
+  const snapshot = (c) => ({
+    total: c.totalPriceSet.shopMoney.amount,
+    lines: (c.lineItems?.nodes || []).filter((l) => (l.quantity ?? 0) > 0).length,
+    shipping: (c.shippingLines || []).map((sl) => `${sl.id}:${sl.title}`).sort().join('|'),
+  });
+
+  const begun = await graphql(
+    `mutation Begin($id: ID!){ orderEditBegin(id:$id){ calculatedOrder{ ${CALC} } userErrors{ field message } } }`,
+    { id: order.gid },
+  );
+  const beginErrs = begun.orderEditBegin?.userErrors || [];
+  if (beginErrs.length) throw new Error(`orderEditBegin: ${JSON.stringify(beginErrs)}`);
+  const calc = begun.orderEditBegin.calculatedOrder;
+  const before = snapshot(calc);
+
+  // Redelivery: the target is already on the order, so a previous attempt got
+  // through. Nothing to do, and nothing to undo.
+  const already = (calc.lineItems?.nodes || []).some(
+    (l) => (l.quantity ?? 0) > 0 && l.variant?.id === newVariantId,
+  );
+  if (already) {
+    log.info('changeLineItemVariant: target already on the order, treating as done', plan);
+    return { ...plan, applied: true, method: 'already_applied' };
+  }
+
+  // restock: true returns the garment they are NOT taking to sellable stock.
+  // Without it every swap quietly loses a unit of inventory.
+  const removed = await graphql(
+    `mutation Rm($id: ID!, $lineItemId: ID!){
+       orderEditSetQuantity(id:$id, lineItemId:$lineItemId, quantity:0, restock:true){ userErrors{ field message } }
+     }`,
+    { id: calc.id, lineItemId },
+  );
+  const rmErrs = removed.orderEditSetQuantity?.userErrors || [];
+  if (rmErrs.length) throw new Error(`orderEditSetQuantity: ${JSON.stringify(rmErrs)}`);
+
+  const added = await graphql(
+    `mutation Add($id: ID!, $variantId: ID!){
+       orderEditAddVariant(id:$id, variantId:$variantId, quantity:1, allowDuplicates:true){
+         calculatedLineItem{ id }
+         calculatedOrder{ ${CALC} }
+         userErrors{ field message }
+       }
+     }`,
+    { id: calc.id, variantId: newVariantId },
+  );
+  const addErrs = added.orderEditAddVariant?.userErrors || [];
+  if (addErrs.length) throw new Error(`orderEditAddVariant: ${JSON.stringify(addErrs)}`);
+  const newLineId = added.orderEditAddVariant?.calculatedLineItem?.id;
+  let latest = added.orderEditAddVariant.calculatedOrder;
+
+  // Carry the old line's discount across. 9 of the last 15 orders had one, so
+  // this is the normal case: without it a customer loses their discount by
+  // changing size. A fixed amount is expressed by SETTING fixedValue; there is
+  // no valueType enum on OrderEditAppliedDiscountInput.
+  if (carryDiscountPaise > 0 && newLineId) {
+    const disc = await graphql(
+      `mutation Disc($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!){
+         orderEditAddLineItemDiscount(id:$id, lineItemId:$lineItemId, discount:$discount){
+           calculatedOrder{ ${CALC} }
+           userErrors{ field message }
+         }
+       }`,
+      {
+        id: calc.id,
+        lineItemId: newLineId,
+        discount: {
+          description: 'Carried over on a size or colour change',
+          fixedValue: { amount: (carryDiscountPaise / 100).toFixed(2), currencyCode: 'INR' },
+        },
+      },
+    );
+    const dErrs = disc.orderEditAddLineItemDiscount?.userErrors || [];
+    if (dErrs.length) throw new Error(`orderEditAddLineItemDiscount: ${JSON.stringify(dErrs)}`);
+    latest = disc.orderEditAddLineItemDiscount.calculatedOrder;
+  }
+
+  // Refuse to commit unless ONLY the variant moved. This check is the real
+  // guard: an order edit cannot be rolled back once committed, and abandoning
+  // an UNCOMMITTED edit leaves the order untouched, so returning here IS the
+  // rollback.
+  const after = snapshot(latest);
+  const paise = (x) => Math.round(Number(x) * 100);
+  const breaches = [];
+  if (paise(after.total) !== paise(before.total)) breaches.push(`total ${before.total} -> ${after.total}`);
+  if (after.lines !== before.lines) breaches.push(`active lines ${before.lines} -> ${after.lines}`);
+  if (after.shipping !== before.shipping) breaches.push('shipping lines changed');
+  if (breaches.length) {
+    throw new Error(`changeLineItemVariant: invariant breach, NOT committed: ${breaches.join('; ')}`);
+  }
+
+  const committed = await graphql(
+    `mutation Commit($id: ID!, $note: String){
+       orderEditCommit(id:$id, notifyCustomer:false, staffNote:$note){
+         order{ id currentTotalPriceSet{ shopMoney{ amount } } totalOutstandingSet{ shopMoney{ amount } } }
+         userErrors{ field message }
+       }
+     }`,
+    { id: calc.id, note: staffNote || 'WhatsApp size or colour change' },
+  );
+  const cErrs = committed.orderEditCommit?.userErrors || [];
+  if (cErrs.length) throw new Error(`orderEditCommit: ${JSON.stringify(cErrs)}`);
+
+  // Past this point we can only report. currentTotalPriceSet, NOT totalPriceSet:
+  // on the Order type the latter is a pre-edit snapshot that does not move when
+  // a line is removed (#1182 reads 2548.00 against a currentTotal of 1299.00),
+  // so asserting on it would pass whatever the edit did.
+  const o = committed.orderEditCommit.order;
+  const currentTotal = o.currentTotalPriceSet.shopMoney.amount;
+  const outstanding = o.totalOutstandingSet.shopMoney.amount;
+  const drifted = paise(currentTotal) !== paise(before.total) || paise(outstanding) !== paise(before.total);
+
+  return { ...plan, applied: true, method: 'order_edit', currentTotal, outstanding, drifted };
+}
+
 // ---- Flow B: reviews + thank-you code --------------------------------------
 /** Create a product_review metaobject (ACTIVE or DRAFT). Returns { id, status }. */
 async function createReview({ productGid, orderName, rating, fit, body, authorName, consent, status, submittedAt }) {
@@ -419,14 +568,41 @@ async function createDiscountCode({ code, title, startsAt, endsAt, percentage, m
   return { id: data.discountCodeBasicCreate.codeDiscountNode.id, code };
 }
 
+/**
+ * The product behind a line item, with everything the variant-change rules need.
+ *
+ * inventoryQuantity and availableForSale need nothing beyond read_products,
+ * verified against the live 2026-07 schema; it is inventory LEVELS (per
+ * location) that need read_inventory, and this app does not hold it.
+ */
+async function getProductVariants(productGid) {
+  const data = await graphql(
+    `query P($id: ID!){
+       product(id:$id){
+         id handle title
+         options { name values }
+         variants(first:100){ nodes{
+           id title price availableForSale inventoryQuantity
+           selectedOptions{ name value }
+         } }
+       }
+     }`,
+    { id: productGid },
+    { idempotent: true },
+  );
+  return data.product || null;
+}
+
 export const shopify = {
   graphql,
   getOrder,
+  getProductVariants,
   ordersUpdatedSince,
   tagsAdd,
   orderCancel,
   metafieldsSet,
   convertToPrepaid,
+  changeLineItemVariant,
   createReview,
   appendProductReview,
   createDiscountCode,

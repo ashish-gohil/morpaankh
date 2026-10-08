@@ -109,6 +109,9 @@ export async function sess(deps, phone, key, vars, ctx = {}) {
   if (r.type === 'text') return wa.sendText({ to: phone, body: r.body });
   if (r.type === 'buttons') return wa.sendButtons({ to: phone, body: r.body, buttons: r.buttons });
   if (r.type === 'cta_url') return wa.sendCtaUrl({ to: phone, body: r.body, buttonText: r.buttonText, url: r.url });
+  // Without this line a 'list' would render and then be dropped by the
+  // `return null` below, which is exactly what happens to 'html' today.
+  if (r.type === 'list') return wa.sendList({ to: phone, body: r.body, buttonText: r.buttonText, rows: r.rows });
   return null;
 }
 

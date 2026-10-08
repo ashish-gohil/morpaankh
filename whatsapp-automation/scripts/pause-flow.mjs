@@ -17,10 +17,11 @@ const t = (target || '').toLowerCase();
 // Flow B sends, not whether it sends one.
 const states = t === 'reviewvia' ? ['flow', 'link'] : ['on', 'off'];
 if (!target || !states.includes(state)) {
-  console.error('usage: pause-flow.mjs <A|B|C|D|dryrun> <on|off> | reviewvia <flow|link>');
+  console.error('usage: pause-flow.mjs <A|B|C|D|dryrun|variantchange> <on|off> | reviewvia <flow|link>');
   process.exit(1);
 }
-const key = t === 'dryrun' ? 'DRY_RUN' : t === 'reviewvia' ? 'REVIEW_VIA' : `FLOW_${target.toUpperCase()}_ENABLED`;
+const KEYS = { dryrun: 'DRY_RUN', reviewvia: 'REVIEW_VIA', variantchange: 'VARIANT_CHANGE_ENABLED' };
+const key = KEYS[t] || `FLOW_${target.toUpperCase()}_ENABLED`;
 const value = t === 'dryrun' ? (state === 'off' ? 'false' : 'true') : t === 'reviewvia' ? state : String(state === 'on');
 
 const c = await import('@aws-sdk/client-lambda');

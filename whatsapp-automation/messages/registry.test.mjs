@@ -48,6 +48,14 @@ describe('session registry shape', () => {
         expect(m.buttons.length).toBeLessThanOrEqual(3);
         for (const b of m.buttons) expect(b.title.length, b.title).toBeLessThanOrEqual(20);
       }
+      // A list message's own caps, from Meta's Cloud API docs: the list button
+      // text is 20 characters, and a list with no button cannot be opened at
+      // all. Rows are per-order so they are checked where they are built.
+      if (m.type === 'list') {
+        expect(m.listButton, `${key} needs a listButton`).toBeTruthy();
+        expect(m.listButton.length, m.listButton).toBeLessThanOrEqual(20);
+        expect(m.buttons, `${key} is a list, it cannot also carry buttons`).toBeUndefined();
+      }
     });
   }
   it('cta display text stays <= 20 when rendered', () => {

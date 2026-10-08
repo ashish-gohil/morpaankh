@@ -7,6 +7,7 @@
  * re-checks eligibility before acting (webhooks + timers can be stale).
  */
 import { config } from '../config.mjs';
+import * as variantChange from './variantChange.run.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { hasTag, itemLine, heroImageUrl } from '../domain/order.mjs';
 import { classify } from '../domain/classify.mjs';
@@ -291,6 +292,15 @@ export async function onCancel(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, nowOf(deps));
+  // Offer the change first when the order can still take one. Cancelling used
+  // to be the only self-service option, so a customer who wanted a different
+  // size had to cancel and reorder: that is how #1187 became #1188, 36 minutes
+  // apart. When the order is past changing (AWB printed, money taken, already
+  // changed once, flag off) this is byte for byte the old behaviour.
+  const st = (await getState(orderId)) || {};
+  if (await variantChange.changeOffered(n, st, n.verifiedPhone)) {
+    return sess(deps, n.verifiedPhone, 'change_or_cancel', { order_number: n.name }, { orderId: n.numericId });
+  }
   await sess(deps, n.verifiedPhone, 'cancel_check', { order_number: n.name }, { orderId: n.numericId });
 }
 

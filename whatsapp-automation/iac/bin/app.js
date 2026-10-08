@@ -21,6 +21,7 @@ new WaAutomationStack(app, 'WaAutomation', {
   ownerAlertPhones: app.node.tryGetContext('ownerAlertPhones') || '',
   flows: app.node.tryGetContext('flows') || {},
   reviewVia: app.node.tryGetContext('reviewVia') || 'flow',
+  variantChangeEnabled: app.node.tryGetContext('variantChangeEnabled') === true,
   conversionVerified: app.node.tryGetContext('conversionVerified') === true,
 });
 

@@ -60,10 +60,25 @@ for (const [key, m] of Object.entries(SESSION)) {
   }
   const vars = {};
   for (const n of names) vars[n] = sampleValue(n);
-  const r = renderSession(key, vars, ctx);
+  // A list's rows are per-order, and a button whose action is null carries
+  // per-order ids, so both have to be supplied here or renderSession throws.
+  // Sample values only; this script renders copy, it never sends.
+  const rows =
+    m.type === 'list'
+      ? [
+          { action: 'vcs:1:101', title: 'M' },
+          { action: 'vcs:1:102', title: 'L', description: 'in stock' },
+        ]
+      : undefined;
+  const actions = Object.fromEntries(
+    (m.buttons || []).filter((b) => !b.action).map((b) => [b.title, 'vcok:1:101']),
+  );
+  const r = renderSession(key, vars, { ...ctx, rows, actions });
   console.log(`\n[${key}] (${m.type})`);
   console.log(r.body);
-  if (r.buttonText) console.log(`  [cta] ${r.buttonText} -> ${r.url}`);
+  if (r.type === 'list') console.log(`  [open] ${r.buttonText}`);
+  else if (r.buttonText) console.log(`  [cta] ${r.buttonText} -> ${r.url}`);
+  for (const row of r.rows || []) console.log(`  [row] ${row.title} (${row.id})${row.description ? ` - ${row.description}` : ''}`);
   for (const b of r.buttons || []) console.log(`  [reply] ${b.title} (${b.id})`);
 }
 console.log('\nOK: all copy rendered.');

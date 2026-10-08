@@ -29,6 +29,14 @@ function routeInbound(m) {
     const p = decodePayload(m.interactive.button_reply.id);
     if (p) return { groupId: `order:${p.orderId}` };
   }
+  // A list reply groups by order exactly as a button does. Without this the
+  // variant-change taps would land on the phone group, so a pick and the
+  // confirm that follows it could be processed out of order or in parallel,
+  // and FIFO per-order serialization is what holds the order edit together.
+  if (m.type === 'interactive' && m.interactive?.list_reply?.id) {
+    const p = decodePayload(m.interactive.list_reply.id);
+    if (p) return { groupId: `order:${p.orderId}` };
+  }
   return { groupId: `phone:+${m.from}` }; // from is e164 without '+'
 }
 

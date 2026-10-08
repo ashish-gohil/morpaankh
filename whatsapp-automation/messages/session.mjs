@@ -3,7 +3,9 @@
  * window. No Meta approval needed: edit and deploy. These may carry offers and
  * codes (templates may not). No emoji, no em/en dash (enforced by the test).
  *
- * Each entry: { type: 'text'|'buttons'|'cta_url'|'html', body, buttons?, ctaText? }.
+ * Each entry: { type: 'text'|'buttons'|'cta_url'|'list'|'html', body, buttons?, ctaText?, listButton? }.
+ * A 'list' carries no rows here: the rows are per-order (live sizes, live
+ * stock) so the caller passes them to sess() in ctx.rows.
  * buttons carry an `action` used to build the reply id payload at render time.
  */
 import { encodePayload } from '../src/lib/ids.mjs';
@@ -78,6 +80,92 @@ export const SESSION = {
       'Order {{order_number}} is already paid, so we want a person to handle the cancellation and ' +
       'your refund rather than do it automatically. Someone from our team will call you shortly.',
   },
+  // ---- variant change (size or colour swap) -------------------------------
+  // Entry point. Replaces cancel_check when the order is still changeable, so
+  // someone who only wants a different size is not pushed down the cancel path.
+  // That is how order #1187 became #1188: cancelled, then reordered one size up
+  // 36 minutes later.
+  change_or_cancel: {
+    type: 'buttons',
+    body:
+      'Before we stop the packing: would you like to change the size or colour on order {{order_number}}, ' +
+      'or cancel it altogether?',
+    buttons: [
+      { title: 'Change size/colour', flow: 'A', action: 'vc' },
+      { title: 'Cancel order', flow: 'A', action: 'cancel_yes' },
+      { title: 'Keep my order', flow: 'A', action: 'cancel_no' },
+    ],
+  },
+
+  // Which line, when the order has more than one changeable item.
+  vc_pick_item: {
+    type: 'list',
+    body: 'Which item would you like to change on order {{order_number}}?',
+    listButton: 'Choose item',
+  },
+
+  // Size or colour, for a product that has other colours in stock.
+  vc_pick_option: {
+    type: 'buttons',
+    body: 'You have {{item_desc}}. What would you like to change?',
+    buttons: [
+      // action: null means the caller MUST supply one in ctx.actions, because it
+      // carries a line item id. renderSession throws rather than emit a dead button.
+      { title: 'Size', flow: 'A', action: null },
+      { title: 'Colour', flow: 'A', action: null },
+      { title: 'Keep as it is', flow: 'A', action: 'cancel_no' },
+    ],
+  },
+
+  vc_pick_size: {
+    type: 'list',
+    body: 'You have {{item_desc}}. Please choose the size you would like instead.',
+    listButton: 'Choose size',
+  },
+
+  vc_pick_colour: {
+    type: 'list',
+    body: 'You have {{item_desc}}. Please choose the colour you would like instead.',
+    listButton: 'Choose colour',
+  },
+
+  // NOTHING is written to the order until the customer taps Yes here. The
+  // amount is shown unchanged on purpose: the first thing a person fears when
+  // changing an order is that the price will move.
+  vc_confirm: {
+    type: 'buttons',
+    body:
+      'Please confirm: order {{order_number}} changes from {{from_desc}} to {{to_desc}}.\n\n' +
+      'The amount stays {{order_total}}.',
+    buttons: [
+      { title: 'Yes, change it', flow: 'A', action: null }, // needs ctx.actions: carries line + variant
+      { title: 'Go back', flow: 'A', action: 'vc' },
+    ],
+  },
+
+  vc_changed: {
+    type: 'text',
+    body:
+      'Done. Order {{order_number}} is now {{to_desc}}, and the amount stays {{order_total}}. ' +
+      'We will pack this one instead.',
+  },
+
+  vc_nothing_available: {
+    type: 'text',
+    body:
+      'We do not have another size or colour of {{item_desc}} in stock right now, so order {{order_number}} ' +
+      'stays as it is. Reply here and someone from our team will help you.',
+  },
+
+  // Any failure, any ineligible case, anything we are not certain about. The
+  // order is never left half changed.
+  vc_handoff: {
+    type: 'text',
+    body:
+      'We could not make that change from here. Someone from our team will message you shortly. ' +
+      'Order {{order_number}} stays exactly as it is until then.',
+  },
+
   payment_received: {
     type: 'text',
     body:
@@ -175,8 +263,28 @@ export function renderSession(key, vars = {}, ctx = {}) {
     return {
       type: 'buttons',
       body,
-      buttons: m.buttons.map((b) => ({ id: encodePayload({ flow: b.flow, orderId: ctx.orderId, action: b.action }), title: b.title })),
+      // ctx.actions overrides a button's static action by title, for the two
+      // variant-change messages whose buttons must carry a line and variant id.
+      buttons: m.buttons.map((b) => {
+        // A button whose action is null carries per-order ids and MUST be given
+        // one. Falling back to a literal would emit a payload that routes
+        // nowhere: the customer taps and nothing whatsoever happens.
+        const action = (ctx.actions && ctx.actions[b.title]) || b.action;
+        if (!action) throw new Error(`session ${key} button "${b.title}" needs ctx.actions["${b.title}"]`);
+        return { id: encodePayload({ flow: b.flow, orderId: ctx.orderId, action }), title: b.title };
+      }),
     };
+  }
+  if (m.type === 'list') {
+    // Rows are per-order, so they arrive in ctx.rows as [{id, title, description?}]
+    // where id is a full action string (it carries ids, so it is built by the
+    // caller rather than from a static `action` like buttons are).
+    const rows = (ctx.rows || []).map((r) => ({
+      id: encodePayload({ flow: 'A', orderId: ctx.orderId, action: r.action }),
+      title: r.title,
+      ...(r.description ? { description: r.description } : {}),
+    }));
+    return { type: 'list', body, buttonText: m.listButton, rows };
   }
   throw new Error(`session ${key} has unknown type ${m.type}`);
 }

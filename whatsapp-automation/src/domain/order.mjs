@@ -56,7 +56,18 @@ function liveLineItems(nodes) {
     title: li.title,
     quantity,
     productGid: li.product?.id || null,
+    productHandle: li.product?.handle || null,
+    variantGid: li.variant?.id || null,
+    // The raw option pairs, not just `size` below: a variant change needs the
+    // COLOUR too, and it compares option names itself.
+    selectedOptions: li.variant?.selectedOptions || [],
     unitPaise: toPaise(li.originalUnitPriceSet?.shopMoney?.amount || 0),
+    // Summed because Shopify allocates per discount application, so a line can
+    // carry more than one. Needed to carry the discount onto a swapped line.
+    discountPaise: (li.discountAllocations || []).reduce(
+      (sum, a) => sum + toPaise(a.allocatedAmountSet?.shopMoney?.amount || 0),
+      0,
+    ),
     size: sizeOf(li),
     image: li.image?.url ? { url: li.image.url, width: li.image.width, height: li.image.height } : null,
   });

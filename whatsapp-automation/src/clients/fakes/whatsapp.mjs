@@ -13,6 +13,7 @@ export function makeFakeWhatsApp() {
     sendText: async (a) => rec('text', a),
     sendButtons: async (a) => rec('buttons', a),
     sendCtaUrl: async (a) => rec('cta_url', a),
+    sendList: async (a) => rec('list', a),
     sendFlow: async (a) => rec('flow', a),
   };
 }

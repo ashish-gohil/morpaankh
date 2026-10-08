@@ -1,5 +1,5 @@
 /* Fake Shopify client: seedable orders, records mutations. */
-export function makeFakeShopify({ orders = {} } = {}) {
+export function makeFakeShopify({ orders = {}, products = {}, failChangeVariant = null } = {}) {
   const store = new Map(Object.entries(orders));
   const calls = [];
   const gidOf = (id) => (String(id).startsWith('gid://') ? id : `gid://shopify/Order/${id}`);
@@ -31,6 +31,33 @@ export function makeFakeShopify({ orders = {} } = {}) {
     async metafieldsSet(metafields) {
       calls.push({ op: 'metafieldsSet', metafields });
       return { ok: true };
+    },
+    // Seed with makeFakeClients({ shopify: { products: { 'gid://shopify/Product/1': {...} } } })
+    async getProductVariants(productGid) {
+      calls.push({ op: 'getProductVariants', productGid });
+      return products[productGid] || null;
+    },
+    async changeLineItemVariant(args) {
+      calls.push({ op: 'changeLineItemVariant', args });
+      if (failChangeVariant) throw new Error(String(failChangeVariant));
+      const o = store.get(args.order.gid);
+      // Mirror a real edit closely enough that itemLine and the invariant see
+      // what production would: old line to currentQuantity 0, new line added.
+      if (o?.lineItems?.nodes) {
+        const old = o.lineItems.nodes.find((l) => l.id === args.lineItemId);
+        if (old) {
+          old.currentQuantity = 0;
+          o.lineItems.nodes.push({
+            ...old,
+            id: `${old.id}-new`,
+            currentQuantity: 1,
+            quantity: 1,
+            variant: { id: args.newVariantId, selectedOptions: args.fakeOptions || old.variant?.selectedOptions },
+            variantTitle: args.fakeVariantTitle || old.variantTitle,
+          });
+        }
+      }
+      return { applied: true, method: 'order_edit', drifted: false, ...args };
     },
     async convertToPrepaid(args) {
       calls.push({ op: 'convertToPrepaid', args });

@@ -20,6 +20,7 @@ import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
 import * as flowC from './flowC.run.mjs';
+import * as variantChange from './variantChange.run.mjs';
 
 // Derived from the registry, never hand-listed, so adding a template without a
 // legacy version cannot silently drop off this list.
@@ -40,6 +41,9 @@ async function sendSessionTo(phone, key, vars = {}, ctx = {}) {
   if (r.type === 'text') return wa.sendText({ to: phone, body: r.body });
   if (r.type === 'buttons') return wa.sendButtons({ to: phone, body: r.body, buttons: r.buttons });
   if (r.type === 'cta_url') return wa.sendCtaUrl({ to: phone, body: r.body, buttonText: r.buttonText, url: r.url });
+  // Without this line a 'list' would render and then be dropped by the
+  // `return null` below, which is exactly what happens to 'html' today.
+  if (r.type === 'list') return wa.sendList({ to: phone, body: r.body, buttonText: r.buttonText, rows: r.rows });
   return null;
 }
 
@@ -100,7 +104,10 @@ async function onWaInbound(m) {
     return flowB.onReviewSubmit(claims.orderId, data, deps());
   }
 
-  const rawPayload = msg.button?.payload || msg.interactive?.button_reply?.id;
+  // list_reply joins the SAME expression on purpose. A separate branch would
+  // skip the ownsOrder gate below, which is the one thing standing between a
+  // clear-text payload and someone else's order.
+  const rawPayload = msg.button?.payload || msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id;
   const p = rawPayload ? decodePayload(rawPayload) : null;
 
   if (p) {
@@ -113,7 +120,7 @@ async function onWaInbound(m) {
     if (!(await ownsOrder(p.orderId, phone))) {
       return log.warn('tap: phone does not own this order, ignoring', { flow: p.flow, action: p.action });
     }
-    if (p.flow === 'A') return routeFlowATap(p.orderId, p.action);
+    if (p.flow === 'A') return routeFlowATap(p.orderId, p.action, phone);
     if (p.flow === 'C') return routeFlowCTap(p.orderId, p.action);
     return;
   }
@@ -149,8 +156,13 @@ function routeFlowCTap(orderId, action) {
   log.info('flowC: unknown tap action', { action });
 }
 
-function routeFlowATap(orderId, action) {
+function routeFlowATap(orderId, action, phone) {
   const d = deps();
+  // The vc* steps re-check ownership STRICTLY, where ownsOrder above fails
+  // open on an order whose verified phone was never stored. Fail-open is
+  // defensible for a read; these edit the order.
+  const vc = variantChange.route(orderId, action, d, phone);
+  if (vc) return vc;
   switch (action) {
     case 'confirm':
       return flowA.onConfirm(orderId, d);

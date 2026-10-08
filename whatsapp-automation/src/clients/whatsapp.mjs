@@ -11,6 +11,7 @@
  *   sendText({ to, body })
  *   sendButtons({ to, body, buttons:[{id,title}] })
  *   sendCtaUrl({ to, body, buttonText, url })
+ *   sendList({ to, body, buttonText, rows:[{id,title,description?}] })
  *   sendFlow({ to, body, flowId, flowToken, flowCta, flowActionData })
  */
 import { config } from '../config.mjs';
@@ -67,6 +68,35 @@ export const whatsapp = {
         type: 'button',
         body: { text: body },
         action: { buttons: buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })) },
+      },
+    }),
+
+  /*
+   * An interactive list. Meta's caps, from the Cloud API docs: at most 10 rows
+   * for ALL sections COMBINED (not 10 per section - the widely repeated "10
+   * sections x 10 rows = 100" is wrong), row title 24 chars, row description
+   * 72, row id 200, list button text 20, body 4096. One section is all we need,
+   * and the caller is responsible for staying inside the row cap; the registry
+   * test enforces it for anything that lives in messages/.
+   */
+  sendList: ({ to, body, buttonText, rows }) =>
+    post(to, {
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        body: { text: body },
+        action: {
+          button: buttonText,
+          sections: [
+            {
+              rows: rows.map((r) => ({
+                id: r.id,
+                title: r.title,
+                ...(r.description ? { description: r.description } : {}),
+              })),
+            },
+          ],
+        },
       },
     }),
 

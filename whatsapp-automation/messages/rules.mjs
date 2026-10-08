@@ -55,6 +55,12 @@ export const RULES = {
   undeliverableRetryDays: 30,
   windowSafetyMinutes: 10,
 
+  // Variant change (Flow A, self-service size or colour swap)
+  // ONE change per order, and only while no AWB exists. Owner's rule 2026-10-08.
+  // A second swap means a second pick-and-pack on an order that is already
+  // being prepared, and once an AWB is printed the label carries the old SKU.
+  variantChangeMaxPerOrder: 1,
+
   // RTO
   rtoCodBlockCount: 2,
 

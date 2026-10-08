@@ -83,6 +83,11 @@ export const config = {
   // the same message with a Google Form button and arms no reminder, because a
   // form cannot tell us it was filled in. Hot-swappable: no redeploy to switch.
   reviewVia: (process.env.REVIEW_VIA || 'flow').toLowerCase(),
+
+  // Self-service size or colour change, offered from the Cancel button.
+  // DEFAULT OFF. With it off, onCancel sends the old cancel_check and every
+  // vc* tap is swallowed, so behaviour is byte for byte what it was.
+  variantChangeEnabled: bool(process.env.VARIANT_CHANGE_ENABLED, false),
 };
 
 /** Redact a secret for safe logging: keep an 8-char prefix, mask the rest. */
