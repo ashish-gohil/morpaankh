@@ -320,6 +320,31 @@ export async function onCancelYes(orderId, deps) {
     return;
   }
 
+  // Money has already been taken: a prepaid link the customer paid, or a COD
+  // King part payment. orderCancel omits the refund argument on purpose, with
+  // the reasoning "COD has nothing captured, so no refund is issued" - true
+  // only while nothing HAS been captured. Past that point the old path took the
+  // order away, kept the money, issued no refund and told nobody, and because
+  // cancelLinkIfAny is soft a stale Pay online message stays tappable, so this
+  // was reachable by an ordinary customer. Refunds are a person's decision, so
+  // hand off instead of cancelling.
+  //
+  // Timers are deliberately left armed. The order is still live pending that
+  // person's decision, and disarming it here would silently break the flow if
+  // they decide to keep it. Their cancel in Shopify fires orders/cancelled,
+  // which routes to onStop and tidies up properly.
+  if (n.receivedPaise > 0) {
+    await soft('tagsAdd:wa-cancel-refund-review', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cancel-refund-review']), { orderId });
+    await ownerAlert(
+      deps,
+      n.name,
+      `URGENT: customer asked to cancel an order with Rs ${(n.receivedPaise / 100).toFixed(2)} already received. ` +
+        'Nothing was cancelled. Cancel and refund by hand',
+    );
+    await sess(deps, n.verifiedPhone, 'cancel_refund_review', { order_number: n.name });
+    return;
+  }
+
   if (!n.delhiveryAwb || n.fulfillments.length === 0) {
     await runOnce(orderId, 'cancel', async () => {
       await deps.clients.shopify.orderCancel(n.gid, { reason: 'CUSTOMER', staffNote: 'WhatsApp customer cancel' });

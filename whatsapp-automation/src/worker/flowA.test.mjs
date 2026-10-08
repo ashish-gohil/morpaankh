@@ -115,6 +115,42 @@ describe('Flow A cancel', () => {
     expect(clients.whatsapp.sent.some((s) => /is cancelled/.test(s.body || ''))).toBe(true);
   });
 
+  /*
+   * orderCancel omits the refund argument on purpose, reasoning that COD has
+   * nothing captured. Once the customer has paid the prepaid link that is no
+   * longer true, and cancelLinkIfAny is soft, so a stale Pay online message
+   * stays tappable. The old path took the order away, kept the money, issued no
+   * refund and told nobody.
+   */
+  it('paid order: refuses to cancel, hands off for a refund instead', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    const paid = codOrder({ netPaymentSet: { shopMoney: { amount: '1449.00' } } });
+    const { clients, deps } = setup(paid);
+
+    await A.onCancelYes('12345', deps);
+
+    expect(clients.shopify.calls.some((c) => c.op === 'orderCancel')).toBe(false);
+    expect(tagsAdded(clients.shopify)).toContain('wa-cancel-refund-review');
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-cancelled');
+    // and the customer is told why, not fobbed off with "already left for delivery"
+    const toCustomer = clients.whatsapp.sent.filter((x) => x.to === PHONE);
+    expect(toCustomer.some((x) => /already paid/.test(x.body || ''))).toBe(true);
+    expect(toCustomer.some((x) => /already left for delivery/.test(x.body || ''))).toBe(false);
+    // and a person is told, with the amount, so the refund can actually happen
+    const alert = clients.whatsapp.sent.find((x) => x.name && x.name.startsWith('ops_alert'));
+    expect(alert).toBeTruthy();
+    expect(JSON.stringify(alert)).toMatch(/1449\.00/);
+  });
+
+  it('part paid order hands off too, because a deposit still needs refunding', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    const deposit = codOrder({ netPaymentSet: { shopMoney: { amount: '75.00' } } });
+    const { clients, deps } = setup(deposit);
+    await A.onCancelYes('12345', deps);
+    expect(clients.shopify.calls.some((c) => c.op === 'orderCancel')).toBe(false);
+    expect(tagsAdded(clients.shopify)).toContain('wa-cancel-refund-review');
+  });
+
   it('dispatched order: no cancel, tag wa-cancel-requested + too-late message', async () => {
     const order = codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }] });
     const { clients, deps } = setup(order, { statuses: { AWB1: { status: 'Out for Delivery', statusType: 'UD' } } });

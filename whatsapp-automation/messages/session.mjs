@@ -69,6 +69,15 @@ export const SESSION = {
       'Order {{order_number}} has already left for delivery, so we cannot stop it from here. ' +
       'Someone from our team will call you shortly and sort it out with you.',
   },
+  // Deliberately NOT cancel_too_late: nothing has left, the order is simply
+  // paid for. Saying "already left for delivery" to someone whose money we are
+  // holding would be the wrong reason and would read as a brush off.
+  cancel_refund_review: {
+    type: 'text',
+    body:
+      'Order {{order_number}} is already paid, so we want a person to handle the cancellation and ' +
+      'your refund rather than do it automatically. Someone from our team will call you shortly.',
+  },
   payment_received: {
     type: 'text',
     body:
