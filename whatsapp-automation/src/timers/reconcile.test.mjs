@@ -100,3 +100,50 @@ describe('orders nobody messaged', () => {
     expect((await sweepUnconfirmed(NOW)).skipped).toBe('flow-a-off');
   });
 });
+
+/*
+ * The sweep used to read "no codConfirmAt" as "we lost this order". It also
+ * covers "we read this order and decided there was nothing to send", and those
+ * need opposite handling. Order #1188 was the live case: duplicated by hand to
+ * swap a size, so its gateway was `manual`, so classify() returned UNKNOWN, so
+ * Flow A correctly sent nothing. The sweep then re-armed it once an hour, each
+ * re-arm alerted the owner, and the fourth hour raised a stuck alert about a
+ * condition the owner had already been told about by order name.
+ */
+describe('an order we deliberately decided not to message', () => {
+  it('is left alone instead of re-armed', async () => {
+    orders = [order('1188', hoursAgo(3))];
+    await ensureState('1188', {});
+    await patchFlowA('1188', { codSkip: 'class-unknown' });
+
+    const out = await sweepUnconfirmed(NOW);
+
+    expect(out.requeued).toEqual([]);
+    expect(out.stuck).toEqual([]);
+    expect(_peekQueue()).toEqual([]);
+  });
+
+  it('still counts as checked, so a real miss in the same batch is not masked', async () => {
+    orders = [order('1188', hoursAgo(3)), order('999', hoursAgo(3))];
+    await ensureState('1188', {});
+    await patchFlowA('1188', { codSkip: 'no-verified-phone' });
+
+    const out = await sweepUnconfirmed(NOW);
+
+    expect(out.checked).toBe(2);
+    expect(out.requeued).toEqual(['999']);
+  });
+
+  it('does not burn a sweepTry, so the stuck alert is never reached', async () => {
+    orders = [order('1188', hoursAgo(3))];
+    await ensureState('1188', {});
+    await patchFlowA('1188', { codSkip: 'class-unknown' });
+
+    await sweepUnconfirmed(NOW);
+    await sweepUnconfirmed(NOW);
+    await sweepUnconfirmed(NOW);
+    await sweepUnconfirmed(NOW);
+
+    expect((await getState('1188'))?.flowA?.sweepTries).toBeUndefined();
+  });
+});

@@ -73,6 +73,7 @@ export async function sweepUnconfirmed(now = new Date()) {
 
     const st = await getState(orderId);
     if (st?.flowA?.codConfirmAt) continue; // told
+    if (st?.flowA?.codSkip) continue; // looked at it and decided not to; see codSkip in flowA.run
     if (st?.stoppedAt || st?.cancelledAt) continue; // nothing to tell them
 
     const tries = st?.flowA?.sweepTries || 0;
@@ -131,10 +132,12 @@ export const handler = async (event = {}) => {
   if (repaired.length && !config.dryRun) {
     await soft('alertWebhooks', () => alert(`reconciliation repaired webhook subscriptions: ${repaired.map((r) => r.topic).join(', ')}`), {});
   }
-  const requeued = out.orders?.requeued || [];
-  if (requeued.length && !config.dryRun) {
-    await soft('alertRequeued', () => alert(`${requeued.length} order(s) had no WhatsApp confirmation and were re-armed: ${requeued.join(', ')}`), {});
-  }
+  // A re-arm is deliberately NOT alerted. It fires hourly, says only that the
+  // safety net did its job, and gives the owner nothing to do: either the
+  // re-arm works and the customer is told, or it runs out of tries and the
+  // once-per-order stuck alert above says so with the order name. Alerting on
+  // the attempt meant one unsendable order sent four messages about a fact the
+  // owner had already been told. The log line in sweepUnconfirmed is the record.
   log.info('reconcile done', out);
   return { ok: true, ...out };
 };

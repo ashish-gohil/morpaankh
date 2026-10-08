@@ -91,6 +91,20 @@ export async function onOrderCreate(orderId, deps) {
   await scheduleTimer({ flow: 'A', orderId, step: 'cod', at: addMinutes(now, RULES.codFirstMessageDelayMin) });
 }
 
+/*
+ * Record that the confirmation was deliberately NOT sent, and why.
+ *
+ * codConfirmAt means "this customer was told". Its absence used to mean two very
+ * different things: the message was lost in the chain, or we looked at the order
+ * and decided there was nothing to send. The reconcile sweep could only read the
+ * first meaning, so it re-armed orders that could never confirm, three times
+ * each, and then raised a stuck alert about a condition the owner had already
+ * been told about by name. One field separates the two.
+ */
+async function codSkip(orderId, reason) {
+  await patchFlowA(orderId, { codSkip: reason });
+}
+
 export async function onCodTimer(orderId, deps) {
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
@@ -102,15 +116,18 @@ export async function onCodTimer(orderId, deps) {
   if (st.flowA?.codConfirmAt) return; // already sent (stale timer)
 
   if (cls === 'UNKNOWN') {
+    await codSkip(orderId, 'class-unknown');
     await runOnce(orderId, 'alert-unknown', () => ownerAlert(deps, n.name, 'order class UNKNOWN, no Flow A'));
     return;
   }
   const elig = flowAEligible(n, cls, { startAt: config.flows.A.startAt, orderAllowlist: config.orderAllowlist });
   if (!elig.ok) {
+    await codSkip(orderId, `ineligible:${elig.reason}`);
     log.info('flowA cod: not eligible', { orderId, reason: elig.reason });
     return;
   }
   if (!n.verifiedPhone) {
+    await codSkip(orderId, 'no-verified-phone');
     await runOnce(orderId, 'tag-no-phone', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-no-verified-phone']));
     return;
   }
