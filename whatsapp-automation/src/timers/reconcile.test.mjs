@@ -209,6 +209,17 @@ describe('delivered orders nobody asked for a review', () => {
     expect(_peekTimers().map((t) => t.name)).toContain('B-900-review_ask');
   });
 
+  it('still finds a row that only ever recorded a courier status', async () => {
+    // Eleven live rows look exactly like this: the poller reached the delivery
+    // through patchState on a row ensureState had never created, so it holds
+    // courierStatus and nothing else - no orderId field at all. Reading
+    // st.orderId there gives undefined.
+    await patchState('906', { courierStatus: 'DELIVERED', courierStatusAt: hoursAgo(10) });
+    expect(await getState('906')).not.toHaveProperty('orderId');
+    const out = await sweepUnreviewed(NOW);
+    expect(out.scheduled).toEqual(['906']);
+  });
+
   it('leaves an order whose ask is already scheduled or sent alone', async () => {
     await delivered('901', hoursAgo(10));
     await patchFlowB('901', { scheduled: true });

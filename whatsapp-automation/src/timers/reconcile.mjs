@@ -138,6 +138,18 @@ export async function sweepUnreviewed(now = new Date()) {
   const deps = { clients: realClients, now };
 
   for (const st of await table.scanStates()) {
+    /*
+     * From the PK, not from a field, because the field is not always there.
+     *
+     * ensureState writes orderId, but track-active reaches a delivery through
+     * patchState, and patching a row that does not exist yet creates it with
+     * only PK, SK, version and the fields passed. Eleven live rows are exactly
+     * that: courierStatus DELIVERED and nothing else. Reading the field on
+     * those gives undefined, and the sweep would have called onDelivered with
+     * it. The PK is the one thing every row has.
+     */
+    const orderId = String(st.PK || '').replace('ORDER#', '');
+    if (!orderId) continue;
     if (st.courierStatus !== 'DELIVERED') continue;
     if (st.flowB?.scheduled || st.flowB?.reviewAsked || st.flowB?.reviewed) continue;
     if (st.cancelledAt || st.flowC?.rto) continue;
@@ -155,11 +167,11 @@ export async function sweepUnreviewed(now = new Date()) {
     if (!at || at < cutoff) continue;
     out.checked += 1;
     try {
-      await flowB.onDelivered(st.orderId, st.courierStatusAt, deps);
-      const after = await getState(st.orderId);
-      if (after?.flowB?.scheduled) out.scheduled.push(st.orderId);
+      await flowB.onDelivered(orderId, st.courierStatusAt, deps);
+      const after = await getState(orderId);
+      if (after?.flowB?.scheduled) out.scheduled.push(orderId);
     } catch (e) {
-      log.error('reconcile: review schedule failed', { orderId: st.orderId, err: e.message });
+      log.error('reconcile: review schedule failed', { orderId, err: e.message });
     }
   }
   if (out.scheduled.length) log.warn('reconcile: delivered orders had no review ask, scheduled', out);
