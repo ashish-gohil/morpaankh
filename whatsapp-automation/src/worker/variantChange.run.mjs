@@ -225,6 +225,7 @@ export async function onPickSize(orderId, lineNum, varNum, deps, phone) {
     n.verifiedPhone,
     'vc_confirm',
     {
+      customer_name: n.firstName,
       order_number: n.name,
       from_desc: describeVariant(line.title, currentVariantOf(line)),
       to_desc: describeVariant(line.title, target),

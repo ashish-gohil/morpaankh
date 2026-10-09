@@ -132,11 +132,23 @@ export const SESSION = {
   // NOTHING is written to the order until the customer taps Yes here. The
   // amount is shown unchanged on purpose: the first thing a person fears when
   // changing an order is that the price will move.
+  /*
+   * THE LAST LINE IS THE IMPORTANT ONE. The first version of this said
+   * "order {{n}} changes from X to Y", present tense, as a statement. A real
+   * customer on order #1196 tapped through to here, read it, and stopped: they
+   * had just picked a size from a list, so a message announcing the change
+   * read as confirmation that it had already happened. Four messages went out,
+   * none came back, and the order stayed on the old size.
+   *
+   * It is now a question, and it says outright that nothing has changed yet.
+   */
   vc_confirm: {
     type: 'buttons',
     body:
-      'Please confirm: order {{order_number}} changes from {{from_desc}} to {{to_desc}}.\n\n' +
-      'The amount stays {{order_total}}.',
+      'Almost done, {{customer_name}}. Shall we change order {{order_number}} from {{from_desc}} ' +
+      'to {{to_desc}}?\n\n' +
+      'The amount stays {{order_total}}.\n\n' +
+      'Nothing has changed yet. Tap below to confirm.',
     buttons: [
       { title: 'Yes, change it', flow: 'A', action: null }, // needs ctx.actions: carries line + variant
       { title: 'Go back', flow: 'A', action: 'vc' },

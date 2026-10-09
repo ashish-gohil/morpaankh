@@ -173,6 +173,22 @@ describe('a single-colour product goes straight to sizes', () => {
     expect(writes(clients)).toEqual([]);
   });
 
+  /*
+   * A real customer on order #1196 tapped through to the confirmation and
+   * stopped there. The old copy said "order X changes from S to L", present
+   * tense, which reads as already done to someone who has just picked a size.
+   * The message must ASK, and must say outright that the order is untouched.
+   */
+  it('asks rather than announces, and says the order is still untouched', async () => {
+    const { clients, deps } = await setup();
+    await VC.route(ORDER, 'vcs:1:101', deps, PHONE);
+    const body = last(clients).body;
+    expect(body).toMatch(/Nothing has changed yet/);
+    expect(body).toMatch(/\?/); // it is a question
+    expect(body).not.toMatch(/order #\d+ changes from/i); // never the old statement form
+    expect(writes(clients)).toEqual([]); // and it is true: nothing was written
+  });
+
   it('shows a confirmation with the unchanged amount, and writes nothing yet', async () => {
     const { clients, deps } = await setup();
     await VC.route(ORDER, 'vcs:1:101', deps, PHONE);
