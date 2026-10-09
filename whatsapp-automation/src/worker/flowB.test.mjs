@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
@@ -6,6 +7,7 @@ import { _resetSecrets } from '../secrets.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import * as B from './flowB.run.mjs';
+import { _flowData } from './flowB.run.mjs';
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0);
 const PHONE = '+919812345678';
@@ -262,5 +264,52 @@ describe('Flow B still reaches an order shipped without a Delhivery waybill', ()
     config.flows.B = { enabled: false, startAt: '2020-01-01T00:00:00Z' };
     await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
     expect(_peekTimers()).toHaveLength(0);
+  });
+});
+
+/*
+ * The Flow screen and the payload that fills it are two files that must agree,
+ * and nothing checked that they did. WhatsApp binds a screen's data as a whole:
+ * ONE missing key and the binding fails for the whole screen, so every
+ * ${data.x} renders as its own literal source text. That is what a real
+ * customer saw: "a code for ${data.percent_text} off your next order of
+ * ${data.min_order_text} or more".
+ *
+ * This reads the Flow JSON itself, so adding a key there fails the test until
+ * flowData supplies it.
+ */
+describe('the review Flow payload matches what the Flow screen declares', () => {
+  const flowJson = JSON.parse(
+    readFileSync(new URL('../../messages/flows/review.flow.json', import.meta.url), 'utf8'),
+  );
+  const declared = Object.keys(flowJson.screens[0].data);
+  const order = (lines) => ({
+    firstName: 'Aarav',
+    lineItems: lines.map((t, i) => ({ productGid: `gid://shopify/Product/${i}`, title: t })),
+  });
+
+  it('declares something worth checking', () => {
+    expect(declared).toContain('products');
+    expect(declared.length).toBeGreaterThan(3);
+  });
+
+  it('supplies EVERY declared key for a single-line order', () => {
+    // The common case: 14 of the last 15 real orders had exactly one line.
+    const data = _flowData(order(['Khili Dhoop']), true);
+    expect(Object.keys(data).sort()).toEqual([...declared].sort());
+    expect(data.products).toEqual([]);
+    expect(data.show_product).toBe(false);
+  });
+
+  it('supplies EVERY declared key for a multi-line order, and offers the choice', () => {
+    const data = _flowData(order(['Khili Dhoop', 'Bandhan']), true);
+    expect(Object.keys(data).sort()).toEqual([...declared].sort());
+    expect(data.show_product).toBe(true);
+    expect(data.products.map((p) => p.title)).toEqual(['Khili Dhoop', 'Bandhan']);
+  });
+
+  it('supplies every declared key even when products are not wanted', () => {
+    const data = _flowData(order(['Khili Dhoop', 'Bandhan']), false);
+    expect(Object.keys(data).sort()).toEqual([...declared].sort());
   });
 });

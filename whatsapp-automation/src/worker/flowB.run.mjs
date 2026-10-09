@@ -45,12 +45,30 @@ async function flowToken(orderId, now) {
   return signToken({ orderId, exp }, s.flowTokenKey || 'dev-flow-key');
 }
 
+/*
+ * EVERY key the Flow's screen declares must be present in flow_action_data.
+ *
+ * WhatsApp binds the screen's data as a whole: one missing key and the binding
+ * fails for the ENTIRE screen, so every ${data.x} renders as its own literal
+ * source text. The customer sees "a code for ${data.percent_text} off your next
+ * order of ${data.min_order_text} or more".
+ *
+ * `products` used to be added only when the order had more than one line, so
+ * every SINGLE-line order got a broken form - which is almost all of them, 14
+ * of the last 15. It is now always present, empty when there is nothing to
+ * choose between. That is safe: the Dropdown it feeds is hidden behind
+ * `visible: ${data.show_product}`, so an empty list is never rendered.
+ *
+ * messages/flows/review.flow.json is the contract, and flowB.test.mjs reads
+ * that file and fails if this function stops supplying any key it declares.
+ */
 function flowData(n, withProducts) {
   const data = {
     first_name: n.firstName,
     percent_text: `${RULES.reviewCodePercent}%`,
     min_order_text: formatINR(RULES.reviewCodeMinSubtotalInr * 100),
     show_product: false,
+    products: [],
   };
   if (withProducts && n.lineItems.length > 1) {
     data.show_product = true;
@@ -58,6 +76,9 @@ function flowData(n, withProducts) {
   }
   return data;
 }
+
+/** Exported for the test that keeps this in step with review.flow.json. */
+export const _flowData = flowData;
 
 // ---- trigger: delivered -----------------------------------------------------
 export async function onDelivered(orderId, deliveredAt, deps) {
