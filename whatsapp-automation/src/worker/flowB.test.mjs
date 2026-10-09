@@ -175,7 +175,10 @@ describe('Flow B never sends a second thank-you code', () => {
 });
 
 describe('Flow B answers a submission it cannot read', () => {
-  const bad = { ...submission, review: 'nope' }; // under the 10 char minimum
+  // 'nope' is 4 characters and is now VALID: the minimum dropped from 10 to 4.
+  // An unreadable submission needs something that genuinely carries no review,
+  // so this uses a missing rating, which is required and cannot be defaulted.
+  const bad = { ...submission, rating: '' };
 
   it('does not leave the customer in silence', async () => {
     const { clients, deps } = setup();
