@@ -155,6 +155,18 @@ export const SESSION = {
     ],
   },
 
+  /*
+   * The customer taps a confirm button for a change that has ALREADY happened,
+   * usually because a human fixed the order in Shopify in the meantime. That
+   * is not a failure and must not read like one: the old path fell through to
+   * vc_handoff, which told them we could not do it and raised an owner alert
+   * for an order that was already correct.
+   */
+  vc_already_done: {
+    type: 'text',
+    body: 'Good news, {{customer_name}}. Order {{order_number}} is already {{to_desc}}, so there is nothing left to change.',
+  },
+
   vc_changed: {
     type: 'text',
     body:

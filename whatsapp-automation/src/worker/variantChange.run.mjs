@@ -250,6 +250,26 @@ export async function onConfirm(orderId, lineNum, varNum, deps, phone) {
   const { n, st, line, product, bad } = await load(orderId, lineNum, deps, phone);
   if (!n) return;
   await touchInbound(phone, nowOf(deps));
+
+  /*
+   * Already on the variant they are asking for. Checked BEFORE the gate,
+   * because the gate would reject it: a line edited by hand in Shopify leaves
+   * the original line at quantity 0, so it is no longer "changeable" and the
+   * tap used to fall through to a handoff. That told a customer we could not
+   * make a change that had already been made, and raised an owner alert for an
+   * order that was already correct. Happened on #1196 the moment the owner
+   * fixed it in the admin while the customer still had the button on screen.
+   */
+  const already = (n.lineItems || []).find((l) => numOf(l.variantGid) === String(varNum));
+  if (already) {
+    log.info('variantChange: target already on the order, nothing to do', { orderId, varNum });
+    return sess(deps, n.verifiedPhone, 'vc_already_done', {
+      customer_name: n.firstName,
+      order_number: n.name,
+      to_desc: describeVariant(already.title, currentVariantOf(already)),
+    });
+  }
+
   if (bad) return handoff(orderId, n, bad, deps);
 
   const target = resolveTarget(line, product, (product?.variants?.nodes || []).find((v) => numOf(v.id) === String(varNum))?.id);

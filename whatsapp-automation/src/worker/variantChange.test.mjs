@@ -107,6 +107,7 @@ const bodies = (c) => sent(c).map((s) => s.body || '').join('\n');
 const rowActions = (msg) => (msg.rows || []).map((r) => decodePayload(r.id).action);
 const btnActions = (msg) => (msg.buttons || []).map((b) => decodePayload(b.id).action);
 const ops = (c) => c.shopify.calls.map((x) => x.op);
+const tagsAdded = (sh) => sh.calls.filter((c) => c.op === 'tagsAdd').flatMap((c) => c.tags);
 const writes = (c) => ops(c).filter((o) => o !== 'getOrder' && o !== 'getProductVariants');
 
 beforeEach(() => {
@@ -322,6 +323,36 @@ describe('a typed message in the middle changes nothing', () => {
     const later = { ...deps, now: new Date(deps.now.getTime() + 3 * 24 * 3600 * 1000) };
     await VC.route(ORDER, 'vcok:1:101', later, PHONE);
     expect(clients.shopify.calls.some((c) => c.op === 'changeLineItemVariant')).toBe(true);
+  });
+});
+
+describe('a stale confirm for a change someone already made by hand', () => {
+  /*
+   * Order #1196, live: the customer stopped at the confirmation, the owner
+   * fixed the size in Shopify, and the customer still had the button on
+   * screen. Tapping it must not claim we failed. A hand edit leaves the old
+   * line at quantity 0, so it is no longer "changeable" and the tap used to
+   * fall through to vc_handoff: a "we could not do this" to the customer and
+   * an owner alert, both about an order that was already correct.
+   */
+  it('says it is already done instead of claiming failure', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    // the order already holds the target variant, exactly as a hand edit leaves it
+    const edited = codOrder({
+      lineItems: { nodes: [
+        node(1, 100, sizeOnly('XS'), { currentQuantity: 0 }),
+        node(2, 101, sizeOnly('M'), { currentQuantity: 1 }),
+      ] },
+    });
+    const { clients, deps } = await setup(edited);
+    await VC.route(ORDER, 'vcok:1:101', deps, PHONE);
+
+    expect(bodies(clients)).toMatch(/already/i);
+    expect(bodies(clients)).not.toMatch(/could not make that change/);
+    // and it stays quiet: no second edit, no handoff tag, no owner alert
+    expect(clients.shopify.calls.some((c) => c.op === 'changeLineItemVariant')).toBe(false);
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-variant-change-requested');
+    expect(sent(clients).some((x) => x.name && x.name.startsWith('ops_alert'))).toBe(false);
   });
 });
 
