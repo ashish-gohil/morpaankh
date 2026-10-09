@@ -40,7 +40,12 @@ export const RULES = {
   reviewCodeAmountInr: 150,
   reviewCodeMinSubtotalInr: 1500,
   reviewCodeValidDays: 30,
-  reviewTextMin: 10,
+  // 4, not 10. Ten is a desktop-form number and this is WhatsApp: "Loved it"
+  // is 8 characters and "Nice" is 4, and both are genuine reviews. A rejected
+  // review is not a silent no-op either, it sends the customer a "your code is
+  // coming" message and lands manual follow-up on the owner. Quality is judged
+  // by moderationStatus, not by length.
+  reviewTextMin: 4,
   reviewTextMax: 600,
 
   // windows (IST, "HH:MM")

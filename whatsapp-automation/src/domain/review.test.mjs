@@ -9,7 +9,11 @@ describe('validateReview', () => {
     expect(r.value).toMatchObject({ rating: 5, fit: 'just_right', consent: true });
   });
   it('rejects a bad rating', () => expect(validateReview({ ...good, rating: '7' }).ok).toBe(false));
-  it('rejects too-short review text', () => expect(validateReview({ ...good, review: 'nice' }).ok).toBe(false));
+  // 'nice' is 4 characters and is now ACCEPTED on purpose: the minimum dropped
+  // from 10 to 4 because 10 was a desktop-form number on a WhatsApp surface.
+  // 'ok' is the boundary that still carries no review in it.
+  it('rejects review text with no words in it', () => expect(validateReview({ ...good, review: 'ok' }).ok).toBe(false));
+  it('accepts a short but real review', () => expect(validateReview({ ...good, review: 'nice' }).ok).toBe(true));
   it('rejects an over-long display name', () => expect(validateReview({ ...good, display_name: 'x'.repeat(31) }).ok).toBe(false));
   it('falls back to first name when display name is empty', () => {
     const r = validateReview({ ...good, display_name: '' }, { firstName: 'Meera' });
@@ -81,5 +85,32 @@ describe('moderation covers the display name, not just the review', () => {
 
   it('still holds a clean name with a dirty review', () => {
     expect(moderationStatus('visit www.elsewhere.com', true, 'Aarav')).toBe('DRAFT');
+  });
+});
+
+/*
+ * How short a real review is allowed to be. 10 characters was a desktop-form
+ * number on a WhatsApp surface: "Loved it" is 8 and "Nice" is 4, and both are
+ * genuine. Rejecting one is not a silent no-op either, it sends the customer a
+ * "your code is coming" message and lands manual follow-up on the owner.
+ */
+describe('a short review is still a review', () => {
+  const sub = (review) => ({ rating: '5', review, publish: 'name', display_name: 'Aarav' });
+
+  it('accepts the short ones people actually write on a phone', () => {
+    for (const text of ['Nice', 'Loved it', 'Very good', 'Good fit']) {
+      const v = validateReview(sub(text), { firstName: 'Aarav' });
+      expect(v.ok, `${text} (${text.length} chars) should be accepted`).toBe(true);
+    }
+  });
+
+  it('still refuses something that carries no words at all', () => {
+    for (const text of ['', ' ', 'ok']) {
+      expect(validateReview(sub(text), { firstName: 'Aarav' }).errors).toContain('review');
+    }
+  });
+
+  it('still refuses an essay beyond the max', () => {
+    expect(validateReview(sub('x'.repeat(601)), { firstName: 'Aarav' }).errors).toContain('review');
   });
 });
