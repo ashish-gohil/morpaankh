@@ -97,7 +97,10 @@ describe('Flow B', () => {
     expect(cr.args.status).toBe('ACTIVE');
     expect(calls(clients.shopify, 'appendProductReview')).toHaveLength(1);
     expect(calls(clients.shopify, 'createDiscountCode')).toHaveLength(1);
-    expect(clients.whatsapp.sent.some((s) => /off your next order/.test(s.body || ''))).toBe(true);
+    // Asserts the CODE reached them, not a turn of phrase: copy gets reworded,
+    // and a test that breaks on every rewrite teaches people to edit the test.
+    const sentCode = calls(clients.shopify, 'createDiscountCode')[0].args.code;
+    expect(clients.whatsapp.sent.some((s) => (s.body || '').includes(sentCode))).toBe(true);
     expect(tagsAdded(clients.shopify)).toContain('wa-reviewed');
   });
 
@@ -348,10 +351,17 @@ describe('the review thank-you code', () => {
     const { clients, deps } = setup();
     await B.onReviewSubmit('12345', submission, deps);
     const body = clients.whatsapp.sent.map((s) => s.body || '').join('\n');
-    expect(body).toMatch(/₹150 off your next order/);
+    expect(body).toMatch(/₹150 towards your next piece/);
     expect(body).toMatch(/works once/);
-    expect(body).toMatch(/valid until/);
+    expect(body).toMatch(/good until/);
     expect(body).not.toMatch(/%/); // the percentage wording is gone
+    // The code is alone in a monospace block, so holding it selects the code
+    // and not the sentence around it. This is the stand-in for a copy button,
+    // which only exists as a template component.
+    const code = clients.shopify.calls.find((c) => c.op === 'createDiscountCode').args.code;
+    expect(body).toContain('```' + code + '```');
+    expect(body).toMatch(/Hold the code to copy it/);
+    expect(body).toMatch(/morpaankh\.in/);
   });
 
   it('offers the same amount inside the Flow form the customer reads first', async () => {
