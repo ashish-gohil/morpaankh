@@ -358,12 +358,12 @@ describe('the review thank-you code', () => {
     expect(body).toMatch(/works once/);
     expect(body).toMatch(/good until/);
     expect(body).not.toMatch(/%/); // the percentage wording is gone
-    // The code is alone in a monospace block, so holding it selects the code
-    // and not the sentence around it. This is the stand-in for a copy button,
-    // which only exists as a template component.
+    // The code is BOLD and alone on its line, so it reads as a code rather
+    // than as part of the sentence. A real copy button is template-only.
     const code = clients.shopify.calls.find((c) => c.op === 'createDiscountCode').args.code;
-    expect(body).toContain('```' + code + '```');
-    expect(body).toMatch(/Hold the code to copy it/);
+    expect(body).toContain('*' + code + '*');
+    expect(body).not.toContain('```'); // monospace was tried and dropped
+    expect(body).not.toMatch(/copy/i);
     expect(body).toMatch(/morpaankh\.in/);
   });
 

@@ -182,26 +182,26 @@ export const SESSION = {
       'Please keep {{cod_amount}} ready at delivery as planned.\n\nSorry for the extra step.',
   },
   /*
-   * The code sits ALONE inside triple backticks, which WhatsApp renders as a
-   * monospace block. That is deliberate: a one-tap copy button exists only as
-   * a TEMPLATE component (authentication and coupon-code templates), not for
-   * free-form messages, and turning this into a template would make it
-   * MARKETING, which brings opt-in, a frequency cap and a per-message cost to
-   * something that is free inside the window the customer just opened by
-   * submitting. A monospace block on its own line is the closest free thing:
-   * it reads as a code rather than as prose, and holding it selects the code
-   * without dragging in the words around it.
+   * The code is BOLD and alone on its line. Monospace was tried first as a
+   * stand-in for a copy button and read worse on a phone than it did on paper,
+   * so it went. A true one-tap copy button exists only as a TEMPLATE component
+   * (authentication and coupon-code templates), never for free-form messages,
+   * and turning this into a template would make it MARKETING: opt-in, a
+   * frequency cap and a per-message cost, for something that is free inside
+   * the window the customer just opened by submitting the form. Bold on its
+   * own line is what is left, and it is the clearest of the three.
    */
   review_code: {
     type: 'text',
     body:
       'Thank you, {{customer_name}}. We read every one of these properly.\n\n' +
       '{{amount}} towards your next piece:\n\n' +
-      '```{{code}}```\n\n' +
-      'Hold the code to copy it. It is yours alone, works once on an order of {{min_order}} or more, ' +
+      '*{{code}}*\n\n' +
+      'It is yours alone, works once on an order of {{min_order}} or more, ' +
       'and is good until {{valid_until}}.\n\n' +
       'Come and see what is new at morpaankh.in',
   },
+
   review_code_pending: {
     type: 'text',
     body: 'Thank you for writing in, {{customer_name}}. Your thank you code will reach you here shortly.',
