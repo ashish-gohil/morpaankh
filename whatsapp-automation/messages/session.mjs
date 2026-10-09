@@ -185,8 +185,8 @@ export const SESSION = {
     type: 'text',
     body:
       'Thank you for writing in, {{customer_name}}. That genuinely helps us.\n\n' +
-      'Here is {{percent}}% off your next order: {{code}}\n' +
-      'It works once on orders of {{min_order}} or more, until {{valid_until}}.',
+      'Here is {{amount}} off your next order: {{code}}\n' +
+      'It works once, on orders of {{min_order}} or more, and it is valid until {{valid_until}}.',
   },
   review_code_pending: {
     type: 'text',

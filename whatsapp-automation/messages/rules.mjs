@@ -33,9 +33,13 @@ export const RULES = {
   untrackedDeliveryAssumeDays: 5,
 
   // review code
-  reviewCodePercent: 5,
+  // A FLAT RUPEE amount, not a percentage. Owner's call 2026-10-09: a customer
+  // understands "Rs 150 off" instantly, where "5% off" needs arithmetic before
+  // it means anything. It also caps the give: 5% of a large basket was open
+  // ended, Rs 150 never is.
+  reviewCodeAmountInr: 150,
   reviewCodeMinSubtotalInr: 1500,
-  reviewCodeValidDays: 60,
+  reviewCodeValidDays: 30,
   reviewTextMin: 10,
   reviewTextMax: 600,
 

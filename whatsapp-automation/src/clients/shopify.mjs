@@ -571,7 +571,18 @@ async function appendProductReview(productGid, reviewGid) {
 }
 
 /** Create a single-use percentage code for any customer. Returns { id, code }. */
-async function createDiscountCode({ code, title, startsAt, endsAt, percentage, minSubtotalInr }) {
+/*
+ * A single-use, expiring, flat-rupee code.
+ *
+ * usageLimit 1 AND appliesOncePerCustomer: the first stops the code being
+ * passed around, the second stops the same customer reusing it. endsAt is what
+ * makes it expire; without it a code lives forever.
+ *
+ * discountAmount expresses a FIXED amount. There is no valueType enum on
+ * DiscountCustomerGetsValueInput: a percentage and an amount are different
+ * FIELDS, and setting the wrong one silently changes what the customer gets.
+ */
+async function createDiscountCode({ code, title, startsAt, endsAt, amountInr, minSubtotalInr }) {
   if (config.dryRun) {
     log.info('createDiscountCode skipped (dry_run)', { code });
     return { id: 'dry_discount', code };
@@ -587,7 +598,7 @@ async function createDiscountCode({ code, title, startsAt, endsAt, percentage, m
         usageLimit: 1,
         appliesOncePerCustomer: true,
         context: { all: 'ALL' },
-        customerGets: { value: { percentage }, items: { all: true } },
+        customerGets: { value: { discountAmount: { amount: String(amountInr), appliesOnEachItem: false } }, items: { all: true } },
         minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: String(minSubtotalInr) } },
         combinesWith: { orderDiscounts: false, productDiscounts: false, shippingDiscounts: true },
       },

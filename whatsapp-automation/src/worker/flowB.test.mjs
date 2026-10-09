@@ -313,3 +313,51 @@ describe('the review Flow payload matches what the Flow screen declares', () => 
     expect(Object.keys(data).sort()).toEqual([...declared].sort());
   });
 });
+
+/*
+ * The thank-you code's terms. Owner's rules 2026-10-09: a FLAT Rs 150, usable
+ * ONCE, expiring after 30 days. Each of those is a separate Shopify field and
+ * getting any one wrong is a money bug that nothing else would catch:
+ * `percentage` and `discountAmount` are different FIELDS on the same input, so
+ * setting the wrong one silently changes what the customer gets.
+ */
+describe('the review thank-you code', () => {
+  const args = async () => {
+    const { clients, deps } = setup();
+    await B.onReviewSubmit('12345', submission, deps);
+    return clients.shopify.calls.find((c) => c.op === 'createDiscountCode').args;
+  };
+
+  it('is a flat rupee amount, never a percentage', async () => {
+    const a = await args();
+    expect(a.amountInr).toBe(150);
+    expect(a.percentage).toBeUndefined();
+  });
+
+  it('expires 30 days out, not 60', async () => {
+    const a = await args();
+    const days = (new Date(a.endsAt) - new Date(a.startsAt)) / 86400000;
+    expect(Math.round(days)).toBe(30);
+  });
+
+  it('carries the minimum spend it promises', async () => {
+    expect((await args()).minSubtotalInr).toBe(1500);
+  });
+
+  it('tells the customer the amount, the one-use rule and the expiry', async () => {
+    const { clients, deps } = setup();
+    await B.onReviewSubmit('12345', submission, deps);
+    const body = clients.whatsapp.sent.map((s) => s.body || '').join('\n');
+    expect(body).toMatch(/₹150 off your next order/);
+    expect(body).toMatch(/works once/);
+    expect(body).toMatch(/valid until/);
+    expect(body).not.toMatch(/%/); // the percentage wording is gone
+  });
+
+  it('offers the same amount inside the Flow form the customer reads first', async () => {
+    // The form says what the reward is BEFORE they write, so it has to agree
+    // with the code they get afterwards.
+    const data = _flowData({ firstName: 'Aarav', lineItems: [{ productGid: 'gid://p/1', title: 'X' }] }, true);
+    expect(data.percent_text).toBe('₹150');
+  });
+});

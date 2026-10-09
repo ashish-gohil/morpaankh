@@ -65,7 +65,11 @@ async function flowToken(orderId, now) {
 function flowData(n, withProducts) {
   const data = {
     first_name: n.firstName,
-    percent_text: `${RULES.reviewCodePercent}%`,
+    // The Flow screen's key is still named percent_text, and it stays that way
+    // on purpose: renaming it would need the published Flow republished, and
+    // publishing is ONE WAY (a published Flow can be deprecated, never returned
+    // to draft). The key is a slot; what the customer reads is the value.
+    percent_text: formatINR(RULES.reviewCodeAmountInr * 100),
     min_order_text: formatINR(RULES.reviewCodeMinSubtotalInr * 100),
     show_product: false,
     products: [],
@@ -245,7 +249,7 @@ export async function onReviewSubmit(orderId, submission, deps) {
     await sess(deps, n.verifiedPhone, 'review_code', {
       customer_name: n.firstName,
       code,
-      percent: String(RULES.reviewCodePercent),
+      amount: formatINR(RULES.reviewCodeAmountInr * 100),
       min_order: formatINR(RULES.reviewCodeMinSubtotalInr * 100),
       valid_until: formatISTDate(addDays(now, RULES.reviewCodeValidDays)),
     });
@@ -282,7 +286,7 @@ async function createCodeWithRetry(deps, n, now, attempts = 3) {
         title: `Review thanks ${n.name}`,
         startsAt: now.toISOString(),
         endsAt: endOfDayIST(addDays(now, RULES.reviewCodeValidDays)).toISOString(),
-        percentage: RULES.reviewCodePercent / 100,
+        amountInr: RULES.reviewCodeAmountInr,
         minSubtotalInr: RULES.reviewCodeMinSubtotalInr,
       });
     } catch (e) {
