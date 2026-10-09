@@ -7,15 +7,19 @@
  *   node scripts/templates-sync.mjs          # report only (dry-run)
  *   node scripts/templates-sync.mjs --live   # create missing templates
  *
- * Both TEMPLATES and LEGACY are synced: LEGACY holds the version the sender
- * falls back to while new copy is in review, so it has to exist at Meta too.
+ * TEMPLATES, LEGACY and NO_PRICE are ALL synced, because the sender can reach
+ * any of the three: LEGACY is the version it falls back to while new copy is in
+ * review, and NO_PRICE is the one it uses when there is no prepaid price to
+ * quote or no product photo. A registry the sender can reach but the sync
+ * ignores would be missing at Meta on a fresh WABA and every such send would
+ * fail with 132001.
  *
  * FLOW-button templates (delivered_review, review_reminder) need the review
  * flow id: set WA_REVIEW_FLOW_ID (from flows-sync) or they are skipped.
  */
 import { config } from '../src/config.mjs';
 import { getSecrets } from '../src/secrets.mjs';
-import { TEMPLATES, LEGACY, toPositionalBody, placeholderOrder } from '../messages/templates.mjs';
+import { TEMPLATES, LEGACY, NO_PRICE, toPositionalBody, placeholderOrder } from '../messages/templates.mjs';
 
 const live = process.argv.includes('--live');
 const s = await getSecrets();
@@ -120,8 +124,9 @@ const existing = await listExisting();
 console.log(`templates-sync (${live ? 'LIVE' : 'dry-run'}) against WABA`);
 let failed = false;
 
-// LEGACY first so a fallback always exists before its replacement goes live.
-const all = [...Object.entries(LEGACY), ...Object.entries(TEMPLATES)];
+// Fallbacks FIRST, so one always exists at Meta before its replacement goes
+// live. NO_PRICE before LEGACY before TEMPLATES, oldest to newest.
+const all = [...Object.entries(NO_PRICE), ...Object.entries(LEGACY), ...Object.entries(TEMPLATES)];
 for (const [key, t] of all) {
   const found = existing[t.name];
   if (found) {
