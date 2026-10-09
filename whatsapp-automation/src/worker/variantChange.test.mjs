@@ -12,6 +12,7 @@ import { _resetTimers } from '../timers/schedule.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { ensureState, patchState, patchFlowA, getState } from '../store/orderState.mjs';
 import { decodePayload } from '../lib/ids.mjs';
+import { touchInbound } from '../store/phoneProfile.mjs';
 import * as A from './flowA.run.mjs';
 import * as VC from './variantChange.run.mjs';
 
@@ -287,6 +288,40 @@ describe('a multi-line order asks which item', () => {
     const { clients, deps } = await setup(twoLines);
     await VC.route(ORDER, 'vcl:2', deps, PHONE);
     expect(rowActions(last(clients))).toEqual(['vcs:2:101', 'vcs:2:102']);
+  });
+});
+
+describe('a typed message in the middle changes nothing', () => {
+  /*
+   * The worry: a customer types "is L available?" between picking a size and
+   * confirming, and the confirm button goes dead.
+   *
+   * It cannot, and the reason is structural. Every step's state lives in the
+   * PAYLOAD (v1|A|<orderId>|vcok:<line>:<variant>), never in a conversation
+   * state that a message could clear, and onWaInbound checks for a payload
+   * BEFORE it looks at text or at any awaiting state. A tap always carries a
+   * payload, so it always routes. inHumanTakeover, which could have suppressed
+   * it, is dead code that nothing calls.
+   */
+  it('still applies the change when a text arrives between the pick and the confirm', async () => {
+    const { clients, deps } = await setup();
+    await VC.route(ORDER, 'vcs:1:101', deps, PHONE); // confirmation shown
+    // the customer types something; it touches no variant-change state
+    await touchInbound(PHONE, new Date());
+    await VC.route(ORDER, 'vcok:1:101', deps, PHONE);
+    const applied = clients.shopify.calls.find((c) => c.op === 'changeLineItemVariant');
+    expect(applied).toBeTruthy();
+    expect(applied.args.newVariantId).toBe(VAR(101));
+  });
+
+  it('still applies it much later, because the payload carries everything', async () => {
+    const { clients, deps } = await setup();
+    await VC.route(ORDER, 'vcs:1:101', deps, PHONE);
+    // a tap that arrives a long time afterwards is re-validated from scratch,
+    // not trusted, and still works while the order still qualifies
+    const later = { ...deps, now: new Date(deps.now.getTime() + 3 * 24 * 3600 * 1000) };
+    await VC.route(ORDER, 'vcok:1:101', later, PHONE);
+    expect(clients.shopify.calls.some((c) => c.op === 'changeLineItemVariant')).toBe(true);
   });
 });
 
