@@ -28,9 +28,25 @@ export const RULES = {
   payLinkMaxHours: 24,
 
   // Flow B timings
-  reviewAskAfterDeliveryHours: 48,
-  reviewReminderAfterHours: 72,
+  //
+  // ONE fixed slot a day, not an offset from each delivery. Owner's call
+  // 2026-10-09: an offset scattered the asks across every hour of the working
+  // day (11:27, 12:20, 16:29 on three consecutive orders), which reads as a
+  // machine firing at random rather than a shop that writes in the evening.
+  // 21:00 is deliberately before quietHours.start (21:30) and is when people
+  // are actually on WhatsApp, so the ask arrives when it can be answered.
+  reviewAskAtIST: '21:00',
+  // Whole IST days after delivery, so "1" is the evening of the day after it
+  // arrived. Raise to 2 to go back to roughly the old 48h gap.
+  reviewAskAfterDeliveryDays: 1,
+  reviewReminderAfterDays: 3,
   untrackedDeliveryAssumeDays: 5,
+  // How far back the nightly sweep will look for a delivered order whose review
+  // was never scheduled. Deliberately SHORT: it exists to repair a fresh hole (a
+  // dropped webhook, a flag that was off for an hour), not to mass-message
+  // customers whose parcel arrived a fortnight ago. Widening this sends real
+  // messages to everyone it newly reaches, so it is the owner's decision.
+  reviewSweepLookbackDays: 3,
 
   // review code
   // A FLAT RUPEE amount, not a percentage. Owner's call 2026-10-09: a customer

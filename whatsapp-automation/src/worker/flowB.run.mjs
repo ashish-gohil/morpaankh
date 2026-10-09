@@ -11,7 +11,7 @@ import { afterStart } from '../domain/eligibility.mjs';
 import { validateReview, moderationStatus } from '../domain/review.mjs';
 import { reviewFormSuffix } from '../../messages/templates.mjs';
 import { formatINR } from '../lib/money.mjs';
-import { addHours, addDays, nextWindowTime, formatISTDate, endOfDayIST } from '../lib/time.mjs';
+import { addDays, nextDailySlot, formatISTDate, endOfDayIST } from '../lib/time.mjs';
 import { signToken } from '../lib/ids.mjs';
 import { generateCode } from '../lib/discount-code.mjs';
 import { getSecrets } from '../secrets.mjs';
@@ -38,6 +38,15 @@ function reviewSkipReason(n) {
   if (!afterStart(n, config.flows.B.startAt)) return 'before-startAt';
   return null;
 }
+
+/**
+ * When a review ask goes out: the fixed daily slot, `days` whole IST days on.
+ *
+ * Every Flow B send routes through here so the ask and the reminder land at the
+ * same hour. Before this each one was its own offset nudged into a window, so a
+ * customer could be asked at 12:20 and reminded at 16:29.
+ */
+const reviewSlot = (from, days, now) => nextDailySlot(from, RULES.reviewAskAtIST, { minDays: days, now });
 
 async function flowToken(orderId, now) {
   const s = await getSecrets();
@@ -99,7 +108,7 @@ export async function onDelivered(orderId, deliveredAt, deps) {
   // truer, and rescheduling the same timer name just replaces it.
   if (st?.flowB?.scheduled && !st?.flowB?.assumedDelivery) return;
 
-  const at = nextWindowTime(addHours(new Date(deliveredAt || now), RULES.reviewAskAfterDeliveryHours), RULES.reviewSendWindow);
+  const at = reviewSlot(new Date(deliveredAt || now), RULES.reviewAskAfterDeliveryDays, now);
   await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at });
   await patchFlowB(orderId, {
     scheduled: true,
@@ -128,7 +137,7 @@ export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
   const st = await getState(orderId);
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed || st?.flowB?.scheduled) return;
 
-  const at = nextWindowTime(addDays(new Date(fulfilledAt || now), RULES.untrackedDeliveryAssumeDays), RULES.reviewSendWindow);
+  const at = reviewSlot(addDays(new Date(fulfilledAt || now), RULES.untrackedDeliveryAssumeDays), RULES.reviewAskAfterDeliveryDays, now);
   await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at });
   await patchFlowB(orderId, { scheduled: true, assumedDelivery: true });
 }
@@ -177,7 +186,7 @@ export async function onReviewTimer(orderId, deps) {
   // single customer would be reminded, including the ones who filled it in.
   if (viaLink) return;
   await soft('scheduleTimer:review_reminder', () =>
-    scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: nextWindowTime(addHours(now, RULES.reviewReminderAfterHours), RULES.reviewSendWindow) }),
+    scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: reviewSlot(now, RULES.reviewReminderAfterDays, now) }),
     { orderId },
   );
 }

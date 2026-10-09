@@ -33,7 +33,18 @@ export async function trackActiveShipments(clients = realClients) {
       const state = mapCourierStatus(r);
       const st = await getState(map.orderId);
       if (st?.courierStatus === state) continue; // unchanged
-      await patchState(map.orderId, { courierStatus: state });
+      /*
+       * WHEN the status changed, recorded next to the status itself.
+       *
+       * `updatedAt` cannot answer this: every write to the row bumps it, so a
+       * delivery followed by any other state change looks as recent as that
+       * change. The nightly review sweep needs a date it can bound itself by,
+       * and the courier's own timestamp is truer than our clock anyway.
+       */
+      await patchState(map.orderId, {
+        courierStatus: state,
+        courierStatusAt: new Date(r.statusDateTime || Date.now()).toISOString(),
+      });
       if (ACTIONABLE.includes(state)) {
         await enqueue(
           { kind: 'delhivery', awb: r.awb, status: r.status, at: r.statusDateTime },

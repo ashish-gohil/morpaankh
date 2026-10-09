@@ -10,11 +10,14 @@
  * order is worth almost nothing, so it runs every hour.
  */
 import { config } from '../config.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import { realClients } from '../clients/index.mjs';
 import { tpl } from '../worker/send.mjs';
 import { trackActiveShipments } from './track-active.mjs';
 import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
+import { table } from '../store/table.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
+import * as flowB from '../worker/flowB.run.mjs';
 import { enqueue } from '../queue.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log } from '../log.mjs';
@@ -105,9 +108,67 @@ export async function sweepUnconfirmed(now = new Date()) {
   return out;
 }
 
+/**
+ * Find orders we KNOW were delivered but never scheduled a review ask, and
+ * schedule one.
+ *
+ * This is the hole that meant no customer was ever asked for a review. Flow B
+ * starts from an EDGE: either a Shopify fulfilment event saying delivered, or
+ * the Delhivery poller seeing the status CHANGE to DELIVERED. Nothing re-reads
+ * it. So any order whose delivery landed while Flow B was switched off, or
+ * whose webhook was dropped, or whose SQS record failed five times, is finished
+ * with: `courierStatus` is already DELIVERED, so the poller skips it as
+ * unchanged, and the AWB has been removed from the GSI so it is not even
+ * tracked any more. Eighteen delivered orders sat in exactly that state.
+ *
+ * Deliberately bounded to the last `reviewSweepLookbackDays`. The sweep is here
+ * to repair a FRESH hole, not to message everyone whose parcel arrived a
+ * fortnight ago: a review ask for a three-week-old order reads as a mailing
+ * list, and that decision belongs to the owner, not to a nightly cron.
+ *
+ * onDelivered does all the real work and re-checks every gate (flow enabled,
+ * cancelled, RTO, refunded, startAt, verified phone, already asked), so a false
+ * positive here is a no-op rather than a message.
+ */
+export async function sweepUnreviewed(now = new Date()) {
+  const out = { checked: 0, scheduled: [] };
+  if (!config.flows.B.enabled) return { ...out, skipped: 'flow-b-off' };
+
+  const cutoff = now.getTime() - RULES.reviewSweepLookbackDays * 24 * 60 * 60 * 1000;
+  const deps = { clients: realClients, now };
+
+  for (const st of await table.scanStates()) {
+    if (st.courierStatus !== 'DELIVERED') continue;
+    if (st.flowB?.scheduled || st.flowB?.reviewAsked || st.flowB?.reviewed) continue;
+    if (st.cancelledAt || st.flowC?.rto) continue;
+    /*
+     * courierStatusAt is written by track-active at the moment the status
+     * changed, so it is the delivery time and nothing else moves it. It is also
+     * what bounds the sweep.
+     *
+     * NOT updatedAt, which every write to the row bumps: an order delivered a
+     * fortnight ago whose state was touched yesterday would read as a delivery
+     * from yesterday and be messaged. A row with no courierStatusAt at all is
+     * from before this was recorded, and is left alone rather than guessed at.
+     */
+    const at = new Date(st.courierStatusAt || 0).getTime();
+    if (!at || at < cutoff) continue;
+    out.checked += 1;
+    try {
+      await flowB.onDelivered(st.orderId, st.courierStatusAt, deps);
+      const after = await getState(st.orderId);
+      if (after?.flowB?.scheduled) out.scheduled.push(st.orderId);
+    } catch (e) {
+      log.error('reconcile: review schedule failed', { orderId: st.orderId, err: e.message });
+    }
+  }
+  if (out.scheduled.length) log.warn('reconcile: delivered orders had no review ask, scheduled', out);
+  return out;
+}
+
 export const handler = async (event = {}) => {
   const mode = event?.mode === 'orders' ? 'orders' : 'full';
-  const out = { mode, webhooks: [], shipments: null, orders: null };
+  const out = { mode, webhooks: [], shipments: null, orders: null, reviews: null };
 
   try {
     out.orders = await sweepUnconfirmed();
@@ -116,6 +177,8 @@ export const handler = async (event = {}) => {
   }
 
   if (mode === 'full') {
+    // After trackActiveShipments, so a delivery the nightly poll has just
+    // noticed is picked up in the same run rather than a day later.
     try {
       out.webhooks = await realClients.shopify.ensureWebhooks({ dryRun: config.dryRun });
     } catch (e) {
@@ -125,6 +188,11 @@ export const handler = async (event = {}) => {
       out.shipments = await trackActiveShipments();
     } catch (e) {
       log.error('reconcile track failed', { err: e.message });
+    }
+    try {
+      out.reviews = await sweepUnreviewed();
+    } catch (e) {
+      log.error('reconcile review sweep failed', { err: e.message });
     }
   }
 

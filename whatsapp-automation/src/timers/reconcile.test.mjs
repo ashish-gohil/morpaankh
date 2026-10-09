@@ -6,10 +6,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
-import { ensureState, patchState, patchFlowA, getState } from '../store/orderState.mjs';
+import { ensureState, patchState, patchFlowA, patchFlowB, patchFlowC, getState } from '../store/orderState.mjs';
 import { realClients } from '../clients/index.mjs';
 import { _drainQueue, _peekQueue } from '../queue.mjs';
-import { sweepUnconfirmed } from './reconcile.mjs';
+import { _resetTimers, _peekTimers } from './schedule.mjs';
+import { RULES } from '../../messages/rules.mjs';
+import { sweepUnconfirmed, sweepUnreviewed } from './reconcile.mjs';
 
 const START = '2026-09-01T00:00:00Z';
 const NOW = new Date('2026-09-26T12:00:00Z');
@@ -18,6 +20,7 @@ const hoursAgo = (h) => new Date(NOW.getTime() - h * 3600 * 1000).toISOString();
 let orders = [];
 beforeEach(() => {
   _resetMemory();
+  _resetTimers();
   _drainQueue();
   orders = [];
   config.flows.A.enabled = true;
@@ -145,5 +148,96 @@ describe('an order we deliberately decided not to message', () => {
     await sweepUnconfirmed(NOW);
 
     expect((await getState('1188'))?.flowA?.sweepTries).toBeUndefined();
+  });
+});
+
+/*
+ * The hole that meant nobody was ever asked for a review.
+ *
+ * Flow B starts from an EDGE and nothing re-reads it: a Shopify fulfilment
+ * event saying delivered, or the Delhivery poller seeing the status CHANGE to
+ * DELIVERED. An order whose delivery landed while Flow B was off is then
+ * finished with, because courierStatus is already DELIVERED so the poller skips
+ * it as unchanged and the AWB has been dropped from the GSI. Eighteen delivered
+ * orders sat in exactly that state with no flowB row at all.
+ */
+describe('delivered orders nobody asked for a review', () => {
+  const PHONE = '+919812345678';
+  const delivered = (id, when, extra = {}) =>
+    ensureState(id, { orderId: id }).then(() =>
+      patchState(id, {
+        courierStatus: 'DELIVERED',
+        // The delivery time has to be a FIELD, not the row's updatedAt: any
+        // later write bumps updatedAt, so a backdated delivery written through
+        // patchState still looks like it happened just now.
+        courierStatusAt: when,
+        verifiedPhone: PHONE,
+        name: `#${id}`,
+        ...extra,
+      }),
+    );
+
+  const shopOrder = (id) => ({
+    id: `gid://shopify/Order/${id}`,
+    name: `#${id}`,
+    tags: [],
+    test: false,
+    createdAt: hoursAgo(200),
+    cancelledAt: null,
+    displayFinancialStatus: 'PAID',
+    paymentGatewayNames: ['Cash on Delivery (COD)'],
+    netPaymentSet: { shopMoney: { amount: '1499.00' } },
+    currentTotalPriceSet: { shopMoney: { amount: '1499.00' } },
+    totalPriceSet: { shopMoney: { amount: '1499.00' } },
+    customAttributes: [{ key: '_otpVerifiedPhoneNumber', value: '919812345678' }],
+    customer: { firstName: 'Aarav' },
+    shippingLines: { nodes: [] },
+    fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }],
+    lineItems: { nodes: [{ id: 'li1', title: 'Bandhan', quantity: 1, product: { id: 'gid://shopify/Product/1' }, originalUnitPriceSet: { shopMoney: { amount: '1499.00' } } }] },
+  });
+
+  beforeEach(() => {
+    config.flows.B = { enabled: true, startAt: START };
+    vi.spyOn(realClients.shopify, 'getOrder').mockImplementation(async (gid) => shopOrder(String(gid).split('/').pop()));
+  });
+
+  it('schedules the ask for a delivery that never reached Flow B', async () => {
+    await delivered('900', hoursAgo(10));
+    const out = await sweepUnreviewed(NOW);
+    expect(out.scheduled).toEqual(['900']);
+    expect((await getState('900')).flowB.scheduled).toBe(true);
+    expect(_peekTimers().map((t) => t.name)).toContain('B-900-review_ask');
+  });
+
+  it('leaves an order whose ask is already scheduled or sent alone', async () => {
+    await delivered('901', hoursAgo(10));
+    await patchFlowB('901', { scheduled: true });
+    await delivered('902', hoursAgo(10));
+    await patchFlowB('902', { reviewAsked: true });
+    const out = await sweepUnreviewed(NOW);
+    expect(out.scheduled).toEqual([]);
+  });
+
+  it('does not wake up a delivery older than the lookback', async () => {
+    // The sweep repairs a FRESH hole. Asking for a review on a parcel that
+    // arrived a fortnight ago reads as a mailing list, and widening this is the
+    // owner's decision, not a nightly cron's.
+    await delivered('903', hoursAgo(24 * (RULES.reviewSweepLookbackDays + 2)));
+    const out = await sweepUnreviewed(NOW);
+    expect(out.checked).toBe(0);
+    expect(out.scheduled).toEqual([]);
+  });
+
+  it('never asks about a parcel that came back', async () => {
+    await delivered('904', hoursAgo(10));
+    await patchFlowC('904', { rto: true });
+    const out = await sweepUnreviewed(NOW);
+    expect(out.scheduled).toEqual([]);
+  });
+
+  it('does nothing at all while Flow B is switched off', async () => {
+    config.flows.B.enabled = false;
+    await delivered('905', hoursAgo(10));
+    expect(await sweepUnreviewed(NOW)).toMatchObject({ skipped: 'flow-b-off' });
   });
 });

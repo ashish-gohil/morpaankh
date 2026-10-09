@@ -6,6 +6,7 @@ import {
   deferPastQuietHours,
   withinWindow,
   nextWindowTime,
+  nextDailySlot,
   withinDays,
   formatIST,
   formatISTDate,
@@ -91,5 +92,38 @@ describe('a timer is never scheduled in the past', () => {
     await scheduleTimer({ flow: 'A', orderId: '2', step: 'cod', at });
     const t = _peekTimers().find((x) => x.name === 'A-2-cod');
     expect(new Date(t.at).getTime()).toBe(at.getTime());
+  });
+});
+
+/*
+ * The review ask used to be "delivery + 48h, nudged into an 11:00-20:00
+ * window", which put consecutive orders' asks at 11:27, 12:20 and 16:29. One
+ * fixed slot a day replaces it, and the thing that makes it a SLOT rather than
+ * another offset is that it is derived from the IST calendar date.
+ */
+describe('nextDailySlot', () => {
+  it('is 21:00 IST the day after, whatever hour the parcel arrived', () => {
+    const now = fromISTWall(2026, 9, 9, 10, 0);
+    const slot = (h, m) => nextDailySlot(fromISTWall(2026, 9, 9, h, m), '21:00', { minDays: 1, now }).getTime();
+    const expected = fromISTWall(2026, 9, 10, 21, 0).getTime();
+    expect(slot(6, 5)).toBe(expected); // early morning delivery
+    expect(slot(13, 40)).toBe(expected); // afternoon
+    expect(slot(20, 55)).toBe(expected); // minutes before the slot itself
+  });
+
+  it('rolls a slot that has already gone past forward to the next one', () => {
+    // A delivery signal can arrive late: a backfilled webhook, a DLQ redrive,
+    // the nightly sweep noticing an old delivery. EventBridge accepts an at()
+    // in the past and then never fires it, so the ask would be lost silently.
+    const now = fromISTWall(2026, 9, 20, 12, 0);
+    const at = nextDailySlot(fromISTWall(2026, 9, 2, 14, 0), '21:00', { minDays: 1, now });
+    expect(at.getTime()).toBe(fromISTWall(2026, 9, 20, 21, 0).getTime());
+    expect(at.getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it('stays clear of quiet hours', () => {
+    const now = fromISTWall(2026, 9, 9, 10, 0);
+    const at = nextDailySlot(now, '21:00', { minDays: 1, now });
+    expect(inQuietHours(at, { start: '21:30', end: '09:30' })).toBe(false);
   });
 });

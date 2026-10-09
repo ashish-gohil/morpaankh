@@ -71,6 +71,30 @@ export function nextWindowTime(date, window) {
   return date;
 }
 
+/**
+ * The fixed daily `hhmm` IST slot, `minDays` whole days after `from`.
+ *
+ * Review asks used to be scheduled as "delivery + 48h, nudged into an
+ * 11:00-20:00 window", which put every order's ask at its own arbitrary hour:
+ * one at 11:27, the next at 16:29, the next at 12:20. The owner wants one
+ * predictable time a day, so the slot is derived from the IST CALENDAR DATE of
+ * `from` rather than from an offset, which is what makes "the day after it was
+ * delivered, at 9pm" mean the same thing for a 6am delivery and a 10pm one.
+ *
+ * Rolled forward past `now` because a delivery signal can arrive late (a
+ * backfilled webhook, a DLQ redrive, the nightly sweep noticing an old
+ * delivery). Its slot is then already gone, and EventBridge accepts an at()
+ * expression in the past and then never invokes it, so the ask would be lost
+ * with no error anywhere.
+ */
+export function nextDailySlot(from, hhmm, { minDays = 1, now = new Date() } = {}) {
+  const mins = hhmmToMin(hhmm);
+  const p = istParts(from);
+  let at = addDays(fromISTWall(p.y, p.mon, p.day, Math.floor(mins / 60), mins % 60), minDays);
+  while (at.getTime() <= now.getTime()) at = addDays(at, 1);
+  return at;
+}
+
 /** True if `lastISO` is within `days` before `now` (used for caps). */
 export function withinDays(lastISO, now, days) {
   if (!lastISO) return false;

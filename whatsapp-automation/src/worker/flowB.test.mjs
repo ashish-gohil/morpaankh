@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
+import { patchFlowB } from '../store/orderState.mjs';
 import { _resetSecrets } from '../secrets.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
@@ -237,6 +238,22 @@ describe('Flow B still reaches an order shipped without a Delhivery waybill', ()
       }),
     );
 
+  it('lands the ask on the fixed 21:00 IST slot, not an offset from the delivery', async () => {
+    const { deps } = untracked();
+    // Three deliveries at three different hours of the same day. Under the old
+    // scheme each produced its own time (11:27, 12:20, 16:29 on three real
+    // consecutive orders); they must now all be the same evening slot.
+    const ats = [];
+    for (const h of [6, 13, 20]) {
+      _resetTimers();
+      await B.onDelivered('12345', fromISTWall(2026, 9, 21, h, 5).toISOString(), { ...deps, clients: deps.clients });
+      ats.push(_peekTimers().find((t) => t.name === 'B-12345-review_ask').at.getTime());
+      await patchFlowB('12345', { scheduled: false, assumedDelivery: true });
+    }
+    expect(new Set(ats).size).toBe(1);
+    expect(ats[0]).toBe(fromISTWall(2026, 9, 22, 21, 0).getTime());
+  });
+
   it('schedules the ask from the dispatch date when no delivery event can come', async () => {
     const { deps } = untracked();
     await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
@@ -244,11 +261,13 @@ describe('Flow B still reaches an order shipped without a Delhivery waybill', ()
   });
 
   it('lets a real delivery override the assumed date', async () => {
-    // Both dates have to be genuinely ahead of the wall clock: scheduleTimer
-    // floors anything already past to now+1min, which would otherwise collapse
-    // the two and hide the ordering this test is about.
-    const dispatch = new Date(Date.now() + 2 * 86400000).toISOString();
-    const delivered = new Date(Date.now() + 3 * 86400000).toISOString();
+    // Both dates have to be ahead of the flow's OWN clock, which is the
+    // injected NOW and not the wall clock. Reading Date.now() here put both
+    // dates in the flow's past, and since the ask now rolls forward to the next
+    // 21:00 rather than being scheduled in the past, the two collapsed onto the
+    // same evening and the ordering this test is about disappeared.
+    const dispatch = new Date(NOW.getTime() + 2 * 86400000).toISOString();
+    const delivered = new Date(NOW.getTime() + 3 * 86400000).toISOString();
     const { deps } = untracked();
     await B.onUntrackedFulfillment('12345', dispatch, deps);
     const assumed = _peekTimers().find((t) => t.name === 'B-12345-review_ask').at;
