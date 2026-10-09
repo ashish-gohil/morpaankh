@@ -92,16 +92,19 @@ export const TEMPLATES = {
   // the two amounts are variables: only the gift is held back to the offer
   // message and the session replies, which are free to be promotional.
   cod_confirm: {
-    name: 'cod_confirm_v2',
+    name: 'cod_confirm_v3',
     language: 'en',
     category: 'UTILITY',
     header: imageHeader(SAMPLE_PRODUCT_IMAGE),
+    // v2's body, unchanged, plus one sentence. Still UTILITY: no offer, no
+    // code, no price claim, purely transactional.
     body:
       'Hello {{customer_name}}, your order {{order_number}} is with us and ready to be packed.\n\n' +
       '{{item_line}}\n\n' +
       'Cash on delivery: {{cod_total}}\n' +
       'Pay online instead: {{prepaid_total}}\n\n' +
-      'Prepaid orders are packed and dispatched on priority. Tap one below and we will take it from there.',
+      'Prepaid orders are packed and dispatched on priority. Tap one below and we will take it from there.\n\n' +
+      'Need a different size or colour? Tap Change or cancel and we will sort it out.',
     examples: {
       customer_name: 'Aarav',
       order_number: '#1234',
@@ -112,13 +115,15 @@ export const TEMPLATES = {
     buttons: [
       qr('Pay online now', 'A', 'pay_online'),
       qr('Confirm cash on delivery', 'A', 'confirm'),
-      qr('Cancel order', 'A', 'cancel'),
+      // Text only. The ACTION stays `cancel`, so no handler changes and an old
+      // v2 message already on someone's phone keeps working.
+      qr('Change or cancel', 'A', 'cancel'),
     ],
   },
 
   // Same reasoning as cod_confirm: UTILITY, so no offer wording.
   cod_reminder: {
-    name: 'cod_reminder_v2',
+    name: 'cod_reminder_v3',
     language: 'en',
     category: 'UTILITY',
     body:
@@ -126,7 +131,8 @@ export const TEMPLATES = {
       '{{item_line}}\n\n' +
       'Cash on delivery: {{cod_total}}\n' +
       'Pay online instead: {{prepaid_total}}\n\n' +
-      'One tap is all we need to send it for packing. Prepaid orders go out on priority.',
+      'One tap is all we need to send it for packing. Prepaid orders go out on priority.\n\n' +
+      'Need a different size or colour? Tap Change or cancel and we will sort it out.',
     examples: {
       customer_name: 'Aarav',
       order_number: '#1234',
@@ -137,7 +143,9 @@ export const TEMPLATES = {
     buttons: [
       qr('Pay online now', 'A', 'pay_online'),
       qr('Confirm cash on delivery', 'A', 'confirm'),
-      qr('Cancel order', 'A', 'cancel'),
+      // Text only. The ACTION stays `cancel`, so no handler changes and an old
+      // v2 message already on someone's phone keeps working.
+      qr('Change or cancel', 'A', 'cancel'),
     ],
   },
 
@@ -449,30 +457,63 @@ export const LEGACY = {
     buttons: [],
   },
 
+  /*
+   * v2, NOT v1, and that distinction is the whole point of this change.
+   *
+   * While cod_confirm_v3 / cod_reminder_v3 are in Meta review every send falls
+   * back here, and v2 quotes BOTH prices. Leaving v1 in this slot would have
+   * quietly stopped quoting the prepaid price to every customer for the hours
+   * the review takes. The price-free v1 moved to NO_PRICE at the bottom of
+   * this file, which is reached only when there is genuinely no prepaid price
+   * to quote, or no product photo for the image header.
+   */
   cod_confirm: {
-    name: 'cod_confirm_v1',
+    name: 'cod_confirm_v2',
     language: 'en',
     category: 'UTILITY',
+    header: imageHeader(SAMPLE_PRODUCT_IMAGE),
     body:
-      'Hello {{customer_name}},\n' +
-      'Thank you for your order {{order_number}}.\n\n' +
-      'Order total: {{order_total}}\n' +
-      'Payment: Cash on Delivery\n\n' +
-      'Please confirm your order so that we can pack and dispatch it.',
-    examples: { customer_name: 'Aarav', order_number: '#1234', order_total: 'Rs 1,499' },
-    buttons: [qr('Confirm order', 'A', 'confirm'), qr('Pay online', 'A', 'pay_online'), qr('Cancel order', 'A', 'cancel')],
+      'Hello {{customer_name}}, your order {{order_number}} is with us and ready to be packed.\n\n' +
+      '{{item_line}}\n\n' +
+      'Cash on delivery: {{cod_total}}\n' +
+      'Pay online instead: {{prepaid_total}}\n\n' +
+      'Prepaid orders are packed and dispatched on priority. Tap one below and we will take it from there.',
+    examples: {
+      customer_name: 'Aarav',
+      order_number: '#1234',
+      item_line: 'Khili Dhoop, size M',
+      cod_total: 'Rs 1,499',
+      prepaid_total: 'Rs 1,349',
+    },
+    buttons: [
+      qr('Pay online now', 'A', 'pay_online'),
+      qr('Confirm cash on delivery', 'A', 'confirm'),
+      qr('Cancel order', 'A', 'cancel'),
+    ],
   },
 
   cod_reminder: {
-    name: 'cod_reminder_v1',
+    name: 'cod_reminder_v2',
     language: 'en',
     category: 'UTILITY',
     body:
-      'Hello {{customer_name}},\n' +
-      'Thank you for shopping with us. Your order {{order_number}} of {{order_total}} is waiting for your confirmation.\n\n' +
-      'Please confirm so that we can dispatch it on time.',
-    examples: { customer_name: 'Aarav', order_number: '#1234', order_total: 'Rs 1,499' },
-    buttons: [qr('Confirm order', 'A', 'confirm'), qr('Pay online', 'A', 'pay_online'), qr('Cancel order', 'A', 'cancel')],
+      'Hello {{customer_name}}, we are still holding your order {{order_number}}.\n\n' +
+      '{{item_line}}\n\n' +
+      'Cash on delivery: {{cod_total}}\n' +
+      'Pay online instead: {{prepaid_total}}\n\n' +
+      'One tap is all we need to send it for packing. Prepaid orders go out on priority.',
+    examples: {
+      customer_name: 'Aarav',
+      order_number: '#1234',
+      item_line: 'Khili Dhoop, size M',
+      cod_total: 'Rs 1,499',
+      prepaid_total: 'Rs 1,349',
+    },
+    buttons: [
+      qr('Pay online now', 'A', 'pay_online'),
+      qr('Confirm cash on delivery', 'A', 'confirm'),
+      qr('Cancel order', 'A', 'cancel'),
+    ],
   },
 
   // v2, NOT v1: v2 is the version Meta has approved and that goes out today.
@@ -678,3 +719,45 @@ export function renderTemplate(key, vars = {}, ctx = {}) {
   if (!t) throw new Error(`unknown template: ${key}`);
   return renderTemplateDef(t, vars, ctx);
 }
+
+/*
+ * NO_PRICE - the version to send when no prepaid price can be quoted at all.
+ *
+ * Named for its JOB, not its age. `LEGACY` means "the previous approved
+ * version", and after v3 that genuinely IS v2. These v1 bodies were never
+ * really just old: their distinguishing feature is that they quote ONE order
+ * total and no prepaid price. That is exactly what is needed when
+ * computeAmounts cannot honour an offer (ctx.preferLegacy) or when a product
+ * has no photo and the image-header version cannot be sent.
+ *
+ * One slot could not do both jobs: during v3's review the fallback must KEEP
+ * the prices, while a missing price must DROP them. Hence two registries.
+ */
+export const NO_PRICE = {
+  cod_confirm: {
+    name: 'cod_confirm_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}},\n' +
+      'Thank you for your order {{order_number}}.\n\n' +
+      'Order total: {{order_total}}\n' +
+      'Payment: Cash on Delivery\n\n' +
+      'Please confirm your order so that we can pack and dispatch it.',
+    examples: { customer_name: 'Aarav', order_number: '#1234', order_total: 'Rs 1,499' },
+    buttons: [qr('Confirm order', 'A', 'confirm'), qr('Pay online', 'A', 'pay_online'), qr('Cancel order', 'A', 'cancel')],
+  },
+
+  cod_reminder: {
+    name: 'cod_reminder_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}},\n' +
+      'Thank you for shopping with us. Your order {{order_number}} of {{order_total}} is waiting for your confirmation.\n\n' +
+      'Please confirm so that we can dispatch it on time.',
+    examples: { customer_name: 'Aarav', order_number: '#1234', order_total: 'Rs 1,499' },
+    buttons: [qr('Confirm order', 'A', 'confirm'), qr('Pay online', 'A', 'pay_online'), qr('Cancel order', 'A', 'cancel')],
+  },
+
+};

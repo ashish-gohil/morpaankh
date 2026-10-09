@@ -7,6 +7,7 @@ import { getState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import * as A from './flowA.run.mjs';
+import { tpl } from './send.mjs';
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0); // daytime IST, not quiet
 const PHONE = '+919812345678';
@@ -76,7 +77,7 @@ describe('Flow A happy path', () => {
     expect(_peekTimers().map((t) => t.name)).toContain('A-12345-cod');
 
     await A.onCodTimer('12345', deps);
-    expect(names(clients.whatsapp)).toContain('cod_confirm_v2');
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v3');
     expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
     const timerNames = _peekTimers().map((t) => t.name);
     expect(timerNames).toEqual(expect.arrayContaining(['A-12345-reminder', 'A-12345-fallback', 'A-12345-highrisk']));
@@ -189,7 +190,7 @@ describe('Flow A exclusions + guards', () => {
       const { clients, deps } = setup(codOrder({ displayFinancialStatus: status }));
       await A.onCodTimer('12345', deps);
       expect(names(clients.whatsapp), status).toContain('order_confirmed_v1');
-      expect(names(clients.whatsapp), status).not.toContain('cod_confirm_v2');
+      expect(names(clients.whatsapp), status).not.toContain('cod_confirm_v3');
       expect(tagsAdded(clients.shopify), status).toContain('wa-order-confirmed');
       // nothing to chase: no reminder, no marketing fallback, no high-risk hold
       expect(_peekTimers(), status).toHaveLength(0);
@@ -236,7 +237,7 @@ describe('Flow A staged rollout (SEND_ALLOWLIST)', () => {
     // allowlist removed: the order must NOT be stuck as already-confirmed
     clients.whatsapp.sendTemplate = realSend;
     await A.onCodTimer('12345', deps);
-    expect(names(clients.whatsapp)).toContain('cod_confirm_v2');
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v3');
     expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
   });
 });
@@ -297,11 +298,18 @@ describe('Flow A dispatch message', () => {
 });
 
 describe('Flow A quotes only what it can actually charge', () => {
-  it('falls back to the approved template when Meta rejects the new one', async () => {
+  /*
+   * The fallback slot has two jobs that want opposite answers, and this pair of
+   * tests is the guard. A version still in Meta review must fall back to the
+   * previous APPROVED version, which keeps both prices. Only a genuinely
+   * unquotable price may drop them. Sharing one slot would have meant dropping
+   * the prepaid price from every confirmation for the hours a review takes.
+   */
+  it('keeps the prices when the new copy is still in Meta review', async () => {
     const { clients, deps } = setup();
     const real = clients.whatsapp.sendTemplate;
     clients.whatsapp.sendTemplate = async (a) => {
-      if (a.name === 'cod_confirm_v2') {
+      if (a.name === 'cod_confirm_v3') {
         const e = new Error('template does not exist');
         e.waCode = 132001; // still in review
         throw e;
@@ -309,8 +317,41 @@ describe('Flow A quotes only what it can actually charge', () => {
       return real(a);
     };
     await A.onCodTimer('12345', deps);
-    expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
+    // v2, which quotes cod_total AND prepaid_total. NOT v1.
+    expect(names(clients.whatsapp)).toContain('cod_confirm_v2');
+    expect(names(clients.whatsapp)).not.toContain('cod_confirm_v1');
     expect(tagsAdded(clients.shopify)).toContain('wa-cod-sent');
+  });
+
+  it('drops to the price-free version only when no prepaid price can be quoted', async () => {
+    // Driven through tpl() directly: preferLegacy is set inside onCodTimer from
+    // !offerOk, and the routing is what this asserts, not how offerOk is
+    // computed. flowA passes exactly this ctx when it cannot honour an offer.
+    const { clients, deps } = setup();
+    const vars = {
+      customer_name: 'Aarav',
+      order_number: '#1234',
+      item_line: 'Khili Dhoop, size M',
+      cod_total: 'Rs 1,499',
+      prepaid_total: 'Rs 1,349',
+      order_total: 'Rs 1,499',
+    };
+    await tpl(deps, PHONE, 'cod_confirm', vars, { orderId: '12345', preferLegacy: true, imageUrl: 'https://cdn/x.jpg' });
+    expect(names(clients.whatsapp)).toEqual(['cod_confirm_v1']);
+  });
+
+  it('sends the price-free version when the product has no photo for the header', async () => {
+    // cod_confirm_v3 and v2 both carry an IMAGE header, so v1 is the only one
+    // that can go out at all without a photo. Same as before this change.
+    const { clients, deps } = setup();
+    await tpl(
+      deps,
+      PHONE,
+      'cod_confirm',
+      { customer_name: 'Aarav', order_number: '#1234', item_line: 'X', cod_total: 'a', prepaid_total: 'b', order_total: 'c' },
+      { orderId: '12345' }, // no imageUrl
+    );
+    expect(names(clients.whatsapp)).toEqual(['cod_confirm_v1']);
   });
 
   it('quotes the open payment link, not a total that changed after it was made', async () => {
@@ -345,7 +386,7 @@ describe('Flow A quotes only what it can actually charge', () => {
     await A.onCodTimer('12345', deps);
     // the mismatch means no link can be created, so the price-free version goes
     expect(names(clients.whatsapp)).toContain('cod_confirm_v1');
-    expect(names(clients.whatsapp)).not.toContain('cod_confirm_v2');
+    expect(names(clients.whatsapp)).not.toContain('cod_confirm_v3');
   });
 });
 

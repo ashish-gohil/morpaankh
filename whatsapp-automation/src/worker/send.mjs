@@ -4,7 +4,7 @@
  */
 import { config } from '../config.mjs';
 import { normalizeOrder } from '../domain/order.mjs';
-import { TEMPLATES, LEGACY, renderTemplateDef } from '../../messages/templates.mjs';
+import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 import { isUndeliverable } from '../store/phoneProfile.mjs';
@@ -76,15 +76,31 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
 
   const fallback = LEGACY[key] || null;
 
-  // A template with an image header cannot be sent without an image, so a
-  // product with no photo takes the image-free version rather than no message.
+  /*
+   * THE FALLBACK SLOT HAS TWO DIFFERENT JOBS, and they want opposite answers.
+   *
+   *   no price to quote (ctx.preferLegacy), or no product photo (noImage)
+   *     -> NO_PRICE, the version that quotes one total and no prepaid price.
+   *   the current version is unusable, e.g. new copy still in Meta review
+   *     -> LEGACY, the previous APPROVED version, which keeps the prices.
+   *
+   * A single slot used to serve both, which was fine only while they happened
+   * to be the same template. The moment cod_confirm_v3 entered review, sharing
+   * one slot would have meant either dropping the prepaid price from every
+   * confirmation for hours, or quoting a price we could not honour.
+   *
+   * noImage takes NO_PRICE because that is the only cod_confirm version without
+   * an IMAGE header: falling back to LEGACY (v2) would still have one and still
+   * fail. This reproduces today's behaviour exactly.
+   */
   const noImage = primary.header?.format === 'IMAGE' && !ctx.imageUrl;
   if (noImage || ctx.preferLegacy) {
-    if (!fallback) {
+    const priceless = NO_PRICE[key] || fallback;
+    if (!priceless) {
       if (noImage) throw new Error(`template ${key} needs ctx.imageUrl and has no fallback`);
     } else {
-      log.info('template: using the previous version', { key, name: fallback.name, noImage: Boolean(noImage) });
-      return dispatch(deps, phone, fallback, vars, ctx);
+      log.info('template: using the price-free version', { key, name: priceless.name, noImage: Boolean(noImage) });
+      return dispatch(deps, phone, priceless, vars, ctx);
     }
   }
 
