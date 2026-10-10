@@ -96,6 +96,7 @@ export const _flowData = flowData;
 // ---- trigger: delivered -----------------------------------------------------
 export async function onDelivered(orderId, deliveredAt, deps) {
   if (!config.flows.B.enabled) return;
+  if (!RULES.reviewAskEnabled) return log.warn('flowB: review ask is switched off, not scheduling', { orderId });
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   const skip = reviewSkipReason(n);
@@ -129,6 +130,7 @@ export async function onDelivered(orderId, deliveredAt, deps) {
  * Assumed, so it yields to the real thing the moment one arrives.
  */
 export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
+  if (!RULES.reviewAskEnabled) return log.warn('flowB: review ask is switched off, not scheduling', { orderId });
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   const skip = reviewSkipReason(n);
@@ -144,6 +146,8 @@ export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
 
 // ---- timer: send the review ask --------------------------------------------
 export async function onReviewTimer(orderId, deps) {
+  // Checked here as well, so an ask timer already in EventBridge cannot send.
+  if (!RULES.reviewAskEnabled) return log.warn('flowB: review ask is switched off, not sending', { orderId });
   const now = nowOf(deps);
   const st = await getState(orderId);
   if (st?.flowB?.reviewed || st?.flowB?.reviewAsked) return;

@@ -14,10 +14,15 @@ import { _flowData } from './flowB.run.mjs';
 // Read at import, before any afterEach can force it false, so the test below
 // really does pin what rules.mjs SHIPS and not what a previous test left behind.
 const SHIPPED_reviewReminderEnabled = RULES.reviewReminderEnabled;
+const SHIPPED_reviewAskEnabled = RULES.reviewAskEnabled;
 
 // A test that flips RULES.reviewReminderEnabled on must not leak it into the
 // next one: the default is OFF and a leaked true would hide a real regression.
 afterEach(() => { RULES.reviewReminderEnabled = false; });
+// The ask is OFF in production while the Flow button is broken; these suites
+// exist to test the ask itself, so they switch it on explicitly.
+beforeEach(() => { RULES.reviewAskEnabled = true; });
+afterEach(() => { RULES.reviewAskEnabled = false; });
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0);
 const PHONE = '+919812345678';
@@ -408,4 +413,8 @@ describe('the review thank-you code', () => {
 
 it('ships with the second review ask switched off', () => {
   expect(SHIPPED_reviewReminderEnabled).toBe(false);
+});
+
+it('ships with the review ask switched off while the Flow button is broken', () => {
+  expect(SHIPPED_reviewAskEnabled).toBe(false);
 });

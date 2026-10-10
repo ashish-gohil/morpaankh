@@ -3,7 +3,7 @@
  * actually happened, so every way of losing an order between Shopify and the
  * customer's phone was silent and permanent.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, patchFlowA, patchFlowB, patchFlowC, getState } from '../store/orderState.mjs';
@@ -12,6 +12,10 @@ import { _drainQueue, _peekQueue } from '../queue.mjs';
 import { _resetTimers, _peekTimers } from './schedule.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { sweepUnconfirmed, sweepUnreviewed } from './reconcile.mjs';
+
+// The sweep's whole job is scheduling an ask, so these tests enable it.
+beforeEach(() => { RULES.reviewAskEnabled = true; });
+afterEach(() => { RULES.reviewAskEnabled = false; });
 
 const START = '2026-09-01T00:00:00Z';
 const NOW = new Date('2026-09-26T12:00:00Z');
