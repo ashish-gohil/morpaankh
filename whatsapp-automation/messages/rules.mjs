@@ -22,22 +22,33 @@ export const RULES = {
 
   // Flow A timings (minutes/hours)
   codFirstMessageDelayMin: 3,
-  // 6h, was 3h. With prepaidOfferEnabled off this is the ONLY follow-up, so it
-  // no longer has to leave room for a third message three hours later. Measured
-  // 2026-10-10: 27 of 40 COD orders resolved on the first message alone and
-  // never saw this one at all.
+  // 6h, was 3h. Measured 2026-10-10: 27 of 40 COD orders resolved on the first
+  // message alone and never saw this one at all, so chasing at 3h mostly just
+  // reached people who were always going to tap.
   codReminderAfterMin: 360,
-  codMarketingFallbackAfterMin: 360,
+  // 12h, was 360. THESE TWO MUST NOT BE EQUAL. They were both 360 for one
+  // commit while prepaidOfferEnabled was false, which was harmless only while
+  // nothing read the second one: turning the offer back on at 360 would have
+  // fired the reminder and the offer within seconds of each other, which is
+  // worse than the 3h/6h it replaced. 12h also keeps the first six hours to two
+  // messages while still leaving the offer inside payLinkMaxHours (24h), and
+  // deferPastQuietHours moves it to 09:30 when it lands overnight.
+  // flowA.test.mjs asserts the two are distinct.
+  codMarketingFallbackAfterMin: 720,
 
-  // The 6h MARKETING prepaid offer. OFF since 2026-10-10 on the numbers, not on
-  // taste: 11 customers were sent it, the pay link was opened ZERO times (every
-  // hit on /p/{token} in 30 days took the token-not-found branch, so all of it
-  // was bot traffic), no payment ever arrived, prepaid_confirmed has never been
-  // sent once, and no order has ever reached step 'converted'. It was also the
-  // only MARKETING template in the customer journey, so it was the only one
-  // carrying an opt-out footer and the only one that could pull the WABA quality
-  // rating down. Flip to true to bring it back; nothing else has to change.
-  prepaidOfferEnabled: false,
+  // The MARKETING prepaid offer, now at 12h. ON at the owner's instruction
+  // 2026-10-10: a COD order that converts to prepaid is worth more than the
+  // message costs, and 11 sends is too thin a sample to close the door on it.
+  //
+  // What the 11 actually did, so nobody has to re-measure it: the pay link was
+  // opened ZERO times (every hit on /p/{token} in 30 days took the
+  // token-not-found branch, so all of it was bot traffic), no payment arrived,
+  // prepaid_confirmed has never been sent, and no order has reached step
+  // 'converted'. Worth re-checking after another 30 or so sends rather than
+  // trusting either answer. It is also the ONLY MARKETING template a customer
+  // gets, so it carries the opt-out footer and is the only one that can pull the
+  // WABA quality rating down; it is capped by marketingCapDays.
+  prepaidOfferEnabled: true,
   highRiskCheckAfterHours: 24,
   payLinkMaxHours: 24,
 

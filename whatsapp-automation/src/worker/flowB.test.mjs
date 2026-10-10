@@ -18,11 +18,11 @@ const SHIPPED_reviewAskEnabled = RULES.reviewAskEnabled;
 
 // A test that flips RULES.reviewReminderEnabled on must not leak it into the
 // next one: the default is OFF and a leaked true would hide a real regression.
-afterEach(() => { RULES.reviewReminderEnabled = false; });
+afterEach(() => { RULES.reviewReminderEnabled = SHIPPED_reviewReminderEnabled; });
 // The ask is OFF in production while the Flow button is broken; these suites
 // exist to test the ask itself, so they switch it on explicitly.
 beforeEach(() => { RULES.reviewAskEnabled = true; });
-afterEach(() => { RULES.reviewAskEnabled = false; });
+afterEach(() => { RULES.reviewAskEnabled = SHIPPED_reviewAskEnabled; });
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0);
 const PHONE = '+919812345678';

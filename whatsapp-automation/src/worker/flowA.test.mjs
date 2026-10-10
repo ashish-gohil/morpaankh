@@ -15,7 +15,7 @@ const SHIPPED_prepaidOfferEnabled = RULES.prepaidOfferEnabled;
 
 // A test that flips RULES.prepaidOfferEnabled on must not leak it into the next one:
 // the default is OFF and a leaked true would hide a real regression.
-afterEach(() => { RULES.prepaidOfferEnabled = false; });
+afterEach(() => { RULES.prepaidOfferEnabled = SHIPPED_prepaidOfferEnabled; });
 import { tpl } from './send.mjs';
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0); // daytime IST, not quiet
@@ -859,30 +859,42 @@ describe('fewer messages, by default', () => {
     expect(params).toContain('₹1,499');
   });
 
-  it('arms no marketing timer, so an unanswered COD order gets 2 messages and not 3', async () => {
-    const { clients, deps } = setup();
+  /*
+   * The reminder and the offer must never be due at the same moment.
+   *
+   * Both were codReminderAfterMin/codMarketingFallbackAfterMin = 360 for one
+   * commit, which was invisible only because prepaidOfferEnabled was false and
+   * nothing read the second value. Switching the offer back on at 360 would
+   * have fired a UTILITY reminder and a MARKETING offer within seconds of each
+   * other. This is the test that catches that, on the TIMES rather than on the
+   * rule values, so it still holds if the numbers change again.
+   */
+  it('spaces the reminder and the prepaid offer apart', async () => {
+    const { deps } = setup();
     await A.onOrderCreate('12345', deps);
     await A.onCodTimer('12345', deps);
-    const steps = _peekTimers().map((t) => t.name);
-    expect(steps).toContain('A-12345-reminder');
-    expect(steps).not.toContain('A-12345-fallback');
-
-    // The one follow-up that is left, and it is the UTILITY one.
-    await A.onReminder('12345', deps);
-    expect(names(clients.whatsapp).map((n) => n.replace(/_v\d+$/, ''))).toEqual(['cod_confirm', 'cod_reminder']);
+    const at = (n) => _peekTimers().find((t) => t.name === `A-12345-${n}`)?.at?.getTime();
+    const reminder = at('reminder');
+    const fallback = at('fallback');
+    expect(reminder).toBeDefined();
+    expect(fallback).toBeDefined();
+    expect(fallback).toBeGreaterThan(reminder);
+    // Far enough apart to read as two separate touches, not a double send.
+    expect(fallback - reminder).toBeGreaterThanOrEqual(60 * 60 * 1000);
   });
 
-  it('sends nothing for a fallback timer armed before the offer was switched off', async () => {
+  it('still sends nothing for a fallback timer once the offer is switched off', async () => {
+    RULES.prepaidOfferEnabled = false;
     const { clients, deps } = setup();
     await A.onOrderCreate('12345', deps);
     await A.onCodTimer('12345', deps);
     const before = clients.whatsapp.sent.length;
-    await A.onFallback('12345', deps); // the timer EventBridge still holds
+    await A.onFallback('12345', deps); // a timer EventBridge still holds
     expect(clients.whatsapp.sent.length).toBe(before);
     expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_offer'))).toBe(false);
   });
 });
 
-it('ships with the prepaid offer switched off', () => {
-  expect(SHIPPED_prepaidOfferEnabled).toBe(false);
+it('ships with the prepaid offer switched on', () => {
+  expect(SHIPPED_prepaidOfferEnabled).toBe(true);
 });

@@ -15,7 +15,7 @@ import { sweepUnconfirmed, sweepUnreviewed } from './reconcile.mjs';
 
 // The sweep's whole job is scheduling an ask, so these tests enable it.
 beforeEach(() => { RULES.reviewAskEnabled = true; });
-afterEach(() => { RULES.reviewAskEnabled = false; });
+afterEach(() => { RULES.reviewAskEnabled = true; });
 
 const START = '2026-09-01T00:00:00Z';
 const NOW = new Date('2026-09-26T12:00:00Z');
