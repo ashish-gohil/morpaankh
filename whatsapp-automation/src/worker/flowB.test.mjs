@@ -415,6 +415,17 @@ it('ships with the second review ask switched off', () => {
   expect(SHIPPED_reviewReminderEnabled).toBe(false);
 });
 
-it('ships with the review ask switched off while the Flow button is broken', () => {
-  expect(SHIPPED_reviewAskEnabled).toBe(false);
+// The 2026-10-10 scare was a desktop-viewer artefact, not a bug, so the ask
+// ships ON. The switch stays because it is the only way to stop one mid-flight.
+it('ships with the review ask switched on', () => {
+  expect(SHIPPED_reviewAskEnabled).toBe(true);
+});
+
+it('sends nothing at all once the ask is switched off', async () => {
+  RULES.reviewAskEnabled = false;
+  const { clients, deps } = setup();
+  await B.onDelivered('12345', NOW.toISOString(), deps);
+  expect(_peekTimers()).toEqual([]);
+  await B.onReviewTimer('12345', deps);
+  expect(clients.whatsapp.sent).toEqual([]);
 });

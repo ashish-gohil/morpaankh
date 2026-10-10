@@ -49,15 +49,20 @@ export const RULES = {
   // machine firing at random rather than a shop that writes in the evening.
   // 21:00 is deliberately before quietHours.start (21:30) and is when people
   // are actually on WhatsApp, so the ask arrives when it can be answered.
-  // KILL SWITCH, OFF since 2026-10-10 22:5x. The owner checked the four asks
-  // sent at 21:00 tonight (#1169 #1171 #1172 #1175) and the "Rate your order"
-  // Flow button is not tappable on any of them, the 2-item order included, so
-  // it is not the hidden-Dropdown case. Until the cause is found and proven
-  // fixed, NO customer gets a review ask: an ask with a dead button spends the
-  // one chance we get and teaches the customer our messages do not work.
-  // Tomorrow's 3 queued asks were deleted by hand and backed up. Turn this back
-  // on ONLY after a real tap on a real handset has been seen to work.
-  reviewAskEnabled: false,
+  // Kept as a switch after the 2026-10-10 false alarm, because it is the only
+  // thing that can stop an ask mid-flight and it cost one deploy to add.
+  //
+  // THERE WAS NO BUG. The four asks sent at 21:00 (#1169 #1171 #1172 #1175)
+  // looked like they had a dead "Rate your order" button, but a Flow button
+  // only renders interactive in the CONSUMER WHATSAPP MOBILE APP. On WhatsApp
+  // Web, WhatsApp Desktop, the WhatsApp Business app and inside Meta's own
+  // WhatsApp Manager / Business Suite message views it is shown greyed and
+  // inert by design, whether or not it works. Checking four customers' messages
+  // necessarily meant a desktop or Meta-side view, so all four looked broken.
+  // Proved by sending the EXACT single-item data shape to the owner's own
+  // handset: the button opened the form. Do not re-diagnose this from a desktop
+  // view again; the only valid test is a tap in the phone app.
+  reviewAskEnabled: true,
   reviewAskAtIST: '21:00',
   // Whole IST days after delivery, so "1" is the evening of the day after it
   // arrived. Raise to 2 to go back to roughly the old 48h gap.
