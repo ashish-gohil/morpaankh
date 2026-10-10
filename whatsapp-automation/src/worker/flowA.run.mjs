@@ -199,7 +199,12 @@ export async function onCodTimer(orderId, deps) {
   await soft('tagsAdd:wa-cod-sent', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']), { orderId });
 
   await armTimer(orderId, 'reminder', deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours));
-  await armTimer(orderId, 'fallback', deferPastQuietHours(addMinutes(now, RULES.codMarketingFallbackAfterMin), RULES.quietHours));
+  // Not armed when the offer is off, so we do not create a schedule per order
+  // for a message that will return immediately. onFallback re-checks the flag
+  // anyway, which is what makes the timers already out there harmless.
+  if (RULES.prepaidOfferEnabled) {
+    await armTimer(orderId, 'fallback', deferPastQuietHours(addMinutes(now, RULES.codMarketingFallbackAfterMin), RULES.quietHours));
+  }
   await armTimer(orderId, 'highrisk', deferPastQuietHours(addHours(now, RULES.highRiskCheckAfterHours), RULES.quietHours));
 }
 
@@ -407,6 +412,10 @@ export async function onReminder(orderId, deps) {
 
 export async function onFallback(orderId, deps) {
   const now = nowOf(deps);
+  // Checked here and not only at arm time: every order placed before this flag
+  // went off already has a fallback timer sitting in EventBridge, and this is
+  // the only thing standing between those and a MARKETING send.
+  if (!RULES.prepaidOfferEnabled) return;
   const st = await getState(orderId);
   if (!st || st.flowA?.step !== 'confirm_sent') return; // tapped already
   if (st.flowA?.fallbackSentAt) return; // a retry after the send succeeded
@@ -784,12 +793,30 @@ async function sendShipped(orderId, n, deps) {
  * state, missing product image). renderTemplateDef drops the ones its version
  * does not use.
  */
+/*
+ * "Order total: Rs 1,099" is true for a PARTIAL order and still reads as a
+ * receipt. #1162 and #1197 each paid a Rs 62.45 deposit at COD King's checkout
+ * and owe Rs 1,036.55 at the door, and neither was told so until order_shipped
+ * went out days later at label time. This spells the split out inside the
+ * EXISTING {{order_total}} variable, so the approved template and its copy are
+ * untouched and nothing has to go back to Meta for review.
+ *
+ * COD and fully prepaid orders have nothing to split, so they read exactly as
+ * before.
+ */
+function orderTotalLine(n) {
+  const total = formatINR(n.currentTotalPaise);
+  const due = Math.max(0, n.currentTotalPaise - (n.receivedPaise || 0));
+  if (!n.receivedPaise || due <= 0) return total;
+  return `${total} (${formatINR(n.receivedPaise)} paid online, ${formatINR(due)} at delivery)`;
+}
+
 function confirmVars(n, amt) {
   return {
     customer_name: n.firstName,
     order_number: n.name,
     item_line: itemLine(n) || 'Your order',
-    order_total: formatINR(n.currentTotalPaise),
+    order_total: orderTotalLine(n),
     cod_total: formatINR(n.currentTotalPaise),
     prepaid_total: formatINR(amt ? amt.newTotalPaise : n.currentTotalPaise),
     gift_line: amt?.gift ? OFFER_GIFT_LINE : OFFER_NO_GIFT_LINE,

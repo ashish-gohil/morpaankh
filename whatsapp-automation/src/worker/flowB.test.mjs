@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
@@ -7,8 +7,17 @@ import { patchFlowB } from '../store/orderState.mjs';
 import { _resetSecrets } from '../secrets.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import * as B from './flowB.run.mjs';
 import { _flowData } from './flowB.run.mjs';
+
+// Read at import, before any afterEach can force it false, so the test below
+// really does pin what rules.mjs SHIPS and not what a previous test left behind.
+const SHIPPED_reviewReminderEnabled = RULES.reviewReminderEnabled;
+
+// A test that flips RULES.reviewReminderEnabled on must not leak it into the
+// next one: the default is OFF and a leaked true would hide a real regression.
+afterEach(() => { RULES.reviewReminderEnabled = false; });
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0);
 const PHONE = '+919812345678';
@@ -59,6 +68,9 @@ const tagsAdded = (sh) => sh.calls.filter((c) => c.op === 'tagsAdd').flatMap((c)
 
 describe('Flow B', () => {
   it('delivered schedules a review ask; the timer sends the flow + reminder', async () => {
+    // The reminder is OFF by default now (RULES.reviewReminderEnabled). Kept
+    // enabled here so the second-ask path stays covered if it is turned back on.
+    RULES.reviewReminderEnabled = true;
     const { clients, deps } = setup();
     await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
     expect(_peekTimers().map((t) => t.name)).toContain('B-12345-review_ask');
@@ -392,4 +404,8 @@ describe('the review thank-you code', () => {
     const data = _flowData({ firstName: 'Aarav', lineItems: [{ productGid: 'gid://p/1', title: 'X' }] }, true);
     expect(data.percent_text).toBe('₹150');
   });
+});
+
+it('ships with the second review ask switched off', () => {
+  expect(SHIPPED_reviewReminderEnabled).toBe(false);
 });

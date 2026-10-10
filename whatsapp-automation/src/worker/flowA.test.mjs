@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
@@ -6,7 +6,16 @@ import { setOptOut, setUndeliverable } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import * as A from './flowA.run.mjs';
+
+// Read at import, before any afterEach can force it false, so the test below
+// really does pin what rules.mjs SHIPS and not what a previous test left behind.
+const SHIPPED_prepaidOfferEnabled = RULES.prepaidOfferEnabled;
+
+// A test that flips RULES.prepaidOfferEnabled on must not leak it into the next one:
+// the default is OFF and a leaked true would hide a real regression.
+afterEach(() => { RULES.prepaidOfferEnabled = false; });
 import { tpl } from './send.mjs';
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0); // daytime IST, not quiet
@@ -71,6 +80,9 @@ const tagsAdded = (sh) => sh.calls.filter((c) => c.op === 'tagsAdd').flatMap((c)
 
 describe('Flow A happy path', () => {
   it('create -> cod timer -> confirm sent -> convert on payment', async () => {
+    // The offer is OFF by default now (RULES.prepaidOfferEnabled). This test
+    // keeps proving the machinery still works for when it is switched back on.
+    RULES.prepaidOfferEnabled = true;
     const { clients, deps } = setup();
 
     await A.onOrderCreate('12345', deps);
@@ -212,6 +224,9 @@ describe('Flow A exclusions + guards', () => {
   });
 
   it('marketing fallback respects the 7-day cap', async () => {
+    // The offer is OFF by default now (RULES.prepaidOfferEnabled). This test
+    // keeps proving the machinery still works for when it is switched back on.
+    RULES.prepaidOfferEnabled = true;
     const { clients, deps } = setup();
     await A.onCodTimer('12345', deps); // step = confirm_sent
     await A.onFallback('12345', deps);
@@ -371,6 +386,9 @@ describe('Flow A quotes only what it can actually charge', () => {
   });
 
   it('keeps the prepaid nudge alive when a Pay online tap never becomes a payment', async () => {
+    // The offer is OFF by default now (RULES.prepaidOfferEnabled). This test
+    // keeps proving the machinery still works for when it is switched back on.
+    RULES.prepaidOfferEnabled = true;
     const { clients, deps } = setup();
     await A.onCodTimer('12345', deps);
     await A.onPayOnline('12345', deps);
@@ -429,6 +447,9 @@ describe('Flow A: an error must never reach the customer twice', () => {
   });
 
   it('does not resend the reminder or the offer after a redelivery', async () => {
+    // The offer is OFF by default now (RULES.prepaidOfferEnabled). This test
+    // keeps proving the machinery still works for when it is switched back on.
+    RULES.prepaidOfferEnabled = true;
     const { clients, deps } = setup();
     await A.onCodTimer('12345', deps);
     await A.onReminder('12345', deps);
@@ -793,4 +814,75 @@ describe('Flow A stops messaging a number WhatsApp says is dead', () => {
     await ownerAlert({ clients }, '#1234', 'something needs you');
     expect(clients.whatsapp.sent.length).toBeGreaterThan(0);
   });
+});
+
+/*
+ * The three message-frequency decisions of 2026-10-10, pinned down.
+ *
+ * All three are driven by live numbers, so the tests assert the DEFAULT (off,
+ * quiet) behaviour. The four tests above already cover the enabled path.
+ */
+describe('fewer messages, by default', () => {
+  const bodyParams = (wa, name) => {
+    const s = wa.sent.find((x) => x.type === 'template' && x.name.startsWith(name));
+    const body = (s?.components || []).find((c) => c.type === 'body');
+    return (body?.parameters || []).map((p) => p.text);
+  };
+
+  it('a PARTIAL order is told what it paid and what is still due at the door', async () => {
+    // #1162 and #1197 for real: Rs 1,099 total, Rs 62.45 deposit taken at COD
+    // King's checkout, Rs 1,036.55 owed at the door.
+    const { clients, deps } = setup(
+      codOrder({
+        displayFinancialStatus: 'PARTIALLY_PAID',
+        netPaymentSet: { shopMoney: { amount: '62.45' } },
+        currentTotalPriceSet: { shopMoney: { amount: '1099.00' } },
+        totalPriceSet: { shopMoney: { amount: '1099.00' } },
+      }),
+    );
+    await A.onOrderCreate('12345', deps);
+    await A.onCodTimer('12345', deps);
+
+    const params = bodyParams(clients.whatsapp, 'order_confirmed');
+    const total = params.find((t) => t.includes('1,099'));
+    expect(total).toBe('₹1,099 (₹62.45 paid online, ₹1,036.55 at delivery)');
+    // One message, and no COD chase: a paid order has nothing to confirm.
+    expect(names(clients.whatsapp)).toEqual([expect.stringContaining('order_confirmed')]);
+  });
+
+  it('a plain COD order still reads as one number, with no payment split', async () => {
+    const { clients, deps } = setup();
+    await A.onOrderCreate('12345', deps);
+    await A.onCodTimer('12345', deps);
+    const params = bodyParams(clients.whatsapp, 'cod_confirm');
+    expect(params.some((t) => t.includes('paid online'))).toBe(false);
+    expect(params).toContain('₹1,499');
+  });
+
+  it('arms no marketing timer, so an unanswered COD order gets 2 messages and not 3', async () => {
+    const { clients, deps } = setup();
+    await A.onOrderCreate('12345', deps);
+    await A.onCodTimer('12345', deps);
+    const steps = _peekTimers().map((t) => t.name);
+    expect(steps).toContain('A-12345-reminder');
+    expect(steps).not.toContain('A-12345-fallback');
+
+    // The one follow-up that is left, and it is the UTILITY one.
+    await A.onReminder('12345', deps);
+    expect(names(clients.whatsapp).map((n) => n.replace(/_v\d+$/, ''))).toEqual(['cod_confirm', 'cod_reminder']);
+  });
+
+  it('sends nothing for a fallback timer armed before the offer was switched off', async () => {
+    const { clients, deps } = setup();
+    await A.onOrderCreate('12345', deps);
+    await A.onCodTimer('12345', deps);
+    const before = clients.whatsapp.sent.length;
+    await A.onFallback('12345', deps); // the timer EventBridge still holds
+    expect(clients.whatsapp.sent.length).toBe(before);
+    expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_offer'))).toBe(false);
+  });
+});
+
+it('ships with the prepaid offer switched off', () => {
+  expect(SHIPPED_prepaidOfferEnabled).toBe(false);
 });

@@ -22,8 +22,22 @@ export const RULES = {
 
   // Flow A timings (minutes/hours)
   codFirstMessageDelayMin: 3,
-  codReminderAfterMin: 180,
+  // 6h, was 3h. With prepaidOfferEnabled off this is the ONLY follow-up, so it
+  // no longer has to leave room for a third message three hours later. Measured
+  // 2026-10-10: 27 of 40 COD orders resolved on the first message alone and
+  // never saw this one at all.
+  codReminderAfterMin: 360,
   codMarketingFallbackAfterMin: 360,
+
+  // The 6h MARKETING prepaid offer. OFF since 2026-10-10 on the numbers, not on
+  // taste: 11 customers were sent it, the pay link was opened ZERO times (every
+  // hit on /p/{token} in 30 days took the token-not-found branch, so all of it
+  // was bot traffic), no payment ever arrived, prepaid_confirmed has never been
+  // sent once, and no order has ever reached step 'converted'. It was also the
+  // only MARKETING template in the customer journey, so it was the only one
+  // carrying an opt-out footer and the only one that could pull the WABA quality
+  // rating down. Flip to true to bring it back; nothing else has to change.
+  prepaidOfferEnabled: false,
   highRiskCheckAfterHours: 24,
   payLinkMaxHours: 24,
 
@@ -40,6 +54,12 @@ export const RULES = {
   // arrived. Raise to 2 to go back to roughly the old 48h gap.
   reviewAskAfterDeliveryDays: 1,
   reviewReminderAfterDays: 3,
+  // The SECOND review ask, 3 days after the first. OFF since 2026-10-10. A
+  // review is a favour, and someone who let the first ask pass has already
+  // answered it. It is also the highest-volume message in the system by future
+  // count, since every delivered order earns one, which makes it the single
+  // biggest source of "they keep messaging me". Flip to true to bring it back.
+  reviewReminderEnabled: false,
   untrackedDeliveryAssumeDays: 5,
   // How far back the nightly sweep will look for a delivered order whose review
   // was never scheduled. Deliberately SHORT: it exists to repair a fresh hole (a

@@ -185,6 +185,8 @@ export async function onReviewTimer(orderId, deps) {
   // In link mode nothing comes back, so `reviewed` is never set and every
   // single customer would be reminded, including the ones who filled it in.
   if (viaLink) return;
+  // One ask, not two. See RULES.reviewReminderEnabled.
+  if (!RULES.reviewReminderEnabled) return;
   await soft('scheduleTimer:review_reminder', () =>
     scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: reviewSlot(now, RULES.reviewReminderAfterDays, now) }),
     { orderId },
@@ -193,6 +195,9 @@ export async function onReviewTimer(orderId, deps) {
 
 export async function onReviewReminder(orderId, deps) {
   const now = nowOf(deps);
+  // Same reason as flowA's onFallback: reminders scheduled before the flag went
+  // off are already in EventBridge, and this is what stops them.
+  if (!RULES.reviewReminderEnabled) return;
   const st = await getState(orderId);
   if (!st?.flowB?.reviewAsked || st?.flowB?.reviewed) return;
   if (st?.flowB?.reminderSentAt) return; // a retry after the send succeeded
