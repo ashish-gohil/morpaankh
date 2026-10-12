@@ -15,6 +15,23 @@ Nothing messages a customer or edits an order until you deliberately enable it.
 - **B** Delivered -> in-WhatsApp review -> thank-you code (5% off next order over Rs 1,500); reviews shown on the product page.
 - **C** Failed-delivery (NDR) rescue + RTO reason capture.
 - **D** Owner alerts, daily digest, nightly reconciliation, admin scripts.
+- **R** Abandoned cart recovery: one private, expiring, single-use code 20 minutes
+  after a checkout is abandoned, one reminder two hours before it closes, and
+  nothing else. Replaces COD King's abandoned-cart messages.
+
+### Flow R in one paragraph
+
+A five-minute sweep (`reconcile` with `{mode:'carts'}`) lists open abandoned
+checkouts created in the last 12 hours, keeps the newest per verified phone, and
+enqueues them. `onFirst` re-reads the checkout, prices the bag against the LIVE
+public codes, and sends only if it can beat what that bag could already get by
+beatPublicByInr: a private code worth less than the one printed on the cart page
+is worse than silence, so `public-offer-better` is a normal outcome, not a bug.
+One sequence per phone per 30 days, enforced by a conditional-put lease that is
+taken only AFTER Meta accepts and released if the message then fails to deliver.
+The "Complete my order" button is `/r/{token}`, which looks the token up and 302s
+to the customer's own saved checkout with the code applied. Everything stops the
+moment they order, use the code, reply, tap Talk to us, or send STOP.
 
 ## Architecture
 
@@ -31,12 +48,12 @@ rolled config, DRY_RUN discipline).
 
 ```
 src/lib        pure primitives (phone, money, IST time, signatures, ids, discount code)
-src/domain     pure business logic (classify, amounts, eligibility, courier-status, review, ndr, digest)
+src/domain     pure business logic (classify, amounts, eligibility, courier-status, review, ndr, digest, cart)
 src/clients    WhatsApp / Shopify / Razorpay / Delhivery, each with a fake (fakes/)
 src/store      DynamoDB single-table access, order state, phone profile, maps, dedupe
 src/ingest     API Gateway handlers (verify -> dedupe -> 200 -> enqueue)
-src/worker     SQS FIFO consumer + flowA/B/C orchestrators + routing
-src/timers     EventBridge scheduler + poll / reconcile / digest
+src/worker     SQS FIFO consumer + flowA/B/C/R orchestrators + routing
+src/timers     EventBridge scheduler + poll / reconcile / digest / cart-sweep
 messages       ALL customer copy (templates, session, labels, rules, review flow)
 scripts        templates-sync, flows-sync, reviews-setup, webhooks-sync, admin tools
 iac            AWS CDK v2 (JavaScript)

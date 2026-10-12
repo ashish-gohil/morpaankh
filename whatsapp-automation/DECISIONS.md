@@ -707,3 +707,88 @@ The number is CONNECTED, quality GREEN, **TIER_250**: 250 unique customers per
 24 hours. That is a consequence of the rejected business verification, not of
 this change. Current volume is far below it, but it is the ceiling until
 verification passes.
+
+## S. Flow R: abandoned cart recovery (2026-10-13)
+
+**S1. The offer is a fixed rupee amount derived from what the bag already gets,
+not a flat percentage.** Measured against the last ten reachable carts on
+2026-10-12: a flat 10% was equal to or WORSE than what eight of them already had
+applied or could type in themselves. A Rs 1,249 bag gets Rs 125 at 10% while
+WELCOME150 sits on the cart page offering Rs 150; a two-piece bag gets exactly
+what BUY2 gives. So the offer is computed as `max(bag x percentOff, floor +
+beatPublicByInr)` capped at `maxPercentOfBag`, where `floor` is the better of the
+discount already applied and the best live public code this bag qualifies for.
+If the cap makes beating the floor impossible, nothing is sent and the outcome is
+`public-offer-better`. That is a designed result, not a failure.
+
+**S2. A failed read of the live discount codes stops the message.** The floor
+depends on `discountNodes`, which needs `read_discounts`. Without it the floor
+collapses to "whatever is already applied" and we would quietly offer less than
+the public code. The flow therefore fails CLOSED with outcome `no-public-codes`
+and one owner alert a day. Cost: if the scope is missing, Flow R sends nothing at
+all until it is granted. That is the right way round.
+
+**S3. The phone lock is taken after Meta accepts, and released if delivery then
+fails.** A 30-day cooldown written before the send would burn a customer's next
+month on a message that never left. `onWaStatus` gets a cart branch that releases
+it on `failed`. The lease is a conditional put on `attribute_not_exists(PK) OR
+lockUntil <= :now` rather than a plain put-if-absent, because the row carries a
+TTL and DynamoDB deletes expired items days late: waiting for the TTL would keep
+a customer silently blocked well past their 30 days.
+
+**S4. Flow R honours the service-wide marketing cap, checked after its own
+cooldown.** The cart templates are MARKETING, and before this flow `prepaid_offer`
+was the only MARKETING message a customer could receive. Without the cap someone
+could get a prepaid offer on Monday and a cart recovery on Tuesday. It is checked
+for message 1 only: the reminder belongs to a sequence the first message opened,
+and re-checking the cap there would block it 22 hours later against the stamp
+message 1 had just made. The cooldown is checked first so that a repeat abandoner
+is recorded as `cooldown` rather than `marketing-cap` - both refuse, but only one
+answers the question.
+
+**S5. `{mode:'carts'}` is handled and returned at the TOP of the reconcile
+handler.** The mode line maps anything that is not 'orders' to 'full', and the
+cart rule fires every five minutes. 'full' runs `sweepUnreviewed`, which SENDS
+review asks to real customers, plus a webhook re-assert and a full Delhivery
+re-track: 288 times a day. `sweepUnconfirmed` also runs ABOVE the mode branch, so
+returning from inside the 'full' block would not have been enough.
+
+**S6. Cart rows use sort key `REC`, never `STATE`.** `scanStates()` treats every
+`SK=STATE` row in the table as an order and reads the order id out of the PK, so a
+cart row with that sort key would be handed to `flowB.onDelivered` as order
+"CART#..." by the nightly review sweep. The code's end time lives in `codeEndsAt`
+and never in `expiresAt`, which is the table's TTL attribute: putting it there
+would delete the record at the moment the code closed, taking the attribution
+window, the reminder guard and the outcome with it.
+
+**S7. The image-free twins live in LEGACY, not NO_PRICE.** `send.mjs` reaches
+LEGACY from both paths that need them: `noImage` falls back to
+`NO_PRICE[key] || LEGACY[key]`, and Meta's 131052/131053 ("could not fetch the
+media") are in TEMPLATE_UNUSABLE, which falls back to LEGACY. One entry covers a
+bag with no photo and a photo Meta cannot reach.
+
+**S8. No COPY_CODE button.** Meta caps that button's code at 15 characters;
+`MORPAANKH` + a name + two digits is always longer. The code is in the body in
+bold and the URL button applies it instead. Code digits are drawn from 2-9 only,
+because a 0 reads as an O and a 1 as an I when somebody types a code off a phone.
+
+**S9. Flow R taps re-check ownership strictly.** The router's `ownsOrder()` fails
+open for an id it has never seen, and a Flow R payload carries a CHECKOUT id, so
+there is never a STATE row and that gate always passes. `onTap` compares the
+tapping phone to the one on the record itself.
+
+**S10. The link target is a RULES switch, never a template change.** A URL
+button's address is fixed once Meta approves the template and the only thing it
+can carry at send time is the token, so `/r/{token}` resolves the destination
+server-side: `checkout` + `query` (default), `checkout` + `path`, or `cart` as a
+last resort. Changing it is a deploy, not another template review.
+
+**S11. OPEN DECISION, not changed here: STOP is a full opt-out.** A customer who
+replies STOP to a cart recovery message is opted out of EVERYTHING, so they will
+also get no order confirmation, no dispatch message and no delivery update on a
+later order. That is the existing behaviour for every flow and Flow R does not
+change it, but Flow R is the first MARKETING message most customers will ever get
+from us, which makes a STOP much more likely than it was before. If a
+marketing-only opt-out is wanted, it needs a second flag on the phone profile
+(`marketingOptOut`) checked in `tpl()` for MARKETING templates only, and the
+`optout_done` copy would have to say which messages are stopping. Owner's call.

@@ -17,7 +17,7 @@ const t = (target || '').toLowerCase();
 // Flow B sends, not whether it sends one.
 const states = t === 'reviewvia' ? ['flow', 'link'] : ['on', 'off'];
 if (!target || !states.includes(state)) {
-  console.error('usage: pause-flow.mjs <A|B|C|D|dryrun|variantchange> <on|off> | reviewvia <flow|link>');
+  console.error('usage: pause-flow.mjs <A|B|C|D|R|dryrun|variantchange> <on|off> | reviewvia <flow|link>');
   process.exit(1);
 }
 const KEYS = { dryrun: 'DRY_RUN', reviewvia: 'REVIEW_VIA', variantchange: 'VARIANT_CHANGE_ENABLED' };
