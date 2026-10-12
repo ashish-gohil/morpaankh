@@ -50,7 +50,7 @@ const attrMap = (arr) => Object.fromEntries((arr || []).map((a) => [a.key ?? a.n
  * order as placed is the only truthful answer, so it is what we keep, with the
  * original quantities.
  */
-function liveLineItems(nodes) {
+export function liveLineItems(nodes) {
   const shape = (li, quantity) => ({
     id: li.id,
     title: li.title,
