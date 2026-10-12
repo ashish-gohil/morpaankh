@@ -29,9 +29,14 @@
       "C": {
         "enabled": true,
         "startAt": "2026-09-22T18:16:41Z"
+      },
+      "R": {
+        "enabled": false,
+        "startAt": ""
       }
     },
     "conversionVerified": true,
-    "variantChangeEnabled": true
+    "variantChangeEnabled": true,
+    "cartRecoveryAllowlist": ""
   }
 }

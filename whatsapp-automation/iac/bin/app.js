@@ -22,6 +22,8 @@ new WaAutomationStack(app, 'WaAutomation', {
   flows: app.node.tryGetContext('flows') || {},
   reviewVia: app.node.tryGetContext('reviewVia') || 'flow',
   variantChangeEnabled: app.node.tryGetContext('variantChangeEnabled') === true,
+  // Flow R shadow mode: non-empty means only these phones are really messaged.
+  cartRecoveryAllowlist: app.node.tryGetContext('cartRecoveryAllowlist') || '',
   conversionVerified: app.node.tryGetContext('conversionVerified') === true,
 });
 

@@ -105,8 +105,16 @@ class WaAutomationStack extends cdk.Stack {
       // stop with nothing reporting that it had.
       REVIEW_VIA: props.reviewVia === 'link' ? 'link' : 'flow',
       VARIANT_CHANGE_ENABLED: String(Boolean(props.variantChangeEnabled)),
+      /*
+       * Flow R shadow mode. NON-EMPTY means only these phones are really
+       * messaged and every other eligible checkout is logged instead. Set to
+       * the owner's own number for the live test, then emptied to go live.
+       * Deliberately not SEND_ALLOWLIST, which gates the whatsapp client for
+       * the whole service and would have silenced Flow A at the same time.
+       */
+      FLOW_R_ALLOWLIST: props.cartRecoveryAllowlist || '',
       ...Object.fromEntries(
-        ['A', 'B', 'C', 'D'].flatMap((f) => [
+        ['A', 'B', 'C', 'D', 'R'].flatMap((f) => [
           [`FLOW_${f}_ENABLED`, String(Boolean((props.flows || {})[f]?.enabled))],
           [`FLOW_${f}_START_AT`, (props.flows || {})[f]?.startAt || ''],
         ]),
@@ -136,6 +144,7 @@ class WaAutomationStack extends cdk.Stack {
         memorySize: opts.memory || 256,
         environment: { ...commonEnv, ...(opts.env || {}) },
         reservedConcurrentExecutions: opts.reserved,
+        ...(opts.logGroup ? { logGroup: opts.logGroup } : {}),
       });
 
     // ingest (verify + dedupe + 200 fast): need table (dedupe) + queue (send) + secret
@@ -146,6 +155,21 @@ class WaAutomationStack extends cdk.Stack {
       delhivery: makeFn('ingest-delhivery', 'src/ingest/delhivery.handler'),
     };
     const redirectFn = makeFn('pay-redirect', 'src/ingest/pay-redirect.handler');
+    /*
+     * Flow R's "Complete my order" link. Its log group is CREATED here rather
+     * than imported like every other one, because a Lambda's log group does not
+     * exist until its first invocation and a subscription filter on a missing
+     * group fails the whole deploy. Passing it to the function as well makes
+     * CloudFormation order the two correctly instead of racing them.
+     */
+    const cartRedirectLogs = new logs.LogGroup(this, 'CartRedirectLogs', {
+      logGroupName: '/aws/lambda/wa-cart-redirect',
+      retention: logs.RetentionDays.THREE_MONTHS,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    const cartRedirectFn = makeFn('cart-redirect', 'src/ingest/cart-redirect.handler', {
+      logGroup: cartRedirectLogs,
+    });
     const onboardingFn = makeFn('onboarding', 'src/ingest/onboarding.handler');
     // The storefront signup popup's save endpoint. Public and unsigned (a browser
     // cannot hold an HMAC secret), so it defends itself: origin allowlist, honeypot,
@@ -175,7 +199,7 @@ class WaAutomationStack extends cdk.Stack {
     const digestFn = makeFn('digest', 'src/timers/digest.handler', { timeout: Duration.seconds(120) });
 
     // ---- grants -----------------------------------------------------------
-    const allFns = [...Object.values(ingest), redirectFn, onboardingFn, subscribeFn, worker, pollFn, reconcileFn, digestFn];
+    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, onboardingFn, subscribeFn, worker, pollFn, reconcileFn, digestFn];
     for (const fn of allFns) {
       table.grantReadWriteData(fn);
       secret.grantRead(fn);
@@ -204,6 +228,7 @@ class WaAutomationStack extends cdk.Stack {
     route('/webhooks/razorpay', [HttpMethod.POST], ingest.razorpay);
     route('/webhooks/delhivery', [HttpMethod.POST], ingest.delhivery);
     route('/p/{token}', [HttpMethod.GET], redirectFn);
+    route('/r/{token}', [HttpMethod.GET], cartRedirectFn);
     route('/onboarding', [HttpMethod.GET], onboardingFn);
     route('/onboarding/exchange', [HttpMethod.POST], onboardingFn);
     route('/subscribe', [HttpMethod.POST, HttpMethod.OPTIONS], subscribeFn);
@@ -227,6 +252,23 @@ class WaAutomationStack extends cdk.Stack {
     new events.Rule(this, 'ReconcileOrdersRule', {
       schedule: events.Schedule.expression('cron(15 * * * ? *)'),
       targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'orders' }) })],
+    });
+    /*
+     * Flow R's cart sweep, every five minutes, all day.
+     *
+     * Deliberately NOT narrowed to the send window in cron. The window lives in
+     * RULES.cartRecovery.sendWindow and the sweep checks it itself, so putting
+     * the same hours in a cron expression would be a second source of truth
+     * that silently stops following the first one. Outside the window the
+     * invocation returns in milliseconds.
+     *
+     * `mode: 'carts'` is handled and RETURNED at the very top of the reconcile
+     * handler. Anything else falls through to the full nightly pass, which
+     * sends review asks.
+     */
+    new events.Rule(this, 'CartSweepRule', {
+      schedule: events.Schedule.rate(Duration.minutes(5)),
+      targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'carts' }) })],
     });
     // Digest 09:30 IST == 04:00 UTC.
     new events.Rule(this, 'DigestRule', {
@@ -280,8 +322,12 @@ class WaAutomationStack extends cdk.Stack {
       'wa-reconcile',
       'wa-digest',
     ];
-    for (const name of reported) {
-      const lg = logs.LogGroup.fromLogGroupName(this, `Lg${name}`, `/aws/lambda/${name}`);
+    const reportedGroups = [
+      ...reported.map((name) => [name, logs.LogGroup.fromLogGroupName(this, `Lg${name}`, `/aws/lambda/${name}`)]),
+      // The one group this stack owns rather than imports.
+      ['wa-cart-redirect', cartRedirectLogs],
+    ];
+    for (const [name, lg] of reportedGroups) {
       // Two filters, which is the per-log-group maximum. The first catches our
       // own structured errors; the second catches the failures that happen
       // before any of our code runs (a syntax error in a bad deploy, an import
@@ -334,7 +380,11 @@ class WaAutomationStack extends cdk.Stack {
     // sit outside the queue-driven pipeline. The worker is in neither list on
     // purpose, it has its own alarm above.
     const pipelineFns = [...Object.values(ingest), redirectFn, pollFn, reconcileFn, digestFn, errorReporter];
-    const intakeFns = [onboardingFn, subscribeFn];
+    // cart-redirect joins THIS list and not pipelineFns, which is already at 9
+    // of CloudWatch's 10-metric ceiling for an alarm math expression. It is
+    // also the truer grouping: like the other two, it is a public HTTP endpoint
+    // a customer hits directly rather than a queue-driven step.
+    const intakeFns = [onboardingFn, subscribeFn, cartRedirectFn];
     const sumErrors = (fns) =>
       new cw.MathExpression({
         expression: fns.map((_, i) => `e${i}`).join(' + '),
