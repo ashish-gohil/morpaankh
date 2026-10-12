@@ -21,6 +21,7 @@ import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
 import * as flowC from './flowC.run.mjs';
 import * as variantChange from './variantChange.run.mjs';
+import * as cartRecovery from './cartRecovery.run.mjs';
 
 // Derived from the registry, never hand-listed, so adding a template without a
 // legacy version cannot silently drop off this list.
@@ -50,7 +51,17 @@ async function sendSessionTo(phone, key, vars = {}, ctx = {}) {
 // ---- Shopify webhooks -------------------------------------------------------
 async function onShopify(m) {
   const { topic, orderId, payload } = m;
-  if (topic === 'orders/create') return flowA.onOrderCreate(orderId, deps());
+  if (topic === 'orders/create') {
+    /*
+     * Flow A runs FIRST and its result is what this returns. The cart hook is
+     * soft and comes after, because attributing a recovery is bookkeeping and
+     * an order confirmation is not: letting the hook throw would redeliver the
+     * record and re-run a handler that has already messaged the customer.
+     */
+    const out = await flowA.onOrderCreate(orderId, deps());
+    await soft('cartRecovery:onOrderCreated', () => cartRecovery.onOrderCreated(payload, deps()), { orderId });
+    return out;
+  }
   if (topic === 'orders/cancelled') return flowA.onStop(orderId, deps());
   if (topic === 'orders/updated') {
     const tags = String(payload?.tags || '').split(',').map((t) => t.trim());
@@ -122,6 +133,12 @@ async function onWaInbound(m) {
     }
     if (p.flow === 'A') return routeFlowATap(p.orderId, p.action, phone);
     if (p.flow === 'C') return routeFlowCTap(p.orderId, p.action);
+    /*
+     * Flow R re-checks ownership STRICTLY inside onTap. ownsOrder above fails
+     * open on an id it has never seen, and a Flow R payload carries a CHECKOUT
+     * id, so there is never a STATE row for it and that gate always passes.
+     */
+    if (p.flow === 'R') return cartRecovery.onTap(p.orderId, p.action, phone, deps());
     return;
   }
 
@@ -215,6 +232,16 @@ async function onWaStatus(m) {
   // "the confirmation job stopped working" instead of "these two numbers are
   // not on WhatsApp". updateMessageStatus only moves the status forward.
   const map = await getWamidMap(st.id);
+  /*
+   * A cart message's WAMID row carries cartId and no orderId, so it has to be
+   * handled before the return below, and separately: everything past that
+   * point tags an order and names it to the owner, and a checkout has no order
+   * to tag.
+   */
+  if (map?.cartId) {
+    await soft('cartStatus', () => cartRecovery.onCartStatus(map.cartId, st), { wamid: st.id });
+    return;
+  }
   if (!map?.orderId) return;
   await soft('updateMessageStatus', () => updateMessageStatus(map.orderId, st.id, st.status, st.errors), { wamid: st.id });
   if (st.status !== 'failed') return;
@@ -327,6 +354,12 @@ async function onTimer(m) {
     if (m.step === 'rto_reason') return flowC.onRtoTimer(m.orderId, d);
     return log.info('timer: unknown C step', { step: m.step });
   }
+  // Flow R carries the CHECKOUT id in the orderId slot: a timer is named
+  // (flow, id, step) and an abandoned checkout has no order to name it after.
+  if (m.flow === 'R') {
+    if (m.step === 'final') return cartRecovery.onFinal(m.orderId, d);
+    return log.info('timer: unknown R step', { step: m.step });
+  }
 }
 
 // ---- WhatsApp template status changes ---------------------------------------
@@ -358,8 +391,14 @@ async function onTemplateStatus(m) {
   );
 }
 
+async function onCart(m) {
+  if (m.step === 'final') return cartRecovery.onFinal(m.checkoutId, deps());
+  return cartRecovery.onFirst(m.checkoutId, deps());
+}
+
 const routes = {
   shopify: onShopify,
+  cart: onCart,
   wa_inbound: onWaInbound,
   wa_status: onWaStatus,
   wa_template_status: onTemplateStatus,

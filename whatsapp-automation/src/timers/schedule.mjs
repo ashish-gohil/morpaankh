@@ -53,12 +53,22 @@ async function aws() {
   return sched;
 }
 
-/** Create or replace a one-time timer. @param {{flow,orderId,step,at:Date,extra?}} */
-export async function scheduleTimer({ flow, orderId, step, at, extra }) {
+/**
+ * Create or replace a one-time timer.
+ *
+ * `groupId` defaults to the per-order group every existing caller relies on.
+ * Flow R passes `phone:<e164>` instead, because its unit of serialization is
+ * the PERSON, not an order: a checkout has no order id, and two messages to one
+ * customer must never overtake each other. Nothing downstream parses the group
+ * id; it is handed straight to SQS as the MessageGroupId.
+ *
+ * @param {{flow:string,orderId:string|number,step:string,at:Date,extra?:object,groupId?:string}} args
+ */
+export async function scheduleTimer({ flow, orderId, step, at, extra, groupId: group }) {
   const name = timerName(flow, orderId, step);
   at = notInThePast(at);
   const message = messageFor(flow, orderId, step, extra);
-  const groupId = `order:${orderId}`;
+  const groupId = group || `order:${orderId}`;
   if (!isAws()) {
     timers.set(name, { at, message, groupId });
     return name;
