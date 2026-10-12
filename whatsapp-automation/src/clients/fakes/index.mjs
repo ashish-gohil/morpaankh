@@ -6,7 +6,7 @@ import { makeFakeCourier } from './courier.mjs';
 
 export function makeFakeClients(opts = {}) {
   return {
-    whatsapp: makeFakeWhatsApp(),
+    whatsapp: makeFakeWhatsApp(opts.whatsapp || {}),
     shopify: makeFakeShopify(opts.shopify || {}),
     razorpay: makeFakeRazorpay(),
     courier: makeFakeCourier(opts.courier || {}),

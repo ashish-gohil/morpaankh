@@ -1,5 +1,5 @@
 /* Fake WhatsApp client: records every send, returns a deterministic messageId. */
-export function makeFakeWhatsApp() {
+export function makeFakeWhatsApp({ failTemplateWith = null } = {}) {
   const sent = [];
   let n = 0;
   const rec = (type, args) => {
@@ -7,9 +7,24 @@ export function makeFakeWhatsApp() {
     sent.push({ type, ...args });
     return { messageId: `fake-wamid-${n}` };
   };
+  /*
+   * A Meta send failure, shaped the way the real client throws it: an Error
+   * carrying `waCode`. Needed because the interesting Flow R paths are the
+   * ones where Meta refuses (131026, 131049) or the template is unusable, and
+   * each of those must leave the phone lock alone.
+   */
+  const maybeFail = () => {
+    if (!failTemplateWith) return;
+    const e = new Error(`fake Meta failure ${failTemplateWith}`);
+    /** @type {any} */ (e).waCode = failTemplateWith;
+    throw e;
+  };
   return {
     sent,
-    sendTemplate: async (a) => rec('template', a),
+    sendTemplate: async (a) => {
+      maybeFail();
+      return rec('template', a);
+    },
     sendText: async (a) => rec('text', a),
     sendButtons: async (a) => rec('buttons', a),
     sendCtaUrl: async (a) => rec('cta_url', a),

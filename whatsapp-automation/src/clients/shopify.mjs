@@ -10,6 +10,7 @@ import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
+import { toPaise } from '../lib/money.mjs';
 
 /**
  * @param {string} query
@@ -609,6 +610,204 @@ async function createDiscountCode({ code, title, startsAt, endsAt, amountInr, mi
   return { id: data.discountCodeBasicCreate.codeDiscountNode.id, code };
 }
 
+// ---- Flow R: abandoned checkouts, order lookback, public codes -------------
+/*
+ * Everything a checkout needs to be priced and described. Validated against the
+ * live 2026-07 schema (read_orders + read_customers + read_products).
+ *
+ * `completedAt` is selected because a checkout CAN complete between the sweep
+ * listing it and the worker picking it up, and `createdAt` because `updatedAt`
+ * is not customer activity: a checkout created 3 Aug read updatedAt 12 Oct.
+ * `image { width height }` is needed by heroImageUrl, which clamps the square
+ * crop to the shorter side rather than letting Shopify refuse to upscale.
+ */
+const CHECKOUT_FIELDS = `
+  id
+  name
+  createdAt
+  completedAt
+  abandonedCheckoutUrl
+  totalPriceSet { shopMoney { amount } }
+  totalDiscountSet { shopMoney { amount } }
+  customAttributes { key value }
+  customer { id firstName }
+  shippingAddress { firstName }
+  billingAddress { firstName }
+  lineItems(first: 50) {
+    nodes {
+      title
+      quantity
+      originalUnitPriceSet { shopMoney { amount } }
+      image { url width height }
+      variant { id availableForSale selectedOptions { name value } }
+    }
+  }
+`;
+
+/**
+ * One abandoned checkout, by numeric id or gid.
+ *
+ * Deliberately `node(id:)`. Both `abandonedCheckouts(query: "id:<n>")` and the
+ * `id:>=` range form return NOTHING for a checkout that is definitely there,
+ * so a query-by-id lookup would read as "this checkout is gone" and the flow
+ * would skip every single one.
+ */
+async function getAbandonedCheckout(numericOrGid) {
+  const id = String(numericOrGid).startsWith('gid://')
+    ? numericOrGid
+    : `gid://shopify/AbandonedCheckout/${numericOrGid}`;
+  const data = await graphql(
+    `query GetCheckout($id: ID!){ node(id:$id){ ... on AbandonedCheckout { ${CHECKOUT_FIELDS} } } }`,
+    { id },
+    { idempotent: true },
+  );
+  return data.node || null;
+}
+
+/** Open (not completed) checkouts created on/after sinceISO, newest first. */
+async function listAbandonedCheckouts(sinceISO) {
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const data = await graphql(
+      `query Carts($q: String!, $after: String){
+         abandonedCheckouts(first: 50, after: $after, query: $q, sortKey: CREATED_AT, reverse: true){
+           edges { cursor node { ${CHECKOUT_FIELDS} } } pageInfo { hasNextPage endCursor }
+         } }`,
+      { q: `status:open created_at:>='${sinceISO}'`, after: cursor },
+      { idempotent: true },
+    );
+    for (const e of data.abandonedCheckouts.edges) out.push(e.node);
+    if (!data.abandonedCheckouts.pageInfo.hasNextPage) break;
+    cursor = data.abandonedCheckouts.pageInfo.endCursor;
+  }
+  return out;
+}
+
+/**
+ * Orders CREATED on/after sinceISO, with what Flow R needs to attribute one.
+ *
+ * Separate from ordersUpdatedSince because the question is different: that one
+ * asks "what moved", this one asks "did this person buy since they abandoned",
+ * and an old order edited today must not answer yes to that.
+ */
+async function ordersCreatedSince(sinceISO) {
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const data = await graphql(
+      `query Since($q: String!, $after: String){
+         orders(first: 100, after: $after, query: $q, sortKey: CREATED_AT, reverse: true){
+           edges { cursor node {
+             id name createdAt discountCodes
+             customAttributes { key value }
+             customer { id }
+             totalPriceSet { shopMoney { amount } }
+           } } pageInfo { hasNextPage endCursor }
+         } }`,
+      { q: `created_at:>='${sinceISO}'`, after: cursor },
+      { idempotent: true },
+    );
+    for (const e of data.orders.edges) out.push(e.node);
+    if (!data.orders.pageInfo.hasNextPage) break;
+    cursor = data.orders.pageInfo.endCursor;
+  }
+  return out;
+}
+
+/*
+ * The codes any shopper could already be using, cached for ten minutes.
+ *
+ * A code counts as PUBLIC when anyone can type it: ACTIVE, buyer selection
+ * "all", and NO usage limit. That last one is what excludes both the one-shot
+ * THANKS-* review codes and every code this flow creates, since those are all
+ * usageLimit 1. The title prefix check is a second line of defence only.
+ *
+ * `context` replaced the deprecated `customerSelection` in this API version and
+ * is an object, so it needs a subselection; all three live public codes read
+ * DiscountBuyerSelectionAll.
+ */
+let codeCache = { at: 0, codes: /** @type {any[]} */ ([]) };
+const CODE_CACHE_MS = 10 * 60 * 1000;
+const CART_RECOVERY_TITLE = 'Cart recovery #';
+
+async function publicCodeDiscounts({ now = Date.now() } = {}) {
+  if (codeCache.at && now - codeCache.at < CODE_CACHE_MS) return codeCache.codes;
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const data = await graphql(
+      `query PublicCodes($after: String){
+         discountNodes(first: 50, after: $after, query: "status:active"){
+           edges { cursor node { id discount {
+             __typename
+             ... on DiscountCodeBasic {
+               title status usageLimit appliesOncePerCustomer
+               context { __typename }
+               codes(first: 1) { nodes { code } }
+               customerGets { value {
+                 ... on DiscountPercentage { percentage }
+                 ... on DiscountAmount { amount { amount } appliesOnEachItem }
+               } }
+               minimumRequirement {
+                 ... on DiscountMinimumQuantity { greaterThanOrEqualToQuantity }
+                 ... on DiscountMinimumSubtotal { greaterThanOrEqualToSubtotal { amount } }
+               }
+             }
+           } } } pageInfo { hasNextPage endCursor }
+         } }`,
+      { after: cursor },
+      { idempotent: true },
+    );
+    for (const e of data.discountNodes.edges) {
+      const d = e.node.discount;
+      if (d?.__typename !== 'DiscountCodeBasic') continue;
+      if (d.status !== 'ACTIVE') continue;
+      if (d.context?.__typename !== 'DiscountBuyerSelectionAll') continue;
+      if (d.usageLimit != null) continue;
+      if (String(d.title || '').startsWith(CART_RECOVERY_TITLE)) continue;
+      const v = d.customerGets?.value || {};
+      const min = d.minimumRequirement || {};
+      // Shopify returns every quantity and money field as a STRING.
+      const code = {
+        code: d.codes?.nodes?.[0]?.code || '',
+        title: d.title,
+        type: v.percentage != null ? 'percentage' : 'amount',
+        percentage: v.percentage != null ? Number(v.percentage) : undefined,
+        amountPaise: v.amount?.amount != null ? toPaise(v.amount.amount) : undefined,
+        minQuantity: min.greaterThanOrEqualToQuantity != null ? Number(min.greaterThanOrEqualToQuantity) : undefined,
+        minSubtotalPaise:
+          min.greaterThanOrEqualToSubtotal?.amount != null ? toPaise(min.greaterThanOrEqualToSubtotal.amount) : undefined,
+      };
+      // A per-item fixed amount is not a whole-order saving we can compare, so
+      // it is left out rather than guessed at.
+      if (code.type === 'amount' && v.appliesOnEachItem) continue;
+      out.push(code);
+    }
+    if (!data.discountNodes.pageInfo.hasNextPage) break;
+    cursor = data.discountNodes.pageInfo.endCursor;
+  }
+  codeCache = { at: now, codes: out };
+  return out;
+}
+
+/** How many times a discount has been used. The reminder must not chase a used code. */
+async function discountUsageCount(discountId) {
+  const data = await graphql(
+    `query Usage($id: ID!){ discountNode(id:$id){ discount {
+       ... on DiscountCodeBasic { asyncUsageCount status } } } }`,
+    { id: discountId },
+    { idempotent: true },
+  );
+  const d = data.discountNode?.discount;
+  return { count: Number(d?.asyncUsageCount || 0), status: d?.status || null };
+}
+
+/** Test-only: drop the public-code cache. */
+function _resetCodeCache() {
+  codeCache = { at: 0, codes: [] };
+}
+
 /**
  * The product behind a line item, with everything the variant-change rules need.
  *
@@ -648,5 +847,12 @@ export const shopify = {
   appendProductReview,
   createDiscountCode,
   ensureWebhooks,
+  getAbandonedCheckout,
+  listAbandonedCheckouts,
+  ordersCreatedSince,
+  publicCodeDiscounts,
+  discountUsageCount,
+  _resetCodeCache,
   ORDER_FIELDS,
+  CHECKOUT_FIELDS,
 };
