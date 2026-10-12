@@ -1,0 +1,120 @@
+/*
+ * cart-redirect.mjs — GET /r/{token}. The "Complete my order" button.
+ *
+ * Looks the opaque token up in the CARTLINK# map and sends the customer to
+ * their own saved checkout with their private code already applied. Serves a
+ * page instead when there is nothing useful left to send them to.
+ *
+ * TWO HARD RULES.
+ *
+ * 1. The recovery URL contains `key=<credential>`. It is never logged, never
+ *    echoed into a page body, and never put in a message. Only the Location
+ *    header carries it, which is where it has to go.
+ * 2. Click counting is best effort and never decides the response. A customer
+ *    who tapped our button must reach their bag even if DynamoDB is having a
+ *    bad minute.
+ */
+import { RULES } from '../../messages/rules.mjs';
+import { getCartLinkMap, getRec, patchRec } from '../store/cartRecovery.mjs';
+import { CART_PAGES, cartPage } from '../../messages/pages.mjs';
+import { soft } from '../lib/resilience.mjs';
+import { log, metric } from '../log.mjs';
+
+const STORE = 'https://www.morpaankh.in';
+const html = (body) => ({ statusCode: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' }, body });
+const redirect = (location) => ({ statusCode: 302, headers: { Location: location, 'Cache-Control': 'no-store' }, body: '' });
+
+/*
+ * WhatsApp fetches a link to build its preview card, and so does Facebook's
+ * scraper, and both look exactly like a tap. Counting them would have reported
+ * a click on every message we sent. HEAD is never a person either.
+ */
+const BOT = /bot|crawl|spider|whatsapp|facebookexternalhit|preview|slackbot|telegram/i;
+
+function isRealTap(event) {
+  const method = event?.requestContext?.http?.method || event?.httpMethod || 'GET';
+  if (method !== 'GET') return false;
+  const headers = event?.headers || {};
+  const ua = headers['user-agent'] || headers['User-Agent'] || '';
+  return !BOT.test(String(ua));
+}
+
+/**
+ * Where to send them. A RULES switch, never a template change: the button's
+ * URL is fixed at Meta approval time and the only thing it carries is the
+ * token, so every one of these can be changed by a deploy without touching
+ * a single approved template.
+ */
+export function buildTarget(rec, rules = RULES) {
+  const r = rules.cartRecovery;
+  const code = encodeURIComponent(rec.code || '');
+  const recovery = rec.recoveryUrl || '';
+  if (!recovery) return STORE;
+
+  if (r.linkTarget === 'cart') {
+    /*
+     * Last resort only, and only together with the theme change: a /cart/
+     * landing goes through COD King's OTP popup again, and the theme's own
+     * offers script auto-replaces a link-supplied code with the biggest public
+     * one unless it has been taught not to.
+     */
+    const host = new URL(recovery).host;
+    const items = (rec.cartItems || []).map((i) => `${i.v}:${i.q}`).join(',');
+    if (!items) return STORE;
+    return `https://${host}/cart/${items}?discount=${code}&storefront=true`;
+  }
+
+  if (r.checkoutLinkStyle === 'path') {
+    // /discount/<CODE>?redirect=<path> applies the code and then forwards.
+    const u = new URL(recovery);
+    const rest = `${u.pathname}${u.search}`;
+    return `https://${u.host}/discount/${code}?redirect=${encodeURIComponent(rest)}`;
+  }
+
+  // Default: hand the code to the saved checkout itself.
+  const sep = recovery.includes('?') ? '&' : '?';
+  return `${recovery}${sep}discount=${code}`;
+}
+
+export const handler = async (event) => {
+  const token = event?.pathParameters?.token || '';
+  const map = token ? await getCartLinkMap(token) : null;
+  if (!map?.checkoutId) {
+    // An old, guessed or truncated link. Send them to the shop, not an error.
+    log.info('cart redirect: unknown token', {});
+    return redirect(STORE);
+  }
+  const checkoutId = map.checkoutId;
+  const rec = await getRec(checkoutId);
+  if (!rec) {
+    log.info('cart redirect: no record for this link', { checkoutId });
+    return redirect(STORE);
+  }
+
+  if (isRealTap(event)) {
+    // Inline rather than fire-and-forget: Lambda freezes the container once a
+    // response is returned, so a detached write would simply be lost.
+    await soft('cartClick', () =>
+      patchRec(checkoutId, {
+        clicks: (rec.clicks || 0) + 1,
+        firstClickAt: rec.firstClickAt || new Date().toISOString(),
+      }), { checkoutId });
+    metric('CartLinkClick', 1);
+  }
+
+  if (rec.orderId) {
+    log.info('cart redirect: already ordered', { checkoutId });
+    return html(cartPage(CART_PAGES.ordered, STORE));
+  }
+
+  if (rec.codeEndsAt && new Date(rec.codeEndsAt).getTime() <= Date.now()) {
+    log.info('cart redirect: code has closed', { checkoutId });
+    // Their bag, without the code, which has genuinely gone.
+    return html(cartPage(CART_PAGES.closed, rec.recoveryUrl || STORE));
+  }
+
+  const target = buildTarget(rec);
+  // linkTarget and the style, never the URL: it carries the recovery key.
+  log.info('cart redirect', { checkoutId, linkTarget: RULES.cartRecovery.linkTarget, style: RULES.cartRecovery.checkoutLinkStyle });
+  return redirect(target);
+};

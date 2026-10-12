@@ -14,6 +14,7 @@ const ENTRY_POINTS = [
   'ingest/razorpay',
   'ingest/delhivery',
   'ingest/pay-redirect',
+  'ingest/cart-redirect',
   'ingest/onboarding',
   'worker/index',
   'timers/poll-delhivery',
