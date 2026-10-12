@@ -76,7 +76,18 @@ export const config = {
   orderAllowlist: list(process.env.ORDER_ALLOWLIST),
   ownerAlertPhones: list(process.env.OWNER_ALERT_PHONES),
 
-  flows: { A: flow('A'), B: flow('B'), C: flow('C'), D: flow('D') },
+  flows: { A: flow('A'), B: flow('B'), C: flow('C'), D: flow('D'), R: flow('R') },
+
+  /*
+   * Flow R shadow mode. NON-EMPTY means only these phones are really messaged;
+   * every other eligible checkout is logged as "cart: would send" and nothing
+   * is created, sent or locked. EMPTY means live to everyone.
+   *
+   * Separate from sendAllowlist on purpose: that one gates the whatsapp client
+   * for the whole service, so using it to test Flow R would have silenced
+   * Flow A's confirmations for every real customer at the same time.
+   */
+  cartRecoveryAllowlist: list(process.env.FLOW_R_ALLOWLIST),
 
   // How Flow B asks for a review. 'flow' is the native WhatsApp Flow, which
   // Meta will not let us publish until the business is verified; 'link' sends

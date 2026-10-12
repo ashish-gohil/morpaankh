@@ -134,6 +134,57 @@ export const RULES = {
   // RTO
   rtoCodBlockCount: 2,
 
+  /*
+   * Flow R - abandoned cart recovery.
+   *
+   * sendWindow is DELIBERATELY WIDER than quietHours (21:30 to 09:30). Every
+   * other flow defers past quiet hours because it is reaching someone who is
+   * not thinking about us. This one reaches someone who was standing in our
+   * checkout twenty minutes ago, and a bag abandoned at 22:00 is dead by 09:30
+   * the next morning. 22:30 is the latest that is still defensible as a reply
+   * to something they just did.
+   *
+   * maxCheckoutAgeHours exists because `updatedAt` on an abandoned checkout is
+   * NOT customer activity: a checkout created 3 Aug read updatedAt 12 Oct.
+   * Age is measured from createdAt only, and anything past 12h is a cold lead
+   * who would read a sudden discount as a mailing list.
+   *
+   * The offer numbers are not a flat percentage on purpose. Measured 2026-10-12
+   * against the last ten reachable carts: a flat 10% was equal to or WORSE than
+   * what eight of them already had or could type in themselves (a Rs 1,249 bag
+   * gets Rs 125 at 10% against WELCOME150's Rs 150; a two-piece bag gets exactly
+   * what BUY2 gives). A "private code" that saves less than the code printed on
+   * the cart page is worse than sending nothing. So the offer is derived from
+   * what the bag can ALREADY get: beat it by beatPublicByInr, never exceed
+   * maxPercentOfBag, and if that is impossible send nothing at all.
+   */
+  cartRecovery: {
+    firstAfterMin: 20,
+    maxCheckoutAgeHours: 12,
+    sendWindow: { start: '09:30', end: '22:30' },
+    codeValidHours: 24,
+    finalBeforeEndMin: 120,
+    finalMinRemainingMin: 30,
+    cooldownDays: 30,
+    percentOff: 10,
+    beatPublicByInr: 50,
+    maxPercentOfBag: 20,
+    roundToInr: 10,
+    minSubtotalFactor: 0.9,
+    codePrefix: 'MORPAANKH',
+    codeFallbackName: 'VIP',
+    codeNameMaxLen: 10,
+    attributionGraceHours: 24,
+    // How the /r/ link hands the code to Shopify. Both are RULES switches and
+    // never a template change, because the template's URL button is fixed at
+    // Meta approval time and the token is all it carries.
+    linkTarget: 'checkout',
+    checkoutLinkStyle: 'query',
+    skipPartialAdvance: true,
+    recoveredTag: 'wa-cart-recovered',
+    giftTag: 'gift-in-parcel',
+  },
+
   // misc
   refundEtaText: '5 to 7 working days',
   stateRetentionDays: 180,
