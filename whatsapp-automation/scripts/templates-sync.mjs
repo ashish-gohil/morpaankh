@@ -108,8 +108,25 @@ async function buildComponents(t) {
     if (b.kind === 'quick_reply') buttons.push({ type: 'QUICK_REPLY', text: b.text });
     else if (b.kind === 'url' && b.base)
       buttons.push({ type: 'URL', text: b.text, url: `${b.base}{{1}}`, example: [`${b.base}${b.example}`] });
-    else if (b.kind === 'url')
-      buttons.push({ type: 'URL', text: b.text, url: `${config.publicBaseUrl}/p/{{1}}`, example: [`${config.publicBaseUrl}/p/TESTTOKEN`] });
+    else if (b.kind === 'url') {
+      /*
+       * A URL button is FIXED once Meta approves the template: the only thing
+       * it can carry at send time is the token. Creating one against an empty
+       * publicBaseUrl would register "/r/{{1}}" as the url, which Meta either
+       * rejects or approves as a broken link that cannot be edited afterwards,
+       * only replaced with a new template and another review.
+       */
+      if (!config.publicBaseUrl) {
+        throw new Error(`${t.name}: PUBLIC_BASE_URL is empty, refusing to create a URL button that cannot work`);
+      }
+      const seg = b.path || 'p';
+      buttons.push({
+        type: 'URL',
+        text: b.text,
+        url: `${config.publicBaseUrl}/${seg}/{{1}}`,
+        example: [`${config.publicBaseUrl}/${seg}/TESTTOKEN`],
+      });
+    }
     else if (b.kind === 'flow') {
       const flowId = process.env.WA_REVIEW_FLOW_ID;
       if (!flowId) return null; // needs the flow id; skip until flows-sync has run

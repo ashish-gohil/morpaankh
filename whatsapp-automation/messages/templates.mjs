@@ -21,7 +21,13 @@ import { encodePayload } from '../src/lib/ids.mjs';
 
 /** quick-reply / url / flow button descriptors used inside the registry. */
 const qr = (text, flow, action) => ({ kind: 'quick_reply', text, flow, action });
-const urlBtn = (text) => ({ kind: 'url', text, urlPattern: '{{public}}/p/{{token}}' });
+/*
+ * A URL button on our own domain, whose only variable is the opaque token.
+ * `path` is the route it lands on ('p' = pay link, 'r' = cart recovery) and is
+ * read by templates-sync when it registers the button with Meta, so the route
+ * is declared here once instead of being hardcoded in two files.
+ */
+const urlBtn = (text, path = 'p') => ({ kind: 'url', text, path, urlPattern: `{{public}}/${path}/{{token}}` });
 /** A URL button whose variable suffix is appended to a fixed external base. */
 const trackBtn = (text) => ({ kind: 'url', text, base: 'https://www.delhivery.com/track/package/', example: '59152210001142' });
 const flowBtn = (text) => ({ kind: 'flow', text, flowKey: 'review' });
@@ -352,6 +358,68 @@ export const TEMPLATES = {
     ],
   },
 
+  /*
+   * Flow R - the abandoned cart recovery pair. MARKETING, because they carry an
+   * offer and a code, which is also why they carry the opt-out footer.
+   *
+   * NO COPY_CODE BUTTON. Meta caps that button's code at 15 characters and
+   * MORPAANKH + a name + two digits is always longer, so the code sits in the
+   * body in bold and the URL button applies it for them instead.
+   */
+  cart_recovery: {
+    name: 'cart_recovery_v1',
+    language: 'en',
+    category: 'MARKETING',
+    header: imageHeader(SAMPLE_PRODUCT_IMAGE),
+    body:
+      'Hello {{customer_name}}, your bag is still waiting for you.\n\n' +
+      '{{item_line}}\n\n' +
+      'Every Morpaankh piece is checked by hand before it leaves us, and we would love for yours to be next. ' +
+      'So we have made you a private code:\n\n' +
+      '*{{code}}*\n\n' +
+      'That is *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. ' +
+      'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+      'Tap below and it is applied for you.',
+    examples: {
+      customer_name: 'Aarav',
+      item_line: 'Khili Dhoop, size M',
+      code: 'MORPAANKHAARAV47',
+      saving: '₹200',
+      expires_at: 'tomorrow at 9:20 PM',
+    },
+    buttons: [urlBtn('Complete my order', 'r'), qr('Talk to us', 'R', 'help')],
+    footer: 'Reply STOP to stop these messages',
+  },
+
+  /*
+   * The one reminder, two hours before the code closes. There is no third
+   * message and there is not going to be one: the code closing IS the deadline,
+   * and a flow that keeps talking past its own deadline has nothing to say.
+   */
+  cart_final: {
+    name: 'cart_final_v1',
+    language: 'en',
+    category: 'MARKETING',
+    header: imageHeader(SAMPLE_PRODUCT_IMAGE),
+    body:
+      'Hello {{customer_name}}, a gentle reminder before your private code closes.\n\n' +
+      '*{{code}}* closes *{{expires_at}}*, about {{time_left}} from now.\n\n' +
+      '{{item_line}}\n\n' +
+      'That is still *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. ' +
+      'Your bag is saved just as you left it, so finishing takes less than a minute.\n\n' +
+      'When the code closes, the offer closes with it.',
+    examples: {
+      customer_name: 'Aarav',
+      code: 'MORPAANKHAARAV47',
+      expires_at: 'today at 9:20 PM',
+      time_left: '2 hours',
+      item_line: 'Khili Dhoop, size M',
+      saving: '₹200',
+    },
+    buttons: [urlBtn('Complete my order', 'r'), qr('Talk to us', 'R', 'help')],
+    footer: 'Reply STOP to stop these messages',
+  },
+
   ops_alert: {
     name: 'ops_alert_v2',
     language: 'en',
@@ -612,6 +680,61 @@ export const LEGACY = {
   // Not older copy: the approved template ops_error falls back to while it is
   // in review. It takes different placeholders, which is why the caller passes
   // the union of both and renderTemplateDef ignores what its version does not use.
+  /*
+   * The image-free Flow R twins. These sit in LEGACY and not NO_PRICE on
+   * purpose, because send.mjs reaches LEGACY from BOTH paths that need them:
+   * `noImage` falls back to `NO_PRICE[key] || LEGACY[key]`, and Meta's
+   * 131052/131053 ("could not fetch the media") are in TEMPLATE_UNUSABLE,
+   * which falls back to LEGACY. One entry therefore covers both a bag with no
+   * photo and a photo Meta cannot reach. Same shape as order_confirmed_plain_v1.
+   */
+  cart_recovery: {
+    name: 'cart_recovery_plain_v1',
+    language: 'en',
+    category: 'MARKETING',
+    body:
+      'Hello {{customer_name}}, your bag is still waiting for you.\n\n' +
+      '{{item_line}}\n\n' +
+      'Every Morpaankh piece is checked by hand before it leaves us, and we would love for yours to be next. ' +
+      'So we have made you a private code:\n\n' +
+      '*{{code}}*\n\n' +
+      'That is *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. ' +
+      'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+      'Tap below and it is applied for you.',
+    examples: {
+      customer_name: 'Aarav',
+      item_line: 'Khili Dhoop, size M',
+      code: 'MORPAANKHAARAV47',
+      saving: '₹200',
+      expires_at: 'tomorrow at 9:20 PM',
+    },
+    buttons: [urlBtn('Complete my order', 'r'), qr('Talk to us', 'R', 'help')],
+    footer: 'Reply STOP to stop these messages',
+  },
+
+  cart_final: {
+    name: 'cart_final_plain_v1',
+    language: 'en',
+    category: 'MARKETING',
+    body:
+      'Hello {{customer_name}}, a gentle reminder before your private code closes.\n\n' +
+      '*{{code}}* closes *{{expires_at}}*, about {{time_left}} from now.\n\n' +
+      '{{item_line}}\n\n' +
+      'That is still *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. ' +
+      'Your bag is saved just as you left it, so finishing takes less than a minute.\n\n' +
+      'When the code closes, the offer closes with it.',
+    examples: {
+      customer_name: 'Aarav',
+      code: 'MORPAANKHAARAV47',
+      expires_at: 'today at 9:20 PM',
+      time_left: '2 hours',
+      item_line: 'Khili Dhoop, size M',
+      saving: '₹200',
+    },
+    buttons: [urlBtn('Complete my order', 'r'), qr('Talk to us', 'R', 'help')],
+    footer: 'Reply STOP to stop these messages',
+  },
+
   ops_error: {
     name: 'ops_alert_v1',
     language: 'en',

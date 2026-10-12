@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { TEMPLATES, LEGACY, renderTemplate, toPositionalBody, placeholderOrder } from './templates.mjs';
 import { SESSION, renderSession, OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from './session.mjs';
 import * as labels from './labels.mjs';
+import { CART_PAGES } from './pages.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const flowJson = readFileSync(join(HERE, 'flows', 'review.flow.json'), 'utf8');
@@ -102,6 +103,7 @@ describe('no em/en dash and no emoji anywhere in customer copy', () => {
     OFFER_GIFT_LINE,
     OFFER_NO_GIFT_LINE,
     labels.THEME_WHATSAPP_NOTICE,
+    ...Object.values(CART_PAGES).flatMap((pg) => [pg.heading, pg.button]),
     labels.ORDER_EDIT_DISCOUNT_DESCRIPTION,
     flowJson,
   );

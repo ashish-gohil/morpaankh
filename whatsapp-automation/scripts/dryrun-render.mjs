@@ -22,12 +22,16 @@ function sampleValue(name) {
     refund_eta: '5 to 7 working days',
     delivered_date: '20 Sep',
     attempt_date: '20 Sep',
-    code: 'THANKS-AB4K7P',
+    code: 'MORPAANKHAARAV47',
     percent: '5',
     min_order: 'Rs 1,500',
     date: '20 Sep',
     summary: '12 COD, 9 confirmed, 2 converted, 1 held',
     alert_text: 'payment received but courier edit failed',
+    // Flow R
+    item_line: 'Khili Dhoop, size M',
+    expires_at: 'tomorrow at 9:20 PM',
+    time_left: '2 hours',
   };
   return map[name] || `[${name}]`;
 }

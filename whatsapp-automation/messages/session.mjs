@@ -267,6 +267,24 @@ export const SESSION = {
     body: 'You will not get order updates from us here anymore. Reply START whenever you want them back.',
   },
   optin_done: { type: 'text', body: 'Thank you. Your order updates will come here again.' },
+  /*
+   * Flow R: the reply to "Talk to us". Two versions, because promising a code
+   * is open when it has already closed is worse than not mentioning it.
+   * Sending these also cancels the reminder, so this is the last thing the
+   * automation says to them.
+   */
+  cart_help_ack: {
+    type: 'text',
+    body:
+      'Thank you, {{customer_name}}. Someone from our team will message you here shortly. ' +
+      'Your bag stays saved, and your code {{code}} is open until {{expires_at}}.',
+  },
+  cart_help_ack_closed: {
+    type: 'text',
+    body:
+      'Thank you, {{customer_name}}. Someone from our team will message you here shortly, ' +
+      'and your bag stays saved.',
+  },
   pay_link_expired_page: {
     type: 'html',
     body: 'This payment link has expired. Please reply on WhatsApp and we will help you.',
