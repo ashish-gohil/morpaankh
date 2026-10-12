@@ -261,10 +261,32 @@ async function onDelhivery(m) {
   const map = await getAwbMap(m.awb);
   if (!map) return log.info('delhivery: unknown AWB', {});
   const orderId = map.orderId;
-  const state = mapCourierStatus({ status: m.status, statusType: m.shipment?.Status?.StatusType });
+  /*
+   * Two message shapes reach here. The push webhook nests everything under
+   * `shipment`; the poller sends the mapper's inputs flat. Read flat first and
+   * fall back, so neither source loses a field: reading ONLY the nested shape
+   * meant every polled event arrived with statusType undefined, and the poller
+   * is the only live source (the push is still not enabled by Delhivery, 2
+   * invocations in 30 days against the poller's 312).
+   */
+  const state = mapCourierStatus({
+    status: m.status,
+    statusType: m.statusType ?? m.shipment?.Status?.StatusType,
+    instructions: m.instructions ?? m.shipment?.Status?.Instructions,
+    nsl: m.nsl ?? m.shipment?.NSLCode,
+  });
   if (state === 'DELIVERED') return flowB.onDelivered(orderId, m.at || null, deps());
   if (state === 'NDR') return flowC.onNdr(orderId, deps());
-  if (state === 'RTO_INITIATED') return flowC.onRto(orderId, deps());
+  /*
+   * RTO_DELIVERED routes here too. It is the same event one leg later, and the
+   * poller drops an AWB from the GSI as soon as it turns terminal, so whichever
+   * of the two we observe first is the only one we will ever see. Landing on
+   * RTO_DELIVERED with no branch meant a return that completed inside a polling
+   * gap was never asked about at all. onRto is idempotent (runOnce on the tag,
+   * a deterministic timer name, and onRtoTimer guards on rtoReasonAskedAt), so
+   * seeing both legs still asks once.
+   */
+  if (state === 'RTO_INITIATED' || state === 'RTO_DELIVERED') return flowC.onRto(orderId, deps());
 }
 
 // ---- Razorpay ---------------------------------------------------------------

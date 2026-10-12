@@ -46,8 +46,31 @@ export async function trackActiveShipments(clients = realClients) {
         courierStatusAt: new Date(r.statusDateTime || Date.now()).toISOString(),
       });
       if (ACTIONABLE.includes(state)) {
+        /*
+         * EVERY field mapCourierStatus reads, not just `status`. The worker
+         * re-derives the state from this message, and it used to receive only
+         * `status`, so whatever the mapping depended on `statusType` for was
+         * lost in transit between the two calls.
+         *
+         * That silently killed RTO. Delhivery reports a return as Status
+         * 'In Transit' or 'Pending' with StatusType 'RT': the RT is the ONLY
+         * signal, there is no 'rto' substring to fall back on. So this function
+         * stored courierStatus RTO_INITIATED (it had the full object) while the
+         * worker read 'In Transit' with no type and routed it to IN_TRANSIT,
+         * which onDelhivery has no branch for. Orders #1154, #1158, #1165 and
+         * #1170 all sat at RTO_INITIATED with an empty flowC and nobody was
+         * ever asked why their parcel came back.
+         */
         await enqueue(
-          { kind: 'delhivery', awb: r.awb, status: r.status, at: r.statusDateTime },
+          {
+            kind: 'delhivery',
+            awb: r.awb,
+            status: r.status,
+            statusType: r.statusType,
+            instructions: r.instructions,
+            nsl: r.nsl,
+            at: r.statusDateTime,
+          },
           { groupId: `order:${map.orderId}`, dedupId: `poll-${r.awb}-${state}` },
         );
       }
