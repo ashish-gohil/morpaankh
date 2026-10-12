@@ -4,6 +4,9 @@
  *   orders (hourly)  sweepUnconfirmed: any order the confirmation never reached.
  *   full  (nightly)  the sweep, plus re-assert the Shopify webhook
  *                    subscriptions and re-track every active AWB.
+ *   carts  (5 min)   Flow R: abandoned checkouts old enough to be messaged.
+ *                    Handled first and returned, and NOT folded into 'full':
+ *                    see the handler.
  *
  * The webhook and AWB halves are the expensive ones and a day late is fine for
  * both. The order sweep is not: a confirmation that arrives a day after the
@@ -14,6 +17,7 @@ import { RULES } from '../../messages/rules.mjs';
 import { realClients } from '../clients/index.mjs';
 import { tpl } from '../worker/send.mjs';
 import { trackActiveShipments } from './track-active.mjs';
+import { sweepAbandonedCarts } from './cart-sweep.mjs';
 import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
@@ -179,6 +183,26 @@ export async function sweepUnreviewed(now = new Date()) {
 }
 
 export const handler = async (event = {}) => {
+  /*
+   * 'carts' is handled FIRST and returns, before anything else in this
+   * function runs.
+   *
+   * This is not tidiness. The mode line below collapses every unrecognised
+   * mode to 'full', and the cart sweep is on a FIVE MINUTE rule, so a 'carts'
+   * event that fell through would run the whole nightly pass 288 times a day:
+   * sweepUnreviewed() calls flowB.onDelivered(), which SENDS a review ask to a
+   * real customer, plus ensureWebhooks and a full Delhivery re-track each time.
+   *
+   * Returning inside the `mode === 'full'` block would not be enough either,
+   * because sweepUnconfirmed() runs unconditionally above it and would re-arm
+   * Flow A timers every five minutes.
+   */
+  if (event?.mode === 'carts') {
+    const carts = await sweepAbandonedCarts();
+    log.info('reconcile carts done', carts);
+    return { ok: true, mode: 'carts', carts };
+  }
+
   const mode = event?.mode === 'orders' ? 'orders' : 'full';
   const out = { mode, webhooks: [], shipments: null, orders: null, reviews: null };
 
