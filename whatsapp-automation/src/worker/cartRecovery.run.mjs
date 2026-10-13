@@ -90,7 +90,17 @@ async function createUniqueCode(deps, n, offer, endsAt, now) {
         // never walk back into its own floor. Not n.name, which only starts
         // with a '#' by Shopify's convention.
         title: `${CART_RECOVERY_TITLE}${n.numericId}`,
-        startsAt: now.toISOString(),
+        /*
+         * The WALL clock, not the flow's logical `now`. The message goes out
+         * the moment this returns, so the code has to be honourable the moment
+         * it lands. In production the two are the same value. They diverge only
+         * under cart-recovery.mjs `send --live`, which winds the logical clock
+         * FORWARD to clear the twenty minute wait: that made Shopify file the
+         * discount as SCHEDULED, and a tap before the wound-forward minute was
+         * refused with the code looking broken. It is the one value here that
+         * belongs to when we actually spoke, not to when we decided to.
+         */
+        startsAt: new Date(Math.min(Date.now(), now.getTime())).toISOString(),
         endsAt: endsAt.toISOString(),
         amountInr: offer.offerPaise / 100,
         minSubtotalInr: offer.minSubtotalInr,

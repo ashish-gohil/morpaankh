@@ -32,25 +32,32 @@ import { getRec, releasePhoneLock, getPhoneLock } from '../src/store/cartRecover
 import * as cartRecovery from '../src/worker/cartRecovery.run.mjs';
 import { maskPhone } from '../src/log.mjs';
 
-const [cmd, checkoutId] = process.argv.slice(2);
+const [cmd, arg] = process.argv.slice(2);
 const live = process.argv.includes('--live');
 const force = process.argv.includes('--force');
 
-if (!['preview', 'send', 'final'].includes(cmd) || !checkoutId) {
+if (!['preview', 'send', 'final'].includes(cmd) || !arg) {
   console.error('usage: cart-recovery.mjs <preview|send|final> <checkoutId> [--live] [--force]');
   process.exit(1);
 }
 
-const raw = await realClients.shopify.getAbandonedCheckout(checkoutId);
+const raw = await realClients.shopify.getAbandonedCheckout(arg);
 const n = normalizeCheckout(raw);
 if (!n) {
-  console.error(`no abandoned checkout ${checkoutId}. Note this reads node(id:), not a query: a query by id returns nothing for a checkout that is definitely there.`);
+  console.error(`no abandoned checkout ${arg}. Note this reads node(id:), not a query: a query by id returns nothing for a checkout that is definitely there.`);
   process.exit(2);
 }
 
 const now = new Date();
 const fill = (body, vars) => body.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `[${k}]`);
 
+/*
+ * The NUMERIC id, never the gid the operator may have pasted. The sweep
+ * enqueues n.numericId and every row is keyed CART#<numeric>, so passing a gid
+ * here used to write a second record the sweep could never see, and a checkout
+ * could end up with two rows and two codes.
+ */
+const checkoutId = n.numericId;
 console.log(`\ncheckout ${n.name}  (${checkoutId})`);
 console.log(`  created   ${n.createdAt}  (${Math.round((now - new Date(n.createdAt)) / 60000)} min ago)`);
 console.log(`  phone     ${n.verifiedPhone ? maskPhone(n.verifiedPhone) : 'NONE (not messageable)'}`);
