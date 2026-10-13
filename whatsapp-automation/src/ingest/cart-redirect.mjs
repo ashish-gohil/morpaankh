@@ -7,9 +7,12 @@
  *
  * TWO HARD RULES.
  *
- * 1. The recovery URL contains `key=<credential>`. It is never logged, never
- *    echoed into a page body, and never put in a message. Only the Location
- *    header carries it, which is where it has to go.
+ * 1. The recovery URL contains `key=<credential>`. It is never logged and
+ *    never put in a message. It travels in exactly two places, both of them
+ *    straight to the customer who was sent the token: the Location header, and
+ *    the button on the closed page, which is the only way left to hand them
+ *    back their own bag. Both responses are `no-store` so nothing in between
+ *    keeps a copy.
  * 2. Click counting is best effort and never decides the response. A customer
  *    who tapped our button must reach their bag even if DynamoDB is having a
  *    bad minute.
@@ -21,7 +24,12 @@ import { soft } from '../lib/resilience.mjs';
 import { log, metric } from '../log.mjs';
 
 const STORE = 'https://www.morpaankh.in';
-const html = (body) => ({ statusCode: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' }, body });
+const html = (body) => ({
+  statusCode: 200,
+  // no-store because the closed page's button carries the recovery key.
+  headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  body,
+});
 const redirect = (location) => ({ statusCode: 302, headers: { Location: location, 'Cache-Control': 'no-store' }, body: '' });
 
 /*

@@ -11,6 +11,7 @@ import { table } from '../store/table.mjs';
 import { setUndeliverable, isUndeliverable } from '../store/phoneProfile.mjs';
 import { setAwaiting, getAwaiting } from '../store/phoneProfile.mjs';
 import { routes } from './index.mjs';
+import { getRec, ensureRec, patchRec } from '../store/cartRecovery.mjs';
 
 const OWNER = '+919812345678';
 const STRANGER = '+919800000000';
@@ -180,5 +181,60 @@ describe('an unanswered question does not stay open forever', () => {
     await expect(
       routes.wa_inbound({ kind: 'wa_inbound', from: OWNER, msg: { text: { body: '302001 Jaipur' } } }),
     ).rejects.toThrow();
+  });
+});
+
+/*
+ * Flow R's four wiring points in this file. The flow functions have their own
+ * suite; what was untested is the router that reaches them, which is the only
+ * code path production actually uses. Every case below is picked to stop at a
+ * guard before any client call, because the router builds the REAL clients.
+ */
+describe('the router reaches Flow R', () => {
+  const CART = '66743166239092';
+
+  it('routes a cart message to onFirst, which writes nothing while the flow is off', async () => {
+    config.flows.R = { enabled: false, startAt: '' };
+    await expect(routes.cart({ kind: 'cart', step: 'first', checkoutId: CART })).resolves.toBeUndefined();
+    // No record, on purpose: the sweep five minutes later is free to retry.
+    expect(await getRec(CART)).toBe(null);
+  });
+
+  it('routes the final step by checkoutId, not orderId', async () => {
+    config.flows.R = { enabled: true, startAt: '2026-10-01T00:00:00Z' };
+    expect(await routes.cart({ kind: 'cart', step: 'final', checkoutId: CART })).toMatchObject({ skipped: 'no-record' });
+  });
+
+  it('routes an R timer to the reminder, reading the checkout id out of the orderId slot', async () => {
+    config.flows.R = { enabled: true, startAt: '2026-10-01T00:00:00Z' };
+    expect(await routes.timer({ kind: 'timer', flow: 'R', orderId: CART, step: 'final' }))
+      .toMatchObject({ skipped: 'no-record' });
+    // An unknown step is logged and dropped, never retried into a send.
+    expect(await routes.timer({ kind: 'timer', flow: 'R', orderId: CART, step: 'nonsense' })).toBeUndefined();
+  });
+
+  it('routes a Talk to us tap to Flow R, which then checks ownership itself', async () => {
+    // ownsOrder fails open on an id with no STATE row, and a Flow R payload
+    // always carries a checkout id, so onTap's own strict check is the gate.
+    await expect(routes.wa_inbound({ kind: 'wa_inbound', from: STRANGER, msg: { button: { payload: `v1|R|${CART}|help` } } }))
+      .resolves.toBeUndefined();
+  });
+
+  it('a cart message status is handled as a cart and never as an order', async () => {
+    await ensureRec(CART, { phone: OWNER, checkoutId: CART });
+    await patchRec(CART, { firstSentAt: '2026-10-12T06:30:00Z' });
+    await table.put({ PK: 'WAMID#wamid.CART', SK: 'MAP', cartId: CART, key: 'cart_recovery' });
+
+    await routes.wa_status({
+      kind: 'wa_status',
+      status: { id: 'wamid.CART', status: 'failed', recipient_id: '919812345678', errors: [{ code: 131026 }] },
+    });
+
+    // It reached the cart handler...
+    expect((await getRec(CART)).deliveryFailed).toBeTruthy();
+    // ...and it never reached the order tail, which would have tried to tag
+    // and alert on an order id that does not exist.
+    expect(await table.get(`ORDER#${CART}`, 'STATE')).toBe(null);
+    expect(await table.get('ORDER#undefined', 'STATE')).toBe(null);
   });
 });

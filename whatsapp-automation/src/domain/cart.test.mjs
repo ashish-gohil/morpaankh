@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { RULES } from '../../messages/rules.mjs';
 import { itemLine, heroImageUrl } from './order.mjs';
+import { withinWindow } from '../lib/time.mjs';
 import {
   normalizeCheckout, properFirstName, isPartialAdvance, cartEligible, computeCartOffer,
   bestPublicSavingPaise, personalCodeName, codeDigits, cartCode, recoveryTimes,
@@ -281,8 +282,10 @@ describe('recoveryTimes', () => {
       const r = recoveryTimes(first, RULES);
       expect(r.codeEndsAt.getTime()).toBeGreaterThanOrEqual(first.getTime() + 24 * 3600 * 1000);
       expect(r.reminderAt.getTime()).toBeLessThan(r.codeEndsAt.getTime());
-      // And the reminder is always somewhere we are allowed to send.
       expect(r.reminderAt.getTime()).toBeGreaterThan(first.getTime());
+      // And the reminder is always somewhere we are allowed to send, which is
+      // the half of this the comment used to promise and never check.
+      expect(withinWindow(r.reminderAt, RULES.cartRecovery.sendWindow)).toBe(true);
     }
   });
 });

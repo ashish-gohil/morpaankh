@@ -1,5 +1,5 @@
 /* Fake WhatsApp client: records every send, returns a deterministic messageId. */
-export function makeFakeWhatsApp({ failTemplateWith = null } = {}) {
+export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null } = {}) {
   const sent = [];
   let n = 0;
   const rec = (type, args) => {
@@ -21,6 +21,12 @@ export function makeFakeWhatsApp({ failTemplateWith = null } = {}) {
   };
   return {
     sent,
+    /*
+     * The service-wide gate (DRY_RUN / SEND_ALLOWLIST), which the real client
+     * also exposes. A caller that spends something before it sends asks this
+     * first, so `skipWith` is how a test reaches that branch.
+     */
+    sendSkipReason: () => skipWith,
     sendTemplate: async (a) => {
       maybeFail();
       return rec('template', a);

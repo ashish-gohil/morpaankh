@@ -30,7 +30,15 @@ export async function sweepAbandonedCarts(clients = realClients, now = new Date(
   if (!withinWindow(now, r.sendWindow)) return { skipped: 'outside-window' };
 
   const sinceISO = new Date(now.getTime() - r.maxCheckoutAgeHours * 3600 * 1000).toISOString();
-  const raw = await clients.shopify.listAbandonedCheckouts(sinceISO);
+  /*
+   * Sorted here, not trusted from the query. listAbandonedCheckouts asks for
+   * CREATED_AT reverse, but the newest-per-phone rule below is the difference
+   * between recovering the bag they last looked at and recovering one they
+   * have since changed, so it does not rest on a sortKey argument staying put.
+   */
+  const raw = (await clients.shopify.listAbandonedCheckouts(sinceISO))
+    .slice()
+    .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime());
 
   const out = { listed: raw.length, enqueued: [], skipped: {} };
   const note = (reason) => {

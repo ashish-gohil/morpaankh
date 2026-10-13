@@ -89,6 +89,7 @@ aws dynamodb get-item --table-name wa-automation --region ap-south-1 \
 | `public-offer-better` | the bag already gets as much as we could offer. Working as designed |
 | `no-public-codes` | the live discount read FAILED, so it refused to offer blind. Check the app has `read_discounts` |
 | `shadow` | `FLOW_R_ALLOWLIST` is set and this phone is not in it. Nothing was created |
+| `send-dry_run` / `send-not_allowlisted` | the SERVICE-wide gate (`DRY_RUN`, `SEND_ALLOWLIST`) stopped the send. Asked before anything is created, so no code and no lock |
 | `meta-131026` / `meta-131049` | Meta refused the recipient. No lock taken, no retry |
 | `template-unusable` | the template is in review, paused or rejected |
 | `recovered` | they came back. `codeUsed` says whether they actually used the code |

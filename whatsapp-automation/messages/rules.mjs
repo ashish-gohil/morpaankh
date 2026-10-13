@@ -179,7 +179,16 @@ export const RULES = {
     // never a template change, because the template's URL button is fixed at
     // Meta approval time and the token is all it carries.
     linkTarget: 'checkout',
-    checkoutLinkStyle: 'query',
+    /*
+     * 'path' because it is the one that was measured on this store, 13 Oct:
+     *   GET /discount/BUY2?redirect=/cart  -> 302 + set-cookie discount_code
+     *   GET /cart?discount=BUY2            -> 200, no cookie, no code
+     * The redirect target keeps its own query string intact, so the recover
+     * URL's `key=` survives, and an unknown code still redirects rather than
+     * erroring, so a deleted code cannot cost them their bag. 'query' is kept
+     * as a switch in case the recover endpoint turns out to read it directly.
+     */
+    checkoutLinkStyle: 'path',
     skipPartialAdvance: true,
     recoveredTag: 'wa-cart-recovered',
     giftTag: 'gift-in-parcel',

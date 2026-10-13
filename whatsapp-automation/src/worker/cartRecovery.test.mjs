@@ -104,12 +104,31 @@ describe('message 1', () => {
     const rec = await getRec(CHECKOUT_ID);
     const args = discounts(clients.shopify)[0];
     expect(args.endsAt).toBe(rec.codeEndsAt);
-    // usageLimit 1, once per customer and combinesWith are fixed inside the
-    // existing createDiscountCode, which is why Flow R reuses it rather than
-    // building its own mutation. Assert the contract it is relied on for.
-    const src = String(clients.shopify.createDiscountCode);
     expect(args.code).toBe(rec.code);
-    expect(src).toBeTruthy();
+    /*
+     * usageLimit 1, appliesOncePerCustomer and combinesWith are fixed inside
+     * the existing createDiscountCode, which is why Flow R reuses it rather
+     * than writing its own mutation. The mutation's own variables are asserted
+     * against a stubbed fetch in clients/discount-code.test.mjs; what this
+     * test owns is that Flow R passes nothing that could loosen them.
+     */
+    expect(Object.keys(args).sort()).toEqual(
+      ['amountInr', 'code', 'endsAt', 'minSubtotalInr', 'startsAt', 'title'].sort(),
+    );
+  });
+
+  it('a gated send creates no code and takes no lock, because nothing went out', async () => {
+    // DRY_RUN or a SEND_ALLOWLIST that does not hold this number. The send's
+    // own reply comes back AFTER the Shopify code exists, so asking the client
+    // first is the only thing that stops an orphan single-use code per cart.
+    const { clients, deps } = setup({ whatsapp: { skipWith: 'not_allowlisted' } });
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('send-not_allowlisted');
+    expect(discounts(clients.shopify)).toHaveLength(0);
+    expect(templates(clients.whatsapp)).toHaveLength(0);
+    expect(await getPhoneLock(PHONE)).toBe(null);
+    expect(timerNames()).not.toContain(`R-${CHECKOUT_ID}-final`);
   });
 
   it('writes nothing at all when the flow is off, so the next sweep retries', async () => {
@@ -514,6 +533,26 @@ describe('an order that came back', () => {
     await R.onFirst(CHECKOUT_ID, b.deps);
     await R.onOrderCreated(orderPayload({ created_at: '2026-10-20T09:00:00Z' }), b.deps);
     expect((await getRec(CHECKOUT_ID)).outcome).toBeUndefined();
+  });
+
+  it('attributes an order placed inside the grace but after the code closed, and owes no gift', async () => {
+    /*
+     * The only reason attributionGraceHours exists: they came back because of
+     * the message, but too late for the code. We still count the recovery and
+     * still tag it, and we do NOT owe a gift we never charged them for.
+     */
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const rec = await getRec(CHECKOUT_ID);
+    const late = new Date(new Date(rec.codeEndsAt).getTime() + 3600 * 1000).toISOString();
+    await R.onOrderCreated(orderPayload({ created_at: late }), { ...deps, now: new Date(late) });
+
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('recovered');
+    expect(tagsAdded(clients.shopify)).toContain('wa-cart-recovered');
+    expect(tagsAdded(clients.shopify)).not.toContain('gift-in-parcel');
+    // No "the code was not applied" alert either: the code had closed, so of
+    // course it was not applied, and the owner does not need telling.
+    expect(JSON.stringify(alerts(clients.whatsapp))).not.toMatch(/was NOT applied/);
   });
 
   it('does nothing for an order from a phone we never messaged', async () => {

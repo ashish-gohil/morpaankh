@@ -19,6 +19,17 @@ import { getSecrets } from '../secrets.mjs';
 import { log, maskPhone, metric } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
 
+/**
+ * The send gate, asked as a question. A caller that spends something before it
+ * sends (Flow R creates a single-use Shopify code first) needs to know the
+ * send is going to be dropped BEFORE it spends, or every dropped send leaves
+ * an orphan behind it.
+ * @returns {string|null} a skip reason, or null when sending is allowed
+ */
+export function sendSkipReason(to) {
+  return guard(to);
+}
+
 /** @returns {string|null} a skip reason, or null when sending is allowed */
 function guard(to) {
   if (config.dryRun) return 'dry_run';
@@ -56,6 +67,7 @@ async function post(to, payload) {
 }
 
 export const whatsapp = {
+  sendSkipReason,
   sendTemplate: ({ to, name, language = 'en', components }) =>
     post(to, { type: 'template', template: { name, language: { code: language }, ...(components ? { components } : {}) } }),
 

@@ -69,7 +69,15 @@ describe('GET /r/{token}', () => {
     await seed();
     const res = await handler(event());
     expect(res.statusCode).toBe(302);
-    expect(res.headers.Location).toContain('discount=MORPAANKHBHARTI47');
+    /*
+     * The style RULES actually ships, measured on the live storefront on
+     * 13 Oct: /discount/<CODE>?redirect=... answers 302 and sets the
+     * discount_code cookie, while a bare ?discount= sets nothing. If the
+     * default is ever moved back, this is the test that notices.
+     */
+    expect(res.headers.Location).toContain('/discount/MORPAANKHBHARTI47?redirect=');
+    const back = decodeURIComponent(new URL(res.headers.Location).searchParams.get('redirect'));
+    expect(back).toContain('/checkouts/ac/hWNHsKi3/recover');
     expect(res.headers['Cache-Control']).toBe('no-store');
     const rec = await getRec(ID);
     expect(rec.clicks).toBe(1);
@@ -91,6 +99,8 @@ describe('GET /r/{token}', () => {
     // Their checkout, without a code, because the code genuinely has gone.
     expect(res.body).toContain('/checkouts/ac/hWNHsKi3/recover');
     expect(res.body).not.toContain('discount=');
+    // That button carries the recovery key, so nothing in between may keep it.
+    expect(res.headers['Cache-Control']).toBe('no-store');
   });
 
   it('serves the thank-you page once the order is attributed', async () => {

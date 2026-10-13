@@ -777,11 +777,25 @@ open for an id it has never seen, and a Flow R payload carries a CHECKOUT id, so
 there is never a STATE row and that gate always passes. `onTap` compares the
 tapping phone to the one on the record itself.
 
-**S10. The link target is a RULES switch, never a template change.** A URL
-button's address is fixed once Meta approves the template and the only thing it
-can carry at send time is the token, so `/r/{token}` resolves the destination
-server-side: `checkout` + `query` (default), `checkout` + `path`, or `cart` as a
-last resort. Changing it is a deploy, not another template review.
+**S10. The link target is a RULES switch, never a template change, and the
+default is the style that was measured.** A URL button's address is fixed once
+Meta approves the template and the only thing it can carry at send time is the
+token, so `/r/{token}` resolves the destination server-side: `checkout` + `path`
+(default), `checkout` + `query`, or `cart` as a last resort. Changing it is a
+deploy, not another template review.
+
+`path` is the default because it is the only one that was measured. On the live
+storefront, 13 Oct:
+
+    GET /discount/BUY2?redirect=/cart   302 + set-cookie: discount_code=BUY2
+    GET /cart?discount=BUY2             200, no cookie, no code
+
+The redirect target keeps its own query string, so the recover URL's `key=`
+survives intact, and an unknown code still redirects rather than erroring, so a
+code that has been deleted cannot cost the customer their bag. `query` was the
+original default on the assumption that the checkout recover endpoint reads the
+parameter directly; it is kept as a switch in case the handset test shows it
+does, but nothing had ever demonstrated it.
 
 **S11. OPEN DECISION, not changed here: STOP is a full opt-out.** A customer who
 replies STOP to a cart recovery message is opted out of EVERYTHING, so they will
@@ -792,3 +806,32 @@ from us, which makes a STOP much more likely than it was before. If a
 marketing-only opt-out is wanted, it needs a second flag on the phone profile
 (`marketingOptOut`) checked in `tpl()` for MARKETING templates only, and the
 `optout_done` copy would have to say which messages are stopping. Owner's call.
+
+**S12. read_discounts IS granted, verified 13 Oct, and the fail-closed branch
+stays anyway.** `discountNodes(query:"status:active")` returns data on the live
+token, and `publicCodeDiscounts()` returns exactly BUY2, BUY3 and WELCOME150 in
+the shape the offer function expects, so the `no-public-codes` outcome will not
+fire in production and the floor is real. The branch stays because the scope can
+be revoked by a reinstall at any time, and without the live codes a Rs 1,249 bag
+would be offered Rs 130 against WELCOME150's Rs 150, which is worse than sending
+nothing. All six section-3 fixtures were re-run against those live codes and
+produce the spec's numbers exactly.
+
+**S13. The service-wide send gate is asked BEFORE the Shopify code is created.**
+`DRY_RUN` and `SEND_ALLOWLIST` live in the WhatsApp client and used to surface
+only in the send's reply, which arrives after `createUniqueCode` has already
+made a real single-use discount. A run with `SEND_ALLOWLIST` set for testing
+would therefore have left one orphan code in the Shopify admin per eligible
+checkout. The client now answers `sendSkipReason(phone)` and Flow R asks it at
+the same point it checks its own allowlist, so a gated send creates nothing,
+takes no lock and records `send-<reason>`. Shadow mode already worked this way;
+this is the service-wide gate catching up.
+
+**S14. The marketing stamp is soft, and that is a deliberate trade.**
+`markMarketing` runs after `firstSentAt` and the phone lock. If it threw, SQS
+would redeliver, `firstSentAt` would short-circuit the retry, the stamp would be
+lost anyway AND the handler would report a failure. Wrapped in `soft()` the
+stamp can still be lost, but it is logged and nothing else breaks. The exposure
+is one customer who could receive a Flow A prepaid offer inside
+`marketingCapDays`; writing the stamp before the send instead would mean a
+failed send still burns the cap, which is the worse of the two.

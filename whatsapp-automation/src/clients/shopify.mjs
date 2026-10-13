@@ -729,7 +729,7 @@ async function ordersCreatedSince(sinceISO) {
  */
 let codeCache = { at: 0, codes: /** @type {any[]} */ ([]) };
 const CODE_CACHE_MS = 10 * 60 * 1000;
-const CART_RECOVERY_TITLE = 'Cart recovery #';
+export const CART_RECOVERY_TITLE = 'Cart recovery #';
 
 async function publicCodeDiscounts({ now = Date.now() } = {}) {
   if (codeCache.at && now - codeCache.at < CODE_CACHE_MS) return codeCache.codes;

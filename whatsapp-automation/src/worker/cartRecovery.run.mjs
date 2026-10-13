@@ -15,6 +15,7 @@
  * five-minute sweep from re-enqueueing the same checkout forever.
  */
 import { config } from '../config.mjs';
+import { CART_RECOVERY_TITLE } from '../clients/shopify.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import {
   normalizeCheckout, cartEligible, computeCartOffer, personalCodeName, cartCode,
@@ -32,7 +33,7 @@ import {
   isOptedOut, isUndeliverable, getProfile, canSendMarketing, markMarketing, touchInbound,
 } from '../store/phoneProfile.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
-import { verifiedPhoneFromNoteAttributes } from '../lib/phone.mjs';
+import { verifiedPhoneFromNoteAttributes, verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
 import { tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
@@ -62,18 +63,10 @@ async function orderedSince(deps, n) {
   const orders = await deps.clients.shopify.ordersCreatedSince(n.createdAt);
   return orders.some((o) => {
     if (n.customerGid && o.customer?.id === n.customerGid) return true;
-    return verifiedPhoneFromCustomAttributesList(o.customAttributes) === n.verifiedPhone;
+    // The library function, not a local copy: it already reads {key,value} and
+    // it keeps the mobile-prefix check a hand-rolled version drops.
+    return verifiedPhoneFromCustomAttributes(o.customAttributes) === n.verifiedPhone;
   });
-}
-
-// customAttributes on an order node use {key,value}, same as a checkout.
-function verifiedPhoneFromCustomAttributesList(attrs) {
-  const hit = (attrs || []).find((a) => a && a.key === '_otpVerifiedPhoneNumber');
-  if (!hit) return null;
-  const digits = String(hit.value || '').replace(/\D/g, '');
-  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
-  if (digits.length === 10) return `+91${digits}`;
-  return null;
 }
 
 /**
@@ -93,7 +86,10 @@ async function createUniqueCode(deps, n, offer, endsAt, now) {
       const res = await deps.clients.shopify.createDiscountCode({
         code,
         // Never a phone number in a title: it shows in the Shopify admin list.
-        title: `Cart recovery ${n.name}`,
+        // The SAME constant publicCodeDiscounts() excludes on, so this code can
+        // never walk back into its own floor. Not n.name, which only starts
+        // with a '#' by Shopify's convention.
+        title: `${CART_RECOVERY_TITLE}${n.numericId}`,
         startsAt: now.toISOString(),
         endsAt: endsAt.toISOString(),
         amountInr: offer.offerPaise / 100,
@@ -236,6 +232,18 @@ export async function onFirst(checkoutId, deps) {
   }
 
   /*
+   * The service-wide gate (DRY_RUN, SEND_ALLOWLIST), asked here rather than
+   * discovered from the send's own reply. The reply comes back AFTER the
+   * Shopify code exists, so a run with SEND_ALLOWLIST set for testing would
+   * leave one orphan single-use code per eligible checkout.
+   */
+  const gated = deps.clients.whatsapp.sendSkipReason?.(phone) || null;
+  if (gated) {
+    log.info('cart: send is gated, nothing created', { checkoutId, phone: maskPhone(phone), skip: gated });
+    return setOutcome(checkoutId, `send-${gated}`);
+  }
+
+  /*
    * The clock is computed ONCE and stored. Both messages, the Shopify code's
    * own end date and the reminder timer all read it back, so a redelivery or a
    * retry can never tell the customer a different closing time than the code
@@ -293,7 +301,13 @@ export async function onFirst(checkoutId, deps) {
    */
   await patchRec(checkoutId, { firstSentAt: now.toISOString(), wamids: [res.messageId].filter(Boolean) });
   await lockPhone(phone, { checkoutId, until: new Date(now.getTime() + r().cooldownDays * 86400 * 1000), now });
-  await markMarketing(phone, now);
+  /*
+   * soft: a throw here would redeliver a record whose message has already gone
+   * out, and firstSentAt would then short-circuit it, so the stamp would be
+   * lost AND the handler would report a failure. Losing it alone is the
+   * smaller harm, and it is logged.
+   */
+  await soft('cartMarkMarketing', () => markMarketing(phone, now), { checkoutId });
   metric('CartFirstSent', 1);
 
   await soft('cartRecordMessage', () => recordCartMessage(checkoutId, res.messageId, { key: 'cart_recovery', template: res.templateName }), { checkoutId });
