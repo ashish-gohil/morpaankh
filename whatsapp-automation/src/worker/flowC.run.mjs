@@ -66,7 +66,8 @@ export async function onNdrReattempt(orderId, deps) {
     await sess(deps, n.verifiedPhone, 'ndr_reattempt_ok', {});
     await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-reattempt']);
   } catch (e) {
-    await ownerAlert(deps, n.name, 'NDR re-attempt request failed');
+    await soft('ndrReattemptHandoff', () => sess(deps, n.verifiedPhone, 'ndr_handoff', {}), { orderId });
+    await ownerAlert(deps, n.name, 'NDR re-attempt request failed, customer told a person will call');
     log.error('flowC re-attempt failed', { orderId, err: e.message });
   }
 }
@@ -100,7 +101,8 @@ export async function onAddressText(orderId, text, deps) {
       await sess(deps, n.verifiedPhone, 'ndr_address_saved', {});
       await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-address']);
     } catch (e) {
-      await ownerAlert(deps, n.name, 'NDR address edit failed');
+      await soft('ndrAddressHandoff', () => sess(deps, n.verifiedPhone, 'ndr_handoff', {}), { orderId });
+      await ownerAlert(deps, n.name, 'NDR address edit failed, customer told a person will call');
     }
     await clearAwaiting(n.verifiedPhone);
   } else if (res.status === 'different') {

@@ -300,7 +300,7 @@ async function onDelhivery(m) {
     status: m.status,
     statusType: m.statusType ?? m.shipment?.Status?.StatusType,
     instructions: m.instructions ?? m.shipment?.Status?.Instructions,
-    nsl: m.nsl ?? m.shipment?.NSLCode,
+    statusCode: m.statusCode ?? m.shipment?.Status?.StatusCode,
   });
   if (state === 'DELIVERED') return flowB.onDelivered(orderId, m.at || null, deps());
   if (state === 'NDR') return flowC.onNdr(orderId, deps());

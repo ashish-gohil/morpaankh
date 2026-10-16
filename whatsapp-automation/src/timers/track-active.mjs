@@ -32,7 +32,19 @@ export async function trackActiveShipments(clients = realClients) {
       if (!map) continue;
       const state = mapCourierStatus(r);
       const st = await getState(map.orderId);
-      if (st?.courierStatus === state) continue; // unchanged
+      if (st?.courierStatus === state) {
+        /*
+         * Unchanged, but a terminal state still has to leave the GSI.
+         *
+         * The drop lives at the bottom of this loop, past this `continue`, so
+         * an AWB whose terminal state was recorded by any other path (the push
+         * webhook, a replay, a hand-run of this sweep that crashed later) was
+         * never dropped and came back every hour for ever. #1165 and #1170 sat
+         * at RTO_INITIATED and were re-tracked 312 times each.
+         */
+        if (TERMINAL.includes(state)) await table.put({ PK: map.PK, SK: 'MAP', orderId: map.orderId });
+        continue;
+      }
       /*
        * WHEN the status changed, recorded next to the status itself.
        *
@@ -68,7 +80,7 @@ export async function trackActiveShipments(clients = realClients) {
             status: r.status,
             statusType: r.statusType,
             instructions: r.instructions,
-            nsl: r.nsl,
+            statusCode: r.statusCode,
             at: r.statusDateTime,
           },
           { groupId: `order:${map.orderId}`, dedupId: `poll-${r.awb}-${state}` },

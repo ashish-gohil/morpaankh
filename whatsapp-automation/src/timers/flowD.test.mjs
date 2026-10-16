@@ -76,4 +76,38 @@ describe('trackActiveShipments', () => {
     expect(r2.changed).toBe(0);
     expect(_drainQueue()).toHaveLength(0);
   });
+
+  /*
+   * The same round trip as above, for the field that decides NDR. Order #1165's
+   * refusal at the door is Status 'Pending' / StatusType 'UD' with the outcome
+   * in StatusCode, so the message has to carry the code or the worker re-derives
+   * PENDING and onDelhivery has no branch for it.
+   */
+  it('carries enough for the worker to re-derive a failed delivery attempt', async () => {
+    await setAwbMap('AWB1', '777');
+    const clients = makeFakeClients({
+      courier: { statuses: { AWB1: { status: 'Pending', statusType: 'UD', statusCode: 'EOD-6O' } } },
+    });
+    await trackActiveShipments(clients);
+    const [{ message }] = _drainQueue();
+    const stored = (await getState('777'))?.courierStatus;
+    expect(stored).toBe('NDR');
+    expect(mapCourierStatus(message)).toBe(stored);
+  });
+
+  /*
+   * A terminal state recorded by any other path left the AWB in the GSI for
+   * ever, because the drop sits past the unchanged `continue`. #1165 and #1170
+   * were re-tracked hourly at RTO_INITIATED for days.
+   */
+  it('drops a terminal shipment from the GSI even when the status has not changed', async () => {
+    await setAwbMap('AWB1', '777');
+    const clients = makeFakeClients({ courier: { statuses: { AWB1: { status: 'RTO In Transit', statusType: 'RT' } } } });
+    await trackActiveShipments(clients); // first pass records it and drops it
+    await setAwbMap('AWB1', '777'); // back in the GSI, as if another path had written it
+    const r2 = await trackActiveShipments(clients);
+    expect(r2.changed).toBe(0); // still unchanged, so nothing is re-sent
+    expect(_drainQueue()).toHaveLength(1); // only the first pass enqueued
+    expect(await table.scanGsi1()).toHaveLength(0); // and it is out of the GSI again
+  });
 });

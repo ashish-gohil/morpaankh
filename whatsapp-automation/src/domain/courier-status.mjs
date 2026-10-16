@@ -1,5 +1,5 @@
 /*
- * courier-status.mjs — map Delhivery Status/StatusType/NSL to our internal enum.
+ * courier-status.mjs — map Delhivery Status/StatusType/StatusCode to our enum.
  * Best-known mapping; refined against real payloads at Phase 7. Friendly customer
  * text lives in messages/labels.mjs (COURIER_STATUS_TEXT).
  */
@@ -18,10 +18,11 @@ export const STATES = [
   'UNKNOWN',
 ];
 
-/** @param {{status?:string, statusType?:string, instructions?:string, nsl?:string}} t */
+/** @param {{status?:string, statusType?:string, instructions?:string, statusCode?:string}} t */
 export function mapCourierStatus(t = {}) {
   const s = String(t.status || '').toLowerCase();
   const type = String(t.statusType || '').toUpperCase(); // DL delivered, RT RTO, UD undelivered-umbrella
+  const code = String(t.statusCode || '').toUpperCase(); // EOD-* end-of-day disposition, X-* movement
 
   // THE ORDER OF THE NEXT THREE LINES IS THE WHOLE POINT. Both of the earlier
   // orderings reported a parcel the customer never received as DELIVERED, and
@@ -47,6 +48,35 @@ export function mapCourierStatus(t = {}) {
   // erring toward DELIVERED asks for a review of a missing parcel.
   if (type === 'RT' || /rto/.test(s)) return /delivered|received/.test(s) ? 'RTO_DELIVERED' : 'RTO_INITIATED';
   if (/undelivered|not delivered|failed|no attempt/.test(s)) return 'NDR';
+  /*
+   * A failed delivery attempt, read off the END-OF-DAY disposition code.
+   *
+   * Delhivery never sends any of the strings the line above tests for. A real
+   * failed attempt arrives as Status 'Pending' with StatusType 'UD' and the
+   * outcome in StatusCode, so every one of them fell through to the /pending/
+   * branch at the bottom and was stored as PENDING. NDR was unreachable from
+   * the courier for the whole life of the service: 0 NDR in every daily digest
+   * while orders #1165 and #1170 went out for delivery, failed, and RTO'd
+   * without the customer ever being asked a thing.
+   *
+   * EOD- is the discriminator, and 'UD' alone is NOT (mapping the umbrella
+   * would call every in-transit scan a failed delivery and message the lot).
+   * From order #1165's own 23 scans on 2026-10-16:
+   *   X-DDD3FD  UD  Out for delivery          movement
+   *   EOD-6O    UD  Code verified cancellation THE FAILED ATTEMPT
+   *   RT-108    RT  No client instructions...  return leg
+   *   EOD-148   RT  Recipient unavailable      return leg, NOT the customer's
+   *   RD-AC     DL  RETURN Accepted            terminal
+   * So: end-of-day + still undelivered = the delivery day ended without it
+   * being handed over. The RT leg is already claimed by the line above, which
+   * is what keeps EOD-148 (our own warehouse being shut) from being read as
+   * the customer refusing a parcel.
+   *
+   * EOD-38 is the delivered disposition and arrives as 'DL', so the type test
+   * excludes it already; it is named here so a contradictory UD/EOD-38 payload
+   * can never ask someone to rescue a parcel they have in their hands.
+   */
+  if (type === 'UD' && /^EOD-/.test(code) && code !== 'EOD-38') return 'NDR';
   if (type === 'DL' || /delivered/.test(s)) return 'DELIVERED';
   if (/manifest/.test(s)) return 'MANIFESTED';
   if (/out for delivery|dispatched/.test(s)) return 'OUT_FOR_DELIVERY';

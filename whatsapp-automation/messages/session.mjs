@@ -246,6 +246,17 @@ export const SESSION = {
       'We could not find a 6 digit pincode in that one. Please send the full address again with the pincode ' +
       'included.',
   },
+  /*
+   * The courier write failed. Delhivery's /api/p/update field names are still
+   * unverified (DECISIONS E4-E6), so this is a live possibility, and the two
+   * handlers below used to acknowledge the tap INSIDE the try: a customer who
+   * tapped "Try again" and hit a failure got silence while only the owner was
+   * told. Silence after a tap is the one thing this flow cannot do.
+   */
+  ndr_handoff: {
+    type: 'text',
+    body: 'Thank you. Our team will arrange this by hand and call you shortly.',
+  },
   ndr_address_saved: {
     type: 'text',
     body: 'Thank you. Our courier partner has the new address and will try the delivery again.',

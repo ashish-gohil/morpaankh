@@ -103,3 +103,60 @@ describe('the rest of the mapping is unchanged', () => {
     expect(isCourierEditable('RTO_DELIVERED')).toBe(false);
   });
 });
+
+/*
+ * Every case below is a VERBATIM scan from order #1165, pulled from Delhivery
+ * on 2026-10-16. That parcel went out for delivery, was refused at the door,
+ * and came back as an RTO without the customer ever being asked a thing,
+ * because NDR was unreachable: the mapper was reading Shipment.NSLCode, which
+ * this API does not return, and nothing else carried the outcome.
+ */
+describe('a failed delivery attempt, from the real payloads', () => {
+  const scan = (status, statusType, statusCode) => mapCourierStatus({ status, statusType, statusCode });
+
+  it('reads the refusal at the door as NDR', () => {
+    // {"Instructions":"Code verified cancellation","Scan":"Pending","ScanType":"UD","StatusCode":"EOD-6O"}
+    expect(scan('Pending', 'UD', 'EOD-6O')).toBe('NDR');
+  });
+
+  it('is what the old mapper got wrong: the same scan used to read as PENDING', () => {
+    // Without the code there is nothing to distinguish it from a hub scan, and
+    // PENDING has no branch in onDelhivery, so the event died there.
+    expect(scan('Pending', 'UD', undefined)).toBe('PENDING');
+  });
+
+  it('leaves every movement scan on that parcel alone', () => {
+    expect(scan('Manifested', 'UD', 'X-UCI')).toBe('MANIFESTED');
+    expect(scan('In Transit', 'UD', 'X-PPOM')).toBe('IN_TRANSIT');
+    expect(scan('In Transit', 'UD', 'X-IBD3F')).toBe('IN_TRANSIT');
+    expect(scan('In Transit', 'UD', 'X-OLL2F')).toBe('IN_TRANSIT');
+    expect(scan('Pending', 'UD', 'X-IBD3F')).toBe('PENDING');
+    expect(scan('Dispatched', 'UD', 'X-DDD3FD')).toBe('OUT_FOR_DELIVERY');
+  });
+
+  it('does not read our own warehouse being shut as the customer refusing', () => {
+    // EOD-148 "Recipient unavailable.Establishment closed" is on the RETURN
+    // leg: the courier could not hand the parcel back to US. Reading it as an
+    // NDR would ask the customer to rescue a delivery that is not happening to
+    // them, so the RT test above has to keep claiming it first.
+    expect(scan('Pending', 'RT', 'EOD-148')).toBe('RTO_INITIATED');
+    expect(scan('Dispatched', 'RT', 'X-DDD3FD')).toBe('RTO_INITIATED');
+    expect(scan('In Transit', 'RT', 'RT-108')).toBe('RTO_INITIATED');
+  });
+
+  it('keeps the delivered and return-accepted dispositions out of NDR', () => {
+    expect(scan('Delivered', 'DL', 'EOD-38')).toBe('DELIVERED');
+    expect(scan('RTO', 'DL', 'RD-AC')).toBe('RTO_INITIATED');
+    // A contradictory UD payload for the delivered code must not ask someone
+    // to rescue a parcel they are holding.
+    expect(scan('Delivered', 'UD', 'EOD-38')).toBe('DELIVERED');
+  });
+
+  it('does not treat the UD umbrella on its own as a failed delivery', () => {
+    // 'UD' is on every in-transit scan above. Mapping the umbrella would have
+    // messaged every customer with a parcel in motion.
+    for (const code of ['', undefined, 'X-UCI', 'X-DDD3FD', 'CS-CSL']) {
+      expect(scan('In Transit', 'UD', code)).not.toBe('NDR');
+    }
+  });
+});

@@ -8,7 +8,7 @@
  * are DRY_RUN-gated.
  *
  * Interface (a Delhivery One impl could swap in behind the same shape):
- *   track(awbs[])                    -> [{ awb, status, statusType, statusDateTime, instructions, nsl }]
+ *   track(awbs[])                    -> [{ awb, status, statusType, statusDateTime, instructions, statusCode }]
  *   editToPrepaid(awb)               -> { ok }
  *   cancel(awb)                      -> { ok }
  *   ndrAction(awb, action, opts)     -> { requestId }
@@ -65,7 +65,17 @@ export const courier = {
         statusType: st.StatusType,
         statusDateTime: st.StatusDateTime,
         instructions: st.Instructions,
-        nsl: sh.NSLCode,
+        /*
+         * Status.StatusCode, NOT Shipment.NSLCode.
+         *
+         * NSLCode is not a field this endpoint returns. It was read for a year
+         * and was `undefined` on every shipment, so the one input that can
+         * identify a failed delivery attempt never reached the mapper and
+         * flowC.onNdr could not fire. Verified against all 7 live AWBs on
+         * 2026-10-16: every Shipment lacks NSLCode and every Status carries
+         * StatusCode (EOD-38 delivered, RD-AC return accepted, X-* movement).
+         */
+        statusCode: st.StatusCode,
       };
     });
   },
