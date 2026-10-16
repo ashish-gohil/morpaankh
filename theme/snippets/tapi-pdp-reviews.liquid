@@ -46,10 +46,11 @@
   {%- if feat_count > 0 -%}
     <div class="tapi-reviews__rail" data-tapi-stagger="80">
       {%- for r in reviews -%}
-        {%- comment -%} Each quote is EITHER a tapi_review metaobject (a real
-          review, fields under .value) or a hash from the manual tapi.reviews
-          JSON. Reading `.value` first and falling back to the bare key handles
-          both without duplicating any of the markup below. {%- endcomment -%}
+        {%- comment -%} Quotes arrive as hashes from the manual tapi.reviews JSON.
+          The `.value` read in front of each bare key also accepts a tapi_review
+          metaobject, so the WhatsApp source can be switched on in the section
+          without touching this markup. It is off on purpose: those reviews need
+          rephrasing by hand first. {%- endcomment -%}
         {%- assign r_rating = r.rating.value | default: r.rating | plus: 0 -%}
         {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
         {%- assign r_body = r.body.value | default: r.body -%}

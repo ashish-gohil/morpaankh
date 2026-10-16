@@ -32,19 +32,25 @@
   #                          carousel: { author, rating, body, date, location, verified }
   # The summary (title stars + band header) shows disp_count / disp_avg, taken
   # from the manual fields when set, otherwise derived from the featured quotes.
-  # Quotes come from two places and both are honest:
-  #   * custom.reviews  - REAL customer reviews, one tapi_review metaobject per
-  #                       review, written by the WhatsApp review flow after a
-  #                       delivery. Only metaobjects published ACTIVE reach the
-  #                       storefront, so moderating one is a status flip in
-  #                       admin and withdrawing consent removes it everywhere.
-  #   * tapi.reviews    - manually featured quotes, same fields in JSON.
-  # Real ones lead. Both shapes are read in the snippet, so a product can carry
-  # either or both without the markup knowing which it is holding.
+  # QUOTES ON THIS PAGE ARE MANUAL ONLY, and deliberately so.
+  #
+  # The displayed quotes come from tapi.reviews and nowhere else. Reviews
+  # collected through the WhatsApp form are stored in Shopify as tapi_review
+  # metaobjects, linked on custom.reviews, and carry their star rating, but they
+  # are NOT read here: they arrive in the customer's own words and need
+  # rephrasing and spelling corrections by hand before they are fit to publish.
+  # Pulling them in automatically put raw text like "It said bust is 34 in the
+  # size chart but it is smaller than that ." straight onto the page.
+  #
+  # To publish one, copy the corrected wording into this product's tapi.reviews
+  # JSON. The snippet still reads either shape, so re-enabling the automatic
+  # source later is a one-line change here and nothing else.
+  #
+  # The headline count and average (tapi.rating_count / tapi.rating_average) are
+  # also kept by hand, from the review calls, and nothing in this theme or the
+  # WhatsApp service writes them. Leave them that way.
   assign empty_list = '' | split: ','
-  assign real_list = product.metafields.custom.reviews.value | default: empty_list
-  assign json_list = m.reviews.value | default: empty_list
-  assign feat_list = real_list | concat: json_list
+  assign feat_list = m.reviews.value | default: empty_list
   assign feat_count = 0
   assign feat_sum = 0
   for r in feat_list
@@ -834,15 +840,13 @@
     </div>
   {%- endif -%}
 
-  {%- comment -%} What buyers say. The snippet has been in the theme unrendered,
-    so every real review collected over WhatsApp was invisible on the page it was
-    written about.
+  {%- comment -%} What buyers say: the manually curated quotes in tapi.reviews.
 
     Gated on feat_count, NOT on the snippet's own "a count OR a quote" rule. The
-    manual tapi.rating_count numbers are set on products that have no reviews
-    behind them, so rendering on a count alone put a "What buyers say" heading
-    and an 86-rating star summary above an empty rail on those pages. One quote
-    is the floor: no genuine review, no band. {%- endcomment -%}
+    manual tapi.rating_count numbers are set on products with no quotes behind
+    them, so rendering on a count alone put a "What buyers say" heading and an
+    86-rating star summary above an empty rail on those pages. One quote is the
+    floor: nothing written, no band. {%- endcomment -%}
   {%- if feat_count > 0 -%}
     {% render 'tapi-pdp-reviews', section: section, reviews: feat_list, feat_count: feat_count, count: disp_count, avg: disp_avg %}
   {%- endif -%}
