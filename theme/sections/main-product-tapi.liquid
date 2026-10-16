@@ -32,18 +32,28 @@
   #                          carousel: { author, rating, body, date, location, verified }
   # The summary (title stars + band header) shows disp_count / disp_avg, taken
   # from the manual fields when set, otherwise derived from the featured quotes.
-  assign feat_list = m.reviews.value
+  # Quotes come from two places and both are honest:
+  #   * custom.reviews  - REAL customer reviews, one tapi_review metaobject per
+  #                       review, written by the WhatsApp review flow after a
+  #                       delivery. Only metaobjects published ACTIVE reach the
+  #                       storefront, so moderating one is a status flip in
+  #                       admin and withdrawing consent removes it everywhere.
+  #   * tapi.reviews    - manually featured quotes, same fields in JSON.
+  # Real ones lead. Both shapes are read in the snippet, so a product can carry
+  # either or both without the markup knowing which it is holding.
+  assign empty_list = '' | split: ','
+  assign real_list = product.metafields.custom.reviews.value | default: empty_list
+  assign json_list = m.reviews.value | default: empty_list
+  assign feat_list = real_list | concat: json_list
   assign feat_count = 0
   assign feat_sum = 0
-  if feat_list
-    for r in feat_list
-      assign r_rating = r.rating | plus: 0
-      if r_rating > 0
-        assign feat_count = feat_count | plus: 1
-        assign feat_sum = feat_sum | plus: r_rating
-      endif
-    endfor
-  endif
+  for r in feat_list
+    assign r_rating = r.rating.value | default: r.rating | plus: 0
+    if r_rating > 0
+      assign feat_count = feat_count | plus: 1
+      assign feat_sum = feat_sum | plus: r_rating
+    endif
+  endfor
   assign feat_avg = 0
   if feat_count > 0
     assign feat_avg = feat_sum | times: 1.0 | divided_by: feat_count | round: 1
@@ -823,6 +833,19 @@
       </div>
     </div>
   {%- endif -%}
+
+  {%- comment -%} What buyers say. The snippet has been in the theme unrendered,
+    so every real review collected over WhatsApp was invisible on the page it was
+    written about.
+
+    Gated on feat_count, NOT on the snippet's own "a count OR a quote" rule. The
+    manual tapi.rating_count numbers are set on products that have no reviews
+    behind them, so rendering on a count alone put a "What buyers say" heading
+    and an 86-rating star summary above an empty rail on those pages. One quote
+    is the floor: no genuine review, no band. {%- endcomment -%}
+  {%- if feat_count > 0 -%}
+    {% render 'tapi-pdp-reviews', section: section, reviews: feat_list, feat_count: feat_count, count: disp_count, avg: disp_avg %}
+  {%- endif -%}
 </section>
 
 {%- comment -%} Structured data for the PDP. Product + Offer drives rich results and
@@ -891,15 +914,22 @@
   "review": [
     {%- assign rp = true -%}
     {%- for r in feat_list -%}
-      {%- assign r_rating = r.rating | plus: 0 -%}
+      {%- comment -%} Same dual read as the band: a real review is a metaobject
+        (fields under .value), a featured quote is a JSON hash. Reading only the
+        bare keys here would have emitted a Review with a null author and no
+        body for every real one. {%- endcomment -%}
+      {%- assign r_rating = r.rating.value | default: r.rating | plus: 0 -%}
       {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
+      {%- assign r_body = r.body.value | default: r.body -%}
+      {%- assign r_author = r.author_name.value | default: r.author -%}
+      {%- assign r_date = r.submitted_at.value | default: r.date -%}
       {%- unless rp -%},{%- endunless -%}{%- assign rp = false -%}
       {
         "@type": "Review",
         "reviewRating": { "@type": "Rating", "ratingValue": {{ r_rating | json }}, "bestRating": "5", "worstRating": "1" },
-        "author": { "@type": "Person", "name": {{ r.author | default: 'Verified buyer' | json }} }{% if r.body != blank %},
-        "reviewBody": {{ r.body | strip_html | truncate: 1000 | json }}{% endif %}{% if r.date != blank %},
-        "datePublished": {{ r.date | json }}{% endif %}
+        "author": { "@type": "Person", "name": {{ r_author | default: 'Verified buyer' | json }} }{% if r_body != blank %},
+        "reviewBody": {{ r_body | strip_html | truncate: 1000 | json }}{% endif %}{% if r_date != blank %},
+        "datePublished": {{ r_date | json }}{% endif %}
       }
     {%- endfor -%}
   ]{%- endif -%}{%- endif -%}
@@ -1252,6 +1282,8 @@
     { "type": "text", "id": "concierge_heading", "default": "Talk to us before you buy", "label": "Concierge heading" },
     { "type": "text", "id": "concierge_text", "default": "Message us on WhatsApp about fabric, fit or sizing and a real person will get back to you, usually the same day. We would rather help you get it right the first time than leave you guessing.", "label": "Concierge text" },
     { "type": "text", "id": "concierge_btn", "default": "Chat on WhatsApp", "label": "Concierge button label" },
+    { "type": "checkbox", "id": "show_reviews", "default": true, "label": "Show the buyer reviews band", "info": "Renders the reviews collected over WhatsApp, below the product. Nothing appears until a product has at least one published review." },
+    { "type": "text", "id": "reviews_heading", "default": "What buyers say", "label": "Reviews heading" },
     { "type": "checkbox", "id": "emit_rating_schema", "default": false, "label": "Add rating to Google rich-result data", "info": "Off by default. When on, the rating count and average are added to the product's search-engine structured data (star snippets in Google). Only turn this on for ratings that are genuinely received and defensible, since Google can penalise unverifiable review markup." },
 
     { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },

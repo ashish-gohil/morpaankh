@@ -46,8 +46,17 @@
   {%- if feat_count > 0 -%}
     <div class="tapi-reviews__rail" data-tapi-stagger="80">
       {%- for r in reviews -%}
-        {%- assign r_rating = r.rating | plus: 0 -%}
+        {%- comment -%} Each quote is EITHER a tapi_review metaobject (a real
+          review, fields under .value) or a hash from the manual tapi.reviews
+          JSON. Reading `.value` first and falling back to the bare key handles
+          both without duplicating any of the markup below. {%- endcomment -%}
+        {%- assign r_rating = r.rating.value | default: r.rating | plus: 0 -%}
         {%- if r_rating <= 0 -%}{%- continue -%}{%- endif -%}
+        {%- assign r_body = r.body.value | default: r.body -%}
+        {%- assign r_author = r.author_name.value | default: r.author -%}
+        {%- assign r_verified = r.verified_buyer.value | default: r.verified -%}
+        {%- assign r_date = r.submitted_at.value | default: r.date -%}
+        {%- assign r_location = r.location -%}
         {%- assign r_pct = r_rating | times: 20 -%}
         <article class="tapi-review" data-tapi-reveal>
           <div class="tapi-review__stars">
@@ -55,22 +64,22 @@
               <span class="tapi-stars__fill" aria-hidden="true"></span>
             </span>
           </div>
-          {%- if r.body != blank -%}
-            <p class="tapi-review__body">{{ r.body | escape }}</p>
+          {%- if r_body != blank -%}
+            <p class="tapi-review__body">{{ r_body | escape }}</p>
           {%- endif -%}
           <div class="tapi-review__foot">
-            <span class="tapi-review__author">{{ r.author | default: 'Verified buyer' | escape }}</span>
-            {%- if r.verified -%}
+            <span class="tapi-review__author">{{ r_author | default: 'Verified buyer' | escape }}</span>
+            {%- if r_verified -%}
               <span class="tapi-review__verified">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
                 Verified
               </span>
             {%- endif -%}
-            {%- if r.location != blank or r.date != blank -%}
+            {%- if r_location != blank or r_date != blank -%}
               <span class="tapi-review__meta">
-                {%- if r.location != blank -%}{{ r.location | escape }}{%- endif -%}
-                {%- if r.location != blank and r.date != blank %} &middot; {% endif -%}
-                {%- if r.date != blank -%}{{ r.date | date: '%b %Y' }}{%- endif -%}
+                {%- if r_location != blank -%}{{ r_location | escape }}{%- endif -%}
+                {%- if r_location != blank and r_date != blank %} &middot; {% endif -%}
+                {%- if r_date != blank -%}{{ r_date | date: '%b %Y' }}{%- endif -%}
               </span>
             {%- endif -%}
           </div>
