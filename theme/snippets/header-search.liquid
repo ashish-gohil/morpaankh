@@ -62,7 +62,7 @@
               inputmode="search"
               name="q"
               value="{{ search.terms | escape }}"
-              placeholder="{{ section.settings.search_placeholder | default: 'Search by piece, fabric, color, GSM…' }}"
+              placeholder="{{ section.settings.search_placeholder | default: 'Search by piece, fabric or color' }}"
               {%- if settings.predictive_search_enabled -%}
                 role="combobox"
                 aria-expanded="false"
@@ -91,15 +91,24 @@
           </div>
 
           <div class="tapi-search-grid">
-            {%- comment -%} Left rail: Trending + Collections {%- endcomment -%}
+            {%- comment -%} Left rail: quick searches + the merchant's own category nav {%- endcomment -%}
             <aside class="tapi-search-aside">
               <section class="tapi-search-block">
-                <h2 class="eyebrow tapi-search-block__title" data-default-title>Trending</h2>
+                {%- comment -%}
+                  "Quick searches", not "Trending": the theme has no access to real
+                  search volume, so calling an editor-set list trending would be a
+                  claim we cannot back. Every default below is a term verified to
+                  return products on this catalog. Fabric and print terms on
+                  purpose, since the category rail underneath already covers
+                  silhouettes. GSM is deliberately absent: Shopify's search does
+                  not index metafields, so "120 GSM" returns nothing.
+                {%- endcomment -%}
+                <h2 class="eyebrow tapi-search-block__title" data-default-title>Quick searches</h2>
                 <h2 class="eyebrow tapi-search-block__title" data-query-title hidden>Suggested</h2>
                 <ul class="tapi-search-list" data-default-trending>
-                  {%- assign trending_csv = section.settings.trending_terms | default: 'Saanjh kurta set, Mulmul 120 GSM, Sage co-ord, Festive dobby, Block-print kurta' -%}
-                  {%- assign trending_arr = trending_csv | split: ',' -%}
-                  {%- for term in trending_arr limit: 6 -%}
+                  {%- assign quick_csv = section.settings.search_quick_terms | default: 'Cotton, Mulmul, Chanderi, Block print, Anarkali, Lehenga' -%}
+                  {%- assign quick_arr = quick_csv | split: ',' -%}
+                  {%- for term in quick_arr limit: 6 -%}
                     {%- assign t = term | strip -%}
                     {%- if t == blank -%}{% continue %}{%- endif -%}
                     <li class="tapi-search-list__item">
@@ -114,20 +123,50 @@
                 <ul class="tapi-search-list tapi-search-list--suggested" data-query-suggested hidden></ul>
               </section>
 
-              <section class="tapi-search-block">
-                <h2 class="eyebrow tapi-search-block__title">Collections</h2>
-                <ul class="tapi-search-list tapi-search-list--compact">
-                  {%- for c in collections limit: 6 -%}
-                    {%- if c.handle == 'all' or c.handle == 'frontpage' -%}{% continue %}{%- endif -%}
-                    <li class="tapi-search-list__item">
-                      <a href="{{ c.url }}" class="tapi-search-list__link tapi-search-list__link--compact link-u">
-                        <span class="tapi-search-list__label">{{ c.title }}</span>
-                        <span class="tapi-search-list__count tnum">{{ c.products_count }}</span>
-                      </a>
-                    </li>
-                  {%- endfor -%}
-                </ul>
-              </section>
+              {%- comment -%}
+                Category rail is driven by the main menu's own dropdown rather than
+                by iterating `collections`. That iteration returned the first six
+                collections by title, which (a) silently omitted real categories
+                further down the alphabet (One Piece, Short Kurti, Lehenga Sets)
+                and (b) would surface any internal or ops-only collection the
+                moment one is published to the online store. The menu is what the
+                merchant already curates, so this rail can never drift from the nav.
+              {%- endcomment -%}
+              {%- liquid
+                assign nav_menu = section.settings.menu
+                if nav_menu == blank
+                  assign nav_menu = linklists.main-menu
+                endif
+                assign nav_links = '' | split: ','
+                for link in nav_menu.links
+                  if link.links.size > 0
+                    assign nav_links = link.links
+                    break
+                  endif
+                endfor
+              -%}
+              {%- capture cat_rail -%}
+                {%- for link in nav_links -%}
+                  {%- assign c_handle = link.url | split: '/collections/' | last | split: '?' | first -%}
+                  {%- if c_handle == 'all' or c_handle == 'frontpage' -%}{% continue %}{%- endif -%}
+                  {%- assign c = collections[c_handle] -%}
+                  {%- if c == empty or c.products_count == 0 -%}{% continue %}{%- endif -%}
+                  {%- comment -%} Skip whatever the Bestsellers rail on the right already shows. {%- endcomment -%}
+                  {%- if c.handle == bs_collection.handle -%}{% continue %}{%- endif -%}
+                  <li class="tapi-search-list__item">
+                    <a href="{{ c.url }}" class="tapi-search-list__link tapi-search-list__link--compact link-u">
+                      <span class="tapi-search-list__label">{{ c.title }}</span>
+                      <span class="tapi-search-list__count tnum">{{ c.products_count }}</span>
+                    </a>
+                  </li>
+                {%- endfor -%}
+              {%- endcapture -%}
+              {%- if cat_rail != blank -%}
+                <section class="tapi-search-block">
+                  <h2 class="eyebrow tapi-search-block__title">Collections</h2>
+                  <ul class="tapi-search-list tapi-search-list--compact">{{ cat_rail }}</ul>
+                </section>
+              {%- endif -%}
             </aside>
 
             {%- comment -%} Right rail: Bestsellers (default) | Matches (query active) {%- endcomment -%}
@@ -154,12 +193,20 @@
                           </div>
                           <div class="tapi-search-product__meta">
                             <span class="tapi-search-product__name serif">{{ product.title | escape }}</span>
-                            {%- if product.vendor != blank -%}
+                            {%- comment -%}
+                              Same two switches the live matches rail obeys, so the
+                              two lists never disagree. Vendor off also stops
+                              "Morpaankh" repeating under every row of a single
+                              brand catalog.
+                            {%- endcomment -%}
+                            {%- if settings.predictive_search_show_vendor and product.vendor != blank -%}
                               <span class="tapi-search-product__sub">{{ product.vendor }}</span>
                             {%- endif -%}
                           </div>
                           <div class="tapi-search-product__right">
-                            <span class="tapi-search-product__price serif tnum">{{ product.price | money }}</span>
+                            {%- if settings.predictive_search_show_price -%}
+                              <span class="tapi-search-product__price serif tnum">{{ product.price | money }}</span>
+                            {%- endif -%}
                             <span class="tapi-search-product__cta">View <span class="tapi-cta-arrow">→</span></span>
                           </div>
                         </a>
@@ -168,7 +215,7 @@
                   </ul>
                 {%- else -%}
                   <p class="tapi-search-empty">
-                    Featured products will appear here once collections are populated.
+                    Start typing to see matching pieces.
                   </p>
                 {%- endif -%}
               </section>

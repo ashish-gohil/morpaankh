@@ -889,11 +889,20 @@
       // Mirror predictive-search "Suggested" entries (queries + collections)
       // from the response into the left rail when they appear.
       if (live && suggestedTarget) {
+        var queryTitle = host.querySelector('[data-query-title]');
+        // The "Suggested" heading is driven by whether the response actually
+        // carried suggestions, not by .is-query. Shopify returns none for plenty
+        // of real terms (e.g. "mulmul"), which left a bare heading over an empty
+        // list sitting above the matches.
+        var setSuggested = function (html) {
+          suggestedTarget.innerHTML = html;
+          if (queryTitle) { queryTitle.hidden = !html; }
+        };
         var mo = new MutationObserver(function () {
           var src = live.querySelector('[data-suggested-source]');
-          if (!src) { suggestedTarget.innerHTML = ''; return; }
+          if (!src) { setSuggested(''); return; }
           var items = src.querySelectorAll('[data-suggested-href]');
-          if (!items.length) { suggestedTarget.innerHTML = ''; return; }
+          if (!items.length) { setSuggested(''); return; }
           var html = '';
           items.forEach(function (a) {
             var href = a.getAttribute('data-suggested-href') || '#';
@@ -905,7 +914,7 @@
                       '</a>' +
                     '</li>';
           });
-          suggestedTarget.innerHTML = html;
+          setSuggested(html);
         });
         mo.observe(live, { childList: true, subtree: true });
       }

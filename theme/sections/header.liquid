@@ -514,7 +514,7 @@
       ],
       "default": "center",
       "label": "t:sections.header.settings.mobile_logo_position.label"
-    },    
+    },
     {
       "type": "link_list",
       "id": "menu",
@@ -596,14 +596,14 @@
       "id": "enable_country_selector",
       "default": true,
       "label": "t:sections.header.settings.enable_country_selector.label",
-      "info":"t:sections.header.settings.enable_country_selector.info"
+      "info": "t:sections.header.settings.enable_country_selector.info"
     },
     {
       "type": "checkbox",
       "id": "enable_language_selector",
       "default": true,
       "label": "t:sections.header.settings.enable_language_selector.label",
-      "info":"t:sections.header.settings.enable_language_selector.info"
+      "info": "t:sections.header.settings.enable_language_selector.info"
     },
     {
       "type": "checkbox",
@@ -649,6 +649,24 @@
       "unit": "px",
       "label": "t:sections.all.padding.padding_bottom",
       "default": 20
+    },
+    {
+      "type": "header",
+      "content": "Search panel"
+    },
+    {
+      "type": "text",
+      "id": "search_placeholder",
+      "default": "Search by piece, fabric or color",
+      "label": "Search field placeholder",
+      "info": "Shopify search does not index metafields, so do not promise GSM or fabric-weight search here."
+    },
+    {
+      "type": "text",
+      "id": "search_quick_terms",
+      "default": "Cotton, Mulmul, Chanderi, Block print, Anarkali, Lehenga",
+      "label": "Quick search terms",
+      "info": "Comma separated, first 6 shown. Check each one returns results at /search?q=term before using it."
     }
   ],
   "blocks": [

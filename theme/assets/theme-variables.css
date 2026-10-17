@@ -2352,6 +2352,15 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
   width: max-content;
   max-width: 100%;
 }
+/* The category rail carries short labels in a column that has plenty of
+   horizontal room, so run it two-up. Single-column pushed the last entries
+   below the panel's 90dvh fold, where a shopper never saw them. */
+.tapi-search-list--compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: clamp(12px, 2vw, 24px);
+  row-gap: 2px;
+}
 .tapi-search-list__link--compact {
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
   font-size: var(--fs-sm);
@@ -2507,10 +2516,42 @@ search-modal .field__input:not(:placeholder-shown) + .reset__button { visibility
 .tapi-search:not(.is-query) .tapi-search-live {
   display: none !important;
 }
-.tapi-search.is-query [data-query-title],
+/* :not([hidden]) so tapi-motion.js can still suppress the "Suggested" heading
+   on a response that carried no suggestions. Without it this !important rule
+   wins and the heading stands over an empty list. */
+.tapi-search.is-query [data-query-title]:not([hidden]),
 .tapi-search.is-query [data-query-suggested],
 .tapi-search.is-query .tapi-search-live {
   display: block !important;
+}
+
+/* Dawn's .predictive-search is position:absolute, built to drop out of a small
+   header field. Inside this full-width panel that takes the live results out of
+   flow, so the panel measured only the (now empty) query-state column and sized
+   itself to ~400px while the matches ran on past 1000px, clipped mid-row. Back
+   in flow the panel grows to its 90dvh cap and scrolls the matches normally. */
+.tapi-search .tapi-search-live.predictive-search {
+  position: static;
+  width: auto;
+  z-index: auto;
+  /* An older Tapi pass styled the predictive dropdown as a floating card
+     (border + shadow + padding, all !important) back when it hung below a small
+     header field. Inside this panel that reads as a bordered box within a box,
+     which the default Bestsellers state does not have. !important is needed only
+     to beat those earlier !important declarations; scoping to .tapi-search keeps
+     the standalone dropdown styling intact. */
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+/* A matches row carries Dawn's .predictive-search__item next to our own
+   .tapi-search-product, and Dawn won on display and padding: the rows fell back
+   to flex, so the name and the View CTA bunched together on the left instead of
+   sitting at opposite ends like the Bestsellers rows right above them. */
+.tapi-search .tapi-search-product.predictive-search__item {
+  display: grid;
+  padding: 10px 0;
 }
 
 /* ---- Loading spinner override (subtle, in-place) ---- */
