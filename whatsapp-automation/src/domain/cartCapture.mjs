@@ -51,8 +51,10 @@ export const isCapturedId = (id) => String(id || '').startsWith(CAPTURE_PREFIX);
  *          attrs?: Record<string,string>, capturedAt: string,
  *          completedAt?: string|null}} row
  * @param {any[]} variants ProductVariant nodes from getVariantsByIds
+ * @param {{id?: string, firstName?: string}|null} [customer] the customer COD
+ *   King created at OTP, looked up by phone; null is valid and falls back
  */
-export function capturedToCheckout(row, variants) {
+export function capturedToCheckout(row, variants, customer = null) {
   if (!row) return null;
   const byGid = new Map((variants || []).filter((v) => v?.id).map((v) => [String(v.id), v]));
 
@@ -106,7 +108,14 @@ export function capturedToCheckout(row, variants) {
     // takes the MAX of this and the best public code.
     totalDiscountSet: { shopMoney: { amount: '0' } },
     customAttributes: Object.entries(attrs).map(([key, value]) => ({ key, value: String(value) })),
-    customer: null,
+    /*
+     * The customer COD King created at OTP, when the caller looked one up.
+     * normalizeCheckout reads firstName off this for the greeting and the
+     * personal code, and orderedSince matches customerGid against orders
+     * placed since. Null is still valid: the greeting falls back and
+     * orderedSince still matches on the verified phone.
+     */
+    customer: customer ? { id: customer.id, firstName: customer.firstName || '' } : null,
     shippingAddress: null,
     billingAddress: null,
     lineItems: { nodes },

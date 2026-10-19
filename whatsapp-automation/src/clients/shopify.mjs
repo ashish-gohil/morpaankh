@@ -865,8 +865,35 @@ async function getVariantsByIds(gids) {
   return (data.nodes || []).filter(Boolean);
 }
 
+/**
+ * The customer behind an OTP-verified phone, for a captured cart.
+ *
+ * A captured cart carries a phone and variant ids and nothing else: there is
+ * no customer object on it, because it never became a Shopify checkout. Left
+ * at null, every captured cart is greeted "Hello there" and gets the VIP
+ * fallback code instead of the shopper's own name, which on a recovery
+ * message is the difference between a note and a mailshot.
+ *
+ * COD King creates a bare Shopify customer at OTP time, carrying the phone, so
+ * this almost always finds one. customerByIdentifier is used rather than
+ * customers(query:) because that search index lags creates by seconds and
+ * these customers are minutes old.
+ */
+async function getCustomerByPhone(phone) {
+  if (!phone) return null;
+  const data = await graphql(
+    `query C($p: String!){
+       customerByIdentifier(identifier: { phoneNumber: $p }){ id firstName lastName }
+     }`,
+    { p: phone },
+    { idempotent: true },
+  );
+  return data.customerByIdentifier || null;
+}
+
 export const shopify = {
   graphql,
+  getCustomerByPhone,
   getOrder,
   getProductVariants,
   getVariantsByIds,

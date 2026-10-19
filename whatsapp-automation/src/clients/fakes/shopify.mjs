@@ -12,6 +12,7 @@ export function makeFakeShopify({
   const store = new Map(Object.entries(orders));
   const carts = new Map(Object.entries(checkouts));
   const variants = new Map();
+  const customersByPhone = new Map();
   const cartGid = (id) =>
     String(id).startsWith('gid://') ? id : `gid://shopify/AbandonedCheckout/${id}`;
   const calls = [];
@@ -117,6 +118,14 @@ export function makeFakeShopify({
     /** Seed a ProductVariant the captured-cart path prices against. */
     seedVariant(v) {
       variants.set(String(v.id), v);
+    },
+    /** Seed the customer COD King creates at OTP, keyed by phone. */
+    seedCustomerByPhone(phone, customer) {
+      customersByPhone.set(String(phone), customer);
+    },
+    async getCustomerByPhone(phone) {
+      calls.push({ op: 'getCustomerByPhone', phone });
+      return customersByPhone.get(String(phone)) || null;
     },
     async getVariantsByIds(gids) {
       calls.push({ op: 'getVariantsByIds', gids });

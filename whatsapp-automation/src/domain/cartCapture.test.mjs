@@ -6,7 +6,7 @@ import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import { putCapture, getCapture } from '../store/cartCapture.mjs';
 import { capturedToCheckout, variantGidsOf, isCapturedId, captureIdFor } from './cartCapture.mjs';
-import { normalizeCheckout, cartEligible } from './cart.mjs';
+import { normalizeCheckout, cartEligible, personalCodeName } from './cart.mjs';
 import { sweepAbandonedCarts } from '../timers/cart-sweep.mjs';
 import { cleanToken, cleanItems, cleanAttrs } from '../ingest/cart-capture.mjs';
 import { buildTarget } from '../ingest/cart-redirect.mjs';
@@ -84,6 +84,27 @@ describe('a captured cart becomes a checkout', () => {
   it('marks a sold out bag, so the sweep refuses it', () => {
     const n = normalizeCheckout(capturedToCheckout(row(), [variant({ availableForSale: false })]));
     expect(cartEligible(n, { now: NOW, startAt: '2026-10-01T00:00:00Z', rules: RULES }).reason).toBe('sold-out');
+  });
+
+  /*
+   * A captured cart has no customer of its own: it never became a Shopify
+   * checkout. Without the lookup every captured cart is greeted "Hello there"
+   * and gets the VIP fallback code, which on a recovery message reads as a
+   * mailshot rather than a note to one person.
+   */
+  it('is named from the customer COD King created at OTP', () => {
+    const c = { id: 'gid://shopify/Customer/2520', firstName: 'Nidhi', lastName: 'Vaze' };
+    const n = normalizeCheckout(capturedToCheckout(row(), [variant()], c));
+    expect(n.firstName).toBe('Nidhi');
+    expect(n.customerGid).toBe('gid://shopify/Customer/2520');
+    expect(personalCodeName(n.rawFirstName, RULES)).toBe('NIDHI');
+  });
+
+  it('still sends, unnamed, when no customer is found', () => {
+    const n = normalizeCheckout(capturedToCheckout(row(), [variant()], null));
+    expect(n.customerGid).toBeFalsy();
+    expect(personalCodeName(n.rawFirstName, RULES)).toBe(RULES.cartRecovery.codeFallbackName);
+    expect(cartEligible(n, { now: NOW, startAt: '2026-10-01T00:00:00Z', rules: RULES }).ok).toBe(true);
   });
 
   it('tells its own ids apart from Shopify checkout ids', () => {

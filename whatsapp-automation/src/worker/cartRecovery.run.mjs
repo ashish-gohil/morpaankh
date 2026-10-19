@@ -137,7 +137,13 @@ async function readCheckout(deps, checkoutId) {
   const row = await getCapture(checkoutId);
   if (!row) return null;
   const variants = await deps.clients.shopify.getVariantsByIds(variantGidsOf(row));
-  return capturedToCheckout(row, variants);
+  /*
+   * soft: the name is worth a round trip but never worth the message. If the
+   * lookup fails the greeting falls back to "there" and the code to VIP,
+   * which is the behaviour before this existed.
+   */
+  const customer = await soft('cartCaptureCustomer', () => deps.clients.shopify.getCustomerByPhone(row.phone), { checkoutId });
+  return capturedToCheckout(row, variants, customer);
 }
 
 /**
