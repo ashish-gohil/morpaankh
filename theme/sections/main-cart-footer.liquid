@@ -171,6 +171,50 @@
           </ul>
         {%- endif -%}
 
+        {%- comment -%}
+          Chat with us, on the number the automation actually sends from.
+
+          This is a genuine help link and it is also the only lever we have on
+          Meta error 131049. That error is the per-user MARKETING TEMPLATE cap,
+          counted across every business that messages that person, so nothing
+          about our own volume or our own template avoids it. What is NOT
+          capped is a free-form reply inside the 24 hour service window, and
+          only the CUSTOMER can open that window by writing to us first. So a
+          shopper who taps this can be reached afterwards whatever Meta's cap
+          says, and a cart recovery already parked against their number is
+          delivered the moment their message lands.
+
+          The href MUST stay on settings.social_whatsapp_link (+91 9372710234),
+          which is the WABA sender. Point it anywhere else and the inbound
+          never reaches the webhook, so the window never opens and this becomes
+          a decorative link.
+
+          No JavaScript, by design. It is a plain server rendered anchor in
+          normal flow, so it costs nothing at runtime and cannot shift layout.
+        {%- endcomment -%}
+        {%- if section.settings.show_wa_help
+          and settings.social_whatsapp_link != blank
+          and cart != empty
+        -%}
+          {%- liquid
+            assign wa_msg = section.settings.wa_prefill | url_encode | replace: '+', '%20'
+            if settings.social_whatsapp_link contains '?'
+              assign wa_href = settings.social_whatsapp_link | append: '&text=' | append: wa_msg
+            else
+              assign wa_href = settings.social_whatsapp_link | append: '?text=' | append: wa_msg
+            endif
+          -%}
+          <a
+            class="tapi-cart-wa"
+            href="{{ wa_href }}"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.1-.2 0-.4.1-.5l.4-.5.2-.4v-.4l-.7-1.7c-.2-.4-.4-.4-.5-.4h-.5a.9.9 0 00-.7.3c-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7a9.6 9.6 0 003.7 3.3c1.3.5 1.8.6 2.4.5.4 0 1.4-.6 1.6-1.1.2-.6.2-1 .1-1.1l-.5-.3z"/></svg>
+            <span>{{ section.settings.wa_help_text }}</span>
+          </a>
+        {%- endif -%}
+
         <div id="cart-errors"></div>
       </div>
     </div>
@@ -178,6 +222,38 @@
 </div>
 
 {% stylesheet %}
+  .tapi-cart-wa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    min-height: 4.4rem;
+    margin: 1.6rem 0 0;
+    padding: 0.8rem 1.6rem;
+    border: 1px solid var(--tapi-hairline, rgba(44, 40, 38, 0.12));
+    border-radius: var(--radius-sm, 0);
+    font-size: var(--fs-sm);
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    color: var(--mor-text-muted, #6B5D54);
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+
+  .tapi-cart-wa:hover,
+  .tapi-cart-wa:focus-visible {
+    border-color: var(--mor-primary, #2E4B3C);
+    color: var(--mor-primary, #2E4B3C);
+  }
+
+  .tapi-cart-wa svg {
+    flex: 0 0 auto;
+    color: var(--mor-primary, #2E4B3C);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tapi-cart-wa { transition: none; }
+  }
+
   .tapi-cart-assure {
     list-style: none;
     margin: 2rem 0 0;
@@ -350,6 +426,30 @@
       "id": "assure_4",
       "label": "Line 4 (concierge)",
       "default": "Message us anytime, before or after you order"
+    },
+    {
+      "type": "header",
+      "content": "Chat with us"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_wa_help",
+      "label": "Show the WhatsApp help link under checkout",
+      "default": true,
+      "info": "Uses the store WhatsApp number from Theme settings > Social. It must stay the same number the WhatsApp automation sends from, or replies cannot reach it."
+    },
+    {
+      "type": "text",
+      "id": "wa_help_text",
+      "label": "Link text",
+      "default": "Questions about your bag? Chat with us"
+    },
+    {
+      "type": "text",
+      "id": "wa_prefill",
+      "label": "Message we fill in for them",
+      "default": "Hi, I need help with my bag",
+      "info": "Opens WhatsApp with this typed and ready to send."
     },
     {
       "type": "header",
