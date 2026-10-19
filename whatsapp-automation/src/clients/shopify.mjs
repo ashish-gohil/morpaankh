@@ -833,10 +833,43 @@ async function getProductVariants(productGid) {
   return data.product || null;
 }
 
+/**
+ * Variants by their OWN gids, with the price, availability and options a
+ * captured cart needs.
+ *
+ * Separate from getProductVariants because a captured cart knows only the
+ * variant ids the browser had, not the products behind them, and asking per
+ * product would be one round trip per line. `nodes(ids:)` takes up to 250.
+ *
+ * THE PRICE READ HERE IS THE ONLY ONE FLOW R TRUSTS for a captured cart. The
+ * browser payload is attacker-controlled and the offer is a percentage OF THE
+ * BAG, so a client-supplied price is a client-supplied discount.
+ */
+async function getVariantsByIds(gids) {
+  const ids = (gids || []).slice(0, 250);
+  if (!ids.length) return [];
+  const data = await graphql(
+    `query V($ids: [ID!]!){
+       nodes(ids: $ids){
+         ... on ProductVariant {
+           id title price availableForSale
+           selectedOptions{ name value }
+           image { url width height }
+           product { id handle title featuredImage { url width height } }
+         }
+       }
+     }`,
+    { ids },
+    { idempotent: true },
+  );
+  return (data.nodes || []).filter(Boolean);
+}
+
 export const shopify = {
   graphql,
   getOrder,
   getProductVariants,
+  getVariantsByIds,
   ordersUpdatedSince,
   tagsAdd,
   orderCancel,

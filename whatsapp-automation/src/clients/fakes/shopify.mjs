@@ -11,6 +11,7 @@ export function makeFakeShopify({
 } = {}) {
   const store = new Map(Object.entries(orders));
   const carts = new Map(Object.entries(checkouts));
+  const variants = new Map();
   const cartGid = (id) =>
     String(id).startsWith('gid://') ? id : `gid://shopify/AbandonedCheckout/${id}`;
   const calls = [];
@@ -109,8 +110,17 @@ export function makeFakeShopify({
 
     // ---- Flow R ----------------------------------------------------------
     carts,
+    variants,
     seedCheckout(c) {
       carts.set(cartGid(c.id ?? c.name), c);
+    },
+    /** Seed a ProductVariant the captured-cart path prices against. */
+    seedVariant(v) {
+      variants.set(String(v.id), v);
+    },
+    async getVariantsByIds(gids) {
+      calls.push({ op: 'getVariantsByIds', gids });
+      return (gids || []).map((g) => variants.get(String(g))).filter(Boolean);
     },
     async getAbandonedCheckout(idOrGid) {
       calls.push({ op: 'getAbandonedCheckout', idOrGid });

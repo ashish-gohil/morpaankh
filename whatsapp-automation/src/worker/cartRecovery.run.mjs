@@ -21,6 +21,8 @@ import {
   normalizeCheckout, cartEligible, computeCartOffer, personalCodeName, cartCode,
   recoveryTimes, formatExpiresAt, formatTimeLeft,
 } from '../domain/cart.mjs';
+import { capturedToCheckout, variantGidsOf, isCapturedId } from '../domain/cartCapture.mjs';
+import { getCapture } from '../store/cartCapture.mjs';
 import { itemLine, heroImageUrl } from '../domain/order.mjs';
 import { formatINR } from '../lib/money.mjs';
 import { randomToken } from '../lib/ids.mjs';
@@ -115,6 +117,28 @@ async function createUniqueCode(deps, n, offer, endsAt, now) {
   throw lastErr || new Error('cart: no free code after nine tries');
 }
 
+
+/**
+ * The checkout behind an id, whichever source minted it.
+ *
+ * Flow R works on two: Shopify's abandoned checkouts, and carts the storefront
+ * captured when COD King's OTP attribute appeared on them. Everything past
+ * this point is identical for both, because capturedToCheckout returns the
+ * same node shape normalizeCheckout already reads.
+ *
+ * The RE-READ is the point of this function, not a detail. The sweep that
+ * enqueued this is up to five minutes old, so prices, stock and the bag itself
+ * are all asked again here, and for a captured cart that means Shopify's
+ * prices rather than the browser's.
+ */
+async function readCheckout(deps, checkoutId) {
+  if (!isCapturedId(checkoutId)) return deps.clients.shopify.getAbandonedCheckout(checkoutId);
+  const row = await getCapture(checkoutId);
+  if (!row) return null;
+  const variants = await deps.clients.shopify.getVariantsByIds(variantGidsOf(row));
+  return capturedToCheckout(row, variants);
+}
+
 /**
  * Message 1. Re-reads Shopify every time: the sweep that enqueued this is up
  * to five minutes old and the customer may have completed the order since.
@@ -129,7 +153,7 @@ export async function onFirst(checkoutId, deps) {
   if (!config.flows.R.enabled) return log.info('cart: flow R off, not starting', { checkoutId });
   if (!withinWindow(now, r().sendWindow)) return log.info('cart: outside the send window', { checkoutId });
 
-  const raw = await deps.clients.shopify.getAbandonedCheckout(checkoutId);
+  const raw = await readCheckout(deps, checkoutId);
   const n = normalizeCheckout(raw);
   const eligible = cartEligible(n, { now, startAt: config.flows.R.startAt, rules: RULES });
 
@@ -401,7 +425,7 @@ export async function onFinal(checkoutId, deps) {
     if (usage.count > 0) return stop('code-used');
   }
 
-  const raw = await deps.clients.shopify.getAbandonedCheckout(checkoutId);
+  const raw = await readCheckout(deps, checkoutId);
   const n = normalizeCheckout(raw);
   if (!n) return stop('checkout-gone');
   if (n.completedAt) return stop('completed');
@@ -457,7 +481,7 @@ export async function onTap(checkoutId, action, phone, deps) {
   }
   // The name on the REC row is the checkout's, not the customer's, so the
   // greeting is re-read from Shopify rather than guessed at.
-  const raw = await deps.clients.shopify.getAbandonedCheckout(checkoutId);
+  const raw = await readCheckout(deps, checkoutId);
   const n = normalizeCheckout(raw);
   vars.customer_name = n?.firstName || 'there';
 

@@ -176,6 +176,16 @@ class WaAutomationStack extends cdk.Stack {
     // per-IP rate limit. No reserved concurrency for the same reason as the worker
     // below -- this account's total limit is 10 and any reservation drops the
     // unreserved pool under AWS's minimum. The per-IP cap is the real throttle.
+    // Flow R's PRIMARY source. Shopify only files an AbandonedCheckout once a
+    // shopper reaches its own contact step, and COD King's OTP happens before
+    // that, so the checkout list never sees anyone who verified and left
+    // earlier. The storefront posts those carts here. Public and unsigned for
+    // the same reason as /subscribe, and defended the same way: origin
+    // allowlist, per-IP rate limit, strict validation. It writes to DynamoDB
+    // and calls nothing else, so a bad body cannot reach Shopify from here.
+    const cartCaptureFn = makeFn('cart-capture', 'src/ingest/cart-capture.handler', {
+      env: { SUBSCRIBE_ORIGINS: 'http://127.0.0.1:9292 http://localhost:9292' },
+    });
     const subscribeFn = makeFn('subscribe', 'src/ingest/subscribe.handler', {
       // The live storefront origins are built into the handler. These extras let
       // `shopify theme dev` on localhost reach the endpoint while a change is
@@ -199,10 +209,17 @@ class WaAutomationStack extends cdk.Stack {
     const digestFn = makeFn('digest', 'src/timers/digest.handler', { timeout: Duration.seconds(120) });
 
     // ---- grants -----------------------------------------------------------
-    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, onboardingFn, subscribeFn, worker, pollFn, reconcileFn, digestFn];
+    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, onboardingFn, subscribeFn, cartCaptureFn, worker, pollFn, reconcileFn, digestFn];
     for (const fn of allFns) {
       table.grantReadWriteData(fn);
-      secret.grantRead(fn);
+      /*
+       * Least privilege where it matters most. cart-capture is reachable from
+       * the open internet without a signature, and it talks to DynamoDB and
+       * nothing else: no Shopify call, no WhatsApp call, no secret read. So it
+       * is the one function that does not get the API credentials, and a flaw
+       * in it cannot become a way to read them.
+       */
+      if (fn !== cartCaptureFn) secret.grantRead(fn);
     }
     for (const fn of Object.values(ingest)) queue.grantSendMessages(fn);
     // worker + flow-capable fns create/delete one-time schedules and pass the role
@@ -232,6 +249,7 @@ class WaAutomationStack extends cdk.Stack {
     route('/onboarding', [HttpMethod.GET], onboardingFn);
     route('/onboarding/exchange', [HttpMethod.POST], onboardingFn);
     route('/subscribe', [HttpMethod.POST, HttpMethod.OPTIONS], subscribeFn);
+    route('/cart-capture', [HttpMethod.POST, HttpMethod.OPTIONS], cartCaptureFn);
 
     // ---- recurring schedules (IST via cron in UTC) ------------------------
     // Delhivery poll hourly 08:00-22:00 IST == 02:30-16:30 UTC.

@@ -57,7 +57,25 @@ export function buildTarget(rec, rules = RULES) {
   const r = rules.cartRecovery;
   const code = encodeURIComponent(rec.code || '');
   const recovery = rec.recoveryUrl || '';
-  if (!recovery) return STORE;
+  const items = (rec.cartItems || []).map((i) => `${i.v}:${i.q}`).join(',');
+
+  /*
+   * A CAPTURED cart has no recover URL, because it never became a Shopify
+   * checkout: that is the whole reason it was captured. Rebuild the bag as a
+   * /cart permalink instead of dropping them on the home page having just been
+   * promised their own bag back.
+   *
+   * The /discount/<CODE>?redirect= form, not ?discount=, and not by taste:
+   * measured on this store 13 Oct, `/discount/BUY2?redirect=/cart` answered
+   * 302 and set the discount_code cookie, while `/cart?discount=BUY2` answered
+   * 200 and set nothing. The cookie is what survives into checkout, so it is
+   * the only form that actually carries the offer. An unknown code still
+   * redirects rather than erroring, so a deleted code cannot cost them the bag.
+   */
+  if (!recovery) {
+    if (!items) return STORE;
+    return `${STORE}/discount/${code}?redirect=${encodeURIComponent(`/cart/${items}`)}`;
+  }
 
   if (r.linkTarget === 'cart') {
     /*
@@ -67,7 +85,6 @@ export function buildTarget(rec, rules = RULES) {
      * one unless it has been taught not to.
      */
     const host = new URL(recovery).host;
-    const items = (rec.cartItems || []).map((i) => `${i.v}:${i.q}`).join(',');
     if (!items) return STORE;
     return `https://${host}/cart/${items}?discount=${code}&storefront=true`;
   }
