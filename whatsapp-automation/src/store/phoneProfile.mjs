@@ -112,6 +112,20 @@ export async function canSendMarketing(phone, now, days) {
   return !withinDays((await getProfile(phone)).lastMarketingAt, now, days);
 }
 export const markMarketing = (phone, now = new Date()) => patch(phone, { lastMarketingAt: now.toISOString() });
+/*
+ * Give the cap back when the message never arrived.
+ *
+ * markMarketing is called at SEND time, because that is the only moment the
+ * flow still has the phone in hand. A delivery failure arrives seconds later
+ * and means the customer received NOTHING, so the stamp is then recording a
+ * message that does not exist, and it bars that person from marketing for
+ * marketingCapDays over something they never saw.
+ *
+ * Measured on this store: Meta's 131049 throttle rejected two of the first
+ * three cart recovery sends, and each rejection silently cost that customer
+ * the next seven days.
+ */
+export const clearMarketing = (phone) => patch(phone, { lastMarketingAt: null });
 
 export async function canAskReview(phone, now, days) {
   return !withinDays((await getProfile(phone)).lastReviewAskAt, now, days);

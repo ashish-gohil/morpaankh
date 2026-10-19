@@ -12,7 +12,7 @@ import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { getState, runOnce, updateMessageStatus } from '../store/orderState.mjs';
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
-import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, getAwaiting } from '../store/phoneProfile.mjs';
+import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing, getAwaiting } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
 import { ownerAlert } from './send.mjs';
@@ -219,6 +219,19 @@ async function onWaStatus(m) {
   if (st.recipient_id) {
     const ph = `+${st.recipient_id}`;
     if (st.status === 'failed' && code === 131026) await setUndeliverable(ph);
+    /*
+     * Any failure, not just 131026: Meta accepted the message and then did not
+     * deliver it, so the customer received nothing and the marketing stamp
+     * written at send time is now describing a message that does not exist.
+     * Rolled back for exactly the reason Flow R already gives back the phone
+     * lock further down this same path.
+     *
+     * This does NOT re-open the message that failed. Flow R's REC row keeps
+     * firstSentAt and Flow A's order state keeps its own one-shot guard, so
+     * neither flow can retry into a loop against a throttle that is still on.
+     * Only the person's FUTURE eligibility is restored.
+     */
+    if (st.status === 'failed') await soft('clearMarketing', () => clearMarketing(ph), {});
     // Delivery is the one fact that outranks a past bounce: this handset just
     // took a message. Let it undo the block rather than waiting out the expiry.
     if (st.status === 'delivered') await soft('clearUndeliverable', () => clearUndeliverable(ph), {});

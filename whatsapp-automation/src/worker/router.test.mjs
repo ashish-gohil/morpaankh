@@ -9,7 +9,8 @@ import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, recordMessage, getSide, updateMessageStatus } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
 import { setUndeliverable, isUndeliverable } from '../store/phoneProfile.mjs';
-import { setAwaiting, getAwaiting } from '../store/phoneProfile.mjs';
+import { setAwaiting, getAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
 import { getRec, ensureRec, patchRec } from '../store/cartRecovery.mjs';
 
@@ -236,5 +237,50 @@ describe('the router reaches Flow R', () => {
     // and alert on an order id that does not exist.
     expect(await table.get(`ORDER#${CART}`, 'STATE')).toBe(null);
     expect(await table.get('ORDER#undefined', 'STATE')).toBe(null);
+  });
+
+  /*
+   * The bug this guards against cost two real customers their next seven days.
+   * markMarketing runs at SEND time; when Meta then rejects the message with
+   * 131049 the customer receives nothing, and the stamp left behind barred
+   * them from the next cart recovery over a message they never saw.
+   */
+  it('gives the marketing cap back when the message was never delivered', async () => {
+    const PHONE = '+919812345678';
+    const now = new Date('2026-10-19T07:07:00Z');
+    await markMarketing(PHONE, now);
+    expect(await canSendMarketing(PHONE, now, RULES.marketingCapDays)).toBe(false);
+
+    await ensureRec(CART, { phone: PHONE, checkoutId: CART });
+    await patchRec(CART, { firstSentAt: now.toISOString() });
+    await table.put({ PK: 'WAMID#wamid.CART2', SK: 'MAP', cartId: CART, key: 'cart_recovery' });
+
+    await routes.wa_status({
+      kind: 'wa_status',
+      // The real code from this store, not 131026: an undeliverable NUMBER is a
+      // different fact from a throttled MESSAGE, and only the latter should
+      // hand the cap back.
+      status: { id: 'wamid.CART2', status: 'failed', recipient_id: '919812345678', errors: [{ code: 131049 }] },
+    });
+
+    expect(await canSendMarketing(PHONE, now, RULES.marketingCapDays)).toBe(true);
+    // The failed message itself stays closed, so nothing retries into a
+    // throttle that is still on.
+    expect((await getRec(CART)).firstSentAt).toBe(now.toISOString());
+  });
+
+  it('a delivered message keeps the cap, so a real send still counts', async () => {
+    const PHONE = '+919812345678';
+    const now = new Date('2026-10-19T07:07:00Z');
+    await markMarketing(PHONE, now);
+    await ensureRec(CART, { phone: PHONE, checkoutId: CART });
+    await table.put({ PK: 'WAMID#wamid.CART3', SK: 'MAP', cartId: CART, key: 'cart_recovery' });
+
+    await routes.wa_status({
+      kind: 'wa_status',
+      status: { id: 'wamid.CART3', status: 'delivered', recipient_id: '919812345678' },
+    });
+
+    expect(await canSendMarketing(PHONE, now, RULES.marketingCapDays)).toBe(false);
   });
 });
