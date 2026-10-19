@@ -403,7 +403,7 @@ describe('the reminder', () => {
     _resetMemory();
     const c = await sendFirst();
     rec = await getRec(CHECKOUT_ID);
-    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131026 }] });
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW);
     expect(await R.onFinal(CHECKOUT_ID, { ...c.deps, now: atReminder(rec) })).toMatchObject({ skipped: 'first-message-failed' });
   });
 
@@ -580,7 +580,7 @@ describe('a delivery status for a cart message', () => {
     const { deps } = setup();
     await R.onFirst(CHECKOUT_ID, deps);
     expect(await getPhoneLock(PHONE)).toBeTruthy();
-    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] });
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW);
     expect(await getPhoneLock(PHONE)).toBe(null);
     expect(await getRec(CHECKOUT_ID)).toMatchObject({ deliveryFailed: true, deliveryError: 131049 });
   });
@@ -723,6 +723,51 @@ describe('reaching a customer the marketing cap would otherwise block', () => {
 
     expect(ctaSends(clients.whatsapp)).toHaveLength(0);
     expect((await getRec(CHECKOUT_ID)).outcome).toBe('already-ordered');
+    expect(await getParked(PHONE)).toBe(null);
+  });
+
+  /*
+   * THE REAL FAILURE SHAPE. Meta accepts the send with a 200 and reports the
+   * per-user cap asynchronously on the status webhook seconds later, so
+   * firstSentAt is already stamped and nothing ever throws. Every 131049 this
+   * store has had arrived this way. A park that only fires on a thrown error
+   * parks nothing, which is exactly what happened: three refusals, zero parked
+   * rows.
+   */
+  it('parks on the 131049 Meta reports AFTER accepting the message', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect((await getRec(CHECKOUT_ID)).firstSentAt).toBeTruthy();
+    expect(await getPhoneLock(PHONE)).toBeTruthy();
+
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW);
+
+    expect((await getRec(CHECKOUT_ID)).deliveryFailed).toBe(true);
+    expect(await getPhoneLock(PHONE)).toBe(null); // they received nothing
+    expect((await getParked(PHONE)).checkoutId).toBe(CHECKOUT_ID);
+  });
+
+  it('delivers a cart Meta accepted but never delivered, once a window opens', async () => {
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW);
+
+    const later = new Date(NOW.getTime() + 2 * 60 * 60 * 1000);
+    await touchInbound(PHONE, later);
+    await R.onWindowOpen(PHONE, { clients, now: later });
+
+    const rec = await getRec(CHECKOUT_ID);
+    expect(ctaSends(clients.whatsapp)).toHaveLength(1);
+    // Cleared, or onFinal stops with 'first-message-failed' and the reminder
+    // is dropped for a message that has now genuinely gone out.
+    expect(rec.deliveryFailed).toBe(false);
+    expect(await getParked(PHONE)).toBe(null);
+  });
+
+  it('does not park a 131026, because no window helps a number that cannot receive WhatsApp', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW);
     expect(await getParked(PHONE)).toBe(null);
   });
 

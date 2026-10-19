@@ -547,7 +547,14 @@ export async function onWindowOpen(phone, deps) {
 
   const rec = await getRec(checkoutId);
   if (!rec || rec.phone !== phone) return drop('no-record');
-  if (rec.firstSentAt) return drop('already-sent');
+  /*
+   * firstSentAt alone does not mean they got it. On the async 131049 path Meta
+   * accepted the message, stamped firstSentAt, and then never delivered it, so
+   * deliveryFailed is the only honest record of what the customer actually
+   * received. Refusing on firstSentAt alone would park a cart and then refuse
+   * to deliver the very thing it was parked for.
+   */
+  if (rec.firstSentAt && !rec.deliveryFailed) return drop('already-sent');
   if (await isOptedOut(phone)) return drop('opted-out', 'opted-out');
   // Quiet hours. Left parked on purpose: the next inbound inside the window
   // picks it up, and the park expires with the code either way.
@@ -581,6 +588,12 @@ export async function onWindowOpen(phone, deps) {
     firstSentAt: now.toISOString(),
     outcome: null,
     outcomeAt: null,
+    // This send replaces the one that never arrived. Left set, deliveryFailed
+    // would stop onFinal with 'first-message-failed' and drop the reminder for
+    // a message that has now genuinely gone out.
+    deliveryFailed: false,
+    deliveryError: null,
+    lastStatus: null,
     wamids: [...(rec.wamids || []), res.messageId].filter(Boolean),
   });
   await lockPhone(phone, { checkoutId, until: new Date(now.getTime() + r().cooldownDays * 86400 * 1000), now });
@@ -660,11 +673,11 @@ export async function onTap(checkoutId, action, phone, deps) {
  * 30-day cooldown against a message nobody ever saw would silence that
  * customer for a month for free.
  */
-export async function onCartStatus(cartId, st) {
+export async function onCartStatus(cartId, st, now = new Date()) {
   const status = st?.status;
   const rec = await getRec(cartId);
   if (!rec) return;
-  const fields = { lastStatus: status, lastStatusAt: new Date().toISOString() };
+  const fields = { lastStatus: status, lastStatusAt: now.toISOString() };
   if (status === 'failed') {
     fields.deliveryFailed = true;
     fields.deliveryError = st?.errors?.[0]?.code || null;
@@ -674,6 +687,27 @@ export async function onCartStatus(cartId, st) {
     log.warn('cart: message 1 was accepted and then failed, releasing the phone lock', { cartId });
     await releasePhoneLock(rec.phone);
     metric('CartDeliveryFailed', 1);
+
+    /*
+     * THIS is where 131049 actually lands, not in handleSendFailure.
+     *
+     * Meta accepts the send with a 200 and reports the per-user marketing cap
+     * asynchronously, seconds later, on the status webhook. Every 131049 this
+     * store has had arrived this way: firstSentAt set, deliveryError 131049,
+     * and no exception anywhere. Parking only on a thrown error therefore
+     * parked nothing at all.
+     *
+     * The park still ends with the code, so it can never deliver a dead offer.
+     */
+    const code = Number(fields.deliveryError);
+    const endsAt = rec.codeEndsAt ? new Date(rec.codeEndsAt) : null;
+    if (code === 131049 && endsAt && endsAt.getTime() > now.getTime()) {
+      await soft('cartParkOnStatus', () => parkForWindow(rec.phone, cartId, endsAt, now), { cartId });
+      log.warn('cart: Meta per-user marketing cap on the status webhook, parked for a service window', {
+        cartId, until: endsAt.toISOString(),
+      });
+      metric('CartParkedForWindow', 1);
+    }
   }
 }
 

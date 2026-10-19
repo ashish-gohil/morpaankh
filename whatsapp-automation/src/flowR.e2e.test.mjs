@@ -587,7 +587,7 @@ describe('NEGATIVE: every reason the reminder stays quiet', () => {
     ['they have written to us since', async (s) => touchInbound(PHONE, new Date(s.rec.reminderAt)), 'they-replied'],
     ['they sent STOP', async () => setOptOut(PHONE, true, NOW), 'opted-out'],
     ['they asked for a person', async (s) => R.onTap(ID, 'help', PHONE, s.deps), 'asked-for-a-person'],
-    ['message 1 never actually reached them', async (s) => R.onCartStatus(ID, { id: (await getRec(ID)).wamids[0], status: 'failed', errors: [{ code: 131026 }] }, s.deps), 'first-message-failed'],
+    ['message 1 never actually reached them', async (s) => R.onCartStatus(ID, { id: (await getRec(ID)).wamids[0], status: 'failed', errors: [{ code: 131026 }] }), 'first-message-failed'],
     ['the checkout has been completed since', async (s) => { s.clients.shopify.seedCheckout(cart(ID, { completedAt: '2026-10-12T20:00:00Z' })); }, 'completed'],
     ['the flow has been switched off since', async () => { config.flows.R = { enabled: false, startAt: '2026-10-01T00:00:00Z' }; }, 'flow-r-off'],
   ];
