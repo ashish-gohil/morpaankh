@@ -218,7 +218,25 @@ async function onWaStatus(m) {
   // Feeds the wa-whatsapp-failures alarm. Emitted with NO dimensions so it
   // matches the alarm's dimensionless metric.
   if (st.status === 'failed') metric('MessageFailed', 1);
-  log[st.status === 'failed' ? 'error' : 'info']('wa status', {
+  /*
+   * 131049 is a WARN, not an ERROR, because it is now a HANDLED outcome rather
+   * than a fault: onCartStatus parks the checkout and delivers it through the
+   * next service window. The alert wiring fires an incident email on any
+   * `level = "error"` line (iac/lib/stack.js), and that email reads "that step
+   * did not complete, it retries automatically, then parks in the dead letter
+   * queue" - all three untrue here. The step completed, nothing retries, the
+   * DLQ stays empty.
+   *
+   * It matters because Meta refuses roughly half of this store's cart sends,
+   * so leaving it at ERROR pages the owner several times a day for working
+   * behaviour. Crying wolf that often is how the genuinely dead worker went
+   * unnoticed for ten hours.
+   *
+   * Nothing is hidden: MessageFailed still feeds the wa-whatsapp-failures
+   * alarm, and the WARN carries the same code, title and detail.
+   */
+  const level = st.status !== 'failed' ? 'info' : (code === 131049 ? 'warn' : 'error');
+  log[level]('wa status', {
     status: st.status,
     phone: st.recipient_id ? `+${st.recipient_id}` : undefined,
     code,
