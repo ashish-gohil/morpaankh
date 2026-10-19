@@ -30,9 +30,10 @@ import { withinWindow } from '../lib/time.mjs';
 import {
   getRec, ensureRec, patchRec, setOutcome, cartRunOnce, recordCartMessage,
   getPhoneLock, lockPhone, releasePhoneLock, setCartLinkMap, alertOncePerDay,
+  parkForWindow, getParked, clearParked,
 } from '../store/cartRecovery.mjs';
 import {
-  isOptedOut, isUndeliverable, getProfile, canSendMarketing, markMarketing, touchInbound,
+  isOptedOut, isUndeliverable, getProfile, canSendMarketing, markMarketing, touchInbound, windowOpen,
 } from '../store/phoneProfile.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { verifiedPhoneFromNoteAttributes, verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
@@ -140,6 +141,25 @@ async function readCheckout(deps, checkoutId) {
 }
 
 /**
+ * Send one cart message by whichever channel can actually reach them.
+ *
+ * Inside the 24 hour service window a free-form message is NOT a template: it
+ * carries no category, so the per-user MARKETING cap behind error 131049 does
+ * not apply to it, and it is free. Outside the window the template is the only
+ * thing there is. Both branches render the same offer and point at the same
+ * /r/ link, so what the customer sees does not change with the channel.
+ *
+ * The undeliverable check is repeated here because it lives inside tpl(), and
+ * the session branch does not go through tpl().
+ */
+async function sendCart(deps, phone, key, vars, ctx, viaSession) {
+  if (!viaSession) return tpl(deps, phone, key, vars, ctx);
+  if (await isUndeliverable(phone)) return { skipped: 'undeliverable', templateName: `session:${key}` };
+  const res = await sess(deps, phone, key, vars, { ...ctx, url: `${config.publicBaseUrl}/r/${ctx.token}` });
+  return { ...res, templateName: `session:${key}` };
+}
+
+/**
  * Message 1. Re-reads Shopify every time: the sweep that enqueued this is up
  * to five minutes old and the customer may have completed the order since.
  */
@@ -197,7 +217,15 @@ export async function onFirst(checkoutId, deps) {
    * message opened, and re-checking the cap there would block it 22 hours
    * later against the stamp we are about to make.
    */
-  if (!(await canSendMarketing(phone, now, RULES.marketingCapDays))) {
+  /*
+   * Is the 24 hour service window open? If it is, message 1 goes free-form,
+   * and the cap below does not apply to it: the cap exists to ration MARKETING
+   * TEMPLATES, and refusing to send inside the window would be turning down
+   * the one channel Meta cannot throttle in order to honour a rule about a
+   * channel we are not using.
+   */
+  const viaSession = await windowOpen(phone, now);
+  if (!viaSession && !(await canSendMarketing(phone, now, RULES.marketingCapDays))) {
     return setOutcome(checkoutId, 'marketing-cap');
   }
 
@@ -316,13 +344,13 @@ export async function onFirst(checkoutId, deps) {
   const rec = await getRec(checkoutId);
   let res;
   try {
-    res = await tpl(deps, phone, 'cart_recovery', cartVars(n, rec, now), {
+    res = await sendCart(deps, phone, 'cart_recovery', cartVars(n, rec, now), {
       orderId: String(checkoutId),
       token,
       imageUrl: heroImageUrl(n),
-    });
+    }, viaSession);
   } catch (e) {
-    return handleSendFailure(deps, checkoutId, 'first', e, now);
+    return handleSendFailure(deps, checkoutId, 'first', e, now, phone);
   }
   // Already on the do-not-send list: no lock, because they got nothing.
   if (res?.skipped) return setOutcome(checkoutId, `send-${res.skipped}`);
@@ -341,8 +369,11 @@ export async function onFirst(checkoutId, deps) {
    * lost AND the handler would report a failure. Losing it alone is the
    * smaller harm, and it is logged.
    */
-  await soft('cartMarkMarketing', () => markMarketing(phone, now), { checkoutId });
-  metric('CartFirstSent', 1);
+  // Only a MARKETING TEMPLATE spends the cap. A session message is not one, so
+  // stamping it here would bar this customer for marketingCapDays over a
+  // message that never touched the cap in the first place.
+  if (!viaSession) await soft('cartMarkMarketing', () => markMarketing(phone, now), { checkoutId });
+  metric(viaSession ? 'CartFirstSentSession' : 'CartFirstSent', 1);
 
   await soft('cartRecordMessage', () => recordCartMessage(checkoutId, res.messageId, { key: 'cart_recovery', template: res.templateName }), { checkoutId });
   await soft('cartArmFinal', () =>
@@ -360,15 +391,37 @@ export async function onFirst(checkoutId, deps) {
  * A send that threw. None of these take the phone lock, because the customer
  * did not receive anything.
  *
- * 131049 (Meta throttled us for quality) and 131026 (this number cannot
- * receive WhatsApp) are recorded and never retried: both will fail again, and
- * retrying a MARKETING template against a quality throttle makes the rating
- * that caused it worse.
+ * 131049 was previously recorded as terminal, on the belief that it was a
+ * quality throttle against our number and that retrying would make the rating
+ * worse. That reading was wrong. Meta documents 131049 as the per-user
+ * MARKETING TEMPLATE cap, counted across every business that messages that
+ * person: it is not our volume, not our rating, and nothing we send or stop
+ * sending moves it. What is not capped is a free-form reply inside a 24 hour
+ * service window, so the checkout is parked against the phone and delivered
+ * by onWindowOpen the moment that person writes to us. It is still never
+ * retried as a template, which is Meta's own guidance.
+ *
+ * 131026 stays terminal here: that number cannot receive WhatsApp at all, so
+ * no channel helps. isUndeliverable expires it so they get another chance on
+ * a later order.
  */
-async function handleSendFailure(deps, checkoutId, step, e, now) {
+async function handleSendFailure(deps, checkoutId, step, e, now, phone) {
   const code = e?.waCode;
-  if (code === 131049 || code === 131026) {
-    log.warn('cart: Meta refused this recipient, not retrying', { checkoutId, step, waCode: code });
+  if (code === 131049) {
+    /*
+     * The park lives exactly as long as the offer does. Using the code's own
+     * end date rather than a fresh rule is what stops onWindowOpen ever
+     * delivering a message whose code has already closed.
+     */
+    const rec = await getRec(checkoutId);
+    const until = rec?.codeEndsAt ? new Date(rec.codeEndsAt) : new Date(now.getTime() + 24 * 3600 * 1000);
+    if (phone) await soft('cartPark', () => parkForWindow(phone, checkoutId, until, now), { checkoutId });
+    log.warn('cart: Meta per-user marketing cap, parked for a service window', { checkoutId, step, waCode: code, until: until.toISOString() });
+    metric('CartParkedForWindow', 1);
+    return setOutcome(checkoutId, 'waiting-window');
+  }
+  if (code === 131026) {
+    log.warn('cart: this number cannot receive WhatsApp, not retrying', { checkoutId, step, waCode: code });
     return setOutcome(checkoutId, `meta-${code}`);
   }
   if (isTemplateUnusable(e)) {
@@ -439,13 +492,13 @@ export async function onFinal(checkoutId, deps) {
 
   let res;
   try {
-    res = await tpl(deps, phone, 'cart_final', cartVars(n, rec, now), {
+    res = await sendCart(deps, phone, 'cart_final', cartVars(n, rec, now), {
       orderId: String(checkoutId),
       token: rec.token,
       imageUrl: heroImageUrl(n),
-    });
+    }, await windowOpen(phone, now));
   } catch (e) {
-    return handleSendFailure(deps, checkoutId, 'final', e, now);
+    return handleSendFailure(deps, checkoutId, 'final', e, now, phone);
   }
   if (res?.skipped) return stop(`send-${res.skipped}`);
 
@@ -455,6 +508,96 @@ export async function onFinal(checkoutId, deps) {
   });
   metric('CartFinalSent', 1);
   await soft('cartRecordFinal', () => recordCartMessage(checkoutId, res.messageId, { key: 'cart_final', template: res.templateName }), { checkoutId });
+  return { sent: true };
+}
+
+/**
+ * This phone just wrote to us, so a 24 hour service window is now open.
+ *
+ * A checkout parked by 131049 can be delivered now as a free-form message,
+ * which the per-user MARKETING cap does not apply to. The customer opening
+ * the window is the ONLY thing that clears that cap for us, which is why this
+ * hangs off their inbound message and not off a timer: a timer would just
+ * collect the same refusal again.
+ *
+ * Everything about the bag is re-read, because this runs minutes to hours
+ * after the refusal and they may well have bought in between.
+ */
+export async function onWindowOpen(phone, deps) {
+  const now = nowOf(deps);
+  if (!config.flows.R.enabled) return;
+  const parked = await getParked(phone);
+  if (!parked?.checkoutId) return;
+
+  const checkoutId = parked.checkoutId;
+  const drop = async (reason, outcome) => {
+    await clearParked(phone);
+    if (outcome) await patchRec(checkoutId, { outcome, outcomeAt: now.toISOString() });
+    log.info('cart: parked checkout released', { checkoutId, reason });
+  };
+
+  // The code has closed, so there is nothing left to offer.
+  if (new Date(parked.until).getTime() <= now.getTime()) return drop('offer-closed');
+
+  const rec = await getRec(checkoutId);
+  if (!rec || rec.phone !== phone) return drop('no-record');
+  if (rec.firstSentAt) return drop('already-sent');
+  if (await isOptedOut(phone)) return drop('opted-out', 'opted-out');
+  // Quiet hours. Left parked on purpose: the next inbound inside the window
+  // picks it up, and the park expires with the code either way.
+  if (!withinWindow(now, r().sendWindow)) return log.info('cart: window open but outside the send window', { checkoutId });
+
+  const n = normalizeCheckout(await readCheckout(deps, checkoutId));
+  if (!n) return drop('checkout-gone', 'checkout-gone');
+  if (n.completedAt || (await orderedSince(deps, n))) return drop('ordered', 'already-ordered');
+
+  let res;
+  try {
+    res = await sendCart(deps, phone, 'cart_recovery', cartVars(n, rec, now), {
+      orderId: String(checkoutId),
+      token: rec.token,
+      imageUrl: heroImageUrl(n),
+    }, true);
+  } catch (e) {
+    log.error('cart: parked send failed inside an open window', { checkoutId, err: e.message, waCode: e?.waCode });
+    throw e; // leave it parked: the next inbound tries again
+  }
+  if (res?.skipped) return drop(`send-${res.skipped}`, `send-${res.skipped}`);
+
+  await clearParked(phone);
+  /*
+   * The outcome is cleared as well as stamped over: `waiting-window` was
+   * written by handleSendFailure to stop the five-minute sweep, and onFinal
+   * refuses to send a reminder for any checkout that carries an outcome.
+   * Leaving it would deliver message 1 and then silently drop the reminder.
+   */
+  await patchRec(checkoutId, {
+    firstSentAt: now.toISOString(),
+    outcome: null,
+    outcomeAt: null,
+    wamids: [...(rec.wamids || []), res.messageId].filter(Boolean),
+  });
+  await lockPhone(phone, { checkoutId, until: new Date(now.getTime() + r().cooldownDays * 86400 * 1000), now });
+  metric('CartSentOnWindowOpen', 1);
+
+  await soft('cartRecordWindowMsg', () => recordCartMessage(checkoutId, res.messageId, { key: 'cart_recovery', template: res.templateName }), { checkoutId });
+  /*
+   * Only if the reminder slot is still ahead of us. The park can be hours old
+   * by the time they write in, and EventBridge accepts an at() in the past and
+   * then never invokes it, so arming a stale one would look scheduled and
+   * silently do nothing.
+   */
+  if (new Date(rec.reminderAt).getTime() > now.getTime()) {
+    await soft('cartArmFinalAfterWindow', () =>
+      scheduleTimer({
+        flow: 'R',
+        orderId: String(checkoutId),
+        step: 'final',
+        at: new Date(rec.reminderAt),
+        groupId: group(phone),
+      }), { checkoutId });
+  }
+  log.info('cart: delivered a parked checkout through an open service window', { checkoutId });
   return { sent: true };
 }
 

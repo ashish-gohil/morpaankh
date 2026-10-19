@@ -44,6 +44,42 @@ export const SESSION = {
       'The link is open until {{valid_until}}. Nothing about your order changes unless you use it.',
     ctaText: 'Pay {{new_total}}',
   },
+  /*
+   * Flow R, sent INSIDE the 24 hour service window.
+   *
+   * Same offer as cart_recovery_v1, as a free-form message instead of a
+   * MARKETING template. This exists because of Meta error 131049: the per-user
+   * marketing cap counts templates from EVERY business that messages that
+   * person, so our own low volume cannot avoid it, and it refused two of this
+   * flow's first three sends. A session message is not a template. It carries
+   * no category, the cap does not apply to it at all, and it is free. So
+   * whenever the window is open this is both the only reliable way to land and
+   * the cheaper one, and the template is what we fall back to, not the reverse.
+   */
+  cart_recovery: {
+    type: 'cta_url',
+    body:
+      'Hello {{customer_name}}, your bag is still waiting for you.\n\n' +
+      '{{item_line}}\n\n' +
+      'Every Morpaankh piece is checked by hand before it leaves us, and we would love for yours to be next. ' +
+      'So we have made you a private code:\n\n' +
+      '*{{code}}*\n\n' +
+      'That is *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. ' +
+      'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+      'Tap below and it is applied for you.',
+    ctaText: 'Complete my order',
+  },
+  cart_final: {
+    type: 'cta_url',
+    body:
+      'Hello {{customer_name}}, a gentle reminder before your private code closes.\n\n' +
+      '*{{code}}* closes *{{expires_at}}*, about {{time_left}} from now.\n\n' +
+      '{{item_line}}\n\n' +
+      'That is still *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. ' +
+      'Your bag is saved just as you left it, so finishing takes less than a minute.\n\n' +
+      'When the code closes, the offer closes with it.',
+    ctaText: 'Complete my order',
+  },
   keep_cod_ack: {
     type: 'text',
     body:

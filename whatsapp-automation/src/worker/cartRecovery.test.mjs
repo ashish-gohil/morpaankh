@@ -10,8 +10,8 @@ import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
 import { _resetSecrets } from '../secrets.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
-import { setOptOut, setUndeliverable, touchInbound, markMarketing } from '../store/phoneProfile.mjs';
-import { getRec, getPhoneLock, lockPhone, getCartLinkMap } from '../store/cartRecovery.mjs';
+import { setOptOut, setUndeliverable, touchInbound, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
+import { getRec, getPhoneLock, lockPhone, getCartLinkMap, getParked } from '../store/cartRecovery.mjs';
 import * as R from './cartRecovery.run.mjs';
 
 const NOW = fromISTWall(2026, 9, 12, 12, 0); // 12:00 IST, inside 09:30-22:30
@@ -318,7 +318,7 @@ describe('shadow mode', () => {
 describe('a send that Meta refuses never takes the phone lock', () => {
   for (const [label, waCode, outcome] of [
     ['131026, this number cannot receive WhatsApp', 131026, 'meta-131026'],
-    ['131049, throttled for quality', 131049, 'meta-131049'],
+    ['131049, the per-user marketing cap', 131049, 'waiting-window'],
     ['132001, the template is not usable', 132001, 'template-unusable'],
   ]) {
     it(label, async () => {
@@ -627,5 +627,108 @@ describe('the rows Flow R writes', () => {
     // 180 days out, not 24 hours: otherwise Dynamo deletes the record at the
     // moment the code closes, taking the attribution window with it.
     expect(rec.expiresAt).toBeGreaterThan(codeEndEpoch + 170 * 86400);
+  });
+});
+
+/*
+ * Meta's 131049 is the per-user MARKETING TEMPLATE cap, counted across every
+ * business that messages that person. It refused two of this flow's first
+ * three sends. A free-form message inside the 24 hour service window is not a
+ * template and is not capped, so these are the tests for the only channel
+ * Meta cannot throttle.
+ */
+describe('reaching a customer the marketing cap would otherwise block', () => {
+  const ctaSends = (wa) => wa.sent.filter((m) => m.type === 'cta_url');
+
+  it('uses a free-form message, not a template, when the window is open', async () => {
+    const { clients, deps } = setup();
+    await touchInbound(PHONE, new Date(NOW.getTime() - 60 * 60 * 1000)); // an hour ago
+
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    expect(templates(clients.whatsapp)).not.toContain('cart_recovery_v1');
+    const [msg] = ctaSends(clients.whatsapp);
+    expect(msg.body).toContain('your bag is still waiting for you');
+    expect(msg.buttonText).toBe('Complete my order');
+    expect((await getRec(CHECKOUT_ID)).firstSentAt).toBeTruthy();
+  });
+
+  it('does not spend the marketing cap on a message that never used it', async () => {
+    const { deps } = setup();
+    await touchInbound(PHONE, new Date(NOW.getTime() - 60 * 60 * 1000));
+
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    // A session message is not a MARKETING template, so the 7 day cap must be
+    // untouched: stamping it would bar this customer over a message that was
+    // never subject to it.
+    expect(await canSendMarketing(PHONE, NOW, RULES.marketingCapDays)).toBe(true);
+  });
+
+  it('sends inside an open window even when the marketing cap is spent', async () => {
+    const { clients, deps } = setup();
+    await markMarketing(PHONE, new Date(NOW.getTime() - 24 * 60 * 60 * 1000)); // capped yesterday
+    await touchInbound(PHONE, new Date(NOW.getTime() - 60 * 60 * 1000));
+
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    expect((await getRec(CHECKOUT_ID)).outcome).toBeUndefined();
+    expect(ctaSends(clients.whatsapp)).toHaveLength(1);
+  });
+
+  it('parks a 131049 against the phone and delivers it when they write in', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131049 } });
+
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('waiting-window');
+    expect(await getPhoneLock(PHONE)).toBe(null); // they received nothing
+    expect((await getParked(PHONE)).checkoutId).toBe(CHECKOUT_ID);
+
+    // They write to us, which opens the window. The fake only fails TEMPLATES,
+    // so this asserts the fallback channel really is a different one.
+    const later = new Date(NOW.getTime() + 2 * 60 * 60 * 1000);
+    await touchInbound(PHONE, later);
+    await R.onWindowOpen(PHONE, { clients, now: later });
+
+    const rec = await getRec(CHECKOUT_ID);
+    expect(ctaSends(clients.whatsapp)).toHaveLength(1);
+    expect(rec.firstSentAt).toBeTruthy();
+    // Cleared, or onFinal would refuse the reminder for a checkout that has
+    // just been delivered successfully.
+    expect(rec.outcome).toBe(null);
+    expect(await getPhoneLock(PHONE)).toBeTruthy();
+    expect(await getParked(PHONE)).toBe(null);
+  });
+
+  it('drops a parked checkout once its code has closed', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131049 } });
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    const past = new Date(NOW.getTime() + (RULES.cartRecovery.codeValidHours + 1) * 60 * 60 * 1000);
+    await touchInbound(PHONE, past);
+    await R.onWindowOpen(PHONE, { clients, now: past });
+
+    expect(ctaSends(clients.whatsapp)).toHaveLength(0);
+    expect(await getParked(PHONE)).toBe(null);
+  });
+
+  it('drops a parked checkout the customer has since completed', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131049 } });
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    clients.shopify.seedCheckout(checkout({ completedAt: '2026-10-12T07:00:00Z' }));
+    const later = new Date(NOW.getTime() + 60 * 60 * 1000);
+    await touchInbound(PHONE, later);
+    await R.onWindowOpen(PHONE, { clients, now: later });
+
+    expect(ctaSends(clients.whatsapp)).toHaveLength(0);
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('already-ordered');
+    expect(await getParked(PHONE)).toBe(null);
+  });
+
+  it('does nothing when the phone has no parked checkout', async () => {
+    const { clients } = setup();
+    await R.onWindowOpen(PHONE, { clients, now: NOW });
+    expect(clients.whatsapp.sent).toHaveLength(0);
   });
 });

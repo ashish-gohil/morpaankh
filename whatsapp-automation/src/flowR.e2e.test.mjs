@@ -512,7 +512,8 @@ describe('NEGATIVE: the worker refuses, and records why', () => {
     await R.onFirst(ID, deps);
 
     const rec = await getRec(ID);
-    expect(rec.outcome).toBe(code === 132001 ? 'template-unusable' : `meta-${code}`);
+    const expected = { 132001: 'template-unusable', 131049: 'waiting-window' }[code] || `meta-${code}`;
+    expect(rec.outcome).toBe(expected);
     expect(rec.firstSentAt).toBeUndefined();
     expect(await getPhoneLock(PHONE)).toBe(null);
     expect(timerNames()).not.toContain(`R-${ID}-final`);

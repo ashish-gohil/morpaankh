@@ -72,6 +72,32 @@ export async function setOutcome(id, outcome, fields = {}) {
   return patchRec(id, { outcome, outcomeAt: new Date().toISOString(), ...fields });
 }
 
+/*
+ * A checkout Meta refused (131049), parked against its phone.
+ *
+ * 131049 is the per-user MARKETING cap and it is counted across every business
+ * that messages that person, so there is nothing on our side to tune and no
+ * point retrying the template on a timer: it fails again. What DOES clear it
+ * is the customer opening a 24 hour service window by writing to us, because a
+ * free-form reply is not a template and is not capped. So the checkout waits
+ * here, keyed by phone, and onWindowOpen delivers it the moment they do.
+ *
+ * SK is 'WAIT', deliberately not 'REC' (scanned for the digest) or 'STATE'
+ * (read as an order by the nightly sweep).
+ */
+export async function parkForWindow(phone, checkoutId, until, now = new Date()) {
+  await table.put({
+    PK: lockPk(phone),
+    SK: 'WAIT',
+    checkoutId: String(checkoutId),
+    until: until.toISOString(),
+    at: now.toISOString(),
+    expiresAt: ttl(now),
+  });
+}
+export const getParked = (phone) => table.get(lockPk(phone), 'WAIT');
+export const clearParked = (phone) => table.del(lockPk(phone), 'WAIT');
+
 /** Run a side effect exactly once per checkout+action (code, link, first, final). */
 export async function cartRunOnce(id, action, fn) {
   const existing = await table.get(recPk(id), `SIDE#${action}`);

@@ -98,6 +98,15 @@ async function onWaInbound(m) {
   }
   if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
 
+  /*
+   * Their message just opened a 24 hour service window, and that window is the
+   * only thing that lifts Meta's per-user MARKETING cap for us. If a cart
+   * recovery was refused with 131049 and parked against this phone, it can go
+   * now, free-form and uncapped. soft() because this is opportunistic: it must
+   * never cost them the reply they actually wrote in for.
+   */
+  await soft('cartOnWindowOpen', () => cartRecovery.onWindowOpen(phone, deps()), {});
+
   // WhatsApp Flow completion (review form): the signed flow_token carries the order.
   const nfm = msg.interactive?.nfm_reply;
   if (nfm) {
