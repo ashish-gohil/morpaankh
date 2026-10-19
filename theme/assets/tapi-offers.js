@@ -35,6 +35,12 @@
     } catch (e) { /* private mode */ }
   }
 
+  // Codes the recovery flow issues, which carry the brand prefix and are
+  // single use. No public code uses this prefix; the live ones are BUY2,
+  // BUY3, WELCOME150 and OFF20. Kept in step with cartRecovery.codePrefix in
+  // the wa-automation service.
+  var RECOVERY_CODE = /^MORPAANKH[A-Z]*\d+$/;
+
   // The code the shopper picked by hand this session. A deliberate choice is
   // respected; a stale or link-supplied code is not, so it can be upgraded to
   // the biggest saving.
@@ -158,6 +164,12 @@
     if (best === '') return;
     if (dismissed()) return;                 // shopper opted out this session
     if (applied === best) return;            // already on the biggest saving
+    // A private cart-recovery code is NOT a "stale or link-supplied lesser
+    // code" to be upgraded. The recovery flow only ever issues one that beats
+    // the best public code, and only after checking, so replacing it would
+    // quietly hand the shopper less than the message they are holding
+    // promised. Treated exactly like a code chosen by hand.
+    if (RECOVERY_CODE.test(applied)) return;
     // Respect a code the shopper chose by hand; otherwise apply the best, which
     // also UPGRADES a stale or link-supplied lesser code (e.g. someone lands on
     // WELCOME150, adds two pieces, and should get the larger BUY2 instead).

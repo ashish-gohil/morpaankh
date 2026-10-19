@@ -1,0 +1,60 @@
+{%- comment -%}
+  tapi-cart-capture — tells the recovery service about an OTP verified cart.
+
+  Renders no markup. Its only job is to hand assets/tapi-cart-capture.js an
+  endpoint and an on/off switch.
+
+  WHY IT EXISTS. Shopify files an abandoned checkout only once a shopper
+  reaches its own contact step. COD King's OTP happens before that and writes
+  _otpVerifiedPhoneNumber onto the CART, so everyone who verifies a number and
+  leaves earlier is reachable but invisible to Shopify's abandoned list. The
+  script posts those carts to the wa-automation service, which treats them as
+  the primary source for cart recovery and keeps Shopify's list as a fallback.
+
+  Nothing but a cart token, the already verified number and variant ids with
+  quantities is sent. Every price the shopper is later offered against is read
+  back from Shopify by the server, never taken from the browser.
+
+  Clearing the endpoint switches the whole thing off, with no code change.
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign on = false
+  if s.enabled and s.endpoint != blank
+    assign on = true
+  endif
+-%}
+
+{%- if on -%}
+  <script type="application/json" id="tapi-cart-capture-config">
+    {
+      "enabled": true,
+      "endpoint": {{ s.endpoint | json }}
+    }
+  </script>
+  <script src="{{ 'tapi-cart-capture.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Cart recovery capture",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "enabled",
+      "label": "Enable cart recovery capture",
+      "default": true,
+      "info": "Lets WhatsApp cart recovery see carts that passed COD King's OTP but never reached Shopify checkout. Shopify's own abandoned checkout list misses those."
+    },
+    {
+      "type": "text",
+      "id": "endpoint",
+      "label": "Capture endpoint",
+      "default": "https://dqpboq7r05.execute-api.ap-south-1.amazonaws.com/cart-capture",
+      "info": "The wa-automation service's /cart-capture route. Leave blank to switch capture off entirely."
+    }
+  ],
+  "presets": []
+}
+{% endschema %}
