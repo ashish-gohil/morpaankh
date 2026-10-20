@@ -26,6 +26,10 @@ export function makeFakeShopify({
     async getOrder(idOrGid) {
       return store.get(gidOf(idOrGid)) || store.get(String(idOrGid)) || null;
     },
+    async getOrderByName(name) {
+      const want = `#${String(name || '').trim().replace(/^#/, '')}`;
+      return [...store.values()].find((o) => o.name === want) || null;
+    },
     async tagsAdd(orderGid, tags) {
       calls.push({ op: 'tagsAdd', orderGid, tags });
       const o = store.get(orderGid);

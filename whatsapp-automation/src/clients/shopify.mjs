@@ -96,6 +96,25 @@ async function getOrder(numericOrGid) {
   return data.order;
 }
 
+/**
+ * Find an order by the number a human reads off the admin ("#1214" or "1214").
+ *
+ * The owner knows an order by that number and by nothing else, so the owner
+ * command has to start there. `name:#1214` is a search, not a lookup: it can
+ * return a near miss, so the exact name is re-checked against what comes back
+ * rather than trusting the first row.
+ */
+async function getOrderByName(name) {
+  const num = String(name || '').trim().replace(/^#/, '');
+  if (!/^\d+$/.test(num)) return null;
+  const data = await graphql(
+    `query OrderByName($q: String!){ orders(first: 5, query: $q, sortKey: CREATED_AT, reverse: true){ nodes { ${ORDER_FIELDS} } } }`,
+    { q: `name:#${num}` },
+    { idempotent: true },
+  );
+  return (data.orders?.nodes || []).find((o) => String(o.name).replace(/^#/, '') === num) || null;
+}
+
 /** Orders updated on/after sinceISO (id + createdAt + tags). Used by digest + reconcile. */
 async function ordersUpdatedSince(sinceISO) {
   const out = [];
@@ -895,6 +914,7 @@ export const shopify = {
   graphql,
   getCustomerByPhone,
   getOrder,
+  getOrderByName,
   getProductVariants,
   getVariantsByIds,
   ordersUpdatedSince,

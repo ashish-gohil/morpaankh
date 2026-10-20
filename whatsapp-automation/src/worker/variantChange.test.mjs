@@ -12,7 +12,7 @@ import { _resetTimers } from '../timers/schedule.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { ensureState, patchState, patchFlowA, getState } from '../store/orderState.mjs';
 import { decodePayload } from '../lib/ids.mjs';
-import { touchInbound } from '../store/phoneProfile.mjs';
+import { touchInbound, getProfile } from '../store/phoneProfile.mjs';
 import * as A from './flowA.run.mjs';
 import * as VC from './variantChange.run.mjs';
 
@@ -428,5 +428,114 @@ describe('safety properties', () => {
     await VC.route(ORDER, 'vcok:1:101', deps, PHONE);
     const alert = sent(clients).find((s) => s.name && s.name.startsWith('ops_alert') && /URGENT/.test(JSON.stringify(s)));
     expect(alert).toBeTruthy();
+  });
+});
+
+/*
+ * The owner's way in.
+ *
+ * The flow used to be reachable only from a button, and a button on a message
+ * we SENT cannot be tapped by us. On #1214 a real customer wrote "size L" as
+ * plain text, the owner pressed Change or cancel inside the Business app where
+ * it does nothing, and the order sat unchanged while being changeable the whole
+ * time.
+ */
+describe('the owner can start the flow by typing, not only by the customer tapping', () => {
+  const OWNER = '+917048000000';
+
+  beforeEach(() => {
+    config.ownerAlertPhones = [OWNER];
+  });
+
+  /** The window is what a free-form size list needs, so every case opens one. */
+  const open = () => touchInbound(PHONE, new Date('2026-10-02T06:00:00Z'));
+
+  it('sends the size list to the CUSTOMER and the receipt to the owner', async () => {
+    const { clients, deps } = await setup();
+    await open();
+    await VC.onOwnerRequest('1234', deps, OWNER);
+
+    const list = sent(clients).find((m) => m.type === 'list');
+    expect(list.to).toBe(PHONE);
+    expect(list.buttonText).toBe('Choose size');
+    expect(rowActions(list)).toEqual(['vcs:1:101', 'vcs:1:102']);
+
+    const receipt = sent(clients).find((m) => m.to === OWNER);
+    expect(receipt.body).toMatch(/Sent\. #1234/);
+  });
+
+  it('accepts the number with a hash in front of it', async () => {
+    const { clients, deps } = await setup();
+    await open();
+    await VC.onOwnerRequest('#1234', deps, OWNER);
+    expect(sent(clients).some((m) => m.type === 'list' && m.to === PHONE)).toBe(true);
+  });
+
+  /*
+   * touchInbound is the clock the 24 hour window is measured from. Stamping it
+   * on OUR action would declare a window the customer never opened, and every
+   * later free-form send would then be attempted against a closed one.
+   */
+  it('does not pretend the customer wrote to us', async () => {
+    const { deps } = await setup();
+    await open();
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    expect((await getProfile(PHONE)).lastInboundAt).toBe('2026-10-02T06:00:00.000Z');
+  });
+
+  it('writes nothing to the order: the customer still has to pick and confirm', async () => {
+    const { clients, deps } = await setup();
+    await open();
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    expect(writes(clients)).toEqual([]);
+  });
+
+  it('refuses when the window has closed, and says what to do about it', async () => {
+    const { clients, deps } = await setup();
+    await touchInbound(PHONE, new Date('2026-09-30T09:00:00Z'));
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    expect(sent(clients).every((m) => m.to === OWNER)).toBe(true);
+    expect(bodies(clients)).toMatch(/24 hour window .* has closed/);
+    expect(bodies(clients)).toMatch(/send any message here first/);
+  });
+
+  it('names the reason when the order is past changing', async () => {
+    const awb = codOrder({
+      fulfillments: [
+        {
+          status: 'SUCCESS',
+          displayStatus: 'FULFILLED',
+          createdAt: '2026-10-02T07:00:00Z',
+          trackingInfo: [{ number: '12345678901234', company: 'Delhivery' }],
+        },
+      ],
+    });
+    const { clients, deps } = await setup(awb);
+    await open();
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    expect(bodies(clients)).toMatch(/awb-exists/);
+    expect(sent(clients).every((m) => m.to === OWNER)).toBe(true);
+  });
+
+  it('says so when there is no such order', async () => {
+    const { clients, deps } = await setup();
+    await open();
+    await VC.onOwnerRequest('9999', deps, OWNER);
+    expect(bodies(clients)).toMatch(/No order #9999/);
+  });
+
+  it('asks for the number when the command came bare', async () => {
+    const { clients, deps } = await setup();
+    await VC.onOwnerRequest('', deps, OWNER);
+    expect(bodies(clients)).toMatch(/order number/);
+  });
+
+  it('stays quiet about the flow while the flag is off', async () => {
+    config.variantChangeEnabled = false;
+    const { clients, deps } = await setup();
+    await open();
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    expect(sent(clients).every((m) => m.to === OWNER)).toBe(true);
+    expect(bodies(clients)).toMatch(/switched off/);
   });
 });

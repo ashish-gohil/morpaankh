@@ -5,6 +5,7 @@
  * failures are reported so SQS redelivers only what threw.
  */
 import { log, metric } from '../log.mjs';
+import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
 import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
@@ -99,6 +100,20 @@ async function onWaInbound(m) {
   if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
 
   /*
+   * A slash command from an owner phone is US, not a customer.
+   *
+   * WhatsApp buttons are tappable only by the person who received them, and our
+   * own outbound messages are not echoed back to this webhook, so a button we
+   * press in the Business app reaches nothing at all. This is the keyboard way
+   * in, and it is gated on the phone rather than on the order: the command
+   * names someone else's order and messages their handset.
+   *
+   * Checked before everything below, which all reads the text as a customer's.
+   */
+  const typed = (msg.text?.body || '').trim();
+  if (typed.startsWith('/') && config.ownerAlertPhones.includes(phone)) return onOwnerCommand(phone, typed);
+
+  /*
    * Their message just opened a 24 hour service window, and that window is the
    * only thing that lifts Meta's per-user MARKETING cap for us. If a cart
    * recovery was refused with 131049 and parked against this phone, it can go
@@ -159,6 +174,24 @@ async function onWaInbound(m) {
     if (awaiting.type === 'address') return flowC.onAddressText(awaiting.orderId, rawText, deps());
     if (awaiting.type === 'rto_other') return flowC.onRtoOtherText(awaiting.orderId, rawText, deps());
   }
+}
+
+/*
+ * Owner commands. One for now, so no registry: a map of one entry is a registry
+ * for a future that has not asked for anything yet.
+ */
+const OWNER_HELP = 'What I understand:\n\n/size-change 1214\nAsks the customer on order #1214 to pick a new size or colour.';
+
+async function onOwnerCommand(phone, typed) {
+  const [cmd, ...rest] = typed.split(/\s+/);
+  const name = cmd.toLowerCase();
+  log.info('owner command', { cmd: name });
+  if (name === '/size-change' || name === '/size-change-request') {
+    return variantChange.onOwnerRequest(rest.join(' '), deps(), phone);
+  }
+  return sendSessionTo(phone, 'ops_reply', {
+    text: name === '/help' ? OWNER_HELP : `I do not know ${name}.\n\n${OWNER_HELP}`,
+  });
 }
 
 /**

@@ -284,3 +284,36 @@ describe('the router reaches Flow R', () => {
     expect(await canSendMarketing(PHONE, now, RULES.marketingCapDays)).toBe(false);
   });
 });
+
+/*
+ * Slash commands are the only inbound text this router acts on by itself, and
+ * they act on SOMEBODY ELSE'S order, so the gate is the phone it came from.
+ */
+describe('a slash command is only a command when an owner typed it', () => {
+  const OWNER_PHONE = '+919999999999';
+  const text = (from, body) => routes.wa_inbound({ kind: 'wa_inbound', from, msg: { text: { body } } });
+
+  /*
+   * The command handler always answers the sender, and the client is in dry run
+   * here, so a recorded send IS the reply. Getting one at all is the assertion:
+   * a stranger gets nothing back, because for them this was never a command.
+   */
+  const replied = { skipped: 'dry_run' };
+
+  it('ignores /size-change from anyone who is not us', async () => {
+    await expect(text(STRANGER, '/size-change 1214')).resolves.toBeUndefined();
+  });
+
+  it('runs it for an owner phone', async () => {
+    await expect(text(OWNER_PHONE, '/size-change 1214')).resolves.toMatchObject(replied);
+  });
+
+  it('leaves ordinary customer text alone', async () => {
+    // Word for word what the #1214 customer sent. A human answers this one.
+    await expect(text(STRANGER, 'size L')).resolves.toBeUndefined();
+  });
+
+  it('answers an unknown command instead of swallowing it', async () => {
+    await expect(text(OWNER_PHONE, '/sizechange 1214')).resolves.toMatchObject(replied);
+  });
+});

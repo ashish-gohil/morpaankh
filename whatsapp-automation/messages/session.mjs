@@ -332,6 +332,12 @@ export const SESSION = {
       'Thank you, {{customer_name}}. Someone from our team will message you here shortly, ' +
       'and your bag stays saved.',
   },
+  /*
+   * The only message here that is not customer copy. It answers a slash command
+   * the owner typed, so the words are composed by the caller: a fixed body
+   * would need one SESSION entry per outcome of every command.
+   */
+  ops_reply: { type: 'text', body: '{{text}}' },
   pay_link_expired_page: {
     type: 'html',
     body: 'This payment link has expired. Please reply on WhatsApp and we will help you.',

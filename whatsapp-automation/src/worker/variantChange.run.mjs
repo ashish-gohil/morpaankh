@@ -20,10 +20,11 @@
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
+import { normalizeOrder } from '../domain/order.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log } from '../log.mjs';
 import { sess, getNorm, ownerAlert } from './send.mjs';
-import { touchInbound } from '../store/phoneProfile.mjs';
+import { touchInbound, windowOpen } from '../store/phoneProfile.mjs';
 import {
   orderChangeable,
   changeableLines,
@@ -93,11 +94,19 @@ export async function changeOffered(n, st, phone) {
 
 // ---- steps ------------------------------------------------------------------
 
-/** `vc` - entry, and the Go back target. */
-export async function onStart(orderId, deps, phone) {
+/**
+ * `vc` - entry, and the Go back target.
+ *
+ * `touch` is false when the OWNER started this rather than the customer.
+ * touchInbound records "this person wrote to us", which is what the 24 hour
+ * service window is measured from, so stamping it on our own action would
+ * declare a window the customer never opened and every later free-form send
+ * would be attempted against a closed one.
+ */
+export async function onStart(orderId, deps, phone, { touch = true } = {}) {
   const { n, line, lines, targets, bad } = await load(orderId, null, deps, phone);
   if (!n) return;
-  await touchInbound(phone, nowOf(deps));
+  if (touch) await touchInbound(phone, nowOf(deps));
   if (bad) return handoff(orderId, n, bad, deps);
 
   // More than one changeable item: ask which.
@@ -313,6 +322,57 @@ export async function onConfirm(orderId, lineNum, varNum, deps, phone) {
     log.error('variantChange: apply failed', { orderId, err: e.message });
     return handoff(orderId, n, `apply-failed: ${e.message}`.slice(0, 120), deps);
   }
+}
+
+/**
+ * `/size-change 1214` typed by the owner: start the flow for that customer.
+ *
+ * Until now the only way in was a button the CUSTOMER taps, and a button on an
+ * outbound message cannot be tapped from our side at all. On #1214 the customer
+ * wrote "size L" as plain text, the owner pressed Change or cancel in the
+ * Business app where it does nothing, and nothing happened: the order was
+ * perfectly changeable the whole time, it just had no door we could open.
+ *
+ * The customer gets exactly what their own tap sends and not one message more.
+ * The owner gets a reply either way, because a command that fails silently is
+ * worse than no command.
+ */
+export async function onOwnerRequest(orderName, deps, ownerPhone) {
+  const reply = (text) => soft('ownerReply', () => sess(deps, ownerPhone, 'ops_reply', { text }), {});
+  const asked = String(orderName || '').trim();
+  if (!asked) return reply('Send it with the order number, like /size-change 1214');
+  if (!config.variantChangeEnabled) return reply('The size and colour change flow is switched off right now.');
+
+  const o = await deps.clients.shopify.getOrderByName(asked);
+  if (!o) return reply(`No order #${asked.replace(/^#/, '')} here. Check the number and send it again.`);
+  const n = normalizeOrder(o);
+  if (!n.verifiedPhone) {
+    return reply(`Order ${n.name} has no OTP verified WhatsApp number on it, so there is no one we can message.`);
+  }
+
+  const st = (await getState(n.numericId)) || {};
+  const gate = orderChangeable(n, st, n.verifiedPhone, { orderAllowlist: config.orderAllowlist });
+  if (!gate.ok) return reply(`Order ${n.name} cannot take a change now (${gate.reason}). Handle this one by hand.`);
+  if (!changeableLines(n).length) return reply(`Order ${n.name} has nothing on it we can swap.`);
+
+  /*
+   * The size list is a free-form message, so it needs an open 24 hour window
+   * and there is no approved template that could stand in for it. Checked here
+   * rather than left to fail at Meta, so the owner is told what to do about it.
+   */
+  if (!(await windowOpen(n.verifiedPhone, nowOf(deps)))) {
+    return reply(
+      `Order ${n.name}: our 24 hour window with this customer has closed, so WhatsApp will not let us send ` +
+        'them the size list. Ask them to send any message here first, then run this again.',
+    );
+  }
+
+  log.info('variantChange: owner started the flow', { orderId: n.numericId, order: n.name });
+  await onStart(n.numericId, deps, n.verifiedPhone, { touch: false });
+  return reply(
+    `Sent. ${n.name}: ${n.firstName} can pick a new size or colour from the list now, and it goes onto the ` +
+      'order the moment they confirm. You will get a note here when they do.',
+  );
 }
 
 /**
