@@ -4,7 +4,7 @@ import { itemLine, heroImageUrl } from './order.mjs';
 import { withinWindow } from '../lib/time.mjs';
 import {
   normalizeCheckout, properFirstName, isPartialAdvance, cartEligible, computeCartOffer,
-  bestPublicSavingPaise, personalCodeName, codeDigits, cartCode, recoveryTimes,
+  bestPublicSavingPaise, personalCodeName, codeDigits, cartCode, recoveryTimes, tierMaxPaise,
   formatExpiresAt, formatTimeLeft,
 } from './cart.mjs';
 
@@ -47,44 +47,90 @@ const checkout = (over = {}) => ({
 
 describe('the section 3 offer fixtures', () => {
   /*
-   * These six are the contract. Each one is a bag that really exists or really
-   * could, paired with what the customer could already get without us. The
-   * offer must always beat that, which is the only reason this flow is worth
-   * sending at all.
+   * THE CONTRACT, restated 2026-10-20 after MORPAANKHHEMISHA92 went out at
+   * Rs 200 on a Rs 1,249 bag (16% off).
+   *
+   * Two rules now bound every offer, and they are rupees, not percentages:
+   *   nothing at all at or below minOfferBagInr (Rs 1,249);
+   *   never more than the offerTiers ceiling for that bag (Rs 160 to Rs 1,500,
+   *   Rs 200 above it).
+   *
+   * The older principle still stands on top of both: the offer must BEAT what
+   * the bag can already get from a public code, or we send nothing, because a
+   * private code worth less than the one printed on the cart page is worse
+   * than silence.
    */
-  const cases = [
-    ['1,249 one piece, WELCOME150 open but not applied', 1249, 1, 0, 200],
-    ['2,199 one piece, WELCOME150 already applied', 2199, 1, 150, 220],
-    ['2,698 two pieces, BUY2 applied', 2698, 2, 269.8, 320],
-    ['3,198 two pieces, BUY2 applied', 3198, 2, 319.8, 370],
-    ['999 one piece, nothing eligible at all', 999, 1, 0, 100],
-    ['4,500 three pieces, BUY3 applied', 4500, 3, 675, 730],
+  const sends = [
+    // floor Rs 150 (WELCOME150), want Rs 200, tier allows Rs 200
+    ['1,599 one piece, WELCOME150 open but not applied', 1599, 1, 0, 200],
+    // the same want of Rs 200, held down to the mid band's Rs 160
+    ['1,349 one piece, just inside the mid band', 1349, 1, 0, 160],
+    ['2,199 one piece, WELCOME150 already applied', 2199, 1, 150, 200],
   ];
-  it.each(cases)('%s -> Rs %d', (_label, bag, qty, own, expected) => {
+  it.each(sends)('%s -> Rs %d', (_label, bag, qty, own, expected) => {
     const r = offer(bag, qty, own);
     expect(r.offerPaise).toBe(expected * 100);
     expect(r.ok).toBe(true);
   });
 
-  it('always beats what the bag can already get, and never exceeds 20% of it', () => {
-    for (const [, bag, qty, own] of cases) {
+  const refuses = [
+    // At the minimum, not above it. This is the exact bag that caused the fix.
+    ['1,249 one piece, the bag that got 16% off', 1249, 1, 0, 'bag-below-minimum'],
+    ['999 one piece, nothing eligible at all', 999, 1, 0, 'bag-below-minimum'],
+    /*
+     * BUY2 and BUY3 are the live public codes and they are PERCENTAGES, so on
+     * a multi-item bag they outrun a flat Rs 200 ceiling and we have nothing
+     * better to offer. Refusing is correct, not a regression: the customer can
+     * still type BUY2 themselves and is no worse off. It does mean these carts
+     * get no recovery message at all, which is the cost of the flat ceiling.
+     */
+    ['2,698 two pieces, BUY2 beats the ceiling', 2698, 2, 269.8, 'public-offer-better'],
+    ['4,500 three pieces, BUY3 beats the ceiling', 4500, 3, 675, 'public-offer-better'],
+  ];
+  it.each(refuses)('%s -> no offer (%s)', (_label, bag, qty, own, reason) => {
+    const r = offer(bag, qty, own);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(reason);
+  });
+
+  it('never exceeds the rupee ceiling for the bag, which is what a percentage cap missed', () => {
+    // 20% of Rs 1,249 is Rs 249, so maxPercentOfBag waved Rs 200 straight through.
+    expect(tierMaxPaise(124900, RULES.cartRecovery)).toBe(16000);
+    expect(tierMaxPaise(150000, RULES.cartRecovery)).toBe(16000); // Rs 1,500 is still mid band
+    expect(tierMaxPaise(150100, RULES.cartRecovery)).toBe(20000);
+    for (const [, bag, qty, own] of sends) {
       const r = offer(bag, qty, own);
       expect(r.offerPaise).toBeGreaterThan(r.floorPaise);
+      expect(r.offerPaise).toBeLessThanOrEqual(tierMaxPaise(bag * 100, RULES.cartRecovery));
       expect(r.offerPaise).toBeLessThanOrEqual(bag * 100 * 0.2);
     }
   });
 
   it('refuses when the cap cannot beat what they already have', () => {
-    // A bag carrying a hand-made discount far better than 20% of it.
+    // A bag carrying a hand-made discount far better than the ceiling.
     const r = offer(1300, 1, 300);
     expect(r.ok).toBe(false);
     expect(r.offerPaise).toBeLessThanOrEqual(r.floorPaise);
   });
 
-  it('min subtotal is floored from the bag, so the code still applies to this bag', () => {
-    const r = offer(1249, 1);
-    expect(r.minSubtotalInr).toBe(1124);
+  it('the code can never be spent on a basket we would not discount', () => {
+    // Rs 1,249 x 0.9 was Rs 1,124: a code reachable on a bag below the very
+    // minimum the tier table refuses to discount. Floored at Rs 1,250 now.
+    expect(offer(1300, 1).minSubtotalInr).toBe(1250);
+    const r = offer(1599, 1);
+    expect(r.minSubtotalInr).toBe(1439); // 0.9 of the bag, above the floor
     expect(r.minSubtotalInr * 100).toBeLessThanOrEqual(r.bagPaise);
+    expect(r.minSubtotalInr).toBeGreaterThanOrEqual(RULES.cartRecovery.minSubtotalFloorInr);
+  });
+
+  it('with no public codes readable at all the floor is only what is applied', () => {
+    const r = offer(1400, 1, 0, []);
+    expect(r.floorPaise).toBe(0);
+    // Which is exactly why onFirst must refuse to send when the discounts read
+    // fails: 10% of this bag is Rs 140 and WELCOME150 gives Rs 150, so the
+    // "private" code would be worth less than the one on the cart page.
+    expect(r.offerPaise).toBe(14000);
+    expect(r.offerPaise).toBeLessThan(bestPublicSavingPaise(PUBLIC, 140000, 1));
   });
 
   it('a public code whose minimum is not met does not raise the floor', () => {
@@ -93,15 +139,6 @@ describe('the section 3 offer fixtures', () => {
     expect(bestPublicSavingPaise(PUBLIC, 269800, 2)).toBe(26980); // two items: BUY2 wins
   });
 
-  it('with no public codes readable at all the floor is only what is applied', () => {
-    const r = offer(1249, 1, 0, []);
-    expect(r.floorPaise).toBe(0);
-    // Which is exactly why onFirst must refuse to send when the discounts read
-    // fails: 10% of this bag is Rs 130 and WELCOME150 gives Rs 150, so the
-    // "private" code would be worth less than the one on the cart page.
-    expect(r.offerPaise).toBe(13000);
-    expect(r.offerPaise).toBeLessThan(bestPublicSavingPaise(PUBLIC, 124900, 1));
-  });
 });
 
 describe('normalizeCheckout feeds the existing order helpers unchanged', () => {

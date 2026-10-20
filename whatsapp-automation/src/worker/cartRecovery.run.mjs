@@ -275,7 +275,7 @@ export async function onFirst(checkoutId, deps) {
     log.info('cart: the bag already gets as much or more, sending nothing', {
       checkoutId, bagPaise: n.bagPaise, floorPaise: offer.floorPaise, offerPaise: offer.offerPaise,
     });
-    return setOutcome(checkoutId, 'public-offer-better', { bag: n.bagPaise, floor: offer.floorPaise });
+    return setOutcome(checkoutId, offer.reason || 'public-offer-better', { bag: n.bagPaise, floor: offer.floorPaise });
   }
 
   /*

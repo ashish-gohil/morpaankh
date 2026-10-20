@@ -167,6 +167,32 @@ export const RULES = {
     finalMinRemainingMin: 30,
     cooldownDays: 30,
     percentOff: 10,
+    /*
+     * THE HARD CEILING ON WHAT A RECOVERY CODE MAY BE WORTH.
+     * Owner's numbers, 2026-10-20, after MORPAANKHHEMISHA92 went out at Rs 200
+     * on a Rs 1,249 bag, which is 16% off.
+     *
+     * That was not a bug in the arithmetic, it was beatPublicByInr doing
+     * exactly what it says: WELCOME150 gives Rs 150 on anything over Rs 1,199,
+     * so every bag just past that threshold got dragged to Rs 150 + Rs 50
+     * whatever its size. A percentage cap could not catch it either, because
+     * 20% of Rs 1,249 is Rs 249. The ceiling has to be stated in rupees
+     * against the bag, which is what this table does.
+     *
+     * Read in order, first match wins, ascending. upToInr null is the top band.
+     */
+    minOfferBagInr: 1249, // at or below this, send NOTHING at all
+    offerTiers: [
+      { upToInr: 1500, maxInr: 160 },
+      { upToInr: null, maxInr: 200 },
+    ],
+    /*
+     * The code's own minimum purchase never drops below this, whatever
+     * minSubtotalFactor works out to. Without it a Rs 1,249 bag minted a code
+     * usable on a Rs 1,124 order, so the discount was reachable on a basket
+     * smaller than the one we are not willing to discount at all.
+     */
+    minSubtotalFloorInr: 1250,
     beatPublicByInr: 50,
     maxPercentOfBag: 20,
     roundToInr: 10,

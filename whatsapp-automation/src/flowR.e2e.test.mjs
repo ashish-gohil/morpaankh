@@ -65,7 +65,7 @@ function cart(id = ID, over = {}) {
         {
           title: 'Khili Dhoop',
           quantity: 1,
-          originalUnitPriceSet: { shopMoney: { amount: '1249.0' } },
+          originalUnitPriceSet: { shopMoney: { amount: '1599.0' } },
           image: { url: 'https://cdn.shopify.com/s/files/1/x/a.jpg?v=1', width: 1200, height: 1500 },
           variant: {
             id: 'gid://shopify/ProductVariant/54758494110068',
@@ -166,7 +166,9 @@ describe('POSITIVE: the whole way through', () => {
     expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
     const made = discounts(clients.shopify);
     expect(made).toHaveLength(1);
-    expect(made[0].amountInr).toBe(200); // beats WELCOME150's Rs 150 on a Rs 1,249 bag
+    // Rs 200 is the top tier's ceiling, reached on a Rs 1,599 bag. The same
+    // Rs 200 on a Rs 1,249 bag is 16% off and is what offerTiers now forbids.
+    expect(made[0].amountInr).toBe(200);
     expect(made[0].title).toBe(`Cart recovery #${ID}`);
     const rec = await getRec(ID);
     expect(rec.code).toMatch(/^MORPAANKHBHARTI[2-9]{2}$/);
@@ -284,7 +286,7 @@ describe('POSITIVE: the whole way through', () => {
       items: [{
         title: 'Khili Dhoop',
         quantity: 1,
-        originalUnitPriceSet: { shopMoney: { amount: '1249.0' } },
+        originalUnitPriceSet: { shopMoney: { amount: '1599.0' } },
         image: null,
         variant: { id: 'gid://shopify/ProductVariant/1', availableForSale: true, selectedOptions: [{ name: 'Size', value: 'XS' }] },
       }],
@@ -469,12 +471,14 @@ describe('NEGATIVE: the worker refuses, and records why', () => {
   });
 
   it('refuses when the bag already gets as much as we could offer', async () => {
-    // Rs 1,199 and a WELCOME150 already applied: the 20% cap cannot beat it.
+    // Rs 1,600 with Rs 250 already off it. The offer ceiling for this band is
+    // Rs 200, so there is nothing we can put on the table that beats what the
+    // bag is already getting. The tier is what refuses it now, not the 20% cap.
     const rich = cart(ID, {
-      totalDiscountSet: { shopMoney: { amount: '150.0' } },
+      totalDiscountSet: { shopMoney: { amount: '250.0' } },
       items: [{
         title: 'Sahaj', quantity: 1,
-        originalUnitPriceSet: { shopMoney: { amount: '400.0' } },
+        originalUnitPriceSet: { shopMoney: { amount: '1600.0' } },
         image: null,
         variant: { id: 'gid://shopify/ProductVariant/1', availableForSale: true, selectedOptions: [] },
       }],

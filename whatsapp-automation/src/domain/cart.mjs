@@ -160,6 +160,23 @@ export function bestPublicSavingPaise(codes, bagPaise, quantity) {
  * @param {{bagPaise: number, ownDiscountPaise?: number, quantity: number,
  *          publicCodes?: any[], rules: any}} args
  */
+/**
+ * The rupee ceiling for this bag, from rules.cartRecovery.offerTiers.
+ *
+ * Stated in rupees, not as a percentage, because a percentage cannot express
+ * "never more than Rs 160 on a small bag": 20% of Rs 1,249 is Rs 249, which
+ * waves through the Rs 200 code that started this.
+ *
+ * @param {number} bagPaise @param {any} r rules.cartRecovery
+ */
+export function tierMaxPaise(bagPaise, r) {
+  const bagInr = bagPaise / 100;
+  for (const t of r.offerTiers || []) {
+    if (t.upToInr === null || t.upToInr === undefined || bagInr <= t.upToInr) return t.maxInr * 100;
+  }
+  return 0;
+}
+
 export function computeCartOffer({ bagPaise, ownDiscountPaise = 0, quantity, publicCodes = [], rules }) {
   const r = rules.cartRecovery;
   const step = r.roundToInr * 100;
@@ -170,8 +187,15 @@ export function computeCartOffer({ bagPaise, ownDiscountPaise = 0, quantity, pub
     Math.max((bagPaise * r.percentOff) / 100, floorPaise + r.beatPublicByInr * 100),
     step,
   );
-  const capPaise = roundDownTo((bagPaise * r.maxPercentOfBag) / 100, step);
-  const offerPaise = Math.min(wantPaise, capPaise);
+  const percentCapPaise = roundDownTo((bagPaise * r.maxPercentOfBag) / 100, step);
+  const capPaise = Math.min(percentCapPaise, tierMaxPaise(bagPaise, r));
+  /*
+   * A bag at or below minOfferBagInr is not discounted at all, so this exits
+   * before the arithmetic rather than letting a tier of 0 fall through and be
+   * reported as "the public code was better", which it was not.
+   */
+  const tooSmall = bagPaise <= r.minOfferBagInr * 100;
+  const offerPaise = tooSmall ? 0 : Math.min(wantPaise, capPaise);
   return {
     bagPaise,
     floorPaise,
@@ -181,8 +205,16 @@ export function computeCartOffer({ bagPaise, ownDiscountPaise = 0, quantity, pub
     offerPaise,
     // Equal is not good enough: an identical saving with a private code on it
     // is a worse customer experience than the code already on the cart page.
-    ok: offerPaise > floorPaise,
-    minSubtotalInr: Math.floor((bagPaise * r.minSubtotalFactor) / 100),
+    ok: !tooSmall && offerPaise > floorPaise,
+    reason: tooSmall ? 'bag-below-minimum' : offerPaise > floorPaise ? null : 'public-offer-better',
+    /*
+     * Never below minSubtotalFloorInr: the code must not be usable on a basket
+     * smaller than the one we refuse to discount in the first place.
+     */
+    minSubtotalInr: Math.max(
+      Math.floor((bagPaise * r.minSubtotalFactor) / 100),
+      r.minSubtotalFloorInr || 0,
+    ),
   };
 }
 

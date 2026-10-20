@@ -37,7 +37,7 @@ function checkout(over = {}) {
         {
           title: 'Khili Dhoop',
           quantity: 1,
-          originalUnitPriceSet: { shopMoney: { amount: '1249.0' } },
+          originalUnitPriceSet: { shopMoney: { amount: '1599.0' } },
           image: { url: 'https://cdn.shopify.com/s/files/1/x/a.jpg?v=1', width: 1200, height: 1500 },
           variant: { id: 'gid://shopify/ProductVariant/54758494110068', availableForSale: true, selectedOptions: [{ name: 'Size', value: 'XS' }] },
         },
@@ -78,8 +78,11 @@ describe('message 1', () => {
     const made = discounts(clients.shopify);
     expect(made).toHaveLength(1);
     // Beats WELCOME150's Rs 150 on a Rs 1,249 bag, exactly as the fixtures say.
-    expect(made[0].amountInr).toBe(200);
-    expect(made[0].minSubtotalInr).toBe(1124);
+    expect(made[0].amountInr).toBe(200); // the top tier's ceiling
+    // 0.9 of the bag, and never below minSubtotalFloorInr. It used to be
+    // Rs 1,124 on a Rs 1,249 bag: a code spendable on a basket smaller than
+    // the minimum we are willing to discount at all.
+    expect(made[0].minSubtotalInr).toBe(1439);
     expect(made[0].title).toBe(`Cart recovery #${CHECKOUT_ID}`);
     // Never a phone number in a Shopify title: it shows in the admin list.
     expect(made[0].title).not.toContain('9637');
