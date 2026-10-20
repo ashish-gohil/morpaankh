@@ -65,7 +65,12 @@ describe('the section 3 offer fixtures', () => {
     ['1,599 one piece, WELCOME150 open but not applied', 1599, 1, 0, 200],
     // the same want of Rs 200, held down to the mid band's Rs 160
     ['1,349 one piece, just inside the mid band', 1349, 1, 0, 160],
-    ['2,199 one piece, WELCOME150 already applied', 2199, 1, 150, 200],
+    // 10% of the bag, well under the Rs 300 ceiling: the tier is a CEILING,
+    // never a target.
+    ['2,199 one piece, WELCOME150 already applied', 2199, 1, 150, 220],
+    // Rs 300 is what makes this one sendable at all: BUY2 already gives
+    // Rs 269.80, so a Rs 200 ceiling had nothing to beat it with.
+    ['2,698 two pieces, BUY2 applied', 2698, 2, 269.8, 300],
   ];
   it.each(sends)('%s -> Rs %d', (_label, bag, qty, own, expected) => {
     const r = offer(bag, qty, own);
@@ -78,14 +83,15 @@ describe('the section 3 offer fixtures', () => {
     ['1,249 one piece, the bag that got 16% off', 1249, 1, 0, 'bag-below-minimum'],
     ['999 one piece, nothing eligible at all', 999, 1, 0, 'bag-below-minimum'],
     /*
-     * BUY2 and BUY3 are the live public codes and they are PERCENTAGES, so on
-     * a multi-item bag they outrun a flat Rs 200 ceiling and we have nothing
-     * better to offer. Refusing is correct, not a regression: the customer can
-     * still type BUY2 themselves and is no worse off. It does mean these carts
-     * get no recovery message at all, which is the cost of the flat ceiling.
+     * BUY2 and BUY3 are PERCENTAGES, so past a point they outrun any flat
+     * ceiling and we have nothing better to offer. Rs 300 beats BUY2 up to
+     * about Rs 3,000 and never beats BUY3's 15%. Refusing is correct, not a
+     * regression: the customer can still type BUY2 themselves and is no worse
+     * off, and a private code worth LESS than the one on the cart page is
+     * worse than silence. The cost is that these carts get no message.
      */
-    ['2,698 two pieces, BUY2 beats the ceiling', 2698, 2, 269.8, 'public-offer-better'],
-    ['4,500 three pieces, BUY3 beats the ceiling', 4500, 3, 675, 'public-offer-better'],
+    ['3,198 two pieces, BUY2 outruns even Rs 300', 3198, 2, 319.8, 'public-offer-better'],
+    ['4,500 three pieces, BUY3 is out of reach at any bag size', 4500, 3, 675, 'public-offer-better'],
   ];
   it.each(refuses)('%s -> no offer (%s)', (_label, bag, qty, own, reason) => {
     const r = offer(bag, qty, own);
@@ -98,6 +104,8 @@ describe('the section 3 offer fixtures', () => {
     expect(tierMaxPaise(124900, RULES.cartRecovery)).toBe(16000);
     expect(tierMaxPaise(150000, RULES.cartRecovery)).toBe(16000); // Rs 1,500 is still mid band
     expect(tierMaxPaise(150100, RULES.cartRecovery)).toBe(20000);
+    expect(tierMaxPaise(200000, RULES.cartRecovery)).toBe(20000); // Rs 2,000 is still the Rs 200 band
+    expect(tierMaxPaise(200100, RULES.cartRecovery)).toBe(30000);
     for (const [, bag, qty, own] of sends) {
       const r = offer(bag, qty, own);
       expect(r.offerPaise).toBeGreaterThan(r.floorPaise);

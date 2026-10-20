@@ -184,7 +184,17 @@ export const RULES = {
     minOfferBagInr: 1249, // at or below this, send NOTHING at all
     offerTiers: [
       { upToInr: 1500, maxInr: 160 },
-      { upToInr: null, maxInr: 200 },
+      { upToInr: 2000, maxInr: 200 },
+      /*
+       * Rs 300 on the biggest bags, owner's call 2026-10-20, and it exists to
+       * answer BUY2. BUY2 is a PERCENTAGE, so on a two piece bag it outruns a
+       * flat ceiling and we have nothing better to put on the table: at
+       * Rs 2,698 it already gives Rs 269.80. Rs 300 beats that. It stops
+       * beating it around Rs 3,000, and BUY3's 15% is out of reach at any bag
+       * size, so those carts stay silent on purpose rather than carry a code
+       * worse than the one on the cart page.
+       */
+      { upToInr: null, maxInr: 300 },
     ],
     /*
      * The code's own minimum purchase never drops below this, whatever
