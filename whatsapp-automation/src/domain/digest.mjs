@@ -43,7 +43,7 @@ function openReplacementsLine(replacements) {
 
 /**
  * @param {{tags:string[]}[]} orders  orders updated in the window
- * @param {{cartsMessaged?: number}} [extra]
+ * @param {{cartsMessaged?: number, replacements?: {orderName?: string, state?: string, nextAction?: string}[]}} [extra]
  *   Counts that cannot be derived from a tag. "carts messaged" is one of them:
  *   an abandoned checkout has no order to tag, so it is counted off the Flow R
  *   records instead. "recovered" IS a tag, so it still comes from Shopify.

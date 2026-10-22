@@ -3,6 +3,7 @@ import { makeFakeWhatsApp } from './whatsapp.mjs';
 import { makeFakeShopify } from './shopify.mjs';
 import { makeFakeRazorpay } from './razorpay.mjs';
 import { makeFakeCourier } from './courier.mjs';
+import { makeFakeLogistics } from './logistics.mjs';
 
 export function makeFakeClients(opts = {}) {
   return {
@@ -10,7 +11,8 @@ export function makeFakeClients(opts = {}) {
     shopify: makeFakeShopify(opts.shopify || {}),
     razorpay: makeFakeRazorpay(),
     courier: makeFakeCourier(opts.courier || {}),
+    logistics: makeFakeLogistics(opts.logistics || {}),
   };
 }
 
-export { makeFakeWhatsApp, makeFakeShopify, makeFakeRazorpay, makeFakeCourier };
+export { makeFakeWhatsApp, makeFakeShopify, makeFakeRazorpay, makeFakeCourier, makeFakeLogistics };
