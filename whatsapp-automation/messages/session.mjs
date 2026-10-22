@@ -333,6 +333,39 @@ export const SESSION = {
       'and your bag stays saved.',
   },
   /*
+   * /replace: the free-form TWIN of the replacement_raised template, word for
+   * word. Whenever the window is open this is what goes out, because a session
+   * message is not a template: no category, no per-user cap, no cost, and no
+   * dependence on Meta having approved the current copy.
+   */
+  replacement_raised: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, Thank you for your order {{order_number}} with Morpaankh. ' +
+      'Your replacement request has been raised. Our delivery partner will pick up {{return_item}} ' +
+      'from your address. On the next working day after pickup, we will dispatch {{new_item}} to you. ' +
+      'Please keep the product unused, with tags attached, packed and ready for pickup.',
+  },
+
+  /*
+   * The /replace preview's two buttons, for the ADMIN who typed the command.
+   *
+   * The body is composed by the caller like ops_reply, because the preview is
+   * assembled from a live order, a live address and two live freight quotes:
+   * there is no fixed sentence to store. Both actions are null because each
+   * carries the request sequence and its nonce, so renderSession demands them
+   * in ctx.actions rather than emitting a button that routes nowhere.
+   */
+  replace_confirm: {
+    type: 'buttons',
+    body: '{{text}}',
+    buttons: [
+      { title: 'Confirm', flow: 'P', action: null },
+      { title: 'Cancel', flow: 'P', action: null },
+    ],
+  },
+
+  /*
    * The only message here that is not customer copy. It answers a slash command
    * the owner typed, so the words are composed by the caller: a fixed body
    * would need one SESSION entry per outcome of every command.

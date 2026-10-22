@@ -114,6 +114,109 @@ Other things worth knowing:
   `checkoutLinkStyle` and a deploy. It is never a template change: the button's
   URL is fixed once Meta approves it and all it carries is the token.
 
+## /replace: replacement shipments
+
+A replacement is two parcels and no Shopify change: a reverse pickup of what the
+customer has, and a new prepaid Surface parcel of what they should have had.
+Nothing is tagged, edited, refunded or restocked, so **Shopify will not show you
+that a replacement exists**. `/replace status <order>` and the daily digest are
+the only places it is visible.
+
+### Running it
+
+Send these from an admin phone to the business number, in the thread where your
+alerts arrive. Typing them into the customer's chat in the Business app reaches
+nothing (we are not subscribed to message echoes) and would show the command to
+the customer.
+
+```
+/replace #1234 noor m xl          book a size swap, after a preview
+/replace 1234 noor m xl x2        two of them
+/replace 1234 noor m bandhan xl   swap to a different product
+/replace 1234 m xl                when the order has one changeable line
+/replace status 1234              both AWBs, live courier status, next action
+/replace list                     every open replacement, newest first
+/replace cancel 1234 [notify]     cancel whichever leg is not yet picked up
+/replace retry 1234               resume a FAILED request from where it stopped
+/replace help
+```
+
+Flags: `reason:size|damaged|wrong|other`, `pays:us|customer` (recorded only,
+never charged), `force` to pass a soft stop, `again` to replace a line a second
+time.
+
+### Which mode is it in?
+
+```
+aws lambda get-function-configuration --function-name wa-worker \
+  --query 'Environment.Variables.REPLACE_MODE' --output text
+node scripts/pause-flow.mjs replace off|shadow|live
+```
+
+`shadow` is the default and runs everything except the two courier writes and
+the customer message: you get a preview, a Confirm button, and a reply saying
+what it WOULD have booked. That is the right place to be until the Delhivery
+payload has been proven once against a real AWB.
+
+### "It refused and I do not know why"
+
+Every refusal names its own reason and the next command. The ones that catch
+people out:
+
+- **"HSN is not set"** and **"GSTIN is not set"** and **"pickup location is not
+  set"**: these three are required config and ship empty on purpose. HSN goes on
+  the shipping label cum invoice, which is a GST document in your name, so it
+  was never going to be guessed for you. Set them in `cdk.json` context and
+  deploy.
+- **"the warehouse name does not match"**: `DELHIVERY_PICKUP_LOCATION` must equal
+  the registered warehouse EXACTLY, case included. Delhivery matches it as a
+  string.
+- **"our 24 hour window with this customer has closed"**: the size list and the
+  free-form twin need an open window. The approved template covers the closed
+  case; if the template itself is paused or unapproved you are told rather than
+  the message being dropped.
+- **"not serviceable"**: reverse pickup and prepaid delivery are checked
+  separately at the pin. Ask the customer to self ship, or book it by hand.
+- **"delivered more than 7 days ago"** / **"no AWB"** / **"ODA pin"**: soft
+  stops. Re-send with `force` if you mean it.
+- **A protected-customer-data message**: the app cannot read the shipping
+  address at all. That is a Shopify app-scope approval, not a typo in the
+  address.
+
+### When it fails halfway
+
+The return leg is booked first, always, because it is the correct leg whichever
+way the rest goes. So a failure usually means **the return pickup is already
+booked and the new parcel is not**. The reply says so and names
+`/replace retry 1234`. Retry resumes from the failed step; it does not rebook
+the return.
+
+If the provider reported a duplicate reference, or timed out after the request
+went out, the shipment is looked up by its reference (`RPL<order>-<seq>R` or
+`-<seq>F`) and adopted rather than retried. Never rebook by hand without
+checking Delhivery One for that reference first: that is how one replacement
+becomes two parcels.
+
+`"Recharge the Delhivery wallet, then /replace retry 1234"` means exactly that.
+
+### What a human still has to do
+
+- The new parcel is manifested and left **Ready to Ship**. We never request a
+  pickup for it. Add it to a pickup yourself once the return has been collected.
+- Reverse pickups are scheduled by Delhivery; there is no pickup request to
+  make for that leg.
+- Any price difference is collected by hand. `pays:` is recorded, not charged.
+
+### Why the replacement AWBs are not in the tracker
+
+They are deliberately kept out of the `AWB#` map and out of GSI1, so the poller
+never sees them. Any AWB in that map routes its terminal events into the
+order's flows, which would mean the reverse pickup going RTO fires Flow C on
+the original order (tagging it RTO, asking the customer why they returned it,
+counting it toward their COD block) and the new parcel being delivered fires a
+second review ask. The cost is that we do not learn of collection by webhook,
+which is why `status` asks the courier directly.
+
 ## Escalation checklist
 
 1. Silence the noisy flow (`pause-flow.mjs <x> off`).

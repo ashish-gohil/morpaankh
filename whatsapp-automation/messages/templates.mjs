@@ -420,6 +420,40 @@ export const TEMPLATES = {
     footer: 'Reply STOP to stop these messages',
   },
 
+  /*
+   * /replace: the one message the CUSTOMER gets, and it is sent only once both
+   * courier legs exist. A pickup notice with no replacement on the way is worse
+   * than silence, so this template deliberately promises both in one breath.
+   *
+   * It says "will pick up" and "we will dispatch", never that anything has
+   * moved: at send time both parcels are manifested and neither has been
+   * collected, exactly as order_shipped was corrected for.
+   *
+   * The twin of this copy lives in session.mjs under the same key. An open 24
+   * hour window takes the free-form one and costs nothing; this version is for
+   * a closed window, which is the common case days after a delivery.
+   *
+   * The button tracks the REVERSE waybill, because the only thing the customer
+   * can usefully watch is the pickup they have to be home for.
+   */
+  replacement_raised: {
+    name: 'replacement_raised_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, Thank you for your order {{order_number}} with Morpaankh. ' +
+      'Your replacement request has been raised. Our delivery partner will pick up {{return_item}} ' +
+      'from your address. On the next working day after pickup, we will dispatch {{new_item}} to you. ' +
+      'Please keep the product unused, with tags attached, packed and ready for pickup.',
+    examples: {
+      customer_name: 'Aarav',
+      order_number: '#1234',
+      return_item: 'Noor, size M',
+      new_item: 'Noor, size XL',
+    },
+    buttons: [trackBtn('Track pickup')],
+  },
+
   ops_alert: {
     name: 'ops_alert_v2',
     language: 'en',

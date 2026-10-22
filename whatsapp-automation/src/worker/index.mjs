@@ -23,6 +23,7 @@ import * as flowB from './flowB.run.mjs';
 import * as flowC from './flowC.run.mjs';
 import * as variantChange from './variantChange.run.mjs';
 import * as cartRecovery from './cartRecovery.run.mjs';
+import * as replace from './replace.run.mjs';
 
 // Derived from the registry, never hand-listed, so adding a template without a
 // legacy version cannot silently drop off this list.
@@ -97,10 +98,9 @@ async function onWaInbound(m) {
     await setOptOut(phone, false);
     return sendSessionTo(phone, 'optin_done', {});
   }
-  if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
 
   /*
-   * A slash command from an owner phone is US, not a customer.
+   * A slash command from an admin phone is US, not a customer.
    *
    * WhatsApp buttons are tappable only by the person who received them, and our
    * own outbound messages are not echoed back to this webhook, so a button we
@@ -108,10 +108,15 @@ async function onWaInbound(m) {
    * in, and it is gated on the phone rather than on the order: the command
    * names someone else's order and messages their handset.
    *
-   * Checked before everything below, which all reads the text as a customer's.
+   * Checked before everything below, which all reads the text as a customer's,
+   * and before the opt-out gate on purpose: the opt-out is about MARKETING to
+   * customers, not about us talking to ourselves, so an admin who once sent
+   * STOP must still be able to run a command and get an answer back.
    */
   const typed = (msg.text?.body || '').trim();
-  if (typed.startsWith('/') && config.ownerAlertPhones.includes(phone)) return onOwnerCommand(phone, typed);
+  if (typed.startsWith('/') && isAdminPhone(phone)) return onOwnerCommand(phone, typed);
+
+  if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
 
   /*
    * Their message just opened a 24 hour service window, and that window is the
@@ -146,6 +151,20 @@ async function onWaInbound(m) {
   const p = rawPayload ? decodePayload(rawPayload) : null;
 
   if (p) {
+    /*
+     * Flow P (/replace) is dispatched BEFORE the ownership gate, and it is the
+     * only one that is. ownsOrder compares the tapping phone to the order's
+     * stored verified phone, and a P tap is an ADMIN confirming a replacement
+     * on a CUSTOMER's order, so that gate would refuse every Confirm there is.
+     * replace.route re-checks admission itself, strictly, against the admin
+     * list and the nonce stored on the request. Every other tap keeps the gate
+     * exactly as it was.
+     */
+    if (p.flow === 'P') {
+      const rp = replace.route(p.orderId, p.action, deps(), phone);
+      if (rp) return rp;
+      return log.warn('replace: unknown P tap action', { action: p.action });
+    }
     // Button payloads are "v1|A|<orderId>|cancel_yes" in CLEAR TEXT: unlike the
     // Flow token they carry no signature, and the order id is the plain Shopify
     // number. The review path right above already refuses a phone that does not
@@ -177,18 +196,48 @@ async function onWaInbound(m) {
 }
 
 /*
- * Owner commands. One for now, so no registry: a map of one entry is a registry
- * for a future that has not asked for anything yet.
+ * Owner commands.
+ *
+ * This was one entry and a comment saying a map of one entry is a registry for
+ * a future that has not asked for anything yet. /replace is that future asking,
+ * and it brings its own verbs, so the dispatch is a map now. The two
+ * /size-change spellings behave exactly as they did: same argument string, same
+ * handler, same reply.
  */
-const OWNER_HELP = 'What I understand:\n\n/size-change 1214\nAsks the customer on order #1214 to pick a new size or colour.';
+const COMMANDS = {
+  '/size-change': (phone, args) => variantChange.onOwnerRequest(args, deps(), phone),
+  '/size-change-request': (phone, args) => variantChange.onOwnerRequest(args, deps(), phone),
+  // The WHOLE line, not just the arguments: /replace has sub-verbs and flags,
+  // and its parser matches the alias itself so one parser answers all three
+  // spellings. /size-change takes the argument string it always took.
+  '/replace': (phone, args, typed) => replace.onOwnerRequest(typed, deps(), phone),
+  '/replace-order': (phone, args, typed) => replace.onOwnerRequest(typed, deps(), phone),
+  '/rp': (phone, args, typed) => replace.onOwnerRequest(typed, deps(), phone),
+};
+
+const OWNER_HELP = [
+  'What I understand:',
+  '',
+  '/size-change 1214',
+  'Asks the customer on order #1214 to pick a new size or colour.',
+  '',
+  '/replace 1214 noor m xl',
+  'Books a reverse pickup of the size M and sends size XL instead. Also /replace status, cancel, retry, list.',
+].join('\n');
+
+/**
+ * Who may type a command. `replaceAdminPhones` when it is set, otherwise the
+ * owner alert phones. Asked through replace.run.mjs so the command gate and the
+ * P tap gate cannot drift apart.
+ */
+const isAdminPhone = (phone) => replace.isReplaceAdmin(phone);
 
 async function onOwnerCommand(phone, typed) {
   const [cmd, ...rest] = typed.split(/\s+/);
   const name = cmd.toLowerCase();
   log.info('owner command', { cmd: name });
-  if (name === '/size-change' || name === '/size-change-request') {
-    return variantChange.onOwnerRequest(rest.join(' '), deps(), phone);
-  }
+  const fn = COMMANDS[name];
+  if (fn) return fn(phone, rest.join(' '), typed);
   return sendSessionTo(phone, 'ops_reply', {
     text: name === '/help' ? OWNER_HELP : `I do not know ${name}.\n\n${OWNER_HELP}`,
   });

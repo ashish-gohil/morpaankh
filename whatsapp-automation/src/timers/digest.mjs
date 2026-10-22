@@ -8,8 +8,24 @@ import { realClients } from '../clients/index.mjs';
 import { tpl } from '../worker/send.mjs';
 import { summarizeDigest } from '../domain/digest.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
+import { listOpen } from '../store/replace.mjs';
 import { istParts, fromISTWall, addDays, formatISTDate } from '../lib/time.mjs';
 import { log } from '../log.mjs';
+
+
+/*
+ * What a person still has to do, per state. The new parcel is left Ready to
+ * Ship on purpose (we never request a pickup for it), so "add it to a pickup"
+ * is a real daily task rather than a status.
+ */
+const NEXT_ACTION = {
+  AWAITING_CONFIRMATION: 'is waiting for your Confirm tap',
+  CONFIRMED: 'is mid booking',
+  RETURN_CREATED: 'has its pickup booked, the new parcel is not booked yet',
+  FORWARD_CREATED: 'needs the new parcel added to a pickup',
+  CUSTOMER_NOTIFIED: 'needs the new parcel added to a pickup',
+  FAILED: 'FAILED, needs /replace retry',
+};
 
 export const handler = async () => {
   const now = new Date();
@@ -32,7 +48,20 @@ export const handler = async () => {
     return at >= yStart.getTime() && at < yEnd;
   }).length;
 
-  const { line } = summarizeDigest(norm, { cartsMessaged });
+  /*
+   * Open replacements, with the human step each one is waiting on.
+   *
+   * A replacement writes nothing to Shopify by design, so no tag can reveal
+   * one and the digest is the only place a half-finished one surfaces by
+   * itself. The states that need a person are named rather than counted,
+   * because "2 open" is not a task and "add the new parcel to a pickup" is.
+   */
+  const replacements = (await listOpen(10)).map((r) => ({
+    orderName: r.orderName,
+    state: r.state,
+    nextAction: NEXT_ACTION[r.state] || `is ${r.state}`,
+  }));
+  const { line } = summarizeDigest(norm, { cartsMessaged, replacements });
 
   const deps = { clients: realClients };
   for (const phone of config.ownerAlertPhones) {
