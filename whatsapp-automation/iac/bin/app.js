@@ -25,6 +25,20 @@ new WaAutomationStack(app, 'WaAutomation', {
   // Flow R shadow mode: non-empty means only these phones are really messaged.
   cartRecoveryAllowlist: app.node.tryGetContext('cartRecoveryAllowlist') || '',
   conversionVerified: app.node.tryGetContext('conversionVerified') === true,
+  // /replace: defaults to shadow, which runs everything except the two courier
+  // writes and the customer message.
+  replaceMode: app.node.tryGetContext('replaceMode') || 'shadow',
+  replaceAdminPhones: app.node.tryGetContext('replaceAdminPhones') || '',
+  replaceTestOrders: app.node.tryGetContext('replaceTestOrders') || '',
+  replaceRequireConfirm: app.node.tryGetContext('replaceRequireConfirm') !== false,
+  replaceAllowSkipConfirm: app.node.tryGetContext('replaceAllowSkipConfirm') === true,
+  replaceNotifyCustomer: app.node.tryGetContext('replaceNotifyCustomer') !== false,
+  replaceSendLabel: app.node.tryGetContext('replaceSendLabel') !== false,
+  logisticsProvider: app.node.tryGetContext('logisticsProvider') || 'delhivery',
+  delhiveryPickupLocation: app.node.tryGetContext('delhiveryPickupLocation') || '',
+  delhiveryShippingMode: app.node.tryGetContext('delhiveryShippingMode') || 'Surface',
+  sellerGstin: app.node.tryGetContext('sellerGstin') || '',
+  replaceReturnTo: app.node.tryGetContext('replaceReturnTo') || {},
 });
 
 app.synth();

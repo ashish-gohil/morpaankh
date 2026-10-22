@@ -115,6 +115,89 @@ async function getOrderByName(name) {
   return (data.orders?.nodes || []).find((o) => String(o.name).replace(/^#/, '') === num) || null;
 }
 
+/*
+ * The consignee details a courier booking needs, read on their own.
+ *
+ * These fields are NOT in ORDER_FIELDS and must not be added to it. That
+ * fragment is on the hot path of every flow, every poll and every reconcile
+ * pass, and all of this is protected customer data: widening the shared query
+ * would put a customer's name, street address and phone into the response of
+ * every order read the service makes, including the ones that only wanted a
+ * status. This asks for it once, at the only moment it is needed.
+ *
+ * Shopify returns `null` for these fields (rather than failing) when the app
+ * has no approved protected-customer-data access, which is indistinguishable
+ * from a genuinely empty address unless you look at `userErrors`. The caller
+ * has to treat "no address1" as "stop and say what is missing", and
+ * `scopeProblem` is set when the response carries the access error so the
+ * owner is told that instead of hunting for a typo in the address.
+ */
+async function getShippingDetails(numericOrGid) {
+  const id = String(numericOrGid).startsWith('gid://') ? numericOrGid : `gid://shopify/Order/${numericOrGid}`;
+  const query = `query ShippingDetails($id: ID!){
+    order(id:$id){
+      id
+      name
+      phone
+      shippingAddress {
+        name firstName lastName
+        address1 address2
+        city province provinceCode
+        zip country countryCodeV2
+        phone
+      }
+      customer { id defaultPhoneNumber { phoneNumber } }
+      lineItems(first: 50) { nodes {
+        id
+        sku
+        quantity
+        currentQuantity
+        variant { id sku }
+      } }
+    }
+  }`;
+  let data;
+  try {
+    data = await graphql(query, { id }, { idempotent: true });
+  } catch (e) {
+    /*
+     * An app without protected-customer-data approval gets an ACCESS_DENIED
+     * style error for the whole query, not a null field, so the throw has to be
+     * caught here or the owner sees a raw GraphQL error.
+     */
+    if (/access denied|not approved|protected customer data|unauthorized/i.test(e.message || '')) {
+      return { scopeProblem: true, error: e.message, address: null, lines: [] };
+    }
+    throw e;
+  }
+  const o = data.order;
+  if (!o) return null;
+  const a = o.shippingAddress || null;
+  return {
+    scopeProblem: false,
+    orderName: o.name,
+    address: a
+      ? {
+          name: a.name || [a.firstName, a.lastName].filter(Boolean).join(' '),
+          address1: a.address1 || '',
+          address2: a.address2 || '',
+          city: a.city || '',
+          state: a.province || a.provinceCode || '',
+          pin: a.zip || '',
+          country: a.country || a.countryCodeV2 || 'India',
+          phone: a.phone || o.phone || o.customer?.defaultPhoneNumber?.phoneNumber || '',
+        }
+      : null,
+    lines: (o.lineItems?.nodes || []).map((l) => ({
+      id: l.id,
+      sku: l.sku || l.variant?.sku || '',
+      quantity: l.quantity,
+      currentQuantity: l.currentQuantity,
+      variantId: l.variant?.id || null,
+    })),
+  };
+}
+
 /** Orders updated on/after sinceISO (id + createdAt + tags). Used by digest + reconcile. */
 async function ordersUpdatedSince(sinceISO) {
   const out = [];
@@ -915,6 +998,7 @@ export const shopify = {
   getCustomerByPhone,
   getOrder,
   getOrderByName,
+  getShippingDetails,
   getProductVariants,
   getVariantsByIds,
   ordersUpdatedSince,

@@ -835,3 +835,167 @@ stamp can still be lost, but it is logged and nothing else breaks. The exposure
 is one customer who could receive a Flow A prepaid offer inside
 `marketingCapDays`; writing the stamp before the send instead would mean a
 failed send still burns the cap, which is the worse of the two.
+
+---
+
+## T. /replace: replacement shipments, courier-neutral (2026-10-22)
+
+A replacement is two parcels and no Shopify edit: a reverse pickup of what the
+customer has, and a new prepaid forward parcel of what they should have had.
+The owner types `/replace #1234 noor m xl` into the business number, gets a
+preview with Confirm and Cancel, and on Confirm we book both legs, message the
+customer and report both AWBs back.
+
+### T0. Shopify is read-only here, and that is the whole point
+
+`/replace` creates, edits, tags, notes, refunds, fulfils and re-stocks nothing.
+The money was already collected on the original order and the replacement goes
+out prepaid at our cost, so there is no Shopify-side truth to update. This is
+deliberate and it is what keeps the feature reversible: if a booking is wrong,
+the only thing to undo is a courier shipment.
+
+### T1. Why a `shadow` mode rather than a boolean flag
+
+Every `/api/p/edit` and `/api/p/update` field name already in `courier.mjs` is
+marked unverified against a live AWB (E4-E6), and Delhivery publishes no API
+reference for `cmu/create.json` at all: their own help pages document the
+dashboard only. So the payload this feature sends is, on day one, an educated
+guess at a document that books a real courier movement and prints a GST label.
+
+`REPLACE_MODE=shadow` is the state that lets the whole path run against a real
+delivered order and prove itself without that risk: parse, resolve, validate,
+serviceability, freight quote, preview, Confirm, and then instead of the two
+provider writes and the customer message, a log line and a reply to the owner
+describing exactly what would have been sent. A boolean cannot express
+"everything except the writes", and that is the state this has to sit in until
+one live test confirms the field names.
+
+Shadow is the DEFAULT. A deploy that forgets to set the variable is safe.
+
+### T2. The replacement AWBs must never enter the order AWB map
+
+`setAwbMap(awb, orderId)` writes one row per AWB, all pointing at the same
+order, all into GSI1, and `onDelhivery` routes any terminal event on ANY of
+them straight into the order's flows. Putting a replacement AWB in there would
+mean: the reverse pickup reaching RTO fires Flow C's RTO flow on the original
+order (tagging it RTO, asking the customer why they returned it, counting it
+toward their COD block), and the new parcel reaching DELIVERED fires Flow B and
+asks the same customer for a second review of an order they already reviewed.
+
+So replacement AWBs live in their own `REPLAWB#<awb>` rows, which carry no
+`activeShipment` attribute and are therefore invisible to both GSI1 and
+`getAwbMap`. The poller does not track them and `onDelhivery` cannot find them.
+The cost is that we do not learn the return was collected by webhook; `/replace
+status` asks the courier directly instead, which is the right trade for a
+command the owner runs by hand a handful of times a week.
+
+Related trap, already paid for once: `track-active.mjs` drops a terminal AWB by
+rewriting the map row from scratch, so any extra attribute added to an `AWB#`
+row is erased the moment the shipment finishes. Nothing about a replacement is
+stored on those rows for that reason.
+
+### T3. The consignee details get their own query, not a wider fragment
+
+A courier booking needs name, street, city, state, pin and phone.
+`ORDER_FIELDS` has `shippingAddress { zip city }` and nothing else, and it is
+on the hot path of every flow, every poll and every reconcile pass. Widening it
+would put a customer's full address and phone into the response of every order
+read the service makes, including the ones that only wanted a status, and all
+of it is protected customer data.
+
+`getShippingDetails(orderId)` asks for it once, at the only moment it is
+needed. Validated against the live 2026-07 schema (`countryCodeV2`, not the
+deprecated `countryCode`; `customer.defaultPhoneNumber.phoneNumber`, not the
+deprecated `customer.phone`). An app without protected-customer-data approval
+gets an access error for the whole query rather than null fields, so that case
+is caught and reported as `scopeProblem` and the owner is told it is a
+permissions problem instead of hunting for a typo in an address.
+
+### T4. HSN is deliberately empty and the first command will refuse
+
+The HSN code goes on the shipping label cum invoice, which is a GST document in
+the owner's name. Guessing a tariff code would put a wrong tax declaration on
+every replacement parcel. `RULES.replace.hsn` ships empty, missing HSN is a
+hard stop that names the key, and the go-live checklist asks for a real value.
+Apparel sits in chapter 61/62 but the exact code depends on the garment, so it
+is the owner's to set.
+
+### T5. The state machine
+
+```
+AWAITING_CONFIRMATION -> CONFIRMED -> RETURN_CREATED -> FORWARD_CREATED
+                                   -> CUSTOMER_NOTIFIED -> DONE
+terminal: REJECTED, EXPIRED, CANCELLED
+failure: FAILED { failedStep, error }   (resumable via /replace retry)
+```
+
+Persisted after every step, so re-running the handler resumes at the first
+incomplete one. Return leg first, always: it is the leg that is correct
+regardless of what happens next (the customer has the wrong item either way),
+so if the forward leg fails we keep the return, set FAILED, and tell the owner
+the pickup is already booked. The customer is messaged only once both legs
+exist, because a pickup notice with no replacement on the way is worse than
+silence.
+
+Provider references are deterministic: `RPL<order>-<seq>R` and
+`RPL<order>-<seq>F`. If the provider reports a duplicate reference, or the
+outcome is ambiguous (timeout, or 5xx after the request went out), we look the
+shipment up by reference and adopt it rather than retrying, because a blind
+retry is how one replacement becomes two parcels.
+
+Each leg is its own `runOnce` action keyed by leg and sequence, because
+`runOnce` records nothing when its function throws: that is exactly what makes
+a half-finished execution safe to resume, and it is why the whole irreversible
+call goes inside and nothing else does.
+
+One execution per order at a time, held by a conditional-write lease row. A
+second command or a second tap gets "already running" rather than a race.
+
+### T6. Interface contract (frozen before the build, so three parallel
+### workstreams could not drift)
+
+`src/domain/replace.mjs` (pure, no I/O):
+```
+parseReplaceCommand(text) -> { verb, orderName?, swaps?, flags, error? }
+normaliseSize(word)       -> canonical token or null
+resolveLine(lines, words) -> { line } | { candidates } | { none: true }
+resolveTarget({ line, swap, variants, catalog }) -> { variant } | { reason, candidates? }
+validate(input)           -> { stops: [{ kind:'hard'|'soft', code, message }], warnings }
+```
+The orchestrator owns the policy: any hard stop refuses, a soft stop refuses
+unless `force`, warnings are printed in the preview and never block.
+
+Logistics adapter (provider-neutral, picked by `LOGISTICS_PROVIDER` through a
+registry, so a new courier is one adapter file plus one registry entry and zero
+orchestrator changes):
+```
+serviceability(pin) -> { reversePickup, prepaidDelivery, oda, raw }
+quote({ fromPin, toPin, weightGrams, mode, leg }) -> { amountInr } | null
+createReverse(spec) -> { ref, awb, status }
+createForward(spec) -> { ref, awb, status }   manifested, never pickup-requested
+findByRef(ref)      -> { awb, status } | null
+label(awb)          -> { url } | null
+cancel(awb) / track(awbs)
+capabilities        -> { quote, label, findByRef }
+```
+`spec` carries no COD field at all. A replacement is prepaid by construction,
+and a field that cannot be set correctly is better absent than defaulted.
+
+Records: `REPL#<orderId>` / `REQ#<seq>`, a `LOCK` row, a `REPLOPEN` pointer row
+per open request so `list` is one scan, and `REPLAWB#<awb>`. TTL 400 days on all
+of them, outliving `stateRetentionDays` on purpose: a return that never reaches
+the warehouse becomes a dispute months later and this row is the only record of
+what was promised.
+
+### T7. The confirm tap is routed before the per-order ownership gate
+
+`ownsOrder` compares the tapping phone to the order's stored verified phone, so
+an admin tapping Confirm on a customer's order would be refused by it. The `P`
+flow letter (no other flow uses it) is dispatched ahead of that gate and
+re-checks admission itself, strictly: the tapping phone must be an admin, the
+nonce must match the one stored on the request, and the request must still be
+AWAITING_CONFIRMATION and unexpired. Every other tap keeps the existing gate
+untouched. An admin who once sent STOP can still run commands, because the
+opt-out check in front of the command gate is about marketing to customers, not
+about us talking to ourselves.
+

@@ -8,6 +8,8 @@ export function makeFakeShopify({
   discountUsage = {},
   failPublicCodes = null,
   takenCodes = [],
+  shipping = {},
+  shippingScopeProblem = false,
 } = {}) {
   const store = new Map(Object.entries(orders));
   const carts = new Map(Object.entries(checkouts));
@@ -29,6 +31,38 @@ export function makeFakeShopify({
     async getOrderByName(name) {
       const want = `#${String(name || '').trim().replace(/^#/, '')}`;
       return [...store.values()].find((o) => o.name === want) || null;
+    },
+    /*
+     * Seed with makeFakeClients({ shopify: { shipping: { '12345': { address: {...}, lines: [...] } } } }).
+     * With no seed it answers from the order's own shippingAddress, which only
+     * carries zip and city, so the default case is the one /replace must refuse:
+     * an address too thin to book a courier with.
+     */
+    async getShippingDetails(idOrGid) {
+      calls.push({ op: 'getShippingDetails', idOrGid });
+      if (shippingScopeProblem) {
+        return { scopeProblem: true, error: 'Access denied for shippingAddress field', address: null, lines: [] };
+      }
+      const num = String(idOrGid).split('/').pop();
+      const seeded = shipping[num] || shipping[String(idOrGid)];
+      if (seeded) return { scopeProblem: false, orderName: seeded.orderName || null, ...seeded };
+      const o = store.get(gidOf(idOrGid)) || store.get(String(idOrGid));
+      if (!o) return null;
+      const a = o.shippingAddress || null;
+      return {
+        scopeProblem: false,
+        orderName: o.name,
+        address: a
+          ? { name: '', address1: '', address2: '', city: a.city || '', state: '', pin: a.zip || '', country: 'India', phone: '' }
+          : null,
+        lines: (o.lineItems?.nodes || []).map((l) => ({
+          id: l.id,
+          sku: l.sku || l.variant?.sku || '',
+          quantity: l.quantity,
+          currentQuantity: l.currentQuantity ?? l.quantity,
+          variantId: l.variant?.id || null,
+        })),
+      };
     },
     async tagsAdd(orderGid, tags) {
       calls.push({ op: 'tagsAdd', orderGid, tags });

@@ -230,6 +230,76 @@ export const RULES = {
     giftTag: 'gift-in-parcel',
   },
 
+  /*
+   * Replacement shipments (/replace).
+   *
+   * A replacement is two parcels: a reverse pickup of what the customer has,
+   * and a new prepaid forward parcel for what they should have had. Nothing
+   * here charges anyone. `pays` is recorded so the owner can settle freight by
+   * hand, because we have no way to collect it on a reverse leg.
+   */
+  replace: {
+    // How long after delivery a replacement is still routine. Past this the
+    // command still works, it just wants `force` first.
+    windowDays: 7,
+    // A preview goes stale because stock, serviceability and freight all move.
+    confirmMinutes: 15,
+    maxSwapsPerCommand: 5,
+    /*
+     * An e-waybill is a separate compliance document this service does not
+     * generate, so a parcel at or above this declared value has to be booked by
+     * hand. The threshold is the statutory one for intra-state movement.
+     */
+    ewaybillThresholdInr: 50000,
+    /*
+     * Replacement records outlive stateRetentionDays (180) on purpose: a return
+     * that never reaches the warehouse becomes a dispute months later, and the
+     * only record of what was promised is this row.
+     */
+    recordTtlDays: 400,
+    /*
+     * What the owner typed -> the canonical size token. The product's own Size
+     * option values stay the only authority on what exists; this just means
+     * "m", "M" and "medium" all reach the same lookup.
+     */
+    sizeAliases: {
+      xs: 'XS',
+      s: 'S',
+      small: 'S',
+      m: 'M',
+      medium: 'M',
+      l: 'L',
+      large: 'L',
+      xl: 'XL',
+      xxl: 'XXL',
+      '2xl': 'XXL',
+      xxxl: 'XXXL',
+      '3xl': 'XXXL',
+      '4xl': '4XL',
+      '5xl': '5XL',
+      free: 'Free Size',
+      fs: 'Free Size',
+      'free size': 'Free Size',
+    },
+    /*
+     * Delhivery wants a weight and a box on every shipment. This is the
+     * studio's usual poly bag for one kurta set. Override by product handle
+     * when something is genuinely heavier or bulkier.
+     */
+    parcel: { weightGrams: 500, lengthCm: 30, breadthCm: 25, heightCm: 5 },
+    parcelByHandle: {},
+    /*
+     * DELIBERATELY EMPTY. The HSN code on the shipping label is a tax
+     * declaration, and guessing one would put a wrong figure on a GST document
+     * in the owner's name. Missing HSN is a hard stop that names this key, so
+     * the first /replace refuses until a real code is filled in here (or per
+     * handle below). Apparel sits in chapter 61/62 but the exact code depends
+     * on the garment, so it is the owner's to set, not ours to assume.
+     */
+    hsn: '',
+    hsnByHandle: {},
+  },
+
   // misc
   refundEtaText: '5 to 7 working days',
   stateRetentionDays: 180,

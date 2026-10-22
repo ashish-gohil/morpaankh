@@ -23,12 +23,39 @@ const RULES_TAGS = [
   ['cartsRecovered', 'wa-cart-recovered'],
 ];
 
+
+/*
+ * The open replacements, named, with what a human has to do next.
+ *
+ * Named rather than counted: "2 replacements open" tells the owner a number
+ * they cannot act on, while "#1234 add the new parcel to a pickup" is the
+ * actual task. Capped at three because this goes into one template parameter
+ * alongside everything else, and a digest nobody finishes reading is a digest
+ * that stops being read.
+ */
+function openReplacementsLine(replacements) {
+  const open = (replacements || []).filter((r) => r && r.orderName);
+  if (!open.length) return '';
+  const shown = open.slice(0, 3).map((r) => `${r.orderName} ${r.nextAction || r.state || 'open'}`);
+  const rest = open.length - shown.length;
+  return `. Replacements open: ${shown.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}`;
+}
+
 /**
  * @param {{tags:string[]}[]} orders  orders updated in the window
  * @param {{cartsMessaged?: number}} [extra]
  *   Counts that cannot be derived from a tag. "carts messaged" is one of them:
  *   an abandoned checkout has no order to tag, so it is counted off the Flow R
  *   records instead. "recovered" IS a tag, so it still comes from Shopify.
+ *
+ *   `replacements` is the same kind of thing and for a sharper reason: a
+ *   replacement writes NOTHING to Shopify at all, by design, so there is no tag
+ *   anywhere that could reveal one. An open replacement is a parcel the courier
+ *   is holding and a customer who has been promised something, and the only
+ *   place it exists is the REPL# rows. Left out of the digest it would be the
+ *   one part of this service with no daily visibility, which is exactly how the
+ *   half-finished ones get forgotten. Each entry is
+ *   `{ orderName, state, nextAction }`.
  */
 export function summarizeDigest(orders, extra = {}) {
   const counts = {};
@@ -42,5 +69,5 @@ export function summarizeDigest(orders, extra = {}) {
     `${counts.reviewed} reviews, ${counts.ndr} NDR, ${counts.rto} RTO, ${counts.noPhone} no-verified-phone, ` +
     `${counts.undelivered} NOT reached, ` +
     `${extra.cartsMessaged || 0} carts messaged, ${counts.cartsRecovered} recovered`;
-  return { counts, line };
+  return { counts, line: line + openReplacementsLine(extra.replacements) };
 }

@@ -106,6 +106,42 @@ class WaAutomationStack extends cdk.Stack {
       REVIEW_VIA: props.reviewVia === 'link' ? 'link' : 'flow',
       VARIANT_CHANGE_ENABLED: String(Boolean(props.variantChangeEnabled)),
       /*
+       * /replace (replacement shipments). SHADOW unless the context says
+       * otherwise, and shadow is the mode where everything runs except the two
+       * courier writes and the customer message. Carried here rather than only
+       * flipped on the Lambda for the same reason as REVIEW_VIA: a later deploy
+       * would otherwise quietly put a live feature back to a default, and in
+       * this case the default is the safe one but the live value would be lost
+       * silently, which is just as bad in the other direction.
+       *
+       * The Delhivery payload this sends is unverified against a real AWB (no
+       * public API reference exists for cmu/create.json), so 'live' should be
+       * set only after one cancelled test booking. See DECISIONS T1.
+       */
+      REPLACE_MODE: ['off', 'shadow', 'live'].includes(props.replaceMode) ? props.replaceMode : 'shadow',
+      // Empty means "the owner alert phones", so there is one list to maintain.
+      REPLACE_ADMIN_PHONES: props.replaceAdminPhones || '',
+      // NON-EMPTY means live mode acts only on these order numbers: the safe
+      // way to take the first real booking against one order of your own.
+      REPLACE_TEST_ORDERS: props.replaceTestOrders || '',
+      REPLACE_REQUIRE_CONFIRM: props.replaceRequireConfirm === false ? 'false' : 'true',
+      REPLACE_ALLOW_SKIP_CONFIRM: props.replaceAllowSkipConfirm === true ? 'true' : 'false',
+      REPLACE_NOTIFY_CUSTOMER: props.replaceNotifyCustomer === false ? 'false' : 'true',
+      REPLACE_SEND_LABEL: props.replaceSendLabel === false ? 'false' : 'true',
+      LOGISTICS_PROVIDER: props.logisticsProvider || 'delhivery',
+      // Must match the warehouse registered with Delhivery EXACTLY, case
+      // included: Delhivery matches it as a string, and a near miss is rejected
+      // at create time with a remark rather than silently.
+      DELHIVERY_PICKUP_LOCATION: props.delhiveryPickupLocation || '',
+      DELHIVERY_SHIPPING_MODE: props.delhiveryShippingMode || 'Surface',
+      SELLER_GSTIN: props.sellerGstin || '',
+      REPLACE_RETURN_TO_NAME: props.replaceReturnTo?.name || '',
+      REPLACE_RETURN_TO_ADDRESS1: props.replaceReturnTo?.address1 || '',
+      REPLACE_RETURN_TO_CITY: props.replaceReturnTo?.city || '',
+      REPLACE_RETURN_TO_STATE: props.replaceReturnTo?.state || '',
+      REPLACE_RETURN_TO_PIN: props.replaceReturnTo?.pin || '',
+      REPLACE_RETURN_TO_PHONE: props.replaceReturnTo?.phone || '',
+      /*
        * Flow R shadow mode. NON-EMPTY means only these phones are really
        * messaged and every other eligible checkout is logged instead. Set to
        * the owner's own number for the live test, then emptied to go live.

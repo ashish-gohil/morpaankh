@@ -99,6 +99,58 @@ export const config = {
   // DEFAULT OFF. With it off, onCancel sends the old cancel_check and every
   // vc* tap is swallowed, so behaviour is byte for byte what it was.
   variantChangeEnabled: bool(process.env.VARIANT_CHANGE_ENABLED, false),
+
+  /*
+   * Replacement shipments (/replace).
+   *
+   * replaceMode is the one that matters:
+   *   off    - the command answers "switched off" and does nothing.
+   *   shadow - DEFAULT. Everything runs for real (parse, resolve, validate,
+   *            serviceability, freight quote, preview, Confirm) except the two
+   *            provider writes and the customer message, which are logged and
+   *            described back to the owner instead. The point is that a shadow
+   *            run proves the whole path on a real delivered order without
+   *            booking a courier or messaging a customer.
+   *   live   - the writes actually happen.
+   * It is a mode rather than a boolean because "everything but the write" is
+   * the state this feature needs to sit in until the Delhivery payload has been
+   * verified against a real AWB, and a boolean cannot say that.
+   */
+  replaceMode: (process.env.REPLACE_MODE || 'shadow').toLowerCase(),
+  // Who may run /replace. Empty means "the owner alert phones", so there is one
+  // list to maintain until a second person genuinely needs the command.
+  replaceAdminPhones: list(process.env.REPLACE_ADMIN_PHONES),
+  // When set, live mode acts ONLY on these order numbers. The safe way to take
+  // the first real booking: one test order of your own, nothing else reachable.
+  replaceTestOrders: list(process.env.REPLACE_TEST_ORDERS),
+  replaceRequireConfirm: bool(process.env.REPLACE_REQUIRE_CONFIRM, true),
+  // `!` on the end of a command skips the preview. Off unless this is on.
+  replaceAllowSkipConfirm: bool(process.env.REPLACE_ALLOW_SKIP_CONFIRM, false),
+  replaceNotifyCustomer: bool(process.env.REPLACE_NOTIFY_CUSTOMER, true),
+  replaceSendLabel: bool(process.env.REPLACE_SEND_LABEL, true),
+
+  // Courier for /replace. One adapter per provider, picked here, so a new
+  // courier is an adapter file plus this value and no orchestrator change.
+  logisticsProvider: (process.env.LOGISTICS_PROVIDER || 'delhivery').toLowerCase(),
+  // Must match the warehouse name registered with Delhivery EXACTLY, case
+  // included: it is the pickup address on the forward leg and the destination
+  // on the reverse leg, and Delhivery matches it as a string.
+  delhiveryPickupLocation: process.env.DELHIVERY_PICKUP_LOCATION || '',
+  delhiveryShippingMode: process.env.DELHIVERY_SHIPPING_MODE || 'Surface',
+  sellerGstin: process.env.SELLER_GSTIN || '',
+  /*
+   * Where a reverse pickup is delivered back to, when that is not the pickup
+   * warehouse. All five are needed together or none are used, and `name` being
+   * empty is what means "send the return to the pickup warehouse".
+   */
+  replaceReturnTo: {
+    name: process.env.REPLACE_RETURN_TO_NAME || '',
+    address1: process.env.REPLACE_RETURN_TO_ADDRESS1 || '',
+    city: process.env.REPLACE_RETURN_TO_CITY || '',
+    state: process.env.REPLACE_RETURN_TO_STATE || '',
+    pin: process.env.REPLACE_RETURN_TO_PIN || '',
+    phone: process.env.REPLACE_RETURN_TO_PHONE || '',
+  },
 };
 
 /** Redact a secret for safe logging: keep an 8-char prefix, mask the rest. */
