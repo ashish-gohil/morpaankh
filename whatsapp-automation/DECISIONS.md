@@ -921,14 +921,35 @@ gets an access error for the whole query rather than null fields, so that case
 is caught and reported as `scopeProblem` and the owner is told it is a
 permissions problem instead of hunting for a typo in an address.
 
-### T4. HSN is deliberately empty and the first command will refuse
+### T4. Only the warehouse name blocks. GSTIN and HSN warn
 
-The HSN code goes on the shipping label cum invoice, which is a GST document in
-the owner's name. Guessing a tariff code would put a wrong tax declaration on
-every replacement parcel. `RULES.replace.hsn` ships empty, missing HSN is a
-hard stop that names the key, and the go-live checklist asks for a real value.
-Apparel sits in chapter 61/62 but the exact code depends on the garment, so it
-is the owner's to set.
+Corrected 2026-10-22, after the owner asked the obvious question: these details
+are already on the Delhivery account, so why ask again?
+
+They were right about two of the three. The seller's GST registration sits on
+the account the API token belongs to, and `seller_gst_tin` in the payload only
+echoes it onto the label, so an empty one does not stop a label printing. HSN is
+per garment, which the account cannot know, but it is optional on a B2C label.
+Making either a hard stop meant the owner had to re-enter what Delhivery already
+held before the feature would run at all. Both are warnings now, printed in the
+preview, and the owner decides.
+
+The warehouse name stays a hard stop for a narrower reason: `pickup_location
+.name` is a PER SHIPMENT field, one account can hold several registered pickup
+locations, and the API offers no way to list them (every `clientwarehouse` path
+answers 404, verified against the live account). Nothing but a human can tell us
+which one, and an empty value fails after the request with "ClientWarehouse
+matching query does not exist".
+
+What has not changed: neither value is ever guessed. A made up HSN would be a
+wrong tax declaration on a GST document in the owner's name, so
+`RULES.replace.hsn` still ships empty and stays empty until the owner fills it.
+
+Also verified against the live account the same day: the token in Secrets
+Manager works (pin 302017 answers `pickup: Y`, `pre_paid: Y`, `is_oda: N`, so
+both legs are serviceable), and the STAGING host rejects that token with a 401.
+There is therefore no rehearsal environment: the one live test order on the
+go-live checklist is the only way the create payload can be verified.
 
 ### T5. The state machine
 

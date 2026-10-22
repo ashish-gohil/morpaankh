@@ -772,17 +772,42 @@ export function validate(input) {
   }
 
   /*
-   * The label is a GST document in the owner's name. A guessed HSN code is a
-   * wrong tax declaration on every parcel, so the key is named and the command
-   * refuses until a real value is filled in.
+   * Only the warehouse name is a hard stop, and the reason is narrow: it is a
+   * PER SHIPMENT field (`pickup_location.name`), one Delhivery account can hold
+   * several registered pickup locations, and the API offers no way to list them
+   * (every clientwarehouse path answers 404), so nothing but a human can tell
+   * us which one. An empty value fails after the request with "ClientWarehouse
+   * matching query does not exist", so refusing before sending is cheaper.
+   *
+   * GSTIN and HSN used to be hard stops too, and that was wrong. The seller's
+   * GST registration already sits on the Delhivery account the token belongs
+   * to; `seller_gst_tin` on the payload only echoes it onto the label, so an
+   * empty one does not stop a label printing. HSN is per garment and the
+   * account cannot know it, but it is optional on a B2C label. Blocking on
+   * either meant the owner had to re-enter details they had already given
+   * Delhivery before the feature would run at all. They are warnings now: the
+   * preview says the label will go out without them, and the owner decides.
+   *
+   * What has NOT changed is that neither value is ever guessed. A made-up HSN
+   * would be a wrong tax declaration on a GST document in the owner's name.
    */
-  const cfg = [
-    ['pickupLocation', 'config-missing-pickup-location', 'DELHIVERY_PICKUP_LOCATION, the warehouse name registered with the courier'],
-    ['gstin', 'config-missing-gstin', 'SELLER_GSTIN'],
-    ['hsn', 'config-missing-hsn', 'RULES.replace.hsn, the HSN code for the garment'],
-  ];
-  for (const [key, code, label] of cfg) {
-    if (!present(configPresent?.[key])) hard(code, `${label} is not set, and the shipping label cannot be printed without it. Fill it in and run the command again.`);
+  if (!present(configPresent?.pickupLocation)) {
+    hard(
+      'config-missing-pickup-location',
+      'DELHIVERY_PICKUP_LOCATION is not set, and the courier matches it as a plain string against your registered warehouses, so it has to be the exact name. Fill it in and run the command again.',
+    );
+  }
+  if (!present(configPresent?.gstin)) {
+    warn(
+      'config-missing-gstin',
+      'SELLER_GSTIN is not set, so the label will carry whatever GST number your Delhivery account holds rather than one we send.',
+    );
+  }
+  if (!present(configPresent?.hsn)) {
+    warn(
+      'config-missing-hsn',
+      'No HSN code is set for this garment, so the label will print without one.',
+    );
   }
 
   if (!courierAwb) soft('awb-missing', 'This order has no waybill, so I cannot check with the courier that it ever reached the customer.');

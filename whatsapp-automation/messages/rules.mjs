@@ -289,12 +289,18 @@ export const RULES = {
     parcel: { weightGrams: 500, lengthCm: 30, breadthCm: 25, heightCm: 5 },
     parcelByHandle: {},
     /*
-     * DELIBERATELY EMPTY. The HSN code on the shipping label is a tax
-     * declaration, and guessing one would put a wrong figure on a GST document
-     * in the owner's name. Missing HSN is a hard stop that names this key, so
-     * the first /replace refuses until a real code is filled in here (or per
-     * handle below). Apparel sits in chapter 61/62 but the exact code depends
-     * on the garment, so it is the owner's to set, not ours to assume.
+     * DELIBERATELY EMPTY, and a WARNING rather than a refusal.
+     *
+     * The HSN code on the shipping label is a tax declaration, so guessing one
+     * would put a wrong figure on a GST document in the owner's name. It stays
+     * empty for that reason and nothing fills it in automatically.
+     *
+     * It does not block, though. The owner's GST details already sit on the
+     * Delhivery account the token belongs to, and HSN is optional on a B2C
+     * label, so refusing here only made them re-enter what the courier already
+     * had. The preview says the label will print without one. Apparel sits in
+     * chapter 61/62 but the exact code depends on the garment, so it is the
+     * owner's to set when they want it on the label.
      */
     hsn: '',
     hsnByHandle: {},

@@ -707,22 +707,32 @@ describe('validate', () => {
      * The HSN code goes on a GST document in the owner's name, so the stop
      * names the key and the first command refuses until a real value is set.
      */
-    it('config that is missing, with a stop that names the key', () => {
+    /*
+     * Only the warehouse name blocks. It is a per-shipment field, one account
+     * can hold several registered pickup locations, and the courier exposes no
+     * way to list them, so nothing but a human can say which one. GSTIN and
+     * HSN already live on the courier account the token belongs to, so blocking
+     * on them made the owner re-enter details Delhivery already had.
+     */
+    it('a missing warehouse name is the only config that refuses', () => {
       const full = { pickupLocation: 'Morpaankh Studio', gstin: '24ABCDE1234F1Z5', hsn: '6204' };
-      const cases = {
-        pickupLocation: 'config-missing-pickup-location',
-        gstin: 'config-missing-gstin',
-        hsn: 'config-missing-hsn',
-      };
-      for (const [key, code] of Object.entries(cases)) {
-        expect(hardCodes(validate(vin({ configPresent: { ...full, [key]: '' } }))), key).toContain(code);
-        expect(hardCodes(validate(vin({ configPresent: { ...full, [key]: false } }))), key).toContain(code);
+      for (const empty of ['', false]) {
+        expect(hardCodes(validate(vin({ configPresent: { ...full, pickupLocation: empty } })))).toContain(
+          'config-missing-pickup-location',
+        );
       }
-      expect(hardCodes(validate(vin({ configPresent: {} })))).toEqual(Object.values(cases));
-      // RULES ships hsn empty on purpose, so the live default refuses.
-      expect(RULES.replace.hsn).toBe('');
+      expect(hardCodes(validate(vin({ configPresent: {} })))).toEqual(['config-missing-pickup-location']);
       // Presence may be passed as a flag rather than a value.
       expect(hardCodes(validate(vin({ configPresent: { pickupLocation: true, gstin: true, hsn: true } })))).toEqual([]);
+    });
+
+    it('a missing GSTIN or HSN warns in the preview instead, and never guesses one', () => {
+      const codes = warnCodes(validate(vin({ configPresent: { pickupLocation: 'Morpaankh Studio' } })));
+      expect(codes).toContain('config-missing-gstin');
+      expect(codes).toContain('config-missing-hsn');
+      // RULES still ships hsn empty: an invented tariff code would be a wrong
+      // tax declaration on a GST document in the owner's name.
+      expect(RULES.replace.hsn).toBe('');
     });
   });
 

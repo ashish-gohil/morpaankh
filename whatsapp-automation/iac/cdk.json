@@ -30,10 +30,14 @@
         "enabled": true,
         "startAt": "2026-09-22T18:16:41Z"
       },
-      "R": { "enabled": true, "startAt": "2026-10-13T14:58:03Z" }
+      "R": {
+        "enabled": true,
+        "startAt": "2026-10-13T14:58:03Z"
+      }
     },
     "conversionVerified": true,
     "variantChangeEnabled": true,
-    "cartRecoveryAllowlist": ""
+    "cartRecoveryAllowlist": "",
+    "delhiveryPickupLocation": "Dangigev society"
   }
 }

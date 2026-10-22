@@ -227,11 +227,22 @@ describe('the preview', () => {
     expect(await req()).toBe(null);
   });
 
-  it('refuses while the HSN code is unset, and names the key', async () => {
+  it('still previews with no HSN set, saying the label goes out without one', async () => {
     RULES.replace.hsn = '';
     const { clients, deps } = await setup();
     await run(deps);
-    expect(said(clients, ADMIN)).toMatch(/RULES\.replace\.hsn/);
+    // A warning, not a refusal: the owner's Delhivery account already holds
+    // their GST details, so blocking here made them re-enter what the courier
+    // had. The preview still arrives with its Confirm button.
+    expect(said(clients, ADMIN)).toMatch(/without one/i);
+    expect(lastTo(clients, ADMIN).buttons?.length).toBeGreaterThan(0);
+  });
+
+  it('refuses while the warehouse name is unset, because only a human knows which one', async () => {
+    config.delhiveryPickupLocation = '';
+    const { clients, deps } = await setup();
+    await run(deps);
+    expect(said(clients, ADMIN)).toMatch(/DELHIVERY_PICKUP_LOCATION/);
     expect(bookings(clients)).toEqual([]);
   });
 

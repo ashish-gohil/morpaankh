@@ -163,11 +163,16 @@ payload has been proven once against a real AWB.
 Every refusal names its own reason and the next command. The ones that catch
 people out:
 
-- **"HSN is not set"** and **"GSTIN is not set"** and **"pickup location is not
-  set"**: these three are required config and ship empty on purpose. HSN goes on
-  the shipping label cum invoice, which is a GST document in your name, so it
-  was never going to be guessed for you. Set them in `cdk.json` context and
-  deploy.
+- **"DELHIVERY_PICKUP_LOCATION is not set"**: the only config that refuses. It
+  is a per-shipment field, one Delhivery account can hold several registered
+  pickup locations, and the API exposes no way to list them, so only you can say
+  which one. Set it in `cdk.json` context and deploy.
+- **GSTIN and HSN are warnings, not refusals.** Your GST registration already
+  sits on the Delhivery account this token belongs to, and HSN is optional on a
+  B2C label, so the parcel books either way and the preview tells you the label
+  will go out without them. Set `sellerGstin` in `cdk.json` or
+  `RULES.replace.hsn` when you want them printed. Neither is ever guessed: a
+  made up HSN is a wrong tax declaration on a document in your name.
 - **"the warehouse name does not match"**: `DELHIVERY_PICKUP_LOCATION` must equal
   the registered warehouse EXACTLY, case included. Delhivery matches it as a
   string.
