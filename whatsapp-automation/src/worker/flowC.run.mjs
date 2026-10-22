@@ -48,7 +48,7 @@ export async function onNdr(orderId, deps) {
   if (await isOptedOut(n.verifiedPhone)) return;
   // Send only inside the NDR window; otherwise defer to the next window start.
   if (!withinWindow(now, RULES.ndrSendWindow)) {
-    return scheduleTimer({ flow: 'C', orderId, step: 'ndr', at: nextWindowTime(now, RULES.ndrSendWindow) });
+    return scheduleTimer({ flow: 'C', orderId, step: 'ndr', at: nextWindowTime(now, RULES.ndrSendWindow), now });
   }
   const st = await getState(orderId);
   if (st?.flowC?.ndrAskedAt) return; // a retry after the send succeeded
@@ -133,7 +133,7 @@ export async function onRto(orderId, deps) {
     return { tagged: true };
   });
   await flowA.onStop(orderId, deps); // stop Flow A, cancel links + timers
-  await scheduleTimer({ flow: 'C', orderId, step: 'rto_reason', at: nextWindowTime(now, RULES.reviewSendWindow) });
+  await scheduleTimer({ flow: 'C', orderId, step: 'rto_reason', at: nextWindowTime(now, RULES.reviewSendWindow), now });
   await patchFlowC(orderId, { rto: true });
 }
 

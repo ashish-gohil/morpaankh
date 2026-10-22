@@ -389,6 +389,7 @@ export async function onFirst(checkoutId, deps) {
       step: 'final',
       at: new Date(rec.reminderAt),
       groupId: group(phone),
+      now,
     }), { checkoutId });
   return { sent: true, code: made.code };
 }
@@ -614,6 +615,7 @@ export async function onWindowOpen(phone, deps) {
         step: 'final',
         at: new Date(rec.reminderAt),
         groupId: group(phone),
+        now,
       }), { checkoutId });
   }
   log.info('cart: delivered a parked checkout through an open service window', { checkoutId });

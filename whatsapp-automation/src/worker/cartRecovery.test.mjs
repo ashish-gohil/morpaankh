@@ -437,16 +437,17 @@ describe('the reminder', () => {
     const rec = await getRec(CHECKOUT_ID);
     const timer = _peekTimers().find((t) => t.name === `R-${CHECKOUT_ID}-final`);
     /*
-     * scheduleTimer FLOORS anything already past at real-now + 60s, on purpose:
-     * a timer armed for a moment that has gone would never fire at all. The
-     * fixture's reminderAt is a fixed October minute, so once the wall clock
-     * passes it the floor applies and the literal minute stops matching. This
-     * asserts the rule instead, which is what production depends on, and used
-     * to be a test that only passed before 10:00 IST.
+     * scheduleTimer FLOORS anything already past at the caller's clock + 60s,
+     * on purpose: a timer armed for a moment that has gone would never fire at
+     * all. That floor used to read the WALL clock, which made this assertion
+     * depend on the hour the suite ran (it only passed before 10:00 IST, and
+     * the earlier workaround here was to assert the rule rather than the
+     * minute). Now that the floor measures against `deps.now`, this fixture's
+     * reminderAt is comfortably ahead of NOW and the exact minute is stable.
      */
     const stored = Date.parse(rec.reminderAt);
-    const floored = stored <= Date.now() + 60 * 1000;
-    if (floored) expect(timer.at.getTime()).toBeGreaterThan(Date.now());
+    const floored = stored <= NOW.getTime() + 60 * 1000;
+    if (floored) expect(timer.at.getTime()).toBeGreaterThan(NOW.getTime());
     else expect(timer.at.toISOString()).toBe(rec.reminderAt);
     expect(timer.groupId).toBe(`phone:${PHONE}`);
   });

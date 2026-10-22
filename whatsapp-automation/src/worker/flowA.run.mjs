@@ -89,7 +89,7 @@ export async function onOrderCreate(orderId, deps) {
   await ensureState(orderId, {});
   // First confirmation is a direct response to the order and may go any time,
   // so the +3min timer is NOT quiet-hour deferred.
-  await scheduleTimer({ flow: 'A', orderId, step: 'cod', at: addMinutes(now, RULES.codFirstMessageDelayMin) });
+  await scheduleTimer({ flow: 'A', orderId, step: 'cod', at: addMinutes(now, RULES.codFirstMessageDelayMin), now });
 }
 
 /*
@@ -198,14 +198,14 @@ export async function onCodTimer(orderId, deps) {
   await soft('recordMessage', () => recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: res.templateName }), { orderId });
   await soft('tagsAdd:wa-cod-sent', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']), { orderId });
 
-  await armTimer(orderId, 'reminder', deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours));
+  await armTimer(orderId, 'reminder', deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours), now);
   // Not armed when the offer is off, so we do not create a schedule per order
   // for a message that will return immediately. onFallback re-checks the flag
   // anyway, which is what makes the timers already out there harmless.
   if (RULES.prepaidOfferEnabled) {
-    await armTimer(orderId, 'fallback', deferPastQuietHours(addMinutes(now, RULES.codMarketingFallbackAfterMin), RULES.quietHours));
+    await armTimer(orderId, 'fallback', deferPastQuietHours(addMinutes(now, RULES.codMarketingFallbackAfterMin), RULES.quietHours), now);
   }
-  await armTimer(orderId, 'highrisk', deferPastQuietHours(addHours(now, RULES.highRiskCheckAfterHours), RULES.quietHours));
+  await armTimer(orderId, 'highrisk', deferPastQuietHours(addHours(now, RULES.highRiskCheckAfterHours), RULES.quietHours), now);
 }
 
 /**
@@ -217,9 +217,9 @@ export async function onCodTimer(orderId, deps) {
  * would only send it again. A total failure is logged at error level, so it
  * reaches the owner's inbox rather than disappearing.
  */
-async function armTimer(orderId, step, at) {
+async function armTimer(orderId, step, at, now) {
   return soft(`scheduleTimer:${step}`, () =>
-    withRetry(`scheduleTimer:${step}`, () => scheduleTimer({ flow: 'A', orderId, step, at }), { idempotent: true }),
+    withRetry(`scheduleTimer:${step}`, () => scheduleTimer({ flow: 'A', orderId, step, at, now }), { idempotent: true }),
     { orderId, step },
   );
 }
@@ -243,7 +243,7 @@ async function deferConfirm(orderId, st, now, err) {
   }
   await patchFlowA(orderId, { confirmDeferred: tries });
   log.info('flowA confirm: template not approved yet, trying again later', { orderId, tries, waCode: err.waCode });
-  await armTimer(orderId, 'cod', addHours(now, CONFIRM_DEFER_HOURS));
+  await armTimer(orderId, 'cod', addHours(now, CONFIRM_DEFER_HOURS), now);
 }
 
 // ---- taps -------------------------------------------------------------------

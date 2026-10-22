@@ -110,7 +110,7 @@ export async function onDelivered(orderId, deliveredAt, deps) {
   if (st?.flowB?.scheduled && !st?.flowB?.assumedDelivery) return;
 
   const at = reviewSlot(new Date(deliveredAt || now), RULES.reviewAskAfterDeliveryDays, now);
-  await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at });
+  await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at, now });
   await patchFlowB(orderId, {
     scheduled: true,
     assumedDelivery: false,
@@ -140,7 +140,7 @@ export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed || st?.flowB?.scheduled) return;
 
   const at = reviewSlot(addDays(new Date(fulfilledAt || now), RULES.untrackedDeliveryAssumeDays), RULES.reviewAskAfterDeliveryDays, now);
-  await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at });
+  await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at, now });
   await patchFlowB(orderId, { scheduled: true, assumedDelivery: true });
 }
 
@@ -192,7 +192,7 @@ export async function onReviewTimer(orderId, deps) {
   // One ask, not two. See RULES.reviewReminderEnabled.
   if (!RULES.reviewReminderEnabled) return;
   await soft('scheduleTimer:review_reminder', () =>
-    scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: reviewSlot(now, RULES.reviewReminderAfterDays, now) }),
+    scheduleTimer({ flow: 'B', orderId, step: 'review_reminder', at: reviewSlot(now, RULES.reviewReminderAfterDays, now), now }),
     { orderId },
   );
 }

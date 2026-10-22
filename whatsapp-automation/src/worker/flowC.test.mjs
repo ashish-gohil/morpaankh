@@ -82,12 +82,12 @@ describe('Flow C: NDR', () => {
     const { clients, deps } = setup();
     await C.onNdrAddressStart('12345', deps);
     expect(sentText(clients.whatsapp, /full address in one message/)).toBe(true);
-    expect((await getAwaiting(PHONE)).type).toBe('address');
+    expect((await getAwaiting(PHONE, NOW)).type).toBe('address');
 
     await C.onAddressText('12345', 'New flat 5, MG Road, Jaipur 302001', deps);
     expect(courierCalls(clients.courier).some((c) => c.op === 'ndrAction' && c.action === 'EDIT_DETAILS')).toBe(true);
     expect(tagsAdded(clients.shopify)).toContain('wa-ndr-address');
-    expect(await getAwaiting(PHONE)).toBeNull();
+    expect(await getAwaiting(PHONE, NOW)).toBeNull();
   });
 
   it('different pincode -> pincode_changed + alert, no courier edit', async () => {
@@ -136,7 +136,7 @@ describe('Flow C: RTO', () => {
   it('reason other -> asks for text and awaits it', async () => {
     const { deps } = setup();
     await C.onRtoReason('12345', 'other', deps);
-    expect((await getAwaiting(PHONE)).type).toBe('rto_other');
+    expect((await getAwaiting(PHONE, NOW)).type).toBe('rto_other');
   });
 });
 

@@ -215,14 +215,14 @@ describe('POSITIVE: the whole way through', () => {
     // the reminder is armed for the stored time, on the same per-phone group
     const armed = _peekTimers().find((t) => t.name === `R-${ID}-final`);
     /*
-     * The stored minute when it is still ahead of the wall clock, and the
-     * real-now + 60s floor when it is not. scheduleTimer refuses to arm a
-     * timer in the past, and the fixture's reminderAt is a fixed October
-     * minute, so asserting the literal value made this pass only in the
-     * morning.
+     * The stored minute when it is still ahead of the caller's clock, and the
+     * clock + 60s floor when it is not. scheduleTimer refuses to arm a timer in
+     * the past, and that floor used to read the WALL clock, which made
+     * asserting the literal value pass only in the morning. It measures against
+     * `deps.now` now, so the fixture's reminderAt is always the stored minute.
      */
     const stored = Date.parse(rec.reminderAt);
-    if (stored <= Date.now() + 60 * 1000) expect(new Date(armed.at).getTime()).toBeGreaterThan(Date.now());
+    if (stored <= NOW.getTime() + 60 * 1000) expect(new Date(armed.at).getTime()).toBeGreaterThan(NOW.getTime());
     else expect(new Date(armed.at).toISOString()).toBe(rec.reminderAt);
     expect(armed.groupId).toBe(`phone:${PHONE}`);
 

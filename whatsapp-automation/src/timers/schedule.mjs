@@ -62,11 +62,22 @@ async function aws() {
  * customer must never overtake each other. Nothing downstream parses the group
  * id; it is handed straight to SQS as the MessageGroupId.
  *
- * @param {{flow:string,orderId:string|number,step:string,at:Date,extra?:object,groupId?:string}} args
+ * `now` is the caller's clock, and it is what the past-floor above is measured
+ * against. Every flow already takes an injected `now` (`deps.now`) so that its
+ * behaviour is a function of time rather than of when the test ran, but this
+ * floor read `new Date()` directly, which quietly broke that contract: with a
+ * clock set anywhere in the past, EVERY timer collapsed onto real-now+60s, so
+ * two touches deliberately spaced hours apart landed on the same instant. In
+ * production the two clocks are the same value (`deps()` builds `now: new
+ * Date()` per invocation), so this changes nothing there; it only stops a fake
+ * clock being overruled by the wall clock. Callers without a clock still get
+ * the wall clock, which is what EventBridge needs.
+ *
+ * @param {{flow:string,orderId:string|number,step:string,at:Date,extra?:object,groupId?:string,now?:Date}} args
  */
-export async function scheduleTimer({ flow, orderId, step, at, extra, groupId: group }) {
+export async function scheduleTimer({ flow, orderId, step, at, extra, groupId: group, now }) {
   const name = timerName(flow, orderId, step);
-  at = notInThePast(at);
+  at = notInThePast(at, now || new Date());
   const message = messageFor(flow, orderId, step, extra);
   const groupId = group || `order:${orderId}`;
   if (!isAws()) {
