@@ -20,6 +20,9 @@ const STRANGER = '+919800000000';
 beforeEach(() => {
   _resetMemory();
   config.ownerAlertPhones = ['+919999999999'];
+  // Empty is the default. A test that narrows /replace sets it and the next
+  // test must not inherit it, because it is part of the command gate.
+  config.replaceAdminPhones = [];
 });
 
 describe('a button tap may only act on the tapper own order', () => {
@@ -305,6 +308,18 @@ describe('a slash command is only a command when an owner typed it', () => {
   });
 
   it('runs it for an owner phone', async () => {
+    await expect(text(OWNER_PHONE, '/size-change 1214')).resolves.toMatchObject(replied);
+  });
+
+  /*
+   * REPLACE_ADMIN_PHONES narrows /replace and nothing else. Gating the command
+   * router on it alone took /size-change away from every owner phone that is not
+   * on that list: the text fell through to the customer branches and was
+   * answered by nothing, which is the kind of regression nobody reports because
+   * it looks like WhatsApp swallowed the message.
+   */
+  it('still runs /size-change for an owner when the replace admin list names someone else', async () => {
+    config.replaceAdminPhones = ['+918888888888'];
     await expect(text(OWNER_PHONE, '/size-change 1214')).resolves.toMatchObject(replied);
   });
 

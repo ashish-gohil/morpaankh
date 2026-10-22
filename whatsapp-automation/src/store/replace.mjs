@@ -160,13 +160,24 @@ export async function patchRequest(orderId, seq, fields) {
  * One scan of the pointer rows, then one read each. The pointer deliberately
  * carries only the keys: two copies of the state is two things to keep in step,
  * and this runs a handful of times a week.
+ *
+ * A preview whose deadline has passed is NOT open. Nothing marks it EXPIRED
+ * unless somebody taps it, so without this the daily digest would keep saying
+ * "#1234 is waiting for your Confirm tap" about a preview that booked nothing
+ * and can no longer be confirmed. A digest that lists work nobody can do is a
+ * digest that stops being read.
  */
-export async function listOpen(limit = 10) {
+export async function listOpen(limit = 10, now = new Date()) {
   const ptrs = await table.scanBySk('REPLOPEN');
   const rows = [];
-  for (const p of ptrs.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, limit)) {
+  for (const p of ptrs.sort((a, b) => String(b.at).localeCompare(String(a.at)))) {
     const r = await getRequest(p.orderId, p.seq);
-    if (r) rows.push(r);
+    if (!r) continue;
+    const stale =
+      r.state === 'AWAITING_CONFIRMATION' && r.confirmBy && new Date(r.confirmBy).getTime() <= now.getTime();
+    if (stale) continue;
+    rows.push(r);
+    if (rows.length >= limit) break;
   }
   return rows;
 }

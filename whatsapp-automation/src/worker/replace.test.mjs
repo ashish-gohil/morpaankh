@@ -202,6 +202,23 @@ describe('the preview', () => {
     expect(said(clients, ADMIN)).toMatch(/pickup quote unavailable, delivery quote unavailable/);
   });
 
+  /*
+   * A failed pin check is "we did not ask", and validate emits no stop for it on
+   * purpose. The preview used to print it as "reverse pickup NO", which is a
+   * sentence the courier never said: an actual NO is a hard stop, so no preview
+   * is ever sent for one.
+   */
+  it('says the pin check went unanswered rather than printing it as a refusal', async () => {
+    const { clients, deps } = await setup();
+    clients.logistics.serviceability = async () => {
+      throw new Error('pin codes endpoint down');
+    };
+    await run(deps);
+    expect(said(clients, ADMIN)).toMatch(/did not answer the pin check/);
+    expect(said(clients, ADMIN)).not.toMatch(/reverse pickup NO/);
+    expect((await req()).state).toBe('AWAITING_CONFIRMATION');
+  });
+
   it('refuses a pin the courier will not pick up from, and books nothing', async () => {
     const { clients, deps } = await setup({ logistics: { pins: { '302017': { reversePickup: false, prepaidDelivery: true } } } });
     await run(deps);
@@ -216,6 +233,39 @@ describe('the preview', () => {
     await run(deps);
     expect(said(clients, ADMIN)).toMatch(/RULES\.replace\.hsn/);
     expect(bookings(clients)).toEqual([]);
+  });
+
+  /*
+   * REPLACE_TEST_ORDERS is the rail the go-live notes promise: "NON-EMPTY means
+   * live mode acts ONLY on these order numbers". It was only ever consulted for
+   * Shopify TEST orders, so an owner who set it to one order of their own and
+   * then flipped REPLACE_MODE=live could still book two real parcels against any
+   * order in the store, with a courier payload nothing had verified.
+   */
+  it('while REPLACE_TEST_ORDERS is set, live mode refuses every order that is not on it', async () => {
+    config.replaceTestOrders = ['9999'];
+    const { clients, deps } = await setup();
+    await run(deps);
+    expect(said(clients, ADMIN)).toMatch(/not in REPLACE_TEST_ORDERS/);
+    expect(bookings(clients)).toEqual([]);
+    expect(await req()).toBe(null);
+  });
+
+  it('and books the order that IS on it', async () => {
+    config.replaceTestOrders = ['1234'];
+    const { clients, deps } = await setup();
+    await run(deps);
+    expect(said(clients, ADMIN)).not.toMatch(/REPLACE_TEST_ORDERS/);
+    expect((await req()).state).toBe('AWAITING_CONFIRMATION');
+  });
+
+  it('and shadow stays runnable on any order, because it books nothing', async () => {
+    config.replaceMode = 'shadow';
+    config.replaceTestOrders = ['9999'];
+    const { clients, deps } = await setup();
+    await run(deps);
+    expect(said(clients, ADMIN)).not.toMatch(/REPLACE_TEST_ORDERS/);
+    expect((await req()).state).toBe('AWAITING_CONFIRMATION');
   });
 
   it('reports a Shopify permissions failure as a permissions failure', async () => {
@@ -413,6 +463,22 @@ describe('only one execution per order at a time', () => {
     expect(bookings(clients)).toEqual([]);
   });
 
+  /*
+   * The owner who never taps Confirm is the common case, and the preview they
+   * abandoned used to block that garment for good: it is not mid execution and
+   * not terminal, so validate read it as an open replacement forever. Tapping it
+   * is refused as stale, so the only way out was /replace cancel on a dead row.
+   */
+  it('a preview nobody tapped stops blocking once it has gone stale', async () => {
+    const { clients, deps } = await setup();
+    await run(deps);
+    const later = new Date(NOW.getTime() + (RULES.replace.confirmMinutes + 1) * 60 * 1000);
+    await touchInbound(ADMIN, later);
+    await run({ ...deps, now: later });
+    expect(said(clients, ADMIN)).not.toMatch(/already an open replacement/);
+    expect((await req()).seq).toBe(2);
+  });
+
   it('a second command once the first is mid execution is refused by validate', async () => {
     const { clients, deps } = await setup({
       logistics: { fail: { createForward: { permanent: true, remark: 'wallet' } } },
@@ -508,8 +574,8 @@ describe('the customer message', () => {
     await confirm(deps);
     const m = lastTo(clients, CUSTOMER);
     expect(m.type).toBe('text');
-    expect(m.body).toMatch(/Your replacement request has been raised/);
-    expect(m.body).toMatch(/pick up Noor, size M/);
+    expect(m.body).toMatch(/we are sending a replacement for your order/);
+    expect(m.body).toMatch(/collect Noor, size M/);
     expect(m.body).toMatch(/dispatch Noor, size XL/);
     expect((await req()).notified).toMatchObject({ sent: 'session' });
   });
@@ -777,5 +843,34 @@ describe('what has already been replaced is counted', () => {
     // unconfirmed preview has consumed nothing.
     expect(said(clients, ADMIN)).not.toMatch(/more than there is to replace/);
     expect((await req()).seq).toBe(2);
+  });
+});
+
+describe('a preview nobody tapped leaves the open list', () => {
+  it('drops it once the deadline has passed, so the digest cannot ask for work nobody can do', async () => {
+    const { clients, deps } = await setup();
+    await run(deps);
+    expect((await store.listOpen(10, NOW)).map((r) => r.seq)).toEqual([1]);
+
+    const later = new Date(NOW.getTime() + (RULES.replace.confirmMinutes + 1) * 60 * 1000);
+    expect(await store.listOpen(10, later)).toEqual([]);
+
+    // Nothing was booked and nobody was messaged, which is why dropping it is safe.
+    expect(bookings(clients)).toEqual([]);
+    expect(to(clients, CUSTOMER)).toEqual([]);
+  });
+
+  it('keeps a FAILED request listed however old it is, because that is the one needing a human', async () => {
+    // DONE drops off by design (its pointer goes with the terminal state), but
+    // FAILED is deliberately not terminal: it usually holds a booked return leg
+    // and a customer waiting, so age must never hide it.
+    const { deps } = await setup({
+      logistics: { fail: { createForward: { remark: 'Low wallet balance', permanent: true, code: 'wallet' } } },
+    });
+    await run(deps);
+    await tap(deps, `rpok:1:${(await req()).nonce}`);
+    expect((await req()).state).toBe('FAILED');
+    const muchLater = new Date(NOW.getTime() + 30 * 86400 * 1000);
+    expect((await store.listOpen(10, muchLater)).map((r) => r.state)).toEqual(['FAILED']);
   });
 });

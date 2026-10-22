@@ -561,6 +561,19 @@ describe('validate', () => {
     });
 
     /*
+     * The other half of REPLACE_TEST_ORDERS, and the half that protects a real
+     * customer: while the list is set, a LIVE run may book the orders on it and
+     * nothing else. Shadow is exempt because it books nothing and messages
+     * nobody, so a rehearsal has to stay runnable on any order.
+     */
+    it('any order off the list, once REPLACE_TEST_ORDERS is set and the mode is live', () => {
+      expect(hardCodes(validate(vin({ mode: 'live', testOrders: ['9999'] })))).toContain('order-not-in-test-list');
+      expect(hardCodes(validate(vin({ mode: 'live', testOrders: ['1234'] })))).not.toContain('order-not-in-test-list');
+      expect(hardCodes(validate(vin({ mode: 'live', testOrders: [] })))).not.toContain('order-not-in-test-list');
+      expect(hardCodes(validate(vin({ mode: 'shadow', testOrders: ['9999'] })))).not.toContain('order-not-in-test-list');
+    });
+
+    /*
      * hasRtoTag, not a substring test for 'RTO': COD King tags every order
      * "LOW/MEDIUM/HIGH RTO Risk", so a substring test would call every order in
      * the store an RTO and refuse the feature outright.
@@ -610,6 +623,17 @@ describe('validate', () => {
       );
       // An open request we cannot pin to a line is treated as covering it.
       expect(hardCodes(validate(vin({ existing: { status: 'AWAITING_CONFIRMATION' } })))).toContain('replacement-already-active');
+      /*
+       * But a preview past its OWN deadline is not an open replacement. Nothing
+       * was booked on it and a tap on it is refused as stale, so blocking the
+       * line on it left the owner retyping a command that could never work until
+       * they cancelled a dead preview by hand.
+       */
+      const stale = { ...existing, confirmBy: '2026-10-22T05:50:00.000Z' };
+      expect(hardCodes(validate(vin({ existing: stale })))).not.toContain('replacement-already-active');
+      // One still inside its window keeps blocking, which is the whole point.
+      const live = { ...existing, confirmBy: '2026-10-22T06:30:00.000Z' };
+      expect(hardCodes(validate(vin({ existing: live })))).toContain('replacement-already-active');
     });
 
     it('a request that is already running, which `again` does not open', () => {

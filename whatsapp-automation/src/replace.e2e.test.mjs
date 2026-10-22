@@ -244,7 +244,7 @@ describe('POSITIVE: the whole way through, over the real adapter', () => {
     const toCustomer = sent(clients).filter((s) => s.to === CUSTOMER);
     expect(toCustomer).toHaveLength(1);
     expect(toCustomer[0].type).not.toBe('template'); // the free twin, no template charge
-    expect(said(clients, CUSTOMER)).toMatch(/replacement request has been raised/i);
+    expect(said(clients, CUSTOMER)).toMatch(/we are sending a replacement/i);
 
     // Shopify was read and never written.
     expect(shopifyWrites(clients)).toEqual([]);

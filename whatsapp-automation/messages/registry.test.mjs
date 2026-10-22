@@ -88,6 +88,22 @@ describe('the dispatch message does not claim the parcel has moved', () => {
   });
 });
 
+/*
+ * A session twin is the free-form version of a template, sent whenever the 24
+ * hour window is open. Two files hold the same sentences, so the only thing
+ * keeping them honest is this check: a customer must not be told two different
+ * stories about the same parcel depending on which door the message went
+ * through. Add a key here whenever a template gains a twin.
+ */
+describe('a template and its session twin say the same thing', () => {
+  for (const key of ['replacement_raised']) {
+    it(`${key} is word for word in both files`, () => {
+      expect(SESSION[key], `SESSION.${key}`).toBeTruthy();
+      expect(SESSION[key].body).toBe(TEMPLATES[key].body);
+    });
+  }
+});
+
 describe('no em/en dash and no emoji anywhere in customer copy', () => {
   const strings = [];
   for (const t of [...Object.values(TEMPLATES), ...Object.values(LEGACY)]) {

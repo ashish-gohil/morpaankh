@@ -550,6 +550,18 @@ const MID_EXECUTION = new Set(['CONFIRMED', 'RETURN_CREATED', 'FORWARD_CREATED',
  */
 const FINISHED = new Set(['REJECTED', 'EXPIRED', 'CANCELLED', 'DONE']);
 
+/**
+ * Has this preview's own deadline passed?
+ *
+ * `new Date(null)` is the epoch rather than an invalid date, so both sides are
+ * guarded: a missing deadline must read as "no deadline", never as 1970.
+ */
+const pastDeadline = (confirmBy, now) => {
+  const due = confirmBy ? new Date(confirmBy).getTime() : NaN;
+  const at = now ? new Date(now).getTime() : NaN;
+  return Number.isFinite(due) && Number.isFinite(at) && due <= at;
+};
+
 const lineIdsOf = (req) => {
   if (Array.isArray(req?.lineIds)) return req.lineIds.filter(Boolean);
   return (req?.swaps || []).map((s) => s?.lineId || s?.line?.id).filter(Boolean);
@@ -573,7 +585,8 @@ const rupeesOf = (r) => {
  * @param {{n?:any, st?:any, shipping?:any, resolved?:any[], flags?:any,
  *          serviceability?:any, delivered?:any, existing?:any,
  *          courierAwb?:string|null, rules?:any, now?:any, testOrders?:string[],
- *          configPresent?:any, customer?:any, declaredValueInr?:number}} input
+ *          mode?:string, configPresent?:any, customer?:any,
+ *          declaredValueInr?:number}} input
  * @returns {{stops:{kind:string, code:string, message:string}[],
  *            warnings:{code:string, message:string}[]}}
  */
@@ -591,6 +604,7 @@ export function validate(input) {
     rules = RULES,
     now,
     testOrders = [],
+    mode,
     configPresent = {},
     customer = {},
     declaredValueInr,
@@ -620,13 +634,28 @@ export function validate(input) {
   if (fin === 'REFUNDED') hard('order-refunded', `Order ${n.name || ''} is fully refunded. The customer has their money back, so handle this by hand.`.trim());
 
   /*
-   * A test order is reachable only when it is named in REPLACE_TEST_ORDERS.
-   * This is the switch that makes the first live booking safe: one order of
-   * your own, nothing else in the store touchable.
+   * REPLACE_TEST_ORDERS is the switch that makes the first live booking safe:
+   * one order of your own, nothing else in the store touchable. It does two
+   * jobs, and only the first one used to be wired.
+   *
+   * 1. A Shopify TEST order is unreachable unless it is named here.
+   * 2. While the list is NON-EMPTY, live mode may only act on the orders in it.
+   *    That is what .env.example, the stack and this comment all promise, and
+   *    without it the owner who set the list before flipping REPLACE_MODE=live
+   *    could book two real parcels against any order in the store with an
+   *    unverified courier payload. Only live, because shadow books nothing and
+   *    messages nobody, and a rehearsal has to be runnable anywhere.
    */
   const names = [n.numericId, String(n.name || '').replace(/^#/, '')].filter(Boolean).map(String);
-  if (n.isTest && !names.some((x) => (testOrders || []).map(String).includes(x))) {
+  const listed = names.some((x) => (testOrders || []).map(String).includes(x));
+  if (n.isTest && !listed) {
     hard('test-order', `Order ${n.name || ''} is a test order. Add it to REPLACE_TEST_ORDERS if you meant to use it.`.trim());
+  }
+  if (String(mode || '').toLowerCase() === 'live' && (testOrders || []).length && !listed) {
+    hard(
+      'order-not-in-test-list',
+      `Order ${n.name || ''} is not in REPLACE_TEST_ORDERS, and while that list is set live mode books nothing else. Add it to the list, or clear the list once the payload is proven.`.trim(),
+    );
   }
 
   /*
@@ -678,6 +707,14 @@ export function validate(input) {
       continue;
     }
     if (FINISHED.has(status)) continue;
+    /*
+     * A preview whose own deadline has passed is over in every way except the
+     * row: nothing was booked on it, and the tap that would have confirmed it is
+     * refused as stale. Counting it as open meant that one preview the owner
+     * never tapped blocked that garment from ever being replaced until somebody
+     * cancelled a dead request by hand.
+     */
+    if (status === 'AWAITING_CONFIRMATION' && pastDeadline(req.confirmBy, now)) continue;
     const theirs = lineIdsOf(req);
     // No line ids on the open request means we cannot prove it is a different
     // garment, and assuming it is would book a second parcel for the same one.

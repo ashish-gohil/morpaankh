@@ -866,7 +866,17 @@ guess at a document that books a real courier movement and prints a GST label.
 delivered order and prove itself without that risk: parse, resolve, validate,
 serviceability, freight quote, preview, Confirm, and then instead of the two
 provider writes and the customer message, a log line and a reply to the owner
-describing exactly what would have been sent. A boolean cannot express
+describing what it would have booked.
+
+What shadow does NOT prove is the Delhivery payload itself. It stops before the
+logistics client is called, so the field names, the form wrapper and the
+response classifier are first exercised by the one live test on the go-live
+checklist, not by a shadow run. It stops there deliberately: routing shadow
+through the client would mean the fake books parcels in tests, and would
+persist the would-be payload, customer address included, into a state row. The
+narrow things shadow therefore misses (a phone the adapter would reject, an
+address it would clamp) all fail before the first HTTP write and tell the
+owner, so the cost is a failed first live attempt rather than a wrong parcel. A boolean cannot express
 "everything except the writes", and that is the state this has to sit in until
 one live test confirms the field names.
 

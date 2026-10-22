@@ -341,10 +341,10 @@ export const SESSION = {
   replacement_raised: {
     type: 'text',
     body:
-      'Hello {{customer_name}}, Thank you for your order {{order_number}} with Morpaankh. ' +
-      'Your replacement request has been raised. Our delivery partner will pick up {{return_item}} ' +
-      'from your address. On the next working day after pickup, we will dispatch {{new_item}} to you. ' +
-      'Please keep the product unused, with tags attached, packed and ready for pickup.',
+      'Hello {{customer_name}}, we are sending a replacement for your order {{order_number}}.\n\n' +
+      'Our delivery partner will collect {{return_item}} from your address. The next working day after ' +
+      'that, we will dispatch {{new_item}} to you.\n\n' +
+      'Please keep it unused with the tags on, packed and ready for pickup.',
   },
 
   /*

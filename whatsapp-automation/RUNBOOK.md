@@ -136,7 +136,7 @@ the customer.
 /replace 1234 m xl                when the order has one changeable line
 /replace status 1234              both AWBs, live courier status, next action
 /replace list                     every open replacement, newest first
-/replace cancel 1234 [notify]     cancel whichever leg is not yet picked up
+/replace cancel 1234              cancel whichever leg is not yet picked up
 /replace retry 1234               resume a FAILED request from where it stopped
 /replace help
 ```
@@ -197,7 +197,7 @@ went out, the shipment is looked up by its reference (`RPL<order>-<seq>R` or
 checking Delhivery One for that reference first: that is how one replacement
 becomes two parcels.
 
-`"Recharge the Delhivery wallet, then /replace retry 1234"` means exactly that.
+A refusal the courier can explain is quoted VERBATIM: `"The courier said: insufficient balance. Fix that, then /replace retry 1234"` means exactly that.
 
 ### What a human still has to do
 
@@ -206,6 +206,9 @@ becomes two parcels.
 - Reverse pickups are scheduled by Delhivery; there is no pickup request to
   make for that leg.
 - Any price difference is collected by hand. `pays:` is recorded, not charged.
+- A cancellation messages nobody. There is no approved template for calling a
+  pickup off, so if the customer was already told one was coming (the reply
+  says whether they were) you have to tell them it is off.
 
 ### Why the replacement AWBs are not in the tracker
 

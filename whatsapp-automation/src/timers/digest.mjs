@@ -56,7 +56,7 @@ export const handler = async () => {
    * itself. The states that need a person are named rather than counted,
    * because "2 open" is not a task and "add the new parcel to a pickup" is.
    */
-  const replacements = (await listOpen(10)).map((r) => ({
+  const replacements = (await listOpen(10, now)).map((r) => ({
     orderName: r.orderName,
     state: r.state,
     nextAction: NEXT_ACTION[r.state] || `is ${r.state}`,

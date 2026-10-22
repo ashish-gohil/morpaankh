@@ -268,9 +268,18 @@ function previewText({ n, st, shipping, resolved, reason, pays, serviceability, 
   lines.push(`Paid as: ${st.class || classify(n)}`);
   lines.push(`Reason: ${reason}`);
   lines.push(`Freight paid by: ${pays}`);
+  /*
+   * No answer is NOT a no. Either leg coming back unserviceable is a hard stop,
+   * so a preview exists only when the courier said yes to both or was never
+   * reached, which means a printed NO could only ever have meant "the pin check
+   * failed". Reading that as a refusal is how a perfectly serviceable pin gets
+   * abandoned, and the owner cannot tell the two apart from a yes/NO line.
+   */
   lines.push(
-    `Pincode ${a.pin}: reverse pickup ${serviceability?.reversePickup ? 'yes' : 'NO'}, ` +
-      `prepaid delivery ${serviceability?.prepaidDelivery ? 'yes' : 'NO'}${serviceability?.oda ? ', out of delivery area' : ''}`,
+    serviceability
+      ? `Pincode ${a.pin}: reverse pickup ${serviceability.reversePickup ? 'yes' : 'NO'}, ` +
+          `prepaid delivery ${serviceability.prepaidDelivery ? 'yes' : 'NO'}${serviceability.oda ? ', out of delivery area' : ''}`
+      : `Pincode ${a.pin}: the courier did not answer the pin check, so neither leg is confirmed serviceable.`,
   );
   lines.push(
     `Freight: pickup ${quotes.ret == null ? 'quote unavailable' : rupees(quotes.ret)}, ` +
@@ -404,10 +413,15 @@ async function startRequest(raw, parsed, deps, adminPhone) {
        * One expression here is cheaper than a duplicate field on every record,
        * and it is the only place the two vocabularies have to meet.
        */
-      existing: existing ? { status: existing.state, lineIds: existing.lineIds || [] } : null,
+      existing: existing
+        ? { status: existing.state, lineIds: existing.lineIds || [], confirmBy: existing.confirmBy || null }
+        : null,
       courierAwb: n.delhiveryAwb || st.awb || null,
       declaredValueInr,
       testOrders: config.replaceTestOrders,
+      // The mode, because REPLACE_TEST_ORDERS is an allowlist for LIVE bookings
+      // only: shadow writes nothing, so a rehearsal stays runnable on any order.
+      mode: config.replaceMode,
       configPresent: {
         pickupLocation: Boolean(config.delhiveryPickupLocation),
         gstin: Boolean(config.sellerGstin),
@@ -978,7 +992,7 @@ export async function onRetry(orderName, deps, adminPhone) {
 /** `/replace list`: everything still open, which is one scan of the pointers. */
 export async function onList(deps, adminPhone) {
   const reply = replier(deps, adminPhone);
-  const rows = await store.listOpen();
+  const rows = await store.listOpen(10, nowOf(deps));
   if (!rows.length) return reply('No replacement is open right now.');
   return reply(
     ['Open replacements:', '']

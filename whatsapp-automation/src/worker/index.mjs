@@ -226,11 +226,17 @@ const OWNER_HELP = [
 ].join('\n');
 
 /**
- * Who may type a command. `replaceAdminPhones` when it is set, otherwise the
- * owner alert phones. Asked through replace.run.mjs so the command gate and the
- * P tap gate cannot drift apart.
+ * Who may type a command.
+ *
+ * The UNION of the owner alert phones and the /replace admin list, never just
+ * the latter. isReplaceAdmin answers "replaceAdminPhones when it is set,
+ * otherwise the owner phones", so gating this on it alone meant that setting
+ * REPLACE_ADMIN_PHONES to one person silently took /size-change away from every
+ * other owner phone: their command fell through to the customer branches and
+ * was answered by nothing at all. /replace re-checks isReplaceAdmin itself, so
+ * narrowing that list still narrows /replace and only /replace.
  */
-const isAdminPhone = (phone) => replace.isReplaceAdmin(phone);
+const isAdminPhone = (phone) => config.ownerAlertPhones.includes(phone) || replace.isReplaceAdmin(phone);
 
 async function onOwnerCommand(phone, typed) {
   const [cmd, ...rest] = typed.split(/\s+/);
