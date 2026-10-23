@@ -363,18 +363,36 @@ export async function onOwnerRequest(text, deps, adminPhone) {
 async function startRequest(raw, parsed, deps, adminPhone) {
   const reply = replier(deps, adminPhone);
   const asked = parsed.orderName;
-  if (!asked) return reply(`Send it with the order number, like /replace 1234 noor m xl\n\n${HELP}`);
+  /*
+   * Every refusal leaves a line behind, carrying the order number and a code.
+   *
+   * It used to leave none. Only "request raised" was logged, so a command that
+   * refused was indistinguishable in CloudWatch from one that was never typed:
+   * the owner's four /replace attempts on 22 Oct showed up as four "owner
+   * command" lines, four sends, and nothing about which order or why. Working
+   * out that they had been refused for a delivery the courier HAD confirmed
+   * took reading the state rows of nine orders by hand.
+   *
+   * Codes and the order number only. The reply text names the customer's
+   * address; the log never does.
+   */
+  const refuse = (code, text) => {
+    log.info('replace: refused', { order: asked ? bare(asked) : null, code });
+    return reply(text);
+  };
+  if (!asked) return refuse('no-order-number', `Send it with the order number, like /replace 1234 noor m xl\n\n${HELP}`);
 
   const { missing, n, st, shipping } = await load(asked, deps);
-  if (missing) return reply(`No order #${bare(asked)} here. Check the number and send it again.`);
-  if (!shipping) return reply(`Order ${n.name} has gone from Shopify, so there is nothing to read an address from.`);
+  if (missing) return refuse('order-not-found', `No order #${bare(asked)} here. Check the number and send it again.`);
+  if (!shipping) return refuse('order-gone', `Order ${n.name} has gone from Shopify, so there is nothing to read an address from.`);
   if (shipping.scopeProblem) {
-    return reply(
+    return refuse(
+      'shipping-scope',
       `Order ${n.name}: Shopify refused the address query, which is a PERMISSIONS problem and not a typo ` +
         `(${shipping.error || 'access denied'}). The app needs protected customer data approval before /replace can book anything.`,
     );
   }
-  if (!shipping.address) return reply(`Order ${n.name} has no shipping address on it, so there is nowhere to send a courier.`);
+  if (!shipping.address) return refuse('no-shipping-address', `Order ${n.name} has no shipping address on it, so there is nowhere to send a courier.`);
 
   /*
    * The preview is a buttons message, and there is no approved template that
@@ -385,7 +403,8 @@ async function startRequest(raw, parsed, deps, adminPhone) {
    * ops_alert.
    */
   if (config.replaceRequireConfirm && !(await windowOpen(adminPhone, nowOf(deps)))) {
-    return reply(
+    return refuse(
+      'admin-window-closed',
       `Order ${n.name}: our 24 hour window with this number has closed, so WhatsApp will not let us send you ` +
         'the Confirm buttons. Send any message here first, then run the command again.',
     );
@@ -400,15 +419,15 @@ async function startRequest(raw, parsed, deps, adminPhone) {
   const now = nowOf(deps);
   const until = new Date(now.getTime() + R.confirmMinutes * 60 * 1000);
   if (!(await store.acquireLock(n.numericId, { until, now, by: 'command' }))) {
-    return reply(`Order ${n.name} already has a replacement running. Wait for it to finish, then /replace status ${bare(n.name)}`);
+    return refuse('locked', `Order ${n.name} already has a replacement running. Wait for it to finish, then /replace status ${bare(n.name)}`);
   }
 
   try {
     const swaps = parsed.swaps || [];
-    if (!swaps.length) return reply(`Tell me what to swap, like /replace ${bare(n.name)} noor m xl`);
+    if (!swaps.length) return refuse('no-swap', `Tell me what to swap, like /replace ${bare(n.name)} noor m xl`);
 
     const { resolved, problem } = await resolveSwaps(n, shipping, swaps, deps);
-    if (problem) return reply(resolveProblemText(n, problem));
+    if (problem) return refuse('line-unresolved', resolveProblemText(n, problem));
 
     const api = deps.clients.logistics;
     const pin = shipping.address.pin;
@@ -478,6 +497,7 @@ async function startRequest(raw, parsed, deps, adminPhone) {
     const stops = (v.stops || []).filter((s) => s.kind === 'hard' || !flags.force);
     if (stops.length) {
       const hard = stops.some((s) => s.kind === 'hard');
+      log.info('replace: refused', { order: bare(n.name), codes: stops.map((s) => `${s.kind}:${s.code}`) });
       return reply(
         `Order ${n.name} cannot take a replacement:\n\n` +
           stops.map((s) => `${s.message}`).join('\n') +

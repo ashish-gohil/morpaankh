@@ -13,7 +13,7 @@
  *   4. THE CUSTOMER IS NEVER MESSAGED SILENTLY OR WRONGLY: once both legs
  *      exist, never before, and never without telling the admin what happened.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { _resetMemory } from '../store/table.mjs';
@@ -281,6 +281,39 @@ describe('the preview', () => {
 
     expect(said(clients, ADMIN)).toMatch(/has not confirmed this order as delivered/);
     expect(await req()).toBe(null);
+  });
+
+  /*
+   * The diagnosability gap that made the 22 Oct incident expensive. A refused
+   * command used to log nothing, so CloudWatch could not say which order was
+   * asked about or why it was turned down.
+   */
+  it('logs every refusal with its order and its codes, and never the address', async () => {
+    const lines = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((l) => lines.push(String(l)));
+    try {
+      const { deps } = await setup({ delivered: null });
+      await run(deps);
+      const refusal = lines.filter((l) => l.includes('replace: refused'));
+      expect(refusal.join('')).toMatch(/soft:delivery-unconfirmed/);
+      expect(refusal.join('')).toMatch(/"order":"1234"/);
+      // The reply names the street; the log must not.
+      expect(refusal.join('')).not.toMatch(/Jhalana/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('logs an unknown order number as a code rather than silently', async () => {
+    const lines = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((l) => lines.push(String(l)));
+    try {
+      const { deps } = await setup();
+      await run(deps, '/replace 9999 noor m xl');
+      expect(lines.filter((l) => l.includes('replace: refused')).join('')).toMatch(/order-not-found/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('refuses while the warehouse name is unset, because only a human knows which one', async () => {
