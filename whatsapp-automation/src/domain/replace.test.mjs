@@ -743,6 +743,14 @@ describe('validate', () => {
       expect(softCodes(validate(vin({ courierAwb: null, delivered: null })))).toEqual(['awb-missing', 'delivery-unconfirmed']);
     });
 
+    it('a delivery the courier confirmed without a time still counts as delivered', () => {
+      // The shape the older state rows are in: DELIVERED, no courierStatusAt.
+      const codes = softCodes(validate(vin({ delivered: { confirmed: true, at: null } })));
+      expect(codes).not.toContain('delivery-unconfirmed');
+      // No time means no age, so the routine window cannot be measured either.
+      expect(codes).not.toContain('outside-replacement-window');
+    });
+
     it('a delivery older than the routine window', () => {
       expect(RULES.replace.windowDays).toBe(7);
       const old = { at: '2026-10-10T06:00:00Z', pin: '395007' };

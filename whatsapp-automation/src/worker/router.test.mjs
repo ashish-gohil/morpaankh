@@ -3,7 +3,7 @@
  * that decides whose order a tap acts on and what happens to a send that
  * WhatsApp accepted and then failed to deliver, so both were unguarded.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, recordMessage, getSide, updateMessageStatus } from '../store/orderState.mjs';
@@ -270,6 +270,36 @@ describe('the router reaches Flow R', () => {
     // The failed message itself stays closed, so nothing retries into a
     // throttle that is still on.
     expect((await getRec(CART)).firstSentAt).toBe(now.toISOString());
+  });
+
+  /*
+   * The incident email in iac/lib/stack.js fires on any `level = "error"` line,
+   * so the LEVEL is the wiring, not decoration.
+   *
+   * 131026 is the most completely handled failure there is: the number is
+   * parked undeliverable, the marketing cap is given back, and the send-failed
+   * owner alert already names the order and asks the owner to phone the
+   * customer. An incident email beside that alert says a Lambda broke when
+   * nothing did, and a false alarm is how a real one gets ignored.
+   */
+  it('logs an undeliverable number as a warning, not as an incident', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await routes.wa_status({
+        kind: 'wa_status',
+        status: { id: 'wamid.ND1', status: 'failed', recipient_id: '919812345678', errors: [{ code: 131026 }] },
+      });
+
+      const said = (spy) => spy.mock.calls.flat().filter((l) => String(l).includes('wa status'));
+      expect(said(err)).toEqual([]);
+      expect(said(warn).join('')).toMatch(/131026/);
+      // Still parked, so nothing is hidden by the quieter level.
+      expect(await isUndeliverable('+919812345678')).toBe(true);
+    } finally {
+      err.mockRestore();
+      warn.mockRestore();
+    }
   });
 
   it('a delivered message keeps the cap, so a real send still counts', async () => {

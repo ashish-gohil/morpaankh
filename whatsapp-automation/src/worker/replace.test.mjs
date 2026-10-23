@@ -238,6 +238,51 @@ describe('the preview', () => {
     expect(lastTo(clients, ADMIN).buttons?.length).toBeGreaterThan(0);
   });
 
+  /*
+   * The regression that cost a real replacement. onDelivered writes
+   * flowB.deliveredAt only when it also schedules the review ask, and it
+   * returns before doing either when the order has no OTP verified phone. The
+   * courier status still says DELIVERED. Reading the delivery off Flow B's
+   * bookkeeping refused 19 of the 41 delivered orders in the live table with
+   * "the courier has not confirmed this order as delivered", which was not
+   * true of any of them.
+   */
+  it('takes the delivery from the courier status when Flow B never recorded one', async () => {
+    const { clients, deps } = await setup({ delivered: null });
+    await patchState(ORDER, { courierStatus: 'DELIVERED', courierStatusAt: '2026-10-20T06:00:00Z' });
+    await run(deps);
+
+    expect(said(clients, ADMIN)).not.toMatch(/has not confirmed this order as delivered/);
+    expect((await req()).state).toBe('AWAITING_CONFIRMATION');
+  });
+
+  it('counts a courier delivery that predates courierStatusAt, without measuring its age', async () => {
+    // The older live rows: DELIVERED and no timestamp at all. The fact is
+    // enough to let the command run; the routine window simply goes unmeasured.
+    const { clients, deps } = await setup({ delivered: null });
+    await patchState(ORDER, { courierStatus: 'DELIVERED' });
+    await run(deps);
+
+    const body = said(clients, ADMIN);
+    expect(body).not.toMatch(/has not confirmed this order as delivered/);
+    expect(body).not.toMatch(/routine window/);
+    expect((await req()).state).toBe('AWAITING_CONFIRMATION');
+  });
+
+  /*
+   * The other half of that fix: courierStatusAt is the last status change
+   * whatever it was, so an order still moving must not have its transit
+   * timestamp read as a delivery.
+   */
+  it('still says the delivery is unconfirmed while the parcel is in transit', async () => {
+    const { clients, deps } = await setup({ delivered: null });
+    await patchState(ORDER, { courierStatus: 'IN_TRANSIT', courierStatusAt: '2026-10-20T06:00:00Z' });
+    await run(deps);
+
+    expect(said(clients, ADMIN)).toMatch(/has not confirmed this order as delivered/);
+    expect(await req()).toBe(null);
+  });
+
   it('refuses while the warehouse name is unset, because only a human knows which one', async () => {
     config.delhiveryPickupLocation = '';
     const { clients, deps } = await setup();

@@ -152,6 +152,37 @@ async function load(orderName, deps) {
   return { n, st, shipping };
 }
 
+/**
+ * Was this order delivered, and when.
+ *
+ * The COURIER STATUS is the delivery record. `flowB.deliveredAt` is not: it is
+ * written as a side effect of scheduling the review ask, so it only exists when
+ * that ask was actually scheduled. onDelivered returns before writing it when
+ * Flow B is off, when the review ask is off, when the order has a skip reason,
+ * when there is no OTP verified phone, when a review was already asked or left,
+ * or when a real delivery had already scheduled one.
+ *
+ * Reading that field alone therefore answered "has the courier confirmed this
+ * as delivered?" with Flow B's bookkeeping. On 19 of the 41 delivered orders in
+ * the table the answer was no while courierStatus said DELIVERED, and each of
+ * those was soft refused with a reason that was not true. #1213 is one: it has
+ * no verified phone, so onDelivered took that exit and left nothing behind.
+ *
+ * track-active writes courierStatus on every status change and nothing else
+ * moves it, and reconcile already treats it as the authority for the same fact.
+ *
+ * The time comes back ONLY when the delivery did, because courierStatusAt is
+ * the last status change whatever that status was: reading it off an IN_TRANSIT
+ * row would have handed validate a transit timestamp to measure the
+ * replacement window against. Older rows carry no courierStatusAt at all, so a
+ * confirmed delivery with a null time is a real and expected shape.
+ */
+function deliveryOf(st) {
+  const byCourier = String(st?.courierStatus || '').toUpperCase() === 'DELIVERED';
+  const at = st?.flowB?.deliveredAt || (byCourier ? st?.courierStatusAt : null) || null;
+  return { confirmed: byCourier || Boolean(st?.flowB?.deliveredAt), at };
+}
+
 const hsnFor = (handle) => R.hsnByHandle[handle] || R.hsn;
 const parcelFor = (handle) => R.parcelByHandle[handle] || R.parcel;
 
@@ -406,7 +437,7 @@ async function startRequest(raw, parsed, deps, adminPhone) {
       resolved,
       flags,
       serviceability,
-      delivered: { at: st?.flowB?.deliveredAt || null },
+      delivered: deliveryOf(st),
       /*
        * A VIEW of the previous request, not the row. validate speaks `status`
        * and `lineIds`; this store speaks `state` and keeps the parsed swaps.

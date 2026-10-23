@@ -323,7 +323,22 @@ async function onWaStatus(m) {
    * Nothing is hidden: MessageFailed still feeds the wa-whatsapp-failures
    * alarm, and the WARN carries the same code, title and detail.
    */
-  const level = st.status !== 'failed' ? 'info' : (code === 131049 ? 'warn' : 'error');
+  /*
+   * 131026 joins it, for the same reason and with the same reasoning.
+   * "Message undeliverable" means that handset cannot take a WhatsApp message:
+   * no account on the number, or the terms never accepted. It is not a fault in
+   * this service and there is nothing here to fix, so the incident email reads
+   * as a dead worker when the worker is fine.
+   *
+   * It is also the failure we handle MOST completely: setUndeliverable parks
+   * the number below, clearMarketing gives the eligibility back, and the
+   * send-failed owner alert already goes out naming the order and asking the
+   * owner to phone the customer. That alert is the one worth acting on, and the
+   * incident email arriving beside it for the same event taught the owner to
+   * ignore both.
+   */
+  const HANDLED_FAILURES = new Set([131049, 131026]);
+  const level = st.status !== 'failed' ? 'info' : (HANDLED_FAILURES.has(code) ? 'warn' : 'error');
   log[level]('wa status', {
     status: st.status,
     phone: st.recipient_id ? `+${st.recipient_id}` : undefined,

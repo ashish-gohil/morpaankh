@@ -811,9 +811,20 @@ export function validate(input) {
   }
 
   if (!courierAwb) soft('awb-missing', 'This order has no waybill, so I cannot check with the courier that it ever reached the customer.');
-  if (!delivered?.at) {
+  /*
+   * `confirmed` and `at` are separate answers to separate questions: WAS it
+   * delivered, and WHEN. They used to be the same field, and that cost the
+   * owner a replacement the customer was entitled to.
+   *
+   * The caller reads the delivery off the courier status, which is recorded on
+   * every status change. courierStatusAt is NOT on the older rows, so a
+   * delivery can be known without its time. Collapsing the two meant a
+   * timeless DELIVERED row was refused as "not delivered yet", so the fact
+   * stops the command and the time only bounds the routine window.
+   */
+  if (!delivered?.at && !delivered?.confirmed) {
     soft('delivery-unconfirmed', 'The courier has not confirmed this order as delivered, so the customer may not have the garment yet.');
-  } else {
+  } else if (delivered?.at) {
     const nowMs = now === null || now === undefined ? NaN : new Date(now).getTime();
     const atMs = new Date(delivered.at).getTime();
     if (Number.isFinite(nowMs) && Number.isFinite(atMs)) {
