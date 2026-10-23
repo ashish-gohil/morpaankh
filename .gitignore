@@ -5,3 +5,9 @@ node_modules/
 *service-account*.json
 *-sa.json
 gsc-*.json
+
+# The three patterns above miss the name Google Cloud actually downloads keys
+# under, which is <project-id>-<key-id>.json. That is exactly how
+# morpaankh-seo-a17818cddb2f.json reached a commit and was then caught by
+# GitHub push protection instead of by us. The live key lives outside the repo.
+morpaankh-seo-*.json
