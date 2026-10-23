@@ -28,6 +28,35 @@ in CloudWatch (`/aws/lambda/wa-*`); phone numbers are masked to the last 4 digit
 - `132000/132001/132012` template/param problem -> a bug; fix the template, no retry.
 - `130429/131056` rate limits -> retried with backoff automatically.
 
+## Templates: is the one you are about to rely on actually approved?
+
+```
+node scripts/templates-sync.mjs          # report + GATE, exit 2 if any is not usable
+node scripts/templates-sync.mjs --live   # submit the missing ones to Meta
+```
+
+**Run the gate before shipping anything that sends a new template, and before
+flipping a flow live.** It checks every name the sender can reach (TEMPLATES,
+LEGACY and NO_PRICE) against Meta and exits 2 if any is missing, PENDING or
+REJECTED. Approval is usually minutes for UTILITY, longer for MARKETING.
+
+This exists because the dry run used to print `would-create` for a template
+that was not at Meta at all and still exit 0, so it could not gate anything.
+`replacement_raised_v1` was written, tested, deployed and reported as finished
+without ever being submitted. The local suite cannot catch this: it has no
+credentials, and Meta is the only thing that knows a template's real status.
+
+The daily digest (09:30 IST) carries the same check, so a template Meta
+PAUSES or REJECTS later shows up as `TEMPLATE NOT USABLE: <name> is <status>`
+on the morning line without anyone remembering to look. The line disappears by
+itself once the status is APPROVED. To stop that check entirely, delete the
+`digestTemplateHealth` block in `src/timers/digest.mjs`; nothing else uses it.
+
+A missing template is not a crash. With the customer's 24 hour window OPEN the
+sender uses the free-form twin in `messages/session.mjs` and the customer is
+reached normally. It only bites on a CLOSED window, where there is no second
+route: the send is skipped and the owner is told to call them.
+
 ## Token / secret expiry (the main silent risk)
 
 If sends suddenly fail with an auth error, the WhatsApp System User token likely

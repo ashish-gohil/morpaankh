@@ -41,9 +41,32 @@ function openReplacementsLine(replacements) {
   return `. Replacements open: ${shown.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}`;
 }
 
+/*
+ * Templates the sender can reach that Meta will not currently accept.
+ *
+ * Last, and unmissable, because it is the only item here that is about the
+ * service being broken rather than about the day's orders. A template that is
+ * missing, PENDING or REJECTED means every send through it to a customer whose
+ * 24 hour window has closed goes nowhere, and there is no second route to
+ * them. replacement_raised_v1 sat unsubmitted through a whole build, test and
+ * deploy without one line anywhere saying so.
+ *
+ * Named, never counted, for the same reason as the replacements above: "1
+ * template problem" is not something the owner can act on.
+ */
+function templateProblemsLine(problems) {
+  const bad = (problems || []).filter((p) => p && p.name);
+  if (!bad.length) return '';
+  const shown = bad.slice(0, 3).map((p) => `${p.name} is ${p.status || 'missing'}`);
+  const rest = bad.length - shown.length;
+  return `. TEMPLATE NOT USABLE: ${shown.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}`;
+}
+
 /**
  * @param {{tags:string[]}[]} orders  orders updated in the window
- * @param {{cartsMessaged?: number, replacements?: {orderName?: string, state?: string, nextAction?: string}[]}} [extra]
+ * @param {{cartsMessaged?: number,
+ *           replacements?: {orderName?: string, state?: string, nextAction?: string}[],
+ *           templateProblems?: {name?: string, status?: string}[]}} [extra]
  *   Counts that cannot be derived from a tag. "carts messaged" is one of them:
  *   an abandoned checkout has no order to tag, so it is counted off the Flow R
  *   records instead. "recovered" IS a tag, so it still comes from Shopify.
@@ -69,5 +92,8 @@ export function summarizeDigest(orders, extra = {}) {
     `${counts.reviewed} reviews, ${counts.ndr} NDR, ${counts.rto} RTO, ${counts.noPhone} no-verified-phone, ` +
     `${counts.undelivered} NOT reached, ` +
     `${extra.cartsMessaged || 0} carts messaged, ${counts.cartsRecovered} recovered`;
-  return { counts, line: line + openReplacementsLine(extra.replacements) };
+  return {
+    counts,
+    line: line + openReplacementsLine(extra.replacements) + templateProblemsLine(extra.templateProblems),
+  };
 }

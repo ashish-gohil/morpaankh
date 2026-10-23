@@ -7,6 +7,8 @@ import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
 import { tpl } from '../worker/send.mjs';
 import { summarizeDigest } from '../domain/digest.mjs';
+import { TEMPLATES, LEGACY, NO_PRICE } from '../../messages/templates.mjs';
+import { soft } from '../lib/resilience.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
 import { listOpen } from '../store/replace.mjs';
 import { istParts, fromISTWall, addDays, formatISTDate } from '../lib/time.mjs';
@@ -61,7 +63,37 @@ export const handler = async () => {
     state: r.state,
     nextAction: NEXT_ACTION[r.state] || `is ${r.state}`,
   }));
-  const { line } = summarizeDigest(norm, { cartsMessaged, replacements });
+  /*
+   * Template health, checked once a day against Meta.
+   *
+   * ALL THREE registries, because the sender can reach all three: LEGACY is
+   * what it falls back to while new copy is in review and NO_PRICE is what it
+   * uses with no prepaid price or photo, so either being unapproved is just as
+   * silent as the main one.
+   *
+   * soft(), because a Meta outage must never cost the owner the whole digest:
+   * no answer means no line, which is the same as the day nothing was wrong.
+   * That is the right trade only because templates-sync is the authority and
+   * this is the reminder to go run it.
+   */
+  const templateProblems = await soft('digestTemplateHealth', async () => {
+    const live = await realClients.whatsapp.listTemplates();
+    const reachable = [...Object.values(NO_PRICE), ...Object.values(LEGACY), ...Object.values(TEMPLATES)];
+    const seen = new Set();
+    const bad = [];
+    for (const t of reachable) {
+      if (!t?.name || seen.has(t.name)) continue;
+      seen.add(t.name);
+      const status = live[t.name];
+      if (String(status || '').toUpperCase() !== 'APPROVED') bad.push({ name: t.name, status: status || 'missing' });
+    }
+    return bad;
+    // soft()'s third argument is LOG FIELDS, not a fallback: it returns null on
+    // failure, and templateProblemsLine treats null as "nothing wrong", which
+    // is the intended quiet day.
+  });
+
+  const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems });
 
   const deps = { clients: realClients };
   for (const phone of config.ownerAlertPhones) {

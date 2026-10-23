@@ -1,5 +1,5 @@
 /* Fake WhatsApp client: records every send, returns a deterministic messageId. */
-export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null } = {}) {
+export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null, templates = {} } = {}) {
   const sent = [];
   let n = 0;
   const rec = (type, args) => {
@@ -27,6 +27,12 @@ export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null } = 
      * first, so `skipWith` is how a test reaches that branch.
      */
     sendSkipReason: () => skipWith,
+    /*
+     * Kept in step with the real client so the digest's health check has
+     * something to call. Defaults to "everything approved", which is the quiet
+     * case; a test that wants the unhappy path passes `templates`.
+     */
+    listTemplates: async () => templates,
     sendTemplate: async (a) => {
       maybeFail();
       return rec('template', a);

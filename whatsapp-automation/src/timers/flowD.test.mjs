@@ -23,6 +23,39 @@ describe('summarizeDigest', () => {
     expect(counts.noPhone).toBe(1);
     expect(line).toContain('2 COD asked');
   });
+
+  /*
+   * The line that would have caught replacement_raised_v1 going out
+   * unsubmitted. It is appended LAST and in capitals because it is the only
+   * item in the digest about the service being broken rather than about the
+   * day's orders.
+   */
+  it('names a template the sender cannot use, and stays quiet when all are fine', () => {
+    const orders = [{ tags: ['wa-confirmed'] }];
+
+    const bad = summarizeDigest(orders, {
+      templateProblems: [
+        { name: 'replacement_raised_v1', status: 'PENDING' },
+        { name: 'order_shipped_v2', status: 'REJECTED' },
+      ],
+    }).line;
+    expect(bad).toContain('TEMPLATE NOT USABLE: replacement_raised_v1 is PENDING; order_shipped_v2 is REJECTED');
+
+    // Self silencing: once Meta approves, the digest goes back to normal with
+    // no code change and nothing to switch off.
+    expect(summarizeDigest(orders, { templateProblems: [] }).line).not.toContain('TEMPLATE');
+    // soft() returns null on a Meta outage, which must read as a quiet day
+    // rather than throw inside the digest.
+    expect(summarizeDigest(orders, { templateProblems: null }).line).not.toContain('TEMPLATE');
+    expect(summarizeDigest(orders).line).not.toContain('TEMPLATE');
+  });
+
+  it('caps the template list so one bad day cannot eat the whole digest', () => {
+    const problems = Array.from({ length: 5 }, (_, i) => ({ name: `t${i}_v1`, status: 'missing' }));
+    const line = summarizeDigest([{ tags: [] }], { templateProblems: problems }).line;
+    expect(line).toContain('and 2 more');
+    expect(line).not.toContain('t3_v1');
+  });
 });
 
 describe('trackActiveShipments', () => {

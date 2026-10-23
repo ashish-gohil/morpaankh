@@ -68,6 +68,37 @@ async function post(to, payload) {
 
 export const whatsapp = {
   sendSkipReason,
+
+  /*
+   * Every template on the WABA, as { name: status }.
+   *
+   * A READ, so it deliberately skips guard(): dryRun and the send allowlist are
+   * about not messaging people, and asking Meta which templates exist messages
+   * nobody. Gating it on dryRun would have made the one check that catches an
+   * unapproved template go quiet in exactly the configuration used to rehearse.
+   *
+   * This exists because nothing in the service knew a template's real status.
+   * replacement_raised_v1 was written, tested, deployed and reported as done
+   * while it had never been submitted to Meta at all, and a template that is
+   * missing, PENDING or REJECTED is a customer who is silently never told.
+   */
+  listTemplates: async () => {
+    const s = await getSecrets();
+    /** @type {Record<string,string>} */
+    const out = {};
+    let url = `https://graph.facebook.com/${config.graphVersion}/${s.waWabaId}/message_templates?fields=name,status&limit=200`;
+    // Paged, because a WABA past 200 templates would otherwise report the tail
+    // of the registry as missing and cry wolf every morning.
+    while (url) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${s.waAccessToken}` } });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(`listTemplates ${res.status}: ${JSON.stringify(json).slice(0, 200)}`);
+      for (const t of json.data || []) out[t.name] = t.status;
+      url = json.paging?.next || null;
+    }
+    return out;
+  },
+
   sendTemplate: ({ to, name, language = 'en', components }) =>
     post(to, { type: 'template', template: { name, language: { code: language }, ...(components ? { components } : {}) } }),
 

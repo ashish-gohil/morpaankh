@@ -2,10 +2,21 @@
 /*
  * templates-sync — list the WABA's templates, create any missing ones from the
  * registry, print each one's status + Meta's assigned category, and fail loudly
- * if Meta assigned a different category than declared.
+ * if anything the sender can reach is not APPROVED and usable.
  *
- *   node scripts/templates-sync.mjs          # report only (dry-run)
+ *   node scripts/templates-sync.mjs          # report + GATE (exit 2 if not ready)
  *   node scripts/templates-sync.mjs --live   # create missing templates
+ *
+ * THE DRY RUN IS A GATE, and it did not used to be. It printed "would-create"
+ * for a template that did not exist at Meta and still exited 0, so it could
+ * not be used to check anything: replacement_raised_v1 was written, tested,
+ * shipped and deployed without ever being submitted, and nothing in the repo
+ * said so. The local suite cannot catch that either, because it has no
+ * credentials and Meta is the only thing that knows a template's real status.
+ * So this is the one place that can, and it now refuses rather than reports.
+ *
+ * PENDING is a failure here on purpose. It is the honest answer to "can the
+ * sender use this today", and the answer is no until Meta approves it.
  *
  * TEMPLATES, LEGACY and NO_PRICE are ALL synced, because the sender can reach
  * any of the three: LEGACY is the version it falls back to while new copy is in
@@ -140,6 +151,8 @@ async function buildComponents(t) {
 const existing = await listExisting();
 console.log(`templates-sync (${live ? 'LIVE' : 'dry-run'}) against WABA`);
 let failed = false;
+/** Names that are not usable today, with why. Printed as the last word. */
+const notReady = [];
 
 // Fallbacks FIRST, so one always exists at Meta before its replacement goes
 // live. NO_PRICE before LEGACY before TEMPLATES, oldest to newest.
@@ -150,6 +163,9 @@ for (const [key, t] of all) {
     const mismatch = found.category && found.category !== t.category;
     console.log(`  ${t.name}: ${found.status}${found.category ? ` [${found.category}]` : ''}${mismatch ? ` !! declared ${t.category}` : ''}`);
     if (mismatch) failed = true;
+    if (String(found.status || '').toUpperCase() !== 'APPROVED') {
+      notReady.push(`${t.name}: ${found.status} at Meta`);
+    }
     continue;
   }
   let components;
@@ -162,10 +178,14 @@ for (const [key, t] of all) {
   }
   if (!components) {
     console.log(`  ${t.name}: SKIP (needs WA_REVIEW_FLOW_ID; run flows-sync first)`);
+    notReady.push(`${t.name}: skipped, needs WA_REVIEW_FLOW_ID from flows-sync`);
     continue;
   }
   if (!live) {
     console.log(`  ${t.name}: would-create [${t.category}]${t.header ? ' +image header' : ''}`);
+    // The whole point of the gate: a template the sender can reach that does
+    // not exist at Meta is a send that will fail with 132001.
+    notReady.push(`${t.name}: does not exist at Meta, run --live to submit it`);
     continue;
   }
   const r = await fetch(`${G}/${s.waWabaId}/message_templates`, {
@@ -189,7 +209,13 @@ for (const [key, t] of all) {
   console.log(`  ${t.name}: created ${j.status || ''} [${assigned}]${assigned !== t.category ? ` !! declared ${t.category}` : ''}`);
   if (assigned !== t.category) failed = true;
 }
-if (failed) {
-  console.error('\ntemplates-sync: category mismatch or error above.');
+if (notReady.length) {
+  console.error(`\ntemplates-sync: ${notReady.length} template(s) the sender can reach are NOT usable today:`);
+  for (const n of notReady) console.error(`  - ${n}`);
+  console.error('\nA closed 24 hour window has no other way to reach the customer, so each of');
+  console.error('these is a message that silently does not go out. Fix before relying on them.');
+}
+if (failed || notReady.length) {
+  if (failed) console.error('\ntemplates-sync: category mismatch or error above.');
   process.exit(2);
 }

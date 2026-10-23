@@ -38,6 +38,9 @@
     "conversionVerified": true,
     "variantChangeEnabled": true,
     "cartRecoveryAllowlist": "",
-    "delhiveryPickupLocation": "Dangigev society"
+    "delhiveryPickupLocation": "Dangigev society",
+    "replaceReturnTo": {
+      "pin": "395010"
+    }
   }
 }
