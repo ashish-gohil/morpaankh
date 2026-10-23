@@ -968,8 +968,14 @@ the pickup is already booked. The customer is messaged only once both legs
 exist, because a pickup notice with no replacement on the way is worse than
 silence.
 
-Provider references are deterministic: `RPL<order>-<seq>R` and
-`RPL<order>-<seq>F`. If the provider reports a duplicate reference, or the
+Provider references are deterministic: `<order>-REPLACE-<seq>R` and
+`<order>-REPLACE-<seq>F` (so `1222-REPLACE-1R`). The order number leads so that
+one search in Delhivery One turns up the original delivery and both replacement
+legs together; the earlier `RPL1222-1R` sorted every replacement away from the
+order it belonged to. The seq and the leg letter stay because the reference is
+the adoption key below, and letters/digits/hyphens stay because that is the
+alphabet cmu/create.json is known to accept (proven 2026-10-23) against an
+endpoint with no published spec. If the provider reports a duplicate reference, or the
 outcome is ambiguous (timeout, or 5xx after the request went out), we look the
 shipment up by reference and adopt it rather than retrying, because a blind
 retry is how one replacement becomes two parcels.

@@ -24,7 +24,7 @@
  * safe to resume.
  *
  * ONE REPLACEMENT MUST NEVER BECOME TWO PARCELS. References are deterministic
- * (RPL<order>-<seq>R / F) and on a duplicate reference, or an outcome that is
+ * (<order>-REPLACE-<seq>R / F) and on a duplicate reference, or an outcome that is
  * merely ambiguous (a timeout or a 5xx AFTER the request went out), we look the
  * shipment up by reference and ADOPT it. A blind retry is how one replacement
  * becomes two.
@@ -86,8 +86,28 @@ const act = (step, seq, nce) => `${step}:${seq}:${nce}`;
 const bare = (name) => String(name || '').trim().replace(/^#/, '');
 const rupees = (inr) => `Rs ${Number(inr || 0).toLocaleString('en-IN')}`;
 
-/** Deterministic provider references. No '#', no spaces: RPL1234-1R. */
-const refFor = (orderName, seq, leg) => `RPL${bare(orderName)}-${seq}${leg}`;
+/**
+ * The reference Delhivery files the shipment under: 1234-REPLACE-1R.
+ *
+ * The ORDER NUMBER LEADS, so typing 1234 into Delhivery One's search turns up
+ * the original delivery and both replacement legs together. The old RPL1234-1R
+ * put the prefix first, which read as a machine id and sorted all replacements
+ * away from the orders they belong to.
+ *
+ * The seq and the leg letter are not decoration and must not be dropped. Two
+ * legs booked under one reference would collide, and the collision is not
+ * harmless: bookLeg answers a duplicate-reference refusal by calling findByRef
+ * and ADOPTING whatever shipment comes back, so a shared reference could staple
+ * the return waybill onto the forward leg. The seq does the same job for a
+ * second replacement on the same order via `again`.
+ *
+ * Letters, digits and hyphens only. That is exactly the alphabet of
+ * RPL1222-1R, which is the one reference this endpoint has actually accepted
+ * (2026-10-23), and Delhivery publishes no spec for cmu/create.json to tell us
+ * whether an underscore or a longer field would be taken. Readability is worth
+ * a change; re-opening a question we just closed by experiment is not.
+ */
+const refFor = (orderName, seq, leg) => `${bare(orderName)}-REPLACE-${seq}${leg}`;
 
 /**
  * Who may run the command. `replaceAdminPhones` when it is set, otherwise the

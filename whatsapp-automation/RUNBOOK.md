@@ -226,7 +226,7 @@ booked and the new parcel is not**. The reply says so and names
 the return.
 
 If the provider reported a duplicate reference, or timed out after the request
-went out, the shipment is looked up by its reference (`RPL<order>-<seq>R` or
+went out, the shipment is looked up by its reference (`<order>-REPLACE-<seq>R` or
 `-<seq>F`) and adopted rather than retried. Never rebook by hand without
 checking Delhivery One for that reference first: that is how one replacement
 becomes two parcels.

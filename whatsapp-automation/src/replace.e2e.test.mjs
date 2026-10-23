@@ -234,8 +234,23 @@ describe('POSITIVE: the whole way through, over the real adapter', () => {
      * also what a later findByRef adopts a duplicate by, so the format is load
      * bearing in both directions.
      */
-    expect(reverse.order).toBe('RPL1234-1R');
-    expect(forward.order).toBe('RPL1234-1F');
+    expect(reverse.order).toBe('1234-REPLACE-1R');
+    expect(forward.order).toBe('1234-REPLACE-1F');
+    /*
+     * The order number LEADS, so one search for 1234 in Delhivery One finds the
+     * original delivery and both replacement legs together.
+     */
+    expect(reverse.order.startsWith('1234')).toBe(true);
+    expect(forward.order.startsWith('1234')).toBe(true);
+    /*
+     * The two legs must never share a reference. bookLeg answers a duplicate
+     * reference by calling findByRef and adopting whatever it returns, so one
+     * shared string could staple the return waybill onto the forward leg.
+     */
+    expect(reverse.order).not.toBe(forward.order);
+    // Letters, digits and hyphens only: the alphabet cmu/create.json has
+    // actually accepted. No underscore, no '#', no space.
+    for (const ref of [reverse.order, forward.order]) expect(ref).toMatch(/^[A-Za-z0-9-]+$/);
 
     // Never a pickup request, for either leg.
     expect(wire.some((c) => /pickup/i.test(c.url) && !c.url.includes('pin-codes'))).toBe(false);

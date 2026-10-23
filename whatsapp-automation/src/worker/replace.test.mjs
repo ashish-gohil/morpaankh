@@ -444,7 +444,7 @@ describe('one replacement is one parcel per leg', () => {
   it('adopts the shipment the provider already has when the create times out', async () => {
     const { clients, deps } = await setup({
       logistics: {
-        byRef: { 'RPL1234-1R': { awb: 'DL100', status: 'Manifested' } },
+        byRef: { '1234-REPLACE-1R': { awb: 'DL100', status: 'Manifested' } },
         fail: { createReverse: { code: 'ETIMEDOUT', permanent: false, remark: 'read timeout' } },
       },
     });
@@ -462,7 +462,7 @@ describe('one replacement is one parcel per leg', () => {
   it('adopts it when the provider calls the reference a duplicate', async () => {
     const { clients, deps } = await setup({
       logistics: {
-        byRef: { 'RPL1234-1R': { awb: 'DL200', status: 'Manifested' } },
+        byRef: { '1234-REPLACE-1R': { awb: 'DL200', status: 'Manifested' } },
         fail: { createReverse: { duplicate: true, remark: 'ref already used' } },
       },
     });
@@ -476,7 +476,7 @@ describe('one replacement is one parcel per leg', () => {
     const { clients, deps } = await setup();
     await run(deps);
     await tap(deps, `rpok:1:${(await req()).nonce}`);
-    expect(clients.logistics.calls.map((c) => c.ref)).toEqual(['RPL1234-1R', 'RPL1234-1F']);
+    expect(clients.logistics.calls.map((c) => c.ref)).toEqual(['1234-REPLACE-1R', '1234-REPLACE-1F']);
   });
 });
 
@@ -732,8 +732,8 @@ describe('shadow mode', () => {
 
     const reply = said(clients, ADMIN);
     expect(reply).toMatch(/REPLACE_MODE is shadow, so nothing was booked/);
-    expect(reply).toMatch(/Reverse pickup RPL1234-1R: Noor, size M/);
-    expect(reply).toMatch(/Forward parcel RPL1234-1F: Noor, size XL, prepaid, surface/);
+    expect(reply).toMatch(/Reverse pickup 1234-REPLACE-1R: Noor, size M/);
+    expect(reply).toMatch(/Forward parcel 1234-REPLACE-1F: Noor, size XL, prepaid, surface/);
     expect(reply).toMatch(/HSN 6204/);
   });
 
