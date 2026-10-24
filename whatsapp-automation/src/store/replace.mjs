@@ -18,7 +18,8 @@
  *    reaching DELIVERED asks the same customer for a second review. See
  *    DECISIONS.md T2.
  *
- * 2. The sort keys are REQ#/LOCK/REPLOPEN, never STATE and never REC.
+ * 2. The sort keys are REQ#/LOCK/REPLOPEN, never STATE, never REC and never
+ *    SUB (Flow W's allSubRecs() scans that one).
  *    reconcile's scanStates() hands every SK=STATE row to flowB as an order id
  *    read out of the PK, and the digest scans every SK=REC row as a cart.
  *

@@ -39,7 +39,13 @@ const redirect = (location) => ({ statusCode: 302, headers: { Location: location
  */
 const BOT = /bot|crawl|spider|whatsapp|facebookexternalhit|preview|slackbot|telegram/i;
 
-function isRealTap(event) {
+/*
+ * EXPORTED, and reused by w-redirect.mjs rather than copied into it. Two
+ * copies of this regex would drift, and the one that drifts is the one that
+ * starts counting WhatsApp's own preview fetch as a customer tap, which turns
+ * a click-through number into an invented one.
+ */
+export function isRealTap(event) {
   const method = event?.requestContext?.http?.method || event?.httpMethod || 'GET';
   if (method !== 'GET') return false;
   const headers = event?.headers || {};

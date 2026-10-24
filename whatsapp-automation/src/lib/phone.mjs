@@ -9,6 +9,15 @@
  *   - 12 digits starting "91" whose 3rd digit is 6-9, or
  *   - 10 digits starting 6-9 (prefix "91").
  * Anything else is invalid -> null (caller sends nothing, tags wa-no-verified-phone).
+ *
+ * ONE AUTHORISED EXCEPTION, owner's decision 2026-10-24: Flow W (the welcome
+ * offer) messages Customer.defaultPhoneNumber. A candidate there has never
+ * ordered and never reached checkout, so `_otpVerifiedPhoneNumber` does not
+ * exist for them and the alternative was not sending the flow at all. It
+ * reuses normalizeVerifiedPhone below for the validation, because these digit
+ * rules ARE the check that number needs, and FLOW_W_ALLOWLIST shadow mode is
+ * the mitigation for a bad number reaching a stranger. The rule stands
+ * unchanged for Flows A, B, C and R: the exception is not a precedent.
  */
 
 const VERIFIED_KEY = '_otpVerifiedPhoneNumber';

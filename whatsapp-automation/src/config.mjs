@@ -76,7 +76,7 @@ export const config = {
   orderAllowlist: list(process.env.ORDER_ALLOWLIST),
   ownerAlertPhones: list(process.env.OWNER_ALERT_PHONES),
 
-  flows: { A: flow('A'), B: flow('B'), C: flow('C'), D: flow('D'), R: flow('R') },
+  flows: { A: flow('A'), B: flow('B'), C: flow('C'), D: flow('D'), R: flow('R'), W: flow('W') },
 
   /*
    * Flow R shadow mode. NON-EMPTY means only these phones are really messaged;
@@ -88,6 +88,32 @@ export const config = {
    * Flow A's confirmations for every real customer at the same time.
    */
   cartRecoveryAllowlist: list(process.env.FLOW_R_ALLOWLIST),
+
+  /*
+   * Flow W shadow mode, and the same reasoning as Flow R's above: NON-EMPTY
+   * means only these numbers are really messaged and every other candidate is
+   * logged as "would send" with nothing created, sent or locked.
+   *
+   * It matters more here than it does for Flow R. Flow W is the first thing in
+   * this service that messages a number which was never OTP-verified (owner's
+   * decision, see src/lib/phone.mjs), so shadow mode is the mitigation for a
+   * bad number reaching a stranger and it has to work before go-live.
+   */
+  subscriberOfferAllowlist: list(process.env.FLOW_W_ALLOWLIST),
+
+  /*
+   * Flow W's email fallback, through Amazon SES.
+   *
+   * EMAIL_FROM unset means email is simply unavailable, which is a recorded
+   * outcome and not an error: the flow still runs for everybody reachable on
+   * WhatsApp. It must be an address on a verified SES identity.
+   *
+   * EMAIL_REPLY_TO is where a customer's reply goes, and it is a human's
+   * mailbox: nothing in this service reads it. Empty means replies go back to
+   * EMAIL_FROM.
+   */
+  emailFrom: process.env.EMAIL_FROM || '',
+  emailReplyTo: process.env.EMAIL_REPLY_TO || '',
 
   // How Flow B asks for a review. 'flow' is the native WhatsApp Flow, which
   // Meta will not let us publish until the business is verified; 'link' sends

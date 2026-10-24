@@ -11,6 +11,7 @@ import { getSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
 import { toPaise } from '../lib/money.mjs';
+import { istParts } from '../lib/time.mjs';
 
 /**
  * @param {string} query
@@ -766,8 +767,39 @@ async function getAbandonedCheckout(numericOrGid) {
   return data.node || null;
 }
 
+/*
+ * The abandoned checkouts, memoised for two minutes.
+ *
+ * SAME PATTERN AS codeCache ABOVE, AND FOR A SHARPER REASON. abandonedCheckouts
+ * cannot be filtered by customer, phone or id: the documented filter set is
+ * default, created_at, email_state, id, recovery_state, status and updated_at
+ * only, and the `id:` forms return nothing for a checkout that is definitely
+ * there (see getAbandonedCheckout above). So Flow W's cart gate has to LIST and
+ * match in JS, per candidate, and a seven-day list for up to maxPerRun (100)
+ * candidates would be a hundred paginated reads in one worker and would time
+ * the function out.
+ *
+ * A request for a LATER sinceISO is served by filtering the cached list, which
+ * is a superset of it; only an EARLIER one re-reads. That is what makes the
+ * memo hit for a whole sweep's worth of candidates rather than only for a
+ * repeat of the identical argument. Flow R's five-minute sweep passes a
+ * sinceISO that moves forward every run, so it keeps hitting the memo too and
+ * its behaviour is unchanged either way (its own cadence is slower than this
+ * TTL).
+ *
+ * Two minutes, not ten: a cart abandoned inside the last two minutes is not
+ * yet eligible for Flow R (firstAfterMin is 20), so nothing actionable can be
+ * missed by this window.
+ */
+let checkoutCache = { at: 0, sinceISO: '', checkouts: /** @type {any[]} */ ([]) };
+const CHECKOUT_CACHE_MS = 2 * 60 * 1000;
+
 /** Open (not completed) checkouts created on/after sinceISO, newest first. */
-async function listAbandonedCheckouts(sinceISO) {
+async function listAbandonedCheckouts(sinceISO, { now = Date.now() } = {}) {
+  const fresh = checkoutCache.at && now - checkoutCache.at < CHECKOUT_CACHE_MS;
+  if (fresh && Date.parse(sinceISO) >= Date.parse(checkoutCache.sinceISO)) {
+    return checkoutCache.checkouts.filter((c) => Date.parse(c.createdAt) >= Date.parse(sinceISO));
+  }
   const out = [];
   let cursor = null;
   for (;;) {
@@ -783,7 +815,13 @@ async function listAbandonedCheckouts(sinceISO) {
     if (!data.abandonedCheckouts.pageInfo.hasNextPage) break;
     cursor = data.abandonedCheckouts.pageInfo.endCursor;
   }
+  checkoutCache = { at: now, sinceISO, checkouts: out };
   return out;
+}
+
+/** Test-only: drop the abandoned-checkout memo. */
+function _resetCheckoutCache() {
+  checkoutCache = { at: 0, sinceISO: '', checkouts: [] };
 }
 
 /**
@@ -832,6 +870,13 @@ async function ordersCreatedSince(sinceISO) {
 let codeCache = { at: 0, codes: /** @type {any[]} */ ([]) };
 const CODE_CACHE_MS = 10 * 60 * 1000;
 export const CART_RECOVERY_TITLE = 'Cart recovery #';
+/*
+ * Flow W's titles, excluded below for exactly the same reason as Flow R's: the
+ * first welcome code issued would otherwise become part of the floor every
+ * later one has to beat, and the offer would climb itself out of existence.
+ * usageLimit 1 already excludes them; this is the second line of defence.
+ */
+export const SUBSCRIBER_OFFER_TITLE = 'Subscriber offer #';
 
 async function publicCodeDiscounts({ now = Date.now() } = {}) {
   if (codeCache.at && now - codeCache.at < CODE_CACHE_MS) return codeCache.codes;
@@ -868,6 +913,7 @@ async function publicCodeDiscounts({ now = Date.now() } = {}) {
       if (d.context?.__typename !== 'DiscountBuyerSelectionAll') continue;
       if (d.usageLimit != null) continue;
       if (String(d.title || '').startsWith(CART_RECOVERY_TITLE)) continue;
+      if (String(d.title || '').startsWith(SUBSCRIBER_OFFER_TITLE)) continue;
       const v = d.customerGets?.value || {};
       const min = d.minimumRequirement || {};
       // Shopify returns every quantity and money field as a STRING.
@@ -993,9 +1039,162 @@ async function getCustomerByPhone(phone) {
   return data.customerByIdentifier || null;
 }
 
+// ---- Flow W: new customers, their orders, the best sellers -----------------
+/*
+ * Everything Flow W's gates and copy need off a Customer. All four operations
+ * below were validated against the current admin schema with
+ * validate_graphql_codeblocks on 2026-10-24; the service pins 2026-07.
+ *
+ * `numberOfOrders` is an UnsignedInt64 and comes back as the STRING "0", which
+ * is why normalizeCustomer casts it: `'0' === 0` is false and an order gate
+ * written against the raw value passes every zero-order customer.
+ *
+ * `validFormat` is Shopify's own answer to "can this address receive at all",
+ * and it is cheaper to believe than to re-derive: at one or two emails a day a
+ * handful of bounces is a large share of the SES bounce rate, and SES judges
+ * the rate rather than the count.
+ */
+const CUSTOMER_FIELDS = `
+  id
+  createdAt
+  firstName
+  lastName
+  numberOfOrders
+  tags
+  defaultEmailAddress { emailAddress marketingState marketingUnsubscribeUrl validFormat }
+  defaultPhoneNumber { phoneNumber }
+`;
+
+/** One customer, by numeric id or gid. The worker's re-read before any send. */
+async function getCustomer(numericOrGid) {
+  const id = String(numericOrGid).startsWith('gid://') ? numericOrGid : `gid://shopify/Customer/${numericOrGid}`;
+  const data = await graphql(
+    `query SubCustomer($id: ID!){ customer(id:$id){ ${CUSTOMER_FIELDS} } }`,
+    { id },
+    { idempotent: true },
+  );
+  return data.customer || null;
+}
+
+/*
+ * IST WALL CLOCK WITH AN EXPLICIT +05:30, not a Z timestamp.
+ *
+ * This is the exact shape the owner ran against the live store on 2026-10-24,
+ * which returned 5 customers for 23 Oct and correctly dropped the one who had
+ * ordered. The instants are identical either way, but the proven form is the
+ * one to send: the customers search index is the part of this that cannot be
+ * reasoned about from the docs, and `preview --date` is how it gets checked.
+ */
+function istStamp(iso) {
+  const p = istParts(new Date(iso));
+  const two = (x) => String(x).padStart(2, '0');
+  return `${p.y}-${two(p.mon + 1)}-${two(p.day)}T${two(p.h)}:${two(p.m)}:00+05:30`;
+}
+
+/** A value going into a Shopify search query, with its quotes neutralised. */
+const quoted = (v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
+/**
+ * One page of customers created inside [sinceISO, untilISO) who have never
+ * ordered.
+ *
+ * `orders_count:0` is PROVEN, not assumed: the owner ran it live on
+ * 2026-10-24 (5 returned, the one who had ordered dropped), so there is no
+ * negated-order_date fallback here and there should not be one. It is a
+ * SEARCH, and the index lags a create by seconds, which is why the sweep looks
+ * at yesterday rather than at the last few minutes and why the worker re-reads
+ * each customer with customer(id:) before it decides anything.
+ *
+ * @param {{sinceISO: string, untilISO: string, after?: string|null}} args
+ * @returns {Promise<{nodes: any[], cursor: string|null}>}
+ */
+async function listNewCustomers({ sinceISO, untilISO, after = null }) {
+  const q = `customer_date:>='${istStamp(sinceISO)}' AND customer_date:<'${istStamp(untilISO)}' AND orders_count:0`;
+  const data = await graphql(
+    `query SubNewCustomers($q: String!, $after: String){
+       customers(first: 50, after: $after, query: $q, sortKey: CREATED_AT){
+         edges { cursor node { ${CUSTOMER_FIELDS} } } pageInfo { hasNextPage endCursor }
+       } }`,
+    { q, after },
+    { idempotent: true },
+  );
+  const edges = data.customers?.edges || [];
+  return {
+    nodes: edges.map((e) => e.node),
+    cursor: data.customers?.pageInfo?.hasNextPage ? data.customers.pageInfo.endCursor : null,
+  };
+}
+
+/**
+ * Orders placed under this exact email address.
+ *
+ * The guest-checkout case: somebody orders without the account the signup
+ * created, so numberOfOrders on the customer record stays 0 while they are
+ * plainly a customer. Quoted and escaped, because an email address is a value
+ * a stranger chose and this is a search syntax: an unquoted one would let
+ * `a@b.com OR orders_count:>0` mean something.
+ */
+async function ordersByEmail(address) {
+  if (!address) return [];
+  const data = await graphql(
+    `query SubOrdersByEmail($q: String!){ orders(first: 5, query: $q){ nodes { id name createdAt } } }`,
+    { q: `email:${quoted(address)}` },
+    { idempotent: true },
+  );
+  return data.orders?.nodes || [];
+}
+
+/**
+ * A collection's best sellers, for the "most loved right now" line and the
+ * header image.
+ *
+ * `availableForSale` does NOT exist on Product in the admin API (it is a
+ * Storefront field), so buyability is read off the variants and flattened
+ * here: one boolean is all the copy needs, and the alternative is every caller
+ * re-deriving it. collectionByIdentifier and featuredMedia are the current
+ * spellings; collectionByHandle and featuredImage both validate and both come
+ * back from the validator as deprecated.
+ *
+ * @param {string} handle @param {number} [limit]
+ */
+async function collectionBestSellers(handle, limit = 6) {
+  const data = await graphql(
+    `query SubBestSellers($handle: String!, $first: Int!){
+       collectionByIdentifier(identifier: { handle: $handle }){
+         id handle
+         products(first: $first, sortKey: BEST_SELLING){
+           nodes {
+             id title handle status
+             featuredMedia { preview { image { url width height } } }
+             variants(first: 50){ nodes { availableForSale } }
+           }
+         }
+       } }`,
+    { handle, first: limit },
+    { idempotent: true },
+  );
+  const nodes = data.collectionByIdentifier?.products?.nodes || [];
+  return nodes.map((p) => {
+    const img = p.featuredMedia?.preview?.image || null;
+    return {
+      title: p.title,
+      handle: p.handle,
+      status: p.status,
+      availableForSale: (p.variants?.nodes || []).some((v) => v?.availableForSale),
+      imageUrl: img?.url || null,
+      imageWidth: img?.width || null,
+      imageHeight: img?.height || null,
+    };
+  });
+}
+
 export const shopify = {
   graphql,
+  getCustomer,
   getCustomerByPhone,
+  listNewCustomers,
+  ordersByEmail,
+  collectionBestSellers,
   getOrder,
   getOrderByName,
   getShippingDetails,
@@ -1017,6 +1216,8 @@ export const shopify = {
   publicCodeDiscounts,
   discountUsageCount,
   _resetCodeCache,
+  _resetCheckoutCache,
   ORDER_FIELDS,
   CHECKOUT_FIELDS,
+  CUSTOMER_FIELDS,
 };

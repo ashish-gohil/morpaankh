@@ -18,6 +18,7 @@
     "@aws-sdk/client-lambda": "^3.1150.0",
     "@aws-sdk/client-scheduler": "^3.1150.0",
     "@aws-sdk/client-secrets-manager": "^3.1150.0",
+    "@aws-sdk/client-sesv2": "^3.1150.0",
     "@aws-sdk/client-sns": "^3.1150.0",
     "@aws-sdk/client-sqs": "^3.1150.0",
     "@aws-sdk/util-dynamodb": "^3.996.9",

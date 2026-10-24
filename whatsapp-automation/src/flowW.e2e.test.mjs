@@ -106,10 +106,6 @@ function world(customers = [customer()], opts = {}) {
     sh.calls.push({ op: 'ordersByEmail', address });
     return (opts.ordersByEmail || {})[String(address).toLowerCase()] || [];
   };
-  sh.listOpenDraftOrders = async (sinceISO) => {
-    sh.calls.push({ op: 'listOpenDraftOrders', sinceISO });
-    return opts.draftOrders || [];
-  };
   sh.collectionBestSellers = async (handle, limit) => {
     sh.calls.push({ op: 'collectionBestSellers', handle, limit });
     if (opts.failBestSellers) throw new Error(String(opts.failBestSellers));
@@ -339,8 +335,6 @@ describe('NEGATIVE: nothing gets through the sweep that should not', () => {
     ['already ordered', { numberOfOrders: '1' }, 'already-ordered'],
     ['tagged no-marketing', { tags: ['no-marketing'] }, 'excluded-tag'],
     ['unreachable', { phone: null, email: null }, 'no-channel'],
-    // R4: the recipient is defaultPhoneNumber through normalizeVerifiedPhone.
-    ['holding a number we cannot use', { phone: '+14155550123' }, 'no-phone'],
   ];
 
   it.each(dropped)('never enqueues one that is %s', async (_n, over, reason) => {
@@ -351,6 +345,32 @@ describe('NEGATIVE: nothing gets through the sweep that should not', () => {
     expect(queued).toHaveLength(0);
     // Nothing written, so a later run is free to reconsider.
     expect(await getSubRec(ID)).toBe(null);
+  });
+
+  /*
+   * OWNER'S CORRECTION, 2026-10-24. This case was a `no-phone` drop. A number
+   * we hold and cannot use is WhatsApp being impossible, not the person being
+   * ineligible, so the whole journey still runs: swept, enqueued on the email
+   * group, emailed, and the code still works through /w/{token}.
+   */
+  it('still carries one holding an unusable number all the way, by email', async () => {
+    const { clients, deps } = world([customer(ID, { phone: '+14155550123' })]);
+    const { out, queued } = await sweepAndDrain(clients);
+    expect(out.enqueued).toEqual([ID]);
+    expect(queued[0].groupId).toBe(`email:${emailKey(EMAIL)}`);
+
+    await runQueue(queued, deps);
+    const rec = await getSubRec(ID);
+    expect(rec.outcome).toBeUndefined();
+    expect(rec.channel).toBe('email');
+    expect(rec.phoneSkipReason).toBe('non-india');
+    expect(clients.email.sent).toHaveLength(1);
+    expect(clients.email.sent[0].html).toContain(rec.code);
+
+    const live = await liveifyCode(ID);
+    const res = await wRedirect(tapEvent(live.token));
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toContain(`/discount/${live.code}?redirect=`);
   });
 
   it('writes nothing at all when the flow is off', async () => {

@@ -8,6 +8,8 @@
  */
 import { TEMPLATES, LEGACY, renderTemplateDef, placeholderOrder } from '../messages/templates.mjs';
 import { SESSION, renderSession } from '../messages/session.mjs';
+import { renderSubscriberEmail } from '../messages/email.mjs';
+import { escapeHtml } from '../src/domain/subscriberOffer.mjs';
 
 function sampleValue(name) {
   const map = {
@@ -32,6 +34,8 @@ function sampleValue(name) {
     item_line: 'Khili Dhoop, size M',
     expires_at: 'tomorrow at 9:20 PM',
     time_left: '2 hours',
+    // Flow W
+    top_picks: 'Khili Dhoop, Bandhan and Morani',
   };
   return map[name] || `[${name}]`;
 }
@@ -44,6 +48,37 @@ const ctx = {
   url: 'https://dry.run/pay',
   imageUrl: 'https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center',
 };
+
+/*
+ * Flow W's email is the same offer for somebody WhatsApp cannot reach, so it
+ * is rendered here beside the templates: it is copy, it has placeholders, and
+ * the only other way to look at it is to send one.
+ */
+function renderEmail() {
+  const vars = {
+    customer_name: 'Priya',
+    code: 'MORPAANKHPRIYA4729',
+    saving: '₹200',
+    min_order: '₹1,500',
+    expires_at: 'tomorrow at 11:00 AM',
+    top_picks: 'Khili Dhoop, Bandhan and Morani',
+  };
+  const picks = [
+    { title: 'Khili Dhoop', handle: 'khili-dhoop', imageUrl: 'https://cdn.shopify.com/sample-a.jpg' },
+    { title: 'Bandhan', handle: 'bandhan', imageUrl: 'https://cdn.shopify.com/sample-b.jpg' },
+    { title: 'Morani', handle: 'morani', imageUrl: 'https://cdn.shopify.com/sample-c.jpg' },
+  ];
+  return renderSubscriberEmail({
+    vars,
+    rawFirstName: 'Priya',
+    url: 'https://dry.run/w/TESTTOKEN16CHARS',
+    picks,
+    unsubscribeUrl: 'https://www.morpaankh.in/unsubscribe?id=sample',
+    shopUrl: 'https://www.morpaankh.in',
+    utm: 'utm_source=email&utm_medium=automation&utm_campaign=welcome_24h',
+    escapeHtml,
+  });
+}
 
 console.log('=== TEMPLATES ===');
 for (const [key, t] of [...Object.entries(TEMPLATES), ...Object.entries(LEGACY)]) {
@@ -85,4 +120,12 @@ for (const [key, m] of Object.entries(SESSION)) {
   for (const row of r.rows || []) console.log(`  [row] ${row.title} (${row.id})${row.description ? ` - ${row.description}` : ''}`);
   for (const b of r.buttons || []) console.log(`  [reply] ${b.title} (${b.id})`);
 }
+console.log('\n\n=== EMAIL (Flow W, for somebody WhatsApp cannot reach) ===');
+const mail = renderEmail();
+console.log(`\nSubject: ${mail.subject}`);
+console.log('\n--- text part ---');
+console.log(mail.text);
+console.log('\n--- html part, paste it into a browser to look at it ---');
+console.log(mail.html);
+
 console.log('\nOK: all copy rendered.');

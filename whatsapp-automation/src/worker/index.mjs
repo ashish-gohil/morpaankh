@@ -23,6 +23,7 @@ import * as flowB from './flowB.run.mjs';
 import * as flowC from './flowC.run.mjs';
 import * as variantChange from './variantChange.run.mjs';
 import * as cartRecovery from './cartRecovery.run.mjs';
+import * as subscriberOffer from './subscriberOffer.run.mjs';
 import * as replace from './replace.run.mjs';
 
 // Derived from the registry, never hand-listed, so adding a template without a
@@ -62,6 +63,9 @@ async function onShopify(m) {
      */
     const out = await flowA.onOrderCreate(orderId, deps());
     await soft('cartRecovery:onOrderCreated', () => cartRecovery.onOrderCreated(payload, deps()), { orderId });
+    // Flow W, for the same reason and with the same discipline: attributing a
+    // welcome offer is bookkeeping and an order confirmation is not.
+    await soft('subscriberOffer:onOrderCreated', () => subscriberOffer.onOrderCreated(payload, deps()), { orderId });
     return out;
   }
   if (topic === 'orders/cancelled') return flowA.onStop(orderId, deps());
@@ -126,6 +130,9 @@ async function onWaInbound(m) {
    * never cost them the reply they actually wrote in for.
    */
   await soft('cartOnWindowOpen', () => cartRecovery.onWindowOpen(phone, deps()), {});
+  // Flow W parks on 131049 as well, against the same phone row's sibling sort
+  // key, so an inbound message has to offer both flows their chance at it.
+  await soft('subscriberOnWindowOpen', () => subscriberOffer.onWindowOpen(phone, deps()), {});
 
   // WhatsApp Flow completion (review form): the signed flow_token carries the order.
   const nfm = msg.interactive?.nfm_reply;
@@ -182,6 +189,12 @@ async function onWaInbound(m) {
      * id, so there is never a STATE row for it and that gate always passes.
      */
     if (p.flow === 'R') return cartRecovery.onTap(p.orderId, p.action, phone, deps());
+    /*
+     * Flow W re-checks ownership strictly inside onTap too, and it has to: its
+     * payload carries a CUSTOMER id, so ownsOrder above has never seen that id
+     * and fails open on it.
+     */
+    if (p.flow === 'W') return subscriberOffer.onTap(p.orderId, p.action, phone, deps());
     return;
   }
 
@@ -385,6 +398,19 @@ async function onWaStatus(m) {
     await soft('cartStatus', () => cartRecovery.onCartStatus(map.cartId, st), { wamid: st.id });
     return;
   }
+  /*
+   * A welcome offer's WAMID row carries customerId and no orderId, for the
+   * same reason: everything past this point tags an order and names it to the
+   * owner, and a customer id is not an order id.
+   *
+   * This is also where 131049 lands for Flow W: Meta accepts the send with a
+   * 200 and reports the per-user cap seconds later, here, by which time both
+   * lifetime locks are already written. onSubStatus gives them back.
+   */
+  if (map?.customerId) {
+    await soft('subscriberStatus', () => subscriberOffer.onSubStatus(map.customerId, st, new Date(), deps()), { wamid: st.id });
+    return;
+  }
   if (!map?.orderId) return;
   await soft('updateMessageStatus', () => updateMessageStatus(map.orderId, st.id, st.status, st.errors), { wamid: st.id });
   if (st.status !== 'failed') return;
@@ -503,6 +529,14 @@ async function onTimer(m) {
     if (m.step === 'final') return cartRecovery.onFinal(m.orderId, d);
     return log.info('timer: unknown R step', { step: m.step });
   }
+  // Flow W carries the CUSTOMER id in the orderId slot, for the same reason
+  // Flow R carries a checkout id: a timer is named (flow, id, step) and a
+  // welcome offer has no order to name itself after. Its one timer is the
+  // deferred first message, armed when the sweep lands outside the window.
+  if (m.flow === 'W') {
+    if (m.step === 'first') return subscriberOffer.onFirst(m.orderId, d);
+    return log.info('timer: unknown W step', { step: m.step });
+  }
 }
 
 // ---- WhatsApp template status changes ---------------------------------------
@@ -539,9 +573,14 @@ async function onCart(m) {
   return cartRecovery.onFirst(m.checkoutId, deps());
 }
 
+async function onSubOffer(m) {
+  return subscriberOffer.onFirst(m.customerId, deps());
+}
+
 const routes = {
   shopify: onShopify,
   cart: onCart,
+  suboffer: onSubOffer,
   wa_inbound: onWaInbound,
   wa_status: onWaStatus,
   wa_template_status: onTemplateStatus,

@@ -21,6 +21,7 @@ import {
   subscriberOfferGuard,
   subscriberCode,
   cryptoRng,
+  phoneSkipReason,
   landingUrl,
   normalizeEmail,
   emailKey,
@@ -226,17 +227,49 @@ describe('the candidate filter', () => {
     ['has already ordered', { numberOfOrders: '1' }, 'already-ordered'],
     ['carries an excluded tag', { tags: ['cod-block'] }, 'excluded-tag'],
     ['carries the other excluded tag, in capitals', { tags: ['NO-MARKETING'] }, 'excluded-tag'],
-    /*
-     * R4: a number we HOLD but cannot use is a refusal, not a quiet fallback
-     * to email. normalizeVerifiedPhone is the only validation, and failing it
-     * covers a foreign number, a landline and a typo alike.
-     */
-    ['a phone we cannot use', { defaultPhoneNumber: { phoneNumber: '+14155550123' } }, 'no-phone'],
-    ['an Indian landline', { defaultPhoneNumber: { phoneNumber: '+912212345678' } }, 'no-phone'],
   ];
 
   it.each(refusals)('refuses one that %s', (_name, over, reason) => {
     expect(eligible(over)).toEqual({ ok: false, reason });
+  });
+
+  /*
+   * OWNER'S CORRECTION, 2026-10-24. A number we hold and cannot use is NOT a
+   * refusal. SPEC section 10 is "email only when WhatsApp is impossible or
+   * refused", and a foreign number, a landline or a typo is exactly WhatsApp
+   * being impossible. The countryPrefixes rule is there to stop us PAYING to
+   * WhatsApp an international number, not to drop the person entirely, and
+   * section 2c hands out an `email:<hash>` group id which only exists because
+   * email-only candidates are enqueued for a first send.
+   *
+   * These two cases previously asserted a terminal `no-phone`. The reason
+   * survives, but only as a non-terminal note (phoneSkipReason), never as an
+   * outcome. excludeTags and requireAnyTag stay terminal, because "not a
+   * candidate at all" is a different statement from "we cannot reach them
+   * this way".
+   */
+  const unusablePhones = [
+    ['a foreign number', { defaultPhoneNumber: { phoneNumber: '+14155550123' } }, 'non-india'],
+    // Indian, so not 'non-india': it is a number we simply cannot message.
+    ['an Indian landline, which is not on WhatsApp', { defaultPhoneNumber: { phoneNumber: '+912212345678' } }, 'bad-phone'],
+    ['a typo', { defaultPhoneNumber: { phoneNumber: '963736137' } }, 'bad-phone'],
+  ];
+
+  it.each(unusablePhones)('still offers one holding %s, by email, noting why', (_name, over, note) => {
+    expect(eligible(over)).toEqual({ ok: true });
+    const n = normalizeCustomer(customer(over));
+    expect(chooseChannel(n, { rules: RULES })).toEqual({ channel: 'email' });
+    expect(phoneSkipReason(n)).toBe(note);
+  });
+
+  it('and nothing on file at all is simply no-phone, not an error', () => {
+    expect(phoneSkipReason(normalizeCustomer(customer({ defaultPhoneNumber: null })))).toBe('no-phone');
+    expect(phoneSkipReason(normalizeCustomer(customer()))).toBe(null);
+  });
+
+  it('but an unusable number with no email either is still no-channel', () => {
+    expect(eligible({ defaultPhoneNumber: { phoneNumber: '+14155550123' }, defaultEmailAddress: null }))
+      .toEqual({ ok: false, reason: 'no-channel' });
   });
 
   /*
@@ -289,14 +322,15 @@ describe('which channel reaches them', () => {
   });
 
   /*
-   * A number that fails normalizeVerifiedPhone never reaches this function:
-   * subscriberEligible has already refused the candidate with `no-phone`. So
-   * chooseChannel answers 'email' only for someone Shopify holds NO number
-   * for, which is the case the email channel exists for.
+   * Email for a number we do not hold AND for one we hold and cannot use:
+   * both are WhatsApp being impossible, which is what this channel is for.
+   * The difference between them is recorded by phoneSkipReason, not by
+   * refusing the person.
    */
-  it('email for a record with no number at all, not for a bad one', () => {
+  it('email for a record with no number at all, and for a bad one', () => {
     expect(pick({ defaultPhoneNumber: null })).toEqual({ channel: 'email' });
     expect(pick({ defaultPhoneNumber: { phoneNumber: '' } })).toEqual({ channel: 'email' });
+    expect(pick({ defaultPhoneNumber: { phoneNumber: '+14155550123' } })).toEqual({ channel: 'email' });
   });
 
   it('nothing at all when there is neither', () => {

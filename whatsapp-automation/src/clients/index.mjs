@@ -1,6 +1,7 @@
 /* Real client bundle. Flow handlers take `clients` as a param so tests can pass
  * fakes (see fakes/index.mjs); the worker passes these. */
 import { whatsapp } from './whatsapp.mjs';
+import { email } from './email.mjs';
 import { shopify } from './shopify.mjs';
 import { razorpay } from './razorpay.mjs';
 import { courier } from './courier.mjs';
@@ -13,6 +14,12 @@ import { getLogistics } from './logistics/index.mjs';
  * touching a single flow. */
 export const realClients = {
   whatsapp,
+  /*
+   * Flow W only, and only for somebody WhatsApp cannot reach. It is listed
+   * here rather than imported where it is used so that a test can hand the
+   * flows a fake SES the same way it hands them a fake WhatsApp.
+   */
+  email,
   shopify,
   razorpay,
   courier,

@@ -10,6 +10,7 @@ import { summarizeDigest } from '../domain/digest.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE } from '../../messages/templates.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
+import { allSubRecs } from '../store/subscriberOffer.mjs';
 import { listOpen } from '../store/replace.mjs';
 import { istParts, fromISTWall, addDays, formatISTDate } from '../lib/time.mjs';
 import { log } from '../log.mjs';
@@ -93,7 +94,40 @@ export const handler = async () => {
     // is the intended quiet day.
   });
 
-  const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems });
+  /*
+   * Yesterday's welcome offers, off the SUB rows.
+   *
+   * Counted here rather than from a tag for the same reason as the carts: a
+   * customer who was offered a code has no order to carry one, and the only
+   * one that does (a conversion) is already tagged and already counted above.
+   * The skip reasons are what the owner actually needs: "12 swept, 11 skipped
+   * has-cart" is the difference between a flow that is working and one that is
+   * quietly reaching nobody.
+   */
+  const subs = (await allSubRecs()).filter((rec) => {
+    const at = Date.parse(rec.firstSentAt || rec.outcomeAt || rec.createdAt || '');
+    return at >= yStart.getTime() && at < yEnd;
+  });
+  const skipCounts = {};
+  for (const rec of subs) {
+    // `converted` is an outcome but it is not a skip: it is the best one there
+    // is, and counting it as a skip reason would be the digest lying.
+    if (rec.outcome && rec.outcome !== 'converted' && !rec.firstSentAt) {
+      skipCounts[rec.outcome] = (skipCounts[rec.outcome] || 0) + 1;
+    }
+  }
+  const sentSubs = subs.filter((rec) => rec.firstSentAt);
+  const subscribers = {
+    sent: sentSubs.length,
+    whatsapp: sentSubs.filter((rec) => rec.channel !== 'email').length,
+    email: sentSubs.filter((rec) => rec.channel === 'email').length,
+    parked: subs.filter((rec) => rec.outcome === 'waiting-window').length,
+    converted: subs.filter((rec) => rec.outcome === 'converted').length,
+    revenuePaise: subs.reduce((sum, rec) => sum + (rec.outcome === 'converted' ? rec.revenuePaise || 0 : 0), 0),
+    skips: Object.entries(skipCounts).map(([reason, count]) => ({ reason, count })),
+  };
+
+  const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems, subscribers });
 
   const deps = { clients: realClients };
   for (const phone of config.ownerAlertPhones) {

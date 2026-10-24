@@ -7,6 +7,8 @@
  *   carts  (5 min)   Flow R: abandoned checkouts old enough to be messaged.
  *                    Handled first and returned, and NOT folded into 'full':
  *                    see the handler.
+ *   subscribers      Flow W: yesterday's new customers, once a day at 11:00
+ *        (daily)     IST. Handled and returned at the top for the same reason.
  *
  * The webhook and AWB halves are the expensive ones and a day late is fine for
  * both. The order sweep is not: a confirmation that arrives a day after the
@@ -18,6 +20,7 @@ import { realClients } from '../clients/index.mjs';
 import { tpl } from '../worker/send.mjs';
 import { trackActiveShipments } from './track-active.mjs';
 import { sweepAbandonedCarts } from './cart-sweep.mjs';
+import { sweepNewSubscribers } from './subscriber-sweep.mjs';
 import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
@@ -201,6 +204,24 @@ export const handler = async (event = {}) => {
     const carts = await sweepAbandonedCarts();
     log.info('reconcile carts done', carts);
     return { ok: true, mode: 'carts', carts };
+  }
+
+  /*
+   * 'subscribers' is handled here for exactly the same reason, and the stakes
+   * are the same: the mode line below collapses every unrecognised mode to
+   * 'full', and 'full' runs sweepUnreviewed(), which calls flowB.onDelivered()
+   * and SENDS a review ask to a real customer. sweepUnconfirmed() also runs
+   * unconditionally above that branch, so returning inside it would not be
+   * enough either.
+   *
+   * Flow W's own rule fires once a day at 11:00 IST, so the damage would be
+   * one unwanted nightly pass a day rather than 288, which is worse in a
+   * different way: it would be mistaken for the real nightly run.
+   */
+  if (event?.mode === 'subscribers') {
+    const subscribers = await sweepNewSubscribers();
+    log.info('reconcile subscribers done', subscribers);
+    return { ok: true, mode: 'subscribers', subscribers };
   }
 
   const mode = event?.mode === 'orders' ? 'orders' : 'full';

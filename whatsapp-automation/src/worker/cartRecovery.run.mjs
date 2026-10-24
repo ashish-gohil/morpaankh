@@ -32,6 +32,7 @@ import {
   getPhoneLock, lockPhone, releasePhoneLock, setCartLinkMap, alertOncePerDay,
   parkForWindow, getParked, clearParked,
 } from '../store/cartRecovery.mjs';
+import { liveSubscriberOffer } from '../store/subscriberOffer.mjs';
 import {
   isOptedOut, isUndeliverable, getProfile, canSendMarketing, markMarketing, touchInbound, windowOpen,
 } from '../store/phoneProfile.mjs';
@@ -212,6 +213,24 @@ export async function onFirst(checkoutId, deps) {
   if (lock?.lockUntil && new Date(lock.lockUntil).getTime() > now.getTime()) {
     return setOutcome(checkoutId, 'cooldown');
   }
+
+  /*
+   * ONE LIVE PRIVATE CODE PER PHONE, so Flow W's welcome offer stands.
+   *
+   * Both flows mint a MORPAANKH code against the same number, and the theme's
+   * offers script keeps whichever code the link applied: two live codes means
+   * the customer can be holding a code the message they are reading does not
+   * mention, and the one they are NOT holding is the one the cart will refuse.
+   * Flow W's is the younger promise and the shorter one (24 hours), so this
+   * one waits.
+   *
+   * CHECKED BEFORE THE MARKETING CAP BELOW, deliberately. Flow W stamps
+   * markMarketing when it sends, so by the time a cart of theirs is abandoned
+   * the cap is already spent and this would otherwise be recorded as
+   * `marketing-cap`. Both refuse the send; only one of them answers the
+   * question the owner is actually asking.
+   */
+  if (await liveSubscriberOffer(phone, now)) return setOutcome(checkoutId, 'subscriber-offer-live');
 
   /*
    * Then the service-wide marketing cap, which Flow R has to honour too.

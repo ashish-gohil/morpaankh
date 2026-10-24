@@ -166,8 +166,18 @@ export const setCartLinkMap = (token, checkoutId) =>
   table.put({ PK: linkPk(token), SK: 'MAP', checkoutId: String(checkoutId), expiresAt: ttl() });
 export const getCartLinkMap = (token) => table.get(linkPk(token), 'MAP');
 
-/** Every REC row, for the daily digest. Paginated by scanBySk. */
-export const allRecs = () => table.scanBySk('REC');
+/**
+ * Every CART REC row, for the daily digest.
+ *
+ * FILTERED BY PK ON PURPOSE. scanBySk matches on the sort key with no PK
+ * condition at all, so this used to be "every row in the table whose SK is
+ * REC" and the digest's "carts messaged" count was one new flow away from
+ * counting somebody else's records as abandoned carts. Flow W is that new
+ * flow: it files under SUBOFFER#.../SUB precisely so it cannot land here, and
+ * this line is the other half of that promise, for the flow after it.
+ */
+export const allRecs = async () =>
+  (await table.scanBySk('REC')).filter((rec) => String(rec.PK || '').startsWith('CART#'));
 
 /**
  * True the FIRST time today this label is raised, false afterwards.

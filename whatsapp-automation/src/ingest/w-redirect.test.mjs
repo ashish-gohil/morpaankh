@@ -243,8 +243,16 @@ describe('nothing in the request can change where they go', () => {
     // must not mean "interpolated raw".
     await seed({ code: 'X2222?redirect=https://evil.example' });
     const res = await handler(event());
-    expect(res.headers.Location).not.toContain('evil.example');
+    /*
+     * The text DOES survive, percent-encoded, inside one path segment, which
+     * is the whole point: escaping is what stops it being read as a host, as
+     * a second path segment or as a query parameter. So what is asserted is
+     * that it cannot become any of those, rather than that the substring is
+     * absent, which encodeURIComponent of a hostname never promises.
+     */
     const u = new URL(res.headers.Location);
+    expect(u.origin).toBe('https://www.morpaankh.in');
+    expect(u.pathname.split('/')).toHaveLength(3); // '', 'discount', <one segment>
     expect(u.host).toBe('www.morpaankh.in');
     expect(u.pathname).toBe('/discount/X2222%3Fredirect%3Dhttps%3A%2F%2Fevil.example');
     expect([...u.searchParams.keys()]).toEqual(['redirect']);

@@ -377,6 +377,23 @@ export const SESSION = {
   },
 
   /*
+   * Flow W: the reply to "Talk to us". Two versions for the same reason as
+   * Flow R's pair above, and with Flow R's wording minus the bag: a welcome
+   * offer has no cart behind it, so "your bag stays saved" would be a sentence
+   * about something that does not exist.
+   */
+  subscriber_help_ack: {
+    type: 'text',
+    body:
+      'Thank you, {{customer_name}}. Someone from our team will message you here shortly. ' +
+      'Your code {{code}} stays open until {{expires_at}}.',
+  },
+  subscriber_help_ack_closed: {
+    type: 'text',
+    body: 'Thank you, {{customer_name}}. Someone from our team will message you here shortly.',
+  },
+
+  /*
    * Flow W's free-form twin, word for word with subscriber_offer_v1.
    *
    * Same reason as cart_recovery's: a session message carries no category, so

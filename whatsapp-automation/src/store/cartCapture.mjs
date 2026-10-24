@@ -3,10 +3,11 @@
  *
  *   CAPCART#<cartToken> / CAP   the captured cart
  *
- * THE SORT KEY IS 'CAP', NOT 'REC'. cartRecovery's allRecs() is a
- * scanBySk('REC') that feeds the daily digest, and reconcile's scanStates()
- * does the same for 'STATE'. A capture filed under either sort key would be
- * read back as a recovery record or as an order.
+ * THE SORT KEY IS 'CAP', NOT 'REC', NOT 'STATE' AND NOT 'SUB'. cartRecovery's
+ * allRecs() is a scanBySk('REC') that feeds the daily digest, reconcile's
+ * scanStates() does the same for 'STATE', and Flow W's allSubRecs() does it
+ * for 'SUB'. A capture filed under any of those sort keys would be read back
+ * as a recovery record, as an order, or as a welcome offer.
  *
  * These rows are a QUEUE, not a history. The recovery record that Flow R
  * creates from one lives under CART#<id>/REC with its own retention; this row

@@ -65,15 +65,13 @@ function customer(over = {}) {
  * fakes/shopify.mjs is a source file this suite must not edit, so the methods
  * Flow W needs are attached here instead. Every name below is part of the
  * contract: the real client in src/clients/shopify.mjs has to grow the same
- * five, with the same arguments and the same return shapes.
+ * four, with the same arguments and the same return shapes.
  */
 function flowWShopify(sh, {
   customers = [customer()],
   ordersByEmail = {},
-  draftOrders = [],
   bestSellers = BEST_SELLERS,
   failBestSellers = null,
-  failDraftOrders = null,
 } = {}) {
   const byGid = new Map(customers.map((c) => [String(c.id), c]));
   sh.seedCustomer = (c) => byGid.set(String(c.id), c);
@@ -89,13 +87,6 @@ function flowWShopify(sh, {
   sh.ordersByEmail = async (address) => {
     sh.calls.push({ op: 'ordersByEmail', address });
     return ordersByEmail[String(address).toLowerCase()] || [];
-  };
-  sh.listOpenDraftOrders = async (sinceISO) => {
-    sh.calls.push({ op: 'listOpenDraftOrders', sinceISO });
-    // read_draft_orders is NOT a granted scope today, so a 403 here is the
-    // expected case until the owner adds it by hand.
-    if (failDraftOrders) throw new Error(String(failDraftOrders));
-    return draftOrders;
   };
   sh.collectionBestSellers = async (handle, limit) => {
     sh.calls.push({ op: 'collectionBestSellers', handle, limit });
@@ -336,14 +327,6 @@ describe('every gate, and the outcome it records', () => {
     ['created before FLOW_W_START_AT', { createdAt: '2026-09-20T05:00:00Z' }, 'before-start'],
     ['carries an excluded tag', { tags: ['no-marketing'] }, 'excluded-tag'],
     ['already has an order on the customer record', { numberOfOrders: '2' }, 'already-ordered'],
-    /*
-     * R4, owner's decision 2026-10-24: the recipient is
-     * Customer.defaultPhoneNumber validated through the EXISTING
-     * normalizeVerifiedPhone. A number we hold but cannot use is a refusal,
-     * not a quiet slide onto email.
-     */
-    ['a phone we cannot use', { defaultPhoneNumber: { phoneNumber: '+14155550123' } }, 'no-phone'],
-    ['an Indian landline', { defaultPhoneNumber: { phoneNumber: '+912212345678' } }, 'no-phone'],
     ['no way to reach them at all', { defaultPhoneNumber: null, defaultEmailAddress: null }, 'no-channel'],
   ];
 
@@ -355,6 +338,50 @@ describe('every gate, and the outcome it records', () => {
     expect(clients.email.sent).toHaveLength(0);
     expect(discounts(clients.shopify)).toHaveLength(0);
     expect(await getPhoneOfferLock(PHONE)).toBe(null);
+  });
+
+  /*
+   * OWNER'S CORRECTION, 2026-10-24. These two were `no-phone` outcomes, which
+   * read the SPEC's gate list as making an unusable number terminal. It is
+   * not: section 10 is "email only when WhatsApp is impossible or refused",
+   * and a foreign number or a landline is exactly WhatsApp being impossible.
+   * The countryPrefixes rule exists to stop us PAYING to WhatsApp a number
+   * outside India, not to drop a customer who gave us one.
+   *
+   * So the offer still goes, by email, and the reason we could not use the
+   * number is kept as a note on the record rather than as an outcome, so that
+   * `subscriber-offer.mjs preview` can still answer "why an email and not a
+   * WhatsApp".
+   */
+  const unusablePhones = [
+    ['a foreign number', '+14155550123', 'non-india'],
+    ['an Indian landline', '+912212345678', 'bad-phone'],
+  ];
+
+  it.each(unusablePhones)('%s: emailed instead, with the reason noted and no outcome', async (_n, raw, note) => {
+    const { clients, deps } = setup({ customers: [customer({ defaultPhoneNumber: { phoneNumber: raw } })] });
+    await W.onFirst(CUSTOMER_ID, deps);
+
+    const rec = await getSubRec(CUSTOMER_ID);
+    expect(rec.outcome).toBeUndefined();
+    expect(rec.channel).toBe('email');
+    expect(rec.phoneSkipReason).toBe(note);
+    expect(rec.firstSentAt).toBeTruthy();
+    expect(clients.email.sent).toHaveLength(1);
+    expect(clients.whatsapp.sent.filter((m) => m.name === 'subscriber_offer_v1')).toHaveLength(0);
+    // The lifetime lock is on the EMAIL only: there is no number to hold.
+    expect(await getPhoneOfferLock(PHONE)).toBe(null);
+    expect(await getEmailOfferLock(emailKey(EMAIL))).toMatchObject({ customerId: CUSTOMER_ID });
+  });
+
+  it('but an unusable number and no email either is still terminal', async () => {
+    const { clients, deps } = setup({
+      customers: [customer({ defaultPhoneNumber: { phoneNumber: '+14155550123' }, defaultEmailAddress: null })],
+    });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('no-channel');
+    expect(clients.email.sent).toHaveLength(0);
+    expect(discounts(clients.shopify)).toHaveLength(0);
   });
 
   it('messages defaultPhoneNumber, in whichever digit form Shopify holds it', async () => {
@@ -426,43 +453,15 @@ describe('every gate, and the outcome it records', () => {
     expect(discounts(clients.shopify)).toHaveLength(0);
   });
 
-  it('an open draft order the owner is building for them', async () => {
-    const { clients, deps } = setup({
-      flowW: { draftOrders: [{ id: 'gid://shopify/DraftOrder/9', customer: { id: GID }, email: null, phone: null }] },
-    });
-    await W.onFirst(CUSTOMER_ID, deps);
-    expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('has-draft-order');
-    expect(discounts(clients.shopify)).toHaveLength(0);
-  });
-
   /*
-   * R6: unlike the public-codes read, a missing draft-order check cannot make
-   * us offer too much money. It only risks messaging someone the owner is
-   * already serving by hand, which is a far smaller harm than muting the
-   * whole flow, so this gate fails OPEN and says so once a day.
+   * THERE IS NO DRAFT-ORDER GATE. Owner's decision, 2026-10-24, and it is
+   * correct: a COMPLETED draft order IS an order, so the "any order" gates
+   * above already cover the only case that can matter. An OPEN draft order is
+   * a quote the owner is still building, which is not a reason to withhold a
+   * welcome code. Three tests here asserted a `has-draft-order` outcome and a
+   * fail-open `draftCheckSkipped` flag; both are gone, and with them the need
+   * for a read_draft_orders scope this app has never been granted.
    */
-  it('a draft-order lookup that 403s skips that gate only, and still sends', async () => {
-    const { clients, deps } = setup({ flowW: { failDraftOrders: 'Access denied for draftOrders field' } });
-    await W.onFirst(CUSTOMER_ID, deps);
-    const rec = await getSubRec(CUSTOMER_ID);
-    expect(rec.firstSentAt).toBeTruthy();
-    expect(rec.draftCheckSkipped).toBe(true);
-    expect(customerTemplates(clients.whatsapp)).toEqual(['subscriber_offer_v1']);
-    expect(alerts(clients.whatsapp)).toHaveLength(1);
-    expect(JSON.stringify(alerts(clients.whatsapp))).toMatch(/draft/i);
-  });
-
-  it('and it says so once a day, not once per customer', async () => {
-    const { clients, deps } = setup({ flowW: { failDraftOrders: 'Access denied' } });
-    await W.onFirst(CUSTOMER_ID, deps);
-    clients.shopify.seedCustomer(customer({
-      id: 'gid://shopify/Customer/890',
-      defaultPhoneNumber: { phoneNumber: '+919800000004' },
-      defaultEmailAddress: { emailAddress: 'd@example.com', marketingState: 'SUBSCRIBED', marketingUnsubscribeUrl: UNSUB },
-    }));
-    await W.onFirst('890', deps);
-    expect(alerts(clients.whatsapp)).toHaveLength(1);
-  });
 
   // ---- the cart gates -----------------------------------------------------
   it('an abandoned checkout of theirs, so Flow R owns this person', async () => {
@@ -798,9 +797,33 @@ describe('a send Meta refuses', () => {
 
   it('132001: the template is unusable, and the owner is told once a day', async () => {
     const { clients, deps } = setup({ whatsapp: { failTemplateWith: 132001 } });
+    /*
+     * ATTEMPTS, not sends, and only on this test. `failTemplateWith` makes the
+     * fake refuse EVERY template, which is the honest shape of 132001 (it is
+     * an account-wide or language-wide refusal) and means the ops_alert
+     * template cannot land in `sent` either: the owner alert is itself a
+     * template. So the once-a-day contract is measured where it is actually
+     * decided, at the attempt, which is strictly more precise than counting
+     * the sends the fake was always going to swallow.
+     *
+     * It is also a real gap worth naming: when Meta disables our templates,
+     * the alert telling the owner so cannot be a template. The session twin is
+     * the only route that still works, and nothing uses it for alerts today.
+     */
+    const attempts = [];
+    const realSend = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (String(a.name || '').startsWith('ops_alert')) attempts.push(a);
+      return realSend(a);
+    };
+
     await W.onFirst(CUSTOMER_ID, deps);
     expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('template-unusable');
     expect(await getPhoneOfferLock(PHONE)).toBe(null);
+    // More than zero: one ownerAlert is two attempts here, because tpl() tries
+    // ops_alert_v2 and then its LEGACY twin, and this fake refuses both.
+    const told = attempts.length;
+    expect(told).toBeGreaterThan(0);
 
     clients.shopify.seedCustomer(customer({
       id: 'gid://shopify/Customer/889',
@@ -808,7 +831,11 @@ describe('a send Meta refuses', () => {
       defaultEmailAddress: { emailAddress: 'c@example.com', marketingState: 'SUBSCRIBED', marketingUnsubscribeUrl: UNSUB },
     }));
     await W.onFirst('889', deps);
-    expect(alerts(clients.whatsapp)).toHaveLength(1);
+    expect((await getSubRec('889')).outcome).toBe('template-unusable');
+    // The second customer raises NO further alert: the cause is account-wide,
+    // and one line a day is what the owner can act on.
+    expect(attempts).toHaveLength(told);
+    expect(alerts(clients.whatsapp)).toHaveLength(0);
   });
 
   it('anything else throws, so SQS redelivers it', async () => {
@@ -875,7 +902,7 @@ describe('the delivery status webhook', () => {
     expect(await getPhoneOfferLock(PHONE)).toBeTruthy();
     expect(await canSendMarketing(PHONE, NOW, RULES.marketingCapDays)).toBe(false);
 
-    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW, deps);
 
     /*
      * R9, THE HIGHEST-CONSEQUENCE PATH IN THE FEATURE. The send was accepted
@@ -896,7 +923,7 @@ describe('the delivery status webhook', () => {
   it('a 131026 on the status webhook releases both locks but parks nothing', async () => {
     const { deps } = setup();
     await W.onFirst(CUSTOMER_ID, deps);
-    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW, deps);
     expect(await getSubParked(PHONE)).toBe(null);
     expect(await getPhoneOfferLock(PHONE)).toBe(null);
     expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
@@ -907,7 +934,7 @@ describe('the delivery status webhook', () => {
     // do not get to wait for Meta to tell us which flavour of nothing it was.
     const { deps } = setup();
     await W.onFirst(CUSTOMER_ID, deps);
-    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [] }, NOW);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [] }, NOW, deps);
     expect(await getPhoneOfferLock(PHONE)).toBe(null);
     expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
     expect(await canSendMarketing(PHONE, NOW, RULES.marketingCapDays)).toBe(true);
@@ -917,7 +944,7 @@ describe('the delivery status webhook', () => {
     // The whole reason the locks go back: this person has had nothing.
     const { clients, deps } = setup();
     await W.onFirst(CUSTOMER_ID, deps);
-    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW, deps);
 
     const later = fromISTWall(2026, 9, 25, 11, 0);
     clients.shopify.seedCustomer(customer({ id: 'gid://shopify/Customer/891', createdAt: '2026-10-24T05:00:00Z' }));
@@ -928,7 +955,7 @@ describe('the delivery status webhook', () => {
   it('a good status touches neither the lock nor the cap', async () => {
     const { deps } = setup();
     await W.onFirst(CUSTOMER_ID, deps);
-    await W.onSubStatus(CUSTOMER_ID, { status: 'delivered' }, NOW);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'delivered' }, NOW, deps);
     expect((await getSubRec(CUSTOMER_ID)).lastStatus).toBe('delivered');
     expect(await getPhoneOfferLock(PHONE)).toBeTruthy();
   });

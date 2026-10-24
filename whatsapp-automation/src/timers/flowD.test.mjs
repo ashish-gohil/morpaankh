@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { summarizeDigest } from '../domain/digest.mjs';
+import { sanitizeParam } from '../../messages/templates.mjs';
+
+/** The longest of the real NEXT_ACTION strings in timers/digest.mjs. */
+const NEXT_ACTION_SAMPLE = 'has its pickup booked, the new parcel is not booked yet';
 import { trackActiveShipments } from './track-active.mjs';
 import { _resetMemory, table } from '../store/table.mjs';
 import { setAwbMap } from '../store/maps.mjs';
@@ -48,6 +52,65 @@ describe('summarizeDigest', () => {
     // rather than throw inside the digest.
     expect(summarizeDigest(orders, { templateProblems: null }).line).not.toContain('TEMPLATE');
     expect(summarizeDigest(orders).line).not.toContain('TEMPLATE');
+  });
+
+  /*
+   * FLOW W'S LINE, AND THE LENGTH OF THE WHOLE THING.
+   *
+   * The digest is ONE WhatsApp body parameter. sanitizeParam does not
+   * truncate, and Meta answers an over-long hydrated body with 132005, which
+   * is in TEMPLATE_UNUSABLE: an over-long digest does not arrive shortened, it
+   * makes ops_digest unsendable and the owner gets nothing at all. So the
+   * welcome-offer line caps its skip reasons at the two biggest, counted, and
+   * this test holds the whole rendered summary to a length that still fits
+   * inside the template around it.
+   */
+  it('reports the welcome offers, capped, and stays inside one body parameter', () => {
+    const subscribers = {
+      sent: 3, whatsapp: 2, email: 1, parked: 1, converted: 1, revenuePaise: 189900,
+      skips: [
+        { reason: 'has-cart', count: 4 },
+        { reason: 'already-ordered', count: 9 },
+        { reason: 'marketing-cap', count: 2 },
+        { reason: 'public-offer-better', count: 1 },
+      ],
+    };
+    const line = summarizeDigest([{ tags: ['wa-confirmed'] }], { subscribers }).line;
+    expect(line).toContain('Welcome offers: 3 sent, 2 WhatsApp, 1 email, 1 parked, 1 converted ₹1,899');
+    // The two BIGGEST, in order, and the rest counted rather than listed.
+    expect(line).toContain('Top welcome skips: already-ordered 9, has-cart 4, and 2 more reasons');
+    expect(line).not.toContain('public-offer-better');
+
+    // Self silencing: a day with no welcome offers adds nothing at all.
+    expect(summarizeDigest([{ tags: [] }], {}).line).not.toContain('Welcome');
+    expect(summarizeDigest([{ tags: [] }], { subscribers: { sent: 0, skips: [] } }).line).not.toContain('Welcome');
+  });
+
+  it('a worst-case day still renders one sendable body parameter', () => {
+    /*
+     * Every line at its cap at once: the welcome offers, the open
+     * replacements and the unusable templates. ops_digest's own body is 105
+     * characters and Meta's limit on the hydrated text is 1024, so the
+     * summary has to leave room for the template around it.
+     */
+    const worst = summarizeDigest(
+      Array.from({ length: 50 }, () => ({ tags: ['wa-cod-sent', 'wa-confirmed', 'RTO', 'wa-undeliverable'] })),
+      {
+        cartsMessaged: 99,
+        subscribers: {
+          sent: 100, whatsapp: 60, email: 40, parked: 12, converted: 9, revenuePaise: 12345600,
+          skips: Array.from({ length: 12 }, (_, i) => ({ reason: `a-very-long-outcome-name-${i}`, count: 100 - i })),
+        },
+        replacements: Array.from({ length: 6 }, (_, i) => ({ orderName: `#120${i}`, nextAction: NEXT_ACTION_SAMPLE })),
+        templateProblems: Array.from({ length: 6 }, (_, i) => ({ name: `a_long_template_name_v${i}`, status: 'REJECTED' })),
+      },
+    ).line;
+    expect(worst.length).toBeLessThanOrEqual(1024 - 105);
+    // And it survives the parameter sanitiser unchanged: no newline, no tab,
+    // and no run of spaces long enough for Meta to refuse the send.
+    expect(sanitizeParam(worst)).toBe(worst);
+    expect(/[\n\t]/.test(worst)).toBe(false);
+    expect(/ {5,}/.test(worst)).toBe(false);
   });
 
   it('caps the template list so one bad day cannot eat the whole digest', () => {

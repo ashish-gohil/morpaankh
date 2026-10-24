@@ -4,6 +4,7 @@
  * reconstructable from Shopify without a separate counter store.
  */
 import { hasTag, hasRtoTag } from './order.mjs';
+import { formatINR } from '../lib/money.mjs';
 
 const RULES_TAGS = [
   ['cod', 'wa-cod-sent'],
@@ -62,11 +63,56 @@ function templateProblemsLine(problems) {
   return `. TEMPLATE NOT USABLE: ${shown.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}`;
 }
 
+/*
+ * Flow W's day, and the reason it is capped.
+ *
+ * The WHOLE digest is ONE WhatsApp body parameter, `ops_digest.summary`.
+ * sanitizeParam does not truncate, and Meta answers an over-long hydrated body
+ * with 132005, which is in TEMPLATE_UNUSABLE: an over-long digest does not
+ * arrive shortened, it makes the template unsendable and takes the whole
+ * digest with it. So the skip reasons are capped at the TWO biggest, counted,
+ * and every label is a known outcome string rather than anything interpolated
+ * from a customer.
+ *
+ * Self-silencing: a day with no welcome offers adds nothing at all.
+ *
+ * @param {{sent?: number, whatsapp?: number, email?: number, parked?: number,
+ *          converted?: number, revenuePaise?: number,
+ *          skips?: {reason: string, count: number}[]}} [s]
+ */
+function subscriberOffersLine(s) {
+  if (!s) return '';
+  const sent = s.sent || 0;
+  const skips = (s.skips || []).filter((x) => x && x.reason);
+  if (!sent && !s.parked && !s.converted && !skips.length) return '';
+
+  const parts = [`${sent} sent`];
+  // The channel split matters: "all by email" means WhatsApp is refusing us.
+  if (sent) parts.push(`${s.whatsapp || 0} WhatsApp, ${s.email || 0} email`);
+  if (s.parked) parts.push(`${s.parked} parked`);
+  if (s.converted) {
+    // formatINR, not a second spelling of money: the owner reads the rupee
+    // symbol everywhere else in this service.
+    parts.push(s.revenuePaise ? `${s.converted} converted ${formatINR(s.revenuePaise)}` : `${s.converted} converted`);
+  }
+  const top = skips
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 2)
+    .map((x) => `${String(x.reason).slice(0, 24)} ${x.count}`);
+  const rest = skips.length - top.length;
+  const skipText = top.length ? `. Top welcome skips: ${top.join(', ')}${rest > 0 ? `, and ${rest} more reasons` : ''}` : '';
+  return `. Welcome offers: ${parts.join(', ')}${skipText}`;
+}
+
 /**
  * @param {{tags:string[]}[]} orders  orders updated in the window
  * @param {{cartsMessaged?: number,
  *           replacements?: {orderName?: string, state?: string, nextAction?: string}[],
- *           templateProblems?: {name?: string, status?: string}[]}} [extra]
+ *           templateProblems?: {name?: string, status?: string}[],
+ *           subscribers?: {sent?: number, whatsapp?: number, email?: number, parked?: number,
+ *                          converted?: number, revenuePaise?: number,
+ *                          skips?: {reason: string, count: number}[]}}} [extra]
  *   Counts that cannot be derived from a tag. "carts messaged" is one of them:
  *   an abandoned checkout has no order to tag, so it is counted off the Flow R
  *   records instead. "recovered" IS a tag, so it still comes from Shopify.
@@ -94,6 +140,10 @@ export function summarizeDigest(orders, extra = {}) {
     `${extra.cartsMessaged || 0} carts messaged, ${counts.cartsRecovered} recovered`;
   return {
     counts,
-    line: line + openReplacementsLine(extra.replacements) + templateProblemsLine(extra.templateProblems),
+    line:
+      line
+      + subscriberOffersLine(extra.subscribers)
+      + openReplacementsLine(extra.replacements)
+      + templateProblemsLine(extra.templateProblems),
   };
 }

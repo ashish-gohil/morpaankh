@@ -231,6 +231,55 @@ export const RULES = {
   },
 
   /*
+   * Flow W - the 24 hour private welcome offer for someone who joined and has
+   * never ordered.
+   *
+   * THE TWO FIGURES THAT DECIDE WHETHER THIS FLOW SENDS ANYTHING AT ALL are
+   * amountInr and minOrderAboveInr, and they are measured against Flow R's
+   * numbers above, not against a second set of their own. The guard is: beat
+   * the best live PUBLIC code on an order of minOrderAboveInr by
+   * cartRecovery.beatPublicByInr, and never exceed cartRecovery.offerTiers for
+   * that figure. With WELCOME150 live that is Rs 150 + Rs 50 = Rs 200 as the
+   * floor, and the Rs 2,000 tier's Rs 200 as the ceiling, so Rs 200 sits
+   * exactly on both lines. It is the most generous offer the rules allow and
+   * there is no slack in either direction: raising amountInr breaks the
+   * ceiling, lowering it stops beating WELCOME150, and either way the flow
+   * goes silent with outcome public-offer-better rather than sending something
+   * worse than the cart page already offers.
+   *
+   * The code's Shopify minimum is minOrderAboveInr + 0.01, which is what makes
+   * "above Rs 1,500" literally true AND what lands the guard in the Rs 2,000
+   * tier. At a flat Rs 1,500 the ceiling is Rs 160 and nothing is ever sent.
+   *
+   * requireAnyTag EMPTY means every new customer record counts as a signup,
+   * which is the shipped default; ['popup-subscriber','newsletter'] narrows it
+   * to the popup's own subscribers. maxPerRun is a blast radius, not a
+   * throughput limit: a bot signing up 500 accounts overnight must stop the
+   * run dead rather than cost 500 private codes.
+   *
+   * sendWindow is NARROWER than Flow R's on purpose. Flow R answers something
+   * the customer did twenty minutes ago; this is an unprompted marketing
+   * message to someone who has never bought, so it keeps to sociable hours.
+   */
+  subscriberOffer: {
+    amountInr: 200,
+    minOrderAboveInr: 1500,
+    codeValidHours: 24,
+    gift: true,
+    codeDigits: 4,
+    maxPerRun: 100,
+    sendWindow: { start: '10:00', end: '21:00' },
+    collectionHandle: 'best-sellers',
+    excludeTags: ['cod-block', 'no-marketing'],
+    requireAnyTag: [],
+    // SECURITY names "cost runaway (non +91 numbers)": a WhatsApp template to
+    // an international number is billed at that country's rate, and nobody on
+    // this store's list is outside India.
+    countryPrefixes: ['+91'],
+    convertedTag: 'wa-subscriber-converted',
+  },
+
+  /*
    * Replacement shipments (/replace).
    *
    * A replacement is two parcels: a reverse pickup of what the customer has,

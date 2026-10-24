@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { _resetMemory } from '../store/table.mjs';
+import { table, _resetMemory } from '../store/table.mjs';
 import { _drainQueue } from '../queue.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
@@ -140,6 +140,17 @@ describe('the daily sweep', () => {
     expect(first.enqueued).toEqual(['A1', 'A2', 'A3']);
     const firstQ = _drainQueue();
 
+    /*
+     * THE STATE A DIED RUN LEAVES, which is no marker at all. The run above
+     * completed, so it wrote one, and the completed-day no-op test below is
+     * what proves a marker stops a re-run dead. Deleting it here is how this
+     * test reaches the case it is actually about: the marker is written LAST,
+     * so a crash anywhere before that leaves the day unmarked and the next run
+     * reads it again.
+     */
+    await table.del(`SUBOFFER#RUN#${YESTERDAY.date}`, 'DAY');
+    expect(await getSweepDay(YESTERDAY.date)).toBe(null);
+
     // A1 has been handled by the worker since; A2 and A3 have not.
     await ensureSubRec('A1', { phone: PHONE }, NOW);
 
@@ -187,7 +198,6 @@ describe('what the sweep drops', () => {
     ['has already ordered', { numberOfOrders: '1' }, 'already-ordered'],
     ['carries an excluded tag', { tags: ['no-marketing'] }, 'excluded-tag'],
     ['unreachable by either channel', { defaultPhoneNumber: null, defaultEmailAddress: null }, 'no-channel'],
-    ['a number we cannot use, even with an email on file', { defaultPhoneNumber: { phoneNumber: '+14155550123' } }, 'no-phone'],
   ];
 
   it.each(dropped)('drops one that %s', async (_n, over, reason) => {
@@ -196,6 +206,21 @@ describe('what the sweep drops', () => {
     expect(out.enqueued).toEqual([]);
     expect(out.skipped).toMatchObject({ [reason]: 1 });
     expect(_drainQueue()).toHaveLength(0);
+  });
+
+  /*
+   * OWNER'S CORRECTION, 2026-10-24. This was a `no-phone` DROP, which read an
+   * unusable number as terminal. It is not: a foreign number or a landline is
+   * WhatsApp being impossible, which is what the email channel exists for, and
+   * the email group id in the enqueue below only exists because email-only
+   * candidates are meant to reach the worker.
+   */
+  it('keeps one whose number we cannot use, on the email group', async () => {
+    const clients = setup({ customers: [customer('A1', { defaultPhoneNumber: { phoneNumber: '+14155550123' } })] });
+    const out = await sweepNewSubscribers(clients, NOW);
+    expect(out.enqueued).toEqual(['A1']);
+    const [q] = _drainQueue();
+    expect(q.groupId).toBe(`email:${emailKey(EMAIL)}`);
   });
 
   it('keeps one created at exactly yesterday 00:00 IST, the inclusive start', async () => {
