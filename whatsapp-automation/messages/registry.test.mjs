@@ -96,7 +96,7 @@ describe('the dispatch message does not claim the parcel has moved', () => {
  * through. Add a key here whenever a template gains a twin.
  */
 describe('a template and its session twin say the same thing', () => {
-  for (const key of ['replacement_raised']) {
+  for (const key of ['replacement_raised', 'subscriber_offer']) {
     it(`${key} is word for word in both files`, () => {
       expect(SESSION[key], `SESSION.${key}`).toBeTruthy();
       expect(SESSION[key].body).toBe(TEMPLATES[key].body);
@@ -179,6 +179,154 @@ describe('the LEGACY fallback contract that send.mjs relies on', () => {
     for (const t of Object.values(TEMPLATES)) {
       if (t.header?.format === 'IMAGE') expect(t.header.sample).toMatch(/^https:\/\//);
     }
+  });
+});
+
+/*
+ * Flow W: the 24 hour private welcome offer.
+ *
+ * The body is asserted BYTE FOR BYTE rather than by keyword. It is the only
+ * message a brand new customer ever gets from us, it carries a Rs 200 code and
+ * a gift promise, and every sentence in it was written to a brief. A reworded
+ * line is a decision, not a refactor, so it should have to be made here first.
+ */
+describe('the subscriber welcome offer copy', () => {
+  const BODY =
+    'Hello {{customer_name}}, thank you for joining Morpaankh.\n\n' +
+    'To welcome you, we have made a special code just for you:\n\n' +
+    '*{{code}}*\n\n' +
+    'It takes *{{saving}} off* any order above {{min_order}}, and *a gift from us* comes wrapped in your parcel. ' +
+    'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+    'Most loved right now: {{top_picks}}.\n\n' +
+    'Every piece is checked by hand before it leaves us, and what you see is exactly what arrives. ' +
+    'Prepaid orders ship free.\n\n' +
+    'Tap below and your code is applied for you.';
+
+  it('says exactly what it was written to say', () => {
+    expect(TEMPLATES.subscriber_offer.body).toBe(BODY);
+  });
+
+  it('is MARKETING, in English, with the opt-out footer that makes it legal', () => {
+    const t = TEMPLATES.subscriber_offer;
+    expect(t.name).toBe('subscriber_offer_v1');
+    expect(t.language).toBe('en');
+    // It carries an offer and a code, so it is MARKETING and it is capped by
+    // marketingCapDays like every other one.
+    expect(t.category).toBe('MARKETING');
+    expect(t.footer).toBe('Reply STOP to stop these messages');
+  });
+
+  it('leads with the collection image, and has a plain twin for when there is none', () => {
+    expect(TEMPLATES.subscriber_offer.header).toMatchObject({ format: 'IMAGE' });
+    expect(TEMPLATES.subscriber_offer.header.sample).toMatch(/^https:\/\//);
+    expect(LEGACY.subscriber_offer.name).toBe('subscriber_offer_plain_v1');
+    expect(LEGACY.subscriber_offer.header).toBeUndefined();
+    expect(LEGACY.subscriber_offer.body).toBe(BODY);
+  });
+
+  it('carries the /w/ link button and the Talk to us quick reply, in that order', () => {
+    expect(TEMPLATES.subscriber_offer.buttons).toEqual([
+      { kind: 'url', text: 'Shop best sellers', path: 'w', urlPattern: '{{public}}/w/{{token}}' },
+      { kind: 'quick_reply', text: 'Talk to us', flow: 'W', action: 'help' },
+    ]);
+    // Same buttons on the plain twin, or the fallback silently drops the link.
+    expect(LEGACY.subscriber_offer.buttons).toEqual(TEMPLATES.subscriber_offer.buttons);
+  });
+
+  /*
+   * NO COPY_CODE BUTTON, for the same reason as Flow R: Meta caps that
+   * button's code at 15 characters and MORPAANKH + a name + four digits is
+   * always longer. The code sits in the body in bold instead.
+   */
+  it('does not try to use a copy-code button', () => {
+    for (const b of TEMPLATES.subscriber_offer.buttons) expect(b.kind).not.toBe('copy_code');
+  });
+
+  it('shows the owner real examples, in rupees, with the SPEC figures', () => {
+    expect(TEMPLATES.subscriber_offer.examples).toEqual({
+      customer_name: 'Priya',
+      code: 'MORPAANKHPRIYA4729',
+      saving: '₹200',
+      min_order: '₹1,500',
+      expires_at: 'tomorrow at 11:00 AM',
+      top_picks: 'Khili Dhoop, Bandhan and Morani',
+    });
+  });
+
+  it('takes the same six placeholders in both versions', () => {
+    const want = ['customer_name', 'code', 'saving', 'min_order', 'expires_at', 'top_picks'];
+    expect(placeholderOrder(TEMPLATES.subscriber_offer.body)).toEqual(want);
+    expect(placeholderOrder(LEGACY.subscriber_offer.body)).toEqual(want);
+  });
+
+  it('renders with an image header, body parameters and a url button parameter', () => {
+    const r = renderTemplate('subscriber_offer', TEMPLATES.subscriber_offer.examples, { orderId: '25164544835956', token: 'tok_w', imageUrl: IMG });
+    expect(r.name).toBe('subscriber_offer_v1');
+    expect(r.components.find((c) => c.type === 'header').parameters[0].image.link).toBe(IMG);
+    expect(r.components.find((c) => c.type === 'body').parameters).toHaveLength(6);
+    const buttons = r.components.filter((c) => c.type === 'button');
+    expect(buttons[0]).toMatchObject({ sub_type: 'url', index: '0' });
+    expect(buttons[0].parameters[0].text).toBe('tok_w');
+    expect(buttons[1].parameters[0].payload).toBe('v1|W|25164544835956|help');
+  });
+
+  /*
+   * The session twin is what goes out inside an open 24 hour window, which is
+   * also the only channel Meta's per-user marketing cap (131049) cannot
+   * throttle. The registry field is `ctaText` with `type: 'cta_url'`; the URL
+   * arrives at render time as ctx.url.
+   */
+  it('has a session twin shaped the way renderSession expects', () => {
+    expect(SESSION.subscriber_offer.type).toBe('cta_url');
+    expect(SESSION.subscriber_offer.ctaText).toBe('Shop best sellers');
+    expect(SESSION.subscriber_offer.ctaText.length).toBeLessThanOrEqual(20);
+    const r = renderSession('subscriber_offer', TEMPLATES.subscriber_offer.examples, { url: 'https://api.example/w/tok_w' });
+    expect(r.type).toBe('cta_url');
+    expect(r.url).toBe('https://api.example/w/tok_w');
+    expect(r.body).toContain('MORPAANKHPRIYA4729');
+  });
+});
+
+/*
+ * The email is the same offer for somebody WhatsApp cannot reach, so it is
+ * held to the same copy rules: no en or em dash, no emoji, and the same
+ * promise in the same words.
+ */
+describe('the subscriber welcome email copy', () => {
+  /*
+   * Loaded per test rather than imported at the top of the file: a static
+   * import of a module that does not exist yet would fail COLLECTION and take
+   * every other test in this file with it.
+   */
+  const copy = async () => (await import('./email.mjs')).EMAIL.subscriber_offer;
+
+  it('has the subject, the preheader, the heading and the small print', async () => {
+    const EMAIL = { subscriber_offer: await copy() };
+    expect(EMAIL.subscriber_offer.subject).toBe('{{first_name}}, your private welcome code closes tomorrow');
+    expect(EMAIL.subscriber_offer.subjectNoName).toBe('Your private welcome code closes tomorrow');
+    expect(EMAIL.subscriber_offer.preheader).toBe('₹200 off any order above ₹1,500, plus a gift in your parcel.');
+    expect(EMAIL.subscriber_offer.heading).toBe('A private welcome, for the next 24 hours');
+    expect(EMAIL.subscriber_offer.button).toBe('Shop best sellers');
+    expect(EMAIL.subscriber_offer.smallPrint).toBe(
+      'Single use. Valid on orders above ₹1,500 until {{expires_at}} IST. ' +
+      'Cannot be combined with other codes. ' +
+      'You are receiving this because you joined us at morpaankh.in.',
+    );
+  });
+
+  it('says the same thing as the WhatsApp message, word for word', async () => {
+    expect((await copy()).body).toBe(TEMPLATES.subscriber_offer.body);
+  });
+
+  it('contains no en or em dash and no emoji', async () => {
+    for (const s of Object.values(await copy())) {
+      expect(DASH.test(s), JSON.stringify(s).slice(0, 80)).toBe(false);
+      expect(EMOJI.test(s), JSON.stringify(s).slice(0, 80)).toBe(false);
+    }
+  });
+
+  it('never writes "Rs" where the rest of the copy writes the rupee symbol', async () => {
+    for (const s of Object.values(await copy())) expect(s).not.toMatch(/\bRs\.?\s?\d/);
   });
 });
 
