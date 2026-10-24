@@ -92,6 +92,10 @@ scripts/dryrun-render.mjs              # preview all copy
 scripts/cart-recovery.mjs preview <checkoutId>        # Flow R: read-only, writes nothing
 scripts/cart-recovery.mjs send <checkoutId> --live    # allowlisted phones ONLY
 scripts/cart-recovery.mjs final <checkoutId> --live
+scripts/subscriber-offer.mjs preview --date 2026-10-23    # Flow W: read-only, writes nothing
+scripts/subscriber-offer.mjs run --date 2026-10-23 --live  # the real sweep for one day
+scripts/subscriber-offer.mjs backfill --from D --to D --live  # the only way past START_AT
+scripts/subscriber-offer.mjs status <customerId>
 ```
 
 ## Flow R: "why did this customer not get a cart message?"
@@ -142,6 +146,71 @@ Other things worth knowing:
 - **Changing where the link lands** is `RULES.cartRecovery.linkTarget` /
   `checkoutLinkStyle` and a deploy. It is never a template change: the button's
   URL is fixed once Meta approves it and all it carries is the token.
+
+## Flow W: "why did this new customer not get a welcome offer?"
+
+Read the record first. Every refusal is written down.
+
+```
+scripts/subscriber-offer.mjs status <customerId>
+aws dynamodb get-item --table-name wa-automation --region ap-south-1 \
+  --key '{"PK":{"S":"SUBOFFER#<customerId>"},"SK":{"S":"SUB"}}'
+```
+
+`outcome` is the answer, and it is only ever a FINAL state:
+
+| outcome | what happened |
+|---|---|
+| `not-found` | Shopify no longer has that customer |
+| `before-start` | they joined before `FLOW_W_START_AT`. `backfill` is the only way past it |
+| `no-created-at` | the customer record has no usable creation time |
+| `already-ordered` | they have an order, by customer id, by exact email, or by the verified phone on a recent order. Asked of Shopify, not of our table |
+| `excluded-tag` / `not-a-subscriber` | `excludeTags` hit, or `requireAnyTag` is set and they have none of them |
+| `no-channel` | no usable number AND no usable email. An unusable number alone is NOT this: it falls back to email |
+| `email-unsubscribed` | Shopify marketing state UNSUBSCRIBED and no number. The only email state that refuses |
+| `email-invalid` | Shopify's own `validFormat` says that address cannot receive. Skipped before anything is created, because SES judges us on the bounce RATE |
+| `has-cart` | an abandoned checkout, a captured cart, or a Flow R lock or park on their number. Flow R owns them |
+| `opted-out` / `undeliverable` | hard phone guardrails. `undeliverable` only when there is no email either |
+| `already-offered` | a LIFETIME lock on the number or on the email hash. Once per person, ever |
+| `marketing-cap` | another MARKETING template inside `marketingCapDays`. Not checked when their 24 hour window is open |
+| `public-offer-better` / `above-tier-ceiling` | the guard refused. Rs 200 sits exactly on both bounds, so a change to `offerTiers`, `beatPublicByInr` or `amountInr` mutes the whole flow. Working as designed, and alerted once a day |
+| `no-public-codes` | the live discount read FAILED, so it refused to offer blind. Check `read_discounts` |
+| `shadow` | `FLOW_W_ALLOWLIST` is set and this number is not in it. Nothing created |
+| `send-dry_run` | the service-wide gate stopped it, before anything was created |
+| `email-unavailable` | `EMAIL_FROM` is unset, or `@aws-sdk/client-sesv2` is not in the Lambda bundle. A DEPLOY problem, not an address problem |
+| `email-send-failed` / `email-suppressed` | SES refused the message, or that address is on the account suppression list. Never retried |
+| `waiting-window` | Meta's per-user cap (131049). Parked against the phone until they write in, AND emailed now |
+| `meta-131026` | that number cannot receive WhatsApp. Emailed instead |
+| `template-unusable` | the offer template is in review, paused or rejected. Alerted once a day |
+| `converted` | they ordered with the code. `revenuePaise` is what it earned |
+
+No `outcome` and a `firstSentAt` means it went out and is live.
+
+Other things worth knowing:
+
+- **Nothing anywhere, no records at all?** Flow W is off, or `FLOW_W_START_AT` is
+  empty (empty means nothing qualifies, by design), or the day marker
+  `SUBOFFER#RUN#<date>/DAY` is already written. Check with `preview --date`.
+- **The daily rule MUST send `{mode:'subscribers'}`.** Any other value falls
+  through to the full nightly pass, which sends review asks to real customers.
+- **A whole day missing** is the one failure that cannot be repaired by waiting:
+  the sweep only ever looks at yesterday. It is also why the day marker is
+  written LAST and why a failed customer search writes none, so a re-run the same
+  day still reaches everybody. `run --date <that day> --live` is the repair.
+- **`skipped: too-many-candidates`** means more eligible signups than
+  `maxPerRun` (100). Nothing was sent and no marker was written. Look for a
+  customer import or a signup bot, then re-run by hand. It counts the nodes it
+  actually paged: `customersCount(query:)` returns 475, the entire customer base,
+  for every filter, so a guard built on it would refuse to run every day.
+- **`skipped: template-not-approved`** means `subscriber_offer_v1` or its
+  image-free twin is not APPROVED at Meta. No marker is written, so a re-run
+  after approval still reaches that day.
+- **All sends by email and none by WhatsApp?** Look at `phoneSkipReason` on the
+  records. `non-india` or `bad-phone` across the board usually means a signup
+  form that stopped collecting a number properly.
+- **Changing the landing page** is `RULES.subscriberOffer.collectionHandle` and a
+  deploy, never a template change: the button's URL is fixed at Meta approval
+  time and all it carries is the token.
 
 ## /replace: replacement shipments
 

@@ -46,7 +46,7 @@ No secrets, tokens, phone numbers, or account ids appear in this file.
 | # | Item | Current best-known | Status |
 |---|---|---|---|
 | C1 | API version | pin in config (repo uses `2026-07` in meta-outcomes; `2024-10` in shipping-integration). Pin current at Phase 3 | OPEN (Phase 3) |
-| C2 | Mutations exist/shape | **Validated 2026-09-20 via validate_graphql_codeblocks (admin schema):** `getOrder` query (customAttributes/paymentGatewayNames/netPaymentSet/shippingLines/fulfillments.trackingInfo/lineItems) OK; `tagsAdd` OK; `metafieldsSet` OK; `orderCancel` OK but use **`orderCancelUserErrors`** not `userErrors` (fixed); `webhookSubscriptionCreate` OK but use **`uri`** not deprecated `callbackUrl` (fixed). STILL OPEN (Phase 5/6, validate when authored): `orderEdit*`, `orderMarkAsPaid`, `orderCreateManualPayment`, `metaobjectDefinitionCreate/Create`, `discountCodeBasicCreate` | PARTLY RESOLVED |
+| C2 | Mutations exist/shape | **Validated 2026-09-20 via validate_graphql_codeblocks (admin schema):** `getOrder` query (customAttributes/paymentGatewayNames/netPaymentSet/shippingLines/fulfillments.trackingInfo/lineItems) OK; `tagsAdd` OK; `metafieldsSet` OK; `orderCancel` OK but use **`orderCancelUserErrors`** not `userErrors` (fixed); `webhookSubscriptionCreate` OK but use **`uri`** not deprecated `callbackUrl` (fixed). STILL OPEN (Phase 5/6, validate when authored): `orderEdit*`, `orderMarkAsPaid`, `orderCreateManualPayment`, `metaobjectDefinitionCreate/Create` | PARTLY RESOLVED; `discountCodeBasicCreate` **RESOLVED** on existing live evidence, see section U9 |
 | C3 | COD-to-prepaid accounting | which of the 3 options (order-edit remove COD line + add discount / set-qty-0 + re-add / record-full-then-refund) works per case; and whether `orderMarkAsPaid` vs `orderCreateManualPayment` leaves PAID + outstanding 0 + no leftover pending COD txn | OPEN (Phase 5 — TEST on a test order first, document the winner) |
 | C4 | Standard review metafields | **RESOLVED 2026-09-20:** the theme computes the star summary + JSON-LD aggregateRating from the product's `custom.reviews` metaobject list (only ACTIVE reviews are linked), so Shopify's standard `reviews.rating`/`rating_count` metafields are optional and not maintained by the service. Discount `context:{all:ALL}` + metaobject create/def shapes validated via validate_graphql_codeblocks | RESOLVED |
 | C5 | Webhook topics | `ORDERS_CREATE/UPDATED/CANCELLED`, `FULFILLMENTS_CREATE/UPDATE`, `FULFILLMENT_EVENTS_CREATE`; register idempotently (pattern proven in `meta-outcomes/shopify.mjs`) | CHOSEN (register at Phase 3) |
@@ -1036,3 +1036,209 @@ untouched. An admin who once sent STOP can still run commands, because the
 opt-out check in front of the command gate is about marketing to customers, not
 about us talking to ourselves.
 
+
+## U. Flow W: the 24 hour welcome offer (2026-10-24)
+
+One private, single-use Rs 200 code, valid 24 hours, for every Shopify customer
+created yesterday who has never ordered. WhatsApp first, email when WhatsApp
+cannot reach them, once per person ever. Sweep at 11:00 IST, one new route, one
+new Lambda, one new IAM statement, nothing else.
+
+### U1. The recipient is `Customer.defaultPhoneNumber`, by owner's decision
+
+Hard rule 1 of this service is that the only number we ever message is COD
+King's `_otpVerifiedPhoneNumber`. A Flow W candidate has no order and has never
+reached checkout, so that attribute does not exist for them and the choice was
+between messaging an unverified number and not building the flow.
+
+The owner was shown the tradeoff on 2026-10-24 and chose to message
+`defaultPhoneNumber`. It is the first time this service messages a number that
+nobody OTP-verified. Three things make it defensible and all three are in the
+code: the number is validated by the EXISTING `normalizeVerifiedPhone` (12
+digits starting 91 with a mobile third digit, or 10 digits starting 6-9, which
+also enforces `countryPrefixes: ['+91']`); the exception and its date are
+recorded at the top of `src/lib/phone.mjs` so the next reader does not think
+the rule was simply broken; and `FLOW_W_ALLOWLIST` shadow mode is the
+mitigation, which is why it has to work before go-live. The rule stands
+unchanged for Flows A, B, C and R.
+
+### U2. An unusable number falls back to email. It is not terminal
+
+The first reading of the spec made a non-`+91` number a terminal `no-phone`
+outcome. That was wrong, and it was corrected by the owner the same day. Spec
+section 10 is "email only when WhatsApp is impossible or refused", and a number
+that is absent, malformed, a landline or foreign is precisely WhatsApp being
+impossible; section 2c hands out an `email:<hash>` message group id, which only
+exists because email-only candidates are meant to be enqueued and sent to. The
+`countryPrefixes` rule exists to stop us PAYING to WhatsApp an international
+number, which is a cost control, not a reason to drop a customer.
+
+So `no-phone` survives only as a NOTE on the record, `phoneSkipReason` of
+`no-phone` / `bad-phone` / `non-india`, so that `subscriber-offer.mjs preview`
+can answer "why did this person get an email rather than a WhatsApp". It is
+never written to `outcome`. `excludeTags` and `requireAnyTag` stay terminal,
+because "not a candidate at all" is a different statement from "we cannot reach
+them this way". Six tests encoded the old reading and were flipped.
+
+### U3. There is NO draft-order gate
+
+An earlier design had one, failing open, with a `draftCheckSkipped` flag and a
+`read_draft_orders` scope this app has never been granted. The owner removed it
+on 2026-10-24 and the reasoning is correct: **a completed draft order IS an
+order**, so the existing "any order" gates already cover the only case that can
+matter, and an OPEN draft order is a quote the owner is still building, which is
+not a reason to withhold a welcome code. No scope grant, no app reinstall, and
+no `has-draft-order` outcome.
+
+### U4. The offer sits EXACTLY on both of its bounds, and that is deliberate
+
+The guard is Flow R's, measured against the code's own minimum rather than a
+bag, because Flow W is sent before there is any bag: the minimum is the only
+basket size we know anything about. Floor = the best live PUBLIC code on that
+basket, beaten by `cartRecovery.beatPublicByInr`. Ceiling =
+`cartRecovery.offerTiers` for that basket.
+
+With the shipped numbers both are equalities. WELCOME150 gives Rs 150 on
+anything over Rs 1,199, so the floor is Rs 150 + Rs 50 = Rs 200, and Rs 1,500.01
+lands in the Rs 2,000 tier, whose ceiling is Rs 200. BUY2 and BUY3 score nothing
+because the guard asks with quantity 1 and their minimums are 2 and 3 items.
+There is NO SLACK in either direction: raise `amountInr` and it breaks the
+ceiling, lower it and it stops beating WELCOME150, and either way the flow goes
+silent with `public-offer-better` rather than sending something worse than the
+cart page already offers. The unit test asserts the paise (20000 / 15000 /
+20000) rather than `ok: true` so that an edit to any of those numbers fails
+loudly instead of muting the flow in silence, and the worker alerts the owner
+once a day when the guard refuses.
+
+The Shopify minimum is `minOrderAboveInr + 0.01`. The paisa is load-bearing
+twice: it makes "above Rs 1,500" literally true of every order the code works
+on, and it is what puts the guard in the Rs 2,000 tier. At a flat Rs 1,500 the
+ceiling is Rs 160 and this flow would never send anything.
+
+### U5. Once per person EVER, on two keys, written last and given back
+
+`SUBOFFER#PHONE#<e164>/LOCK` and `SUBOFFER#EMAIL#<sha256>/LOCK`, both
+`putNew` (`attribute_not_exists(PK)`) and both deliberately WITHOUT
+`expiresAt`: `expiresAt` is the table's TTL attribute, so a lifetime lock
+carrying one would be deleted by DynamoDB and the same person would be offered a
+second code. `putIfFree` cannot be used for the same reason, since it needs an
+ISO field that expires. The email lock is what stops the obvious farm, which is
+a new number against an address that has already been offered a code.
+
+Both are written only AFTER the provider accepts, and **both are released by the
+status webhook on a `failed` delivery, along with the marketing cap, before
+anything is parked or emailed.** That is the highest-consequence path in the
+feature: every real 131049 at this store has arrived asynchronously on the
+status webhook, seconds after Meta accepted the send with a 200, by which time
+`firstSentAt` and both locks are already written. "Once ever" has no expiry to
+wait out, so leaving them would burn that customer permanently over a message
+they never received.
+
+### U6. The sort key is `SUB`, and the neighbouring scans are now fenced
+
+`reconcile`'s `scanStates()` hands every `SK=STATE` row to `flowB.onDelivered`
+as an order, and the digest counted every `SK=REC` row as a cart Flow R
+messaged. `table.scanBySk` matches the sort key with NO PK condition, so a
+Flow W row under either would have been messaged or counted as something it is
+not, every day. Flow W therefore files under `SUBOFFER#.../SUB`, and the hole
+is now closed from the other side as well: `allRecs()` filters on
+`PK.startsWith('CART#')`, so the next flow cannot fall into it either.
+
+### U7. WhatsApp creates the code first; email sends first
+
+The WhatsApp gate is visible before the send (`sendSkipReason`), so the Shopify
+code is created first and a send that throws cannot mint a second one on
+redelivery. SES can be genuinely ABSENT at runtime: the Lambda asset excludes
+`node_modules`, so `@aws-sdk/client-sesv2` may simply not be in the bundle, and
+that is invisible until the first send is attempted. A single-use discount code
+created for a message that never left is an orphan in the admin, one per
+candidate, so the email path sends first carrying a code string drawn locally
+and creates the Shopify discount the moment the send is accepted. The exposure
+is a code promised and not yet created, for the second between the two calls;
+the string is memoised, so a redelivery re-sends the SAME code and retries the
+create, and a duplicate email is a far smaller harm than a dead code.
+
+### U8. Email: `validFormat` is honoured, suppression is final, Reply-To is set
+
+`UNSUBSCRIBED` is the only marketing state that refuses; `NOT_SUBSCRIBED`,
+`PENDING` and `INVALID` all still receive, because the customer record is itself
+the consent. But Shopify's own `validFormat: false` is now a skip
+(`email-invalid`), SES account-level suppression for BOUNCE and COMPLAINT is on,
+and a suppressed address is `email-suppressed` with NO retry. The reason is
+scale: at one or two emails a day a handful of bounces is a large share of the
+bounce RATE, and SES judges the rate, not the count. `Reply-To` comes from
+`EMAIL_REPLY_TO` (defaulting to the From identity) so a customer who answers
+reaches a human; every header value is stripped of CR and LF, because the
+address is the customer's and the unsubscribe URL is Shopify's.
+
+### U9. C2 is RESOLVED, and the four new reads were validated
+
+`discountCodeBasicCreate` has been live since Flows B and R and the store proves
+it. Verified in the live store on 2026-10-24, newest first:
+`Cart recovery #66834159468916` / `MORPAANKHJANANI69` (2026-10-20),
+`MORPAANKHHEMISHA92`, `MORPAANKHNIDHI93`, `MORPAANKHSUREKHA29`,
+`MORPAANKHRAMA78`, `Review thanks #1188` / `THANKS-P9YCPX`, and
+`MORPAANKHASHISH97` with `asyncUsageCount: 1`, a code that was created AND
+redeemed. **C2 is therefore RESOLVED on existing evidence and is not dated to
+today**: this session created nothing in the store, and the newest discount of
+any kind is 2026-10-20.
+
+Flow W's four new reads (`customer(id:)`, `customers(query:)` with
+`customer_date` + `orders_count:0`, `orders(query: email:)` and
+`collectionByIdentifier` + `products(sortKey: BEST_SELLING)`) were validated
+2026-10-24 against the current admin schema via `validate_graphql_codeblocks`;
+the service pins `2026-07`. Two corrections came out of it and are in the code:
+`availableForSale` does NOT exist on `Product` in the Admin API (it is a
+Storefront field), so buyability is read off `variants(first: 50)` and
+flattened; and `collectionByHandle` / `featuredImage` are both deprecated in
+favour of `collectionByIdentifier` / `featuredMedia`.
+
+`orders_count:0` is PROVEN, not assumed: the owner ran it live on 2026-10-24 and
+it returned 5 customers for 23 Oct and correctly dropped the one who had
+ordered. The documented negated-`order_date` fallback is therefore NOT built and
+should not be.
+
+### U10. NEVER `customersCount(query:)` for the blast radius
+
+In the same live test it returned **475, the entire customer base, for every
+filter including tags.** A `maxPerRun` guard built on it would compare 475
+against 100 and refuse to run every single day, for ever. The guard counts the
+nodes actually paged and filtered, and the comment on it says so with the 475 in
+it, because the obvious one-query version looks like an optimisation.
+
+### U11. The theme needs no change
+
+`theme/snippets/tapi-smart-offers.liquid` builds `applied_code` from
+`cart.cart_level_discount_applications`, i.e. codes that are actually
+discounting the cart. A Flow W code whose Rs 1,500.01 minimum is unmet never
+appears there, so `applied` is empty, the suppression guard in
+`theme/assets/tapi-offers.js` does not fire, and the shopper IS still upgraded
+to the best public code. When the code DOES apply, the regex
+`/^MORPAANKH[A-Z]*\d+$/` matches it and the suppression works correctly. No
+theme edit and no theme push, which is why the code format is shared with
+Flow R through `cartCode` rather than invented here.
+
+### U12. Low and accepted
+
+- **The `/w` route counts a tap for anything that is not a known bot UA.** Shared
+  with the cart redirect through an exported `isRealTap` rather than a second
+  copy of the regex. A determined scraper can still inflate a click count; it
+  cannot reach a code it was not sent, because the token is 128 bits of
+  base64url and an unknown one is a plain redirect.
+- **The owner alert for `template-unusable` is itself a template.** When Meta
+  disables our templates it cannot be delivered either. The session twin is the
+  only route that still works and nothing uses it for alerts today; it is named
+  in the test that covers that path. Not fixed here because it is the same gap
+  Flow R has had since it shipped, and fixing it belongs with the ops copy.
+- **`onSubStatus` remembers the clients it was last given.** The status webhook
+  arrives in its own invocation and the router hands `onCartStatus` no deps at
+  all, because Flow R's status path sends nothing; Flow W's has to send the
+  email fallback. In production every caller passes the same stateless
+  `realClients` singleton, so remembering the last one is identical to asking
+  for it again, and the router passes deps explicitly anyway.
+- **A code collision after an email has gone out cannot draw a new code.** The
+  WhatsApp path re-draws up to five times because nothing has been sent yet; the
+  email path has one attempt with the string already in the customer's inbox,
+  and a collision there throws so SQS retries and ultimately DLQs with an owner
+  alert. 8^4 = 4096 codes per first name, one code per person ever, one or two
+  candidates a day: decades, not days.

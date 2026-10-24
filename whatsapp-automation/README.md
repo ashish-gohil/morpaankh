@@ -19,6 +19,11 @@ Nothing messages a customer or edits an order until you deliberately enable it.
   after a checkout is abandoned, one reminder two hours before it closes, and
   nothing else. Replaces COD King's abandoned-cart messages.
 
+- **W** New-customer welcome offer: one private, single-use Rs 200 code valid 24
+  hours for somebody who joined yesterday and has never ordered, plus a gift in
+  the parcel. WhatsApp first, email when WhatsApp cannot reach them. Once per
+  person, ever.
+
 ### Flow R in one paragraph
 
 A five-minute sweep (`reconcile` with `{mode:'carts'}`) lists open abandoned
@@ -32,6 +37,31 @@ taken only AFTER Meta accepts and released if the message then fails to deliver.
 The "Complete my order" button is `/r/{token}`, which looks the token up and 302s
 to the customer's own saved checkout with the code applied. Everything stops the
 moment they order, use the code, reply, tap Talk to us, or send STOP.
+
+### Flow W in one paragraph
+
+A daily rule at 11:00 IST (`reconcile` with `{mode:'subscribers'}`) asks Shopify
+for every customer created YESTERDAY as an IST calendar day with
+`orders_count:0`, and enqueues them; it refuses the whole run rather than
+message a backlog if there are more than `maxPerRun` of them. `onFirst` re-reads
+each customer with `customer(id:)` (the search index lags a create by seconds,
+the id lookup does not), checks that they have no order and no cart anywhere,
+and sends ONE code: Rs 200 off an order above Rs 1,500.01, closing in 24 hours.
+The guard is Flow R's: Rs 200 is exactly WELCOME150 beaten by Rs 50 and exactly
+the Rs 2,000 tier's ceiling, so `public-offer-better` is a normal outcome rather
+than a bug. Once per person EVER, enforced by two no-TTL conditional-put locks,
+one on the number and one on the sha256 of the email, both written only AFTER
+the provider accepts and both given back if the message then fails to deliver.
+The "Shop best sellers" button is `/w/{token}`, which 302s to
+`/discount/<CODE>?redirect=/collections/best-sellers`. Anyone with a cart is left
+to Flow R, and anyone holding a live Flow W code makes Flow R stand down, so one
+person never holds two private codes.
+
+THE ONE THING THAT IS NEW: Flow W messages `Customer.defaultPhoneNumber`, not
+the COD King OTP-verified number, because a candidate has never reached
+checkout. That is an explicit owner decision (2026-10-24) recorded at the top of
+`src/lib/phone.mjs`, it validates the number through the same
+`normalizeVerifiedPhone`, and `FLOW_W_ALLOWLIST` shadow mode is the mitigation.
 
 ## Architecture
 
@@ -116,6 +146,14 @@ Flip flags without a redeploy with `scripts/pause-flow.mjs`.
 - **COD King:** turn OFF its post-order WhatsApp/SMS (keep OTP + abandoned cart)
   so customers are not messaged twice; add a rule hiding COD for the `cod-block`
   customer segment; optionally add the WhatsApp order-updates notice to checkout.
+- **Amazon SES (Flow W's email fallback only):** verify `morpaankh.in` with DKIM,
+  request production access (the sandbox will only send to verified addresses),
+  turn ON account-level suppression for BOUNCE and COMPLAINT
+  (`aws sesv2 put-account-suppression-attributes --suppressed-reasons BOUNCE
+  COMPLAINT`; there is no CloudFormation resource for it, which is why it is a
+  manual step), then set `emailFrom` and `emailReplyTo` in `iac/cdk.json`.
+  Without `EMAIL_FROM` the email channel is simply unavailable and recorded as
+  `email-unavailable`; nothing breaks.
 - **Owner phones:** each number in `OWNER_ALERT_PHONES` must message the business
   number once so alerts can reach it.
 - Put every secret in the one Secrets Manager JSON; never in git.
