@@ -499,6 +499,47 @@ export const TEMPLATES = {
     examples: { date: '20 Sep', summary: '12 COD, 9 confirmed, 2 converted' },
     buttons: [],
   },
+
+  /*
+   * Flow W: the 24 hour private welcome offer for someone who joined and has
+   * never ordered.
+   *
+   * MARKETING, and it carries the opt-out footer, because it is an offer sent to
+   * somebody who has bought nothing: there is no transaction for a UTILITY
+   * reading to attach to. It is the SECOND marketing template a customer can
+   * receive, so it honours marketingCapDays alongside prepaid_offer and the two
+   * cart ones.
+   *
+   * The body deliberately NAMES THE MINIMUM. A private code the bag cannot
+   * reach reads as a bait and switch at the cart, and this offer is sent before
+   * there is any bag at all, so the condition has to travel with it.
+   */
+  subscriber_offer: {
+    name: 'subscriber_offer_v1',
+    language: 'en',
+    category: 'MARKETING',
+    header: imageHeader(SAMPLE_PRODUCT_IMAGE),
+    body:
+      'Hello {{customer_name}}, thank you for joining Morpaankh.\n\n' +
+      'To welcome you, we have made a special code just for you:\n\n' +
+      '*{{code}}*\n\n' +
+      'It takes *{{saving}} off* any order above {{min_order}}, and *a gift from us* comes wrapped in your parcel. ' +
+      'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+      'Most loved right now: {{top_picks}}.\n\n' +
+      'Every piece is checked by hand before it leaves us, and what you see is exactly what arrives. ' +
+      'Prepaid orders ship free.\n\n' +
+      'Tap below and your code is applied for you.',
+    examples: {
+      customer_name: 'Priya',
+      code: 'MORPAANKHPRIYA4729',
+      saving: '₹200',
+      min_order: '₹1,500',
+      expires_at: 'tomorrow at 11:00 AM',
+      top_picks: 'Khili Dhoop, Bandhan and Morani',
+    },
+    buttons: [urlBtn('Shop best sellers', 'w'), qr('Talk to us', 'W', 'help')],
+    footer: 'Reply STOP to stop these messages',
+  },
 };
 
 /**
@@ -795,6 +836,38 @@ export const LEGACY = {
       'Hello,\nHere is the WhatsApp automation summary for {{date}}: {{summary}}.\n\nPlease review any held orders.',
     examples: { date: '20 Sep', summary: '12 COD, 9 confirmed, 2 converted' },
     buttons: [],
+  },
+
+  /*
+   * Flow W without the image header, for a collection whose top seller has no
+   * usable photo. The same words: send.mjs falls back to this when there is no
+   * ctx.imageUrl, because an IMAGE-header template refuses to render without
+   * one. Not "old copy" in the LEGACY sense, the same job as NO_PRICE.
+   */
+  subscriber_offer: {
+    name: 'subscriber_offer_plain_v1',
+    language: 'en',
+    category: 'MARKETING',
+    body:
+      'Hello {{customer_name}}, thank you for joining Morpaankh.\n\n' +
+      'To welcome you, we have made a special code just for you:\n\n' +
+      '*{{code}}*\n\n' +
+      'It takes *{{saving}} off* any order above {{min_order}}, and *a gift from us* comes wrapped in your parcel. ' +
+      'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+      'Most loved right now: {{top_picks}}.\n\n' +
+      'Every piece is checked by hand before it leaves us, and what you see is exactly what arrives. ' +
+      'Prepaid orders ship free.\n\n' +
+      'Tap below and your code is applied for you.',
+    examples: {
+      customer_name: 'Priya',
+      code: 'MORPAANKHPRIYA4729',
+      saving: '₹200',
+      min_order: '₹1,500',
+      expires_at: 'tomorrow at 11:00 AM',
+      top_picks: 'Khili Dhoop, Bandhan and Morani',
+    },
+    buttons: [urlBtn('Shop best sellers', 'w'), qr('Talk to us', 'W', 'help')],
+    footer: 'Reply STOP to stop these messages',
   },
 };
 

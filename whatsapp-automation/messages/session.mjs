@@ -375,6 +375,32 @@ export const SESSION = {
     type: 'html',
     body: 'This payment link has expired. Please reply on WhatsApp and we will help you.',
   },
+
+  /*
+   * Flow W's free-form twin, word for word with subscriber_offer_v1.
+   *
+   * Same reason as cart_recovery's: a session message carries no category, so
+   * Meta's per-user MARKETING cap does not apply to it and it is free. 131049
+   * is exactly what parks a Flow W offer, and this is what onWindowOpen
+   * delivers it with when the customer writes in, carrying the SAME code
+   * rather than minting a fresh one.
+   *
+   * registry.test.mjs asserts this body is byte-identical to the template's.
+   */
+  subscriber_offer: {
+    type: 'cta_url',
+    body:
+      'Hello {{customer_name}}, thank you for joining Morpaankh.\n\n' +
+      'To welcome you, we have made a special code just for you:\n\n' +
+      '*{{code}}*\n\n' +
+      'It takes *{{saving}} off* any order above {{min_order}}, and *a gift from us* comes wrapped in your parcel. ' +
+      'It is yours alone, works once, and closes *{{expires_at}}*.\n\n' +
+      'Most loved right now: {{top_picks}}.\n\n' +
+      'Every piece is checked by hand before it leaves us, and what you see is exactly what arrives. ' +
+      'Prepaid orders ship free.\n\n' +
+      'Tap below and your code is applied for you.',
+    ctaText: 'Shop best sellers',
+  },
 };
 
 const PLACEHOLDER = /\{\{(\w+)\}\}/g;
