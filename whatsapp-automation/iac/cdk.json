@@ -45,6 +45,9 @@
     "_replaceTestOrdersNote": "NON-EMPTY means live mode books nothing else. Proven empty on 2026-10-23: #1222, a dummy order at the owner's own Surat address, booked both legs live (RPL1222-1R awb 59152210001794, RPL1222-1F awb 59152210001805) and both were cancelled again, so the cmu/create.json field names are no longer guesses. Put ONE order number back here before trying any further unproven courier change.",
     "replaceTestOrders": "",
     "_replaceModeNote": "live since 2026-10-23, the day the payload was proven. It lives HERE rather than only in pause-flow because the stack default is shadow: leaving it out meant every deploy silently disarmed /replace, which is the same shape of quiet failure as the unsubmitted template. Kill switch is still instant and does not need a deploy: node scripts/pause-flow.mjs replace off (or shadow).",
+    "_emailNote": "EMAIL_FROM also narrows the worker's ses:SendEmail to that exact address (stack.js): a domain identity otherwise authorises EVERY address at morpaankh.in, and the shop's real mailbox is on that same domain. Reply-To is the gmail because the MX for morpaankh.in points at GoDaddy and hello@ has no mailbox.",
+    "emailFrom": "hello@morpaankh.in",
+    "emailReplyTo": "morpaankh.collection@gmail.com",
     "replaceMode": "live"
   }
 }

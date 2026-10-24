@@ -24,6 +24,13 @@ new WaAutomationStack(app, 'WaAutomation', {
   variantChangeEnabled: app.node.tryGetContext('variantChangeEnabled') === true,
   // Flow R shadow mode: non-empty means only these phones are really messaged.
   cartRecoveryAllowlist: app.node.tryGetContext('cartRecoveryAllowlist') || '',
+  // Flow W shadow mode, and its email fallback. Absent is safe in both
+  // directions: no allowlist means live to everyone (so FLOW_W_ENABLED is the
+  // real switch), and no EMAIL_FROM means the email channel is unavailable and
+  // recorded as such rather than failing.
+  subscriberOfferAllowlist: app.node.tryGetContext('subscriberOfferAllowlist') || '',
+  emailFrom: app.node.tryGetContext('emailFrom') || '',
+  emailReplyTo: app.node.tryGetContext('emailReplyTo') || '',
   conversionVerified: app.node.tryGetContext('conversionVerified') === true,
   // /replace: defaults to shadow, which runs everything except the two courier
   // writes and the customer message.

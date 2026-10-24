@@ -149,8 +149,25 @@ class WaAutomationStack extends cdk.Stack {
        * the whole service and would have silenced Flow A at the same time.
        */
       FLOW_R_ALLOWLIST: props.cartRecoveryAllowlist || '',
+      /*
+       * Flow W shadow mode, and it matters more than Flow R's: Flow W is the
+       * first thing in this service that messages a number which was never
+       * OTP-verified (owner's decision, see src/lib/phone.mjs). Set to the
+       * owner's own number for three days, then emptied to go live.
+       */
+      FLOW_W_ALLOWLIST: props.subscriberOfferAllowlist || '',
+      /*
+       * Flow W's email fallback. EMPTY means email is simply unavailable,
+       * which is a recorded outcome and not an error: WhatsApp still runs. It
+       * must be an address on a VERIFIED SES identity, and the IAM statement
+       * further down is scoped to that identity and to this exact address.
+       *
+       * EMAIL_REPLY_TO is a human's mailbox; nothing in this service reads it.
+       */
+      EMAIL_FROM: props.emailFrom || '',
+      EMAIL_REPLY_TO: props.emailReplyTo || '',
       ...Object.fromEntries(
-        ['A', 'B', 'C', 'D', 'R'].flatMap((f) => [
+        ['A', 'B', 'C', 'D', 'R', 'W'].flatMap((f) => [
           [`FLOW_${f}_ENABLED`, String(Boolean((props.flows || {})[f]?.enabled))],
           [`FLOW_${f}_START_AT`, (props.flows || {})[f]?.startAt || ''],
         ]),
@@ -206,6 +223,20 @@ class WaAutomationStack extends cdk.Stack {
     const cartRedirectFn = makeFn('cart-redirect', 'src/ingest/cart-redirect.handler', {
       logGroup: cartRedirectLogs,
     });
+    /*
+     * Flow W's "Shop best sellers" link. Its log group is CREATED here for the
+     * same reason as cart-redirect's: a Lambda's log group does not exist
+     * until its first invocation, and a subscription filter on a missing group
+     * fails the whole deploy.
+     */
+    const wRedirectLogs = new logs.LogGroup(this, 'WRedirectLogs', {
+      logGroupName: '/aws/lambda/wa-w-redirect',
+      retention: logs.RetentionDays.THREE_MONTHS,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    const wRedirectFn = makeFn('w-redirect', 'src/ingest/w-redirect.handler', {
+      logGroup: wRedirectLogs,
+    });
     const onboardingFn = makeFn('onboarding', 'src/ingest/onboarding.handler');
     // The storefront signup popup's save endpoint. Public and unsigned (a browser
     // cannot hold an HMAC secret), so it defends itself: origin allowlist, honeypot,
@@ -245,7 +276,7 @@ class WaAutomationStack extends cdk.Stack {
     const digestFn = makeFn('digest', 'src/timers/digest.handler', { timeout: Duration.seconds(120) });
 
     // ---- grants -----------------------------------------------------------
-    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, onboardingFn, subscribeFn, cartCaptureFn, worker, pollFn, reconcileFn, digestFn];
+    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, wRedirectFn, onboardingFn, subscribeFn, cartCaptureFn, worker, pollFn, reconcileFn, digestFn];
     for (const fn of allFns) {
       table.grantReadWriteData(fn);
       /*
@@ -255,7 +286,13 @@ class WaAutomationStack extends cdk.Stack {
        * is the one function that does not get the API credentials, and a flaw
        * in it cannot become a way to read them.
        */
-      if (fn !== cartCaptureFn) secret.grantRead(fn);
+      /*
+       * w-redirect joins cart-capture in getting NO secret, for the same
+       * reason: it is reachable from the open internet, it reads one DynamoDB
+       * row and writes a click count, and it calls no provider at all. A flaw
+       * in it must not become a way to read the API credentials.
+       */
+      if (fn !== cartCaptureFn && fn !== wRedirectFn) secret.grantRead(fn);
     }
     for (const fn of Object.values(ingest)) queue.grantSendMessages(fn);
     // worker + flow-capable fns create/delete one-time schedules and pass the role
@@ -272,6 +309,22 @@ class WaAutomationStack extends cdk.Stack {
       );
     }
 
+    /*
+     * SES, on the WORKER role and nowhere else, because that is where the send
+     * happens: reconcile only enqueues. Scoped to the one verified identity
+     * and, when EMAIL_FROM is set, to that exact address, so a flaw in a flow
+     * cannot send mail as anybody else on the domain.
+     */
+    const emailFrom = String(props.emailFrom || '');
+    const emailIdentity = emailFrom.split('@')[1] || 'morpaankh.in';
+    worker.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['ses:SendEmail'],
+        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${emailIdentity}`],
+        ...(emailFrom ? { conditions: { StringEquals: { 'ses:FromAddress': emailFrom } } } : {}),
+      }),
+    );
+
     // ---- HTTP API ---------------------------------------------------------
     const api = new HttpApi(this, 'HttpApi', { apiName: 'wa-automation' });
     const route = (path, methods, fn) =>
@@ -282,6 +335,7 @@ class WaAutomationStack extends cdk.Stack {
     route('/webhooks/delhivery', [HttpMethod.POST], ingest.delhivery);
     route('/p/{token}', [HttpMethod.GET], redirectFn);
     route('/r/{token}', [HttpMethod.GET], cartRedirectFn);
+    route('/w/{token}', [HttpMethod.GET], wRedirectFn);
     route('/onboarding', [HttpMethod.GET], onboardingFn);
     route('/onboarding/exchange', [HttpMethod.POST], onboardingFn);
     route('/subscribe', [HttpMethod.POST, HttpMethod.OPTIONS], subscribeFn);
@@ -323,6 +377,25 @@ class WaAutomationStack extends cdk.Stack {
     new events.Rule(this, 'CartSweepRule', {
       schedule: events.Schedule.rate(Duration.minutes(5)),
       targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'carts' }) })],
+    });
+    /*
+     * Flow W's subscriber sweep, once a day. cron(30 5 * * ? *) is 05:30 UTC,
+     * which is 11:00 IST.
+     *
+     * `mode: 'subscribers'` is handled and RETURNED at the very top of the
+     * reconcile handler. Anything it does not recognise collapses to the full
+     * nightly pass, which calls sweepUnreviewed() and SENDS review asks to
+     * real customers.
+     *
+     * 11:00 and not midnight because the sweep reads YESTERDAY as an IST
+     * calendar day: a run at 00:30 would be asking the customers search index
+     * about a day that ended thirty minutes ago, and that index lags a create
+     * by seconds. By 11:00 it is settled, and 11:00 is inside the send window
+     * so the offers go out immediately rather than sitting on a timer.
+     */
+    new events.Rule(this, 'SubscriberSweepRule', {
+      schedule: events.Schedule.expression('cron(30 5 * * ? *)'),
+      targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'subscribers' }) })],
     });
     // Digest 09:30 IST == 04:00 UTC.
     new events.Rule(this, 'DigestRule', {
@@ -378,8 +451,9 @@ class WaAutomationStack extends cdk.Stack {
     ];
     const reportedGroups = [
       ...reported.map((name) => [name, logs.LogGroup.fromLogGroupName(this, `Lg${name}`, `/aws/lambda/${name}`)]),
-      // The one group this stack owns rather than imports.
+      // The two groups this stack owns rather than imports.
       ['wa-cart-redirect', cartRedirectLogs],
+      ['wa-w-redirect', wRedirectLogs],
     ];
     for (const [name, lg] of reportedGroups) {
       // Two filters, which is the per-log-group maximum. The first catches our
@@ -438,7 +512,11 @@ class WaAutomationStack extends cdk.Stack {
     // of CloudWatch's 10-metric ceiling for an alarm math expression. It is
     // also the truer grouping: like the other two, it is a public HTTP endpoint
     // a customer hits directly rather than a queue-driven step.
-    const intakeFns = [onboardingFn, subscribeFn, cartRedirectFn];
+    // w-redirect joins intakeFns for both reasons: pipelineFns is at 9 of
+    // CloudWatch's 10-metric ceiling, and this is the truer grouping anyway,
+    // since it is a public HTTP endpoint a customer taps rather than a
+    // queue-driven step.
+    const intakeFns = [onboardingFn, subscribeFn, cartRedirectFn, wRedirectFn];
     const sumErrors = (fns) =>
       new cw.MathExpression({
         expression: fns.map((_, i) => `e${i}`).join(' + '),
