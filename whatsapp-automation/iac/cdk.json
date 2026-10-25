@@ -34,9 +34,10 @@
         "enabled": true,
         "startAt": "2026-10-13T14:58:03Z"
       },
+      "_WNote": "startAt was wound back from 2026-10-24T18:30:00Z (midnight IST the day it went live) to midnight IST 21 Oct on 2026-10-25, so the four days of signups who were already waiting could be backfilled. It has to live HERE and not just in the backfill script: the worker re-checks eligibility against the DEPLOYED value and records before-start as a TERMINAL outcome, so a backfill reaching past it destroys each offer instead of sending it. Leaving it wound back is harmless day to day, because each scheduled run only ever looks at yesterday.",
       "W": {
         "enabled": true,
-        "startAt": "2026-10-24T18:30:00Z"
+        "startAt": "2026-10-20T18:30:00Z"
       }
     },
     "conversionVerified": true,

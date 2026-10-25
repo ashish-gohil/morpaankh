@@ -221,6 +221,28 @@ if (cmd === 'backfill') {
    * applies to every single candidate exactly as it does on a normal day.
    */
   const original = config.flows.W.startAt;
+  /*
+   * THE WORKER DECIDES, AND IT CANNOT SEE THIS PROCESS.
+   *
+   * Winding config.flows.W.startAt back below only relaxes the SWEEP's own
+   * pre-filter, which runs here. onFirst re-checks eligibility on the worker
+   * Lambda against its DEPLOYED FLOW_W_START_AT, and `before-start` there is a
+   * TERMINAL outcome: the record is written, the person is `already-started`
+   * for ever, and the one welcome offer they were owed is destroyed rather
+   * than delayed. A backfill reaching before the deployed date would burn
+   * every candidate it touched, silently, and report them as enqueued.
+   *
+   * So refuse, and say exactly what to deploy first.
+   */
+  const fromISO = dayOf(from).window.startISO;
+  if (!original || Date.parse(original) > Date.parse(fromISO)) {
+    console.error(`\nrefusing: the DEPLOYED FLOW_W_START_AT is ${original || '(unset)'}, after ${fromISO}.`);
+    console.error('The worker re-checks eligibility against the deployed value, and a');
+    console.error('`before-start` outcome is terminal, so this run would permanently burn');
+    console.error('every candidate instead of messaging them.');
+    console.error(`\nDeploy FLOW_W_START_AT=${fromISO} first, then re-run this.`);
+    process.exit(4);
+  }
   let day = new Date(`${from}T00:00:00Z`);
   const last = new Date(`${to}T00:00:00Z`);
   if (!Number.isFinite(day.getTime()) || !Number.isFinite(last.getTime()) || day > last) {
