@@ -311,16 +311,35 @@ class WaAutomationStack extends cdk.Stack {
 
     /*
      * SES, on the WORKER role and nowhere else, because that is where the send
-     * happens: reconcile only enqueues. Scoped to the one verified identity
-     * and, when EMAIL_FROM is set, to that exact address, so a flaw in a flow
-     * cannot send mail as anybody else on the domain.
+     * happens: reconcile only enqueues.
+     *
+     * THE `ses:FromAddress` CONDITION IS THE CONTROL, NOT THE RESOURCE LIST.
+     *
+     * This was scoped to `identity/morpaankh.in` alone, and on 2026-10-25 the
+     * first real email fallback died on it:
+     *
+     *   not authorized to perform 'ses:SendEmail' on resource
+     *   'arn:aws:ses:ap-south-1:...:identity/<the RECIPIENT>'
+     *
+     * While the account is in the SES sandbox every destination must itself be
+     * a verified identity, and SES enforces that by authorising SendEmail
+     * against the DESTINATION identity too. A resource list naming only the
+     * sending domain therefore denies every real recipient, and iam
+     * simulate-principal-policy confirmed it: `identity/morpaankh.in` allowed,
+     * `identity/<a gmail address>` implicitDeny.
+     *
+     * So the resource is `identity/*` and the FromAddress condition is what
+     * keeps a flaw in a flow from sending mail as anybody else on the domain,
+     * which is the whole point and is unchanged by widening the resource: the
+     * worker can mail anyone, but only ever AS hello@morpaankh.in. With the
+     * narrow list the real outcome was not "safer", it was an unsendable
+     * channel that failed with an IAM error instead of a mail error.
      */
     const emailFrom = String(props.emailFrom || '');
-    const emailIdentity = emailFrom.split('@')[1] || 'morpaankh.in';
     worker.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['ses:SendEmail'],
-        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${emailIdentity}`],
+        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
         ...(emailFrom ? { conditions: { StringEquals: { 'ses:FromAddress': emailFrom } } } : {}),
       }),
     );
