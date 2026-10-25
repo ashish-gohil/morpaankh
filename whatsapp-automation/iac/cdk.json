@@ -50,8 +50,8 @@
     "replaceTestOrders": "",
     "_replaceModeNote": "live since 2026-10-23, the day the payload was proven. It lives HERE rather than only in pause-flow because the stack default is shadow: leaving it out meant every deploy silently disarmed /replace, which is the same shape of quiet failure as the unsubmitted template. Kill switch is still instant and does not need a deploy: node scripts/pause-flow.mjs replace off (or shadow).",
     "_emailNote": "EMAIL_FROM also narrows the worker's ses:SendEmail to that exact address (stack.js): a domain identity otherwise authorises EVERY address at morpaankh.in, and the shop's real mailbox is on that same domain. Reply-To is the gmail because the MX for morpaankh.in points at GoDaddy and hello@ has no mailbox.",
-    "_subscriberOfferAllowlistNote": "SOAK MODE, set 2026-10-25. NON-EMPTY means only these are really messaged and every other candidate is logged as 'subscriber: would send' with nothing created, sent or locked. The owner is not a candidate (they have orders), so the soak deliberately sends NOTHING and simply records three days of real decisions. CLEARING THIS GOES LIVE TO EVERY CANDIDATE: do that only after reading those logs. It accepts an address as well as a number, because matching on phone alone meant the email channel could never be soaked at all.",
-    "subscriberOfferAllowlist": "+917048459816,ashishgohil148@gmail.com",
+    "_subscriberOfferAllowlistNote": "LIVE since 2026-10-25. EMPTY means every candidate is really messaged. It was a soak allowlist for one day; the owner asked for the flow on, so it was cleared. NON-EMPTY puts it back into shadow instantly (every other candidate is logged as 'subscriber: would send' with nothing created, sent or locked), which is the gentler kill switch than disabling the flow outright. It accepts an address as well as a number, because matching on phone alone meant the email channel could never be soaked at all.",
+    "subscriberOfferAllowlist": "",
     "emailFrom": "hello@morpaankh.in",
     "emailReplyTo": "morpaankh.collection@gmail.com",
     "replaceMode": "live"
