@@ -161,11 +161,27 @@ export async function sweepNewSubscribers(clients = realClients, now = new Date(
    * overnight are all the same shape, and five hundred private codes with a
    * gift promise on each is not recoverable.
    */
-  if (candidates.length > w().maxPerRun) {
+  /*
+   * THE LIMIT MUST NOT VANISH WITH ITS OWN VALUE.
+   *
+   * `candidates.length > w().maxPerRun` compares against undefined the moment
+   * that key is renamed or dropped, and `5 > undefined` is false, so the one
+   * blast radius control in this feature silently becomes "no limit" and the
+   * sweep enqueues everything it found. A string limit ('100') reads the same
+   * way. One bad deploy, no attacker.
+   *
+   * So a missing or nonsense limit is read as ZERO and the run refuses, which
+   * is the direction every other switch here already fails in: DRY_RUN
+   * defaults to true, an empty FLOW_W_START_AT means nobody is eligible, and
+   * unreadable public codes stop the send. The owner gets the same alert, and
+   * "over the limit of 0" says exactly what happened.
+   */
+  const cap = Number.isInteger(w().maxPerRun) && w().maxPerRun > 0 ? w().maxPerRun : 0;
+  if (candidates.length > cap) {
     await alertOnce(
       clients,
       'too-many-candidates',
-      `the welcome offer found ${candidates.length} new customers for ${day.date}, over the limit of ${w().maxPerRun}, so it has sent NOTHING. Check for a customer import or a signup bot, then re-run it by hand`,
+      `the welcome offer found ${candidates.length} new customers for ${day.date}, over the limit of ${cap}, so it has sent NOTHING. Check for a customer import or a signup bot, then re-run it by hand`,
       now,
     );
     return { skipped: 'too-many-candidates', date: day.date, candidates: candidates.length };

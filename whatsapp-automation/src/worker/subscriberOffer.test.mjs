@@ -18,6 +18,7 @@ import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
 import { _resetSecrets } from '../secrets.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { makeFakeSes } from '../clients/fakes/ses.mjs';
+import { email as realEmail } from '../clients/email.mjs';
 import { fromISTWall, nextWindowTime } from '../lib/time.mjs';
 import {
   setOptOut, setUndeliverable, touchInbound, markMarketing, canSendMarketing,
@@ -92,6 +93,32 @@ function flowWShopify(sh, {
     sh.calls.push({ op: 'collectionBestSellers', handle, limit });
     if (failBestSellers) throw new Error(String(failBestSellers));
     return bestSellers;
+  };
+
+  /*
+   * SHOPIFY'S OWN UNIQUENESS, which the shared fake does not model: a discount
+   * code string exists once in a shop, so a second create of the same string
+   * is refused. Without that, a test cannot tell "minted twice" from "minted
+   * once and retried", and that difference is Rs 200 of real money.
+   *
+   * `issued` is therefore the only honest count of codes that EXIST, as
+   * opposed to `discounts()` which counts attempts.
+   */
+  const issued = new Map();
+  sh.issued = issued;
+  const create = sh.createDiscountCode;
+  sh.createDiscountCode = async (args) => {
+    if (issued.has(String(args.code))) {
+      throw new Error('createDiscountCode errors: [{"message":"Code has already been taken"}]');
+    }
+    const res = await create(args);
+    issued.set(String(res.code || args.code), { id: res.id, title: args.title });
+    return res;
+  };
+  sh.discountByCode = async (code) => {
+    sh.calls.push({ op: 'discountByCode', code });
+    const hit = issued.get(String(code));
+    return hit ? { id: hit.id, title: hit.title } : null;
   };
   return sh;
 }
@@ -743,8 +770,6 @@ describe('a send Meta refuses', () => {
 
     const rec = await getSubRec(CUSTOMER_ID);
     expect(rec.outcome).toBe('waiting-window');
-    // They received nothing on WhatsApp, so no WhatsApp lock.
-    expect(await getPhoneOfferLock(PHONE)).toBe(null);
     const parked = await getSubParked(PHONE);
     expect(parked.customerId).toBe(CUSTOMER_ID);
     // The park lives exactly as long as the offer does.
@@ -752,6 +777,14 @@ describe('a send Meta refuses', () => {
 
     expect(clients.email.sent).toHaveLength(1);
     expect(clients.email.sent[0].to).toBe(EMAIL);
+    /*
+     * AND THE LOCKS ARE HELD, because that email DELIVERED the offer. The
+     * lifetime locks are per PERSON, not per channel: WhatsApp refusing the
+     * template is not "this person received nothing" when the fallback landed
+     * in their inbox carrying the same code. See the farm test below.
+     */
+    expect(await getPhoneOfferLock(PHONE)).toMatchObject({ customerId: CUSTOMER_ID });
+    expect(await getEmailOfferLock(emailKey(EMAIL))).toMatchObject({ customerId: CUSTOMER_ID });
   });
 
   it('and the window opening then delivers the SAME code, byte for byte', async () => {
@@ -790,9 +823,107 @@ describe('a send Meta refuses', () => {
     await W.onFirst(CUSTOMER_ID, deps);
     expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('meta-131026');
     expect(await getSubParked(PHONE)).toBe(null);
-    expect(await getPhoneOfferLock(PHONE)).toBe(null);
     expect(clients.email.sent).toHaveLength(1);
     expect(codeIn(clients.email.sent[0])).toBe((await getSubRec(CUSTOMER_ID)).code);
+    // Delivered, so locked. Not locking here is the farm below.
+    expect(await getPhoneOfferLock(PHONE)).toMatchObject({ customerId: CUSTOMER_ID });
+    expect(await getEmailOfferLock(emailKey(EMAIL))).toMatchObject({ customerId: CUSTOMER_ID });
+  });
+
+  /*
+   * THE FARM THE TWO LIFETIME LOCKS EXIST TO STOP, and the one the email
+   * fallback used to walk straight through.
+   *
+   * Every WhatsApp-refusal path returns from onFirst BEFORE the two
+   * lockPhoneOffer/lockEmailOffer lines, and emailFallback deliberately took
+   * no lock of its own, reasoning that the terminal outcome on the record
+   * stops a second offer. It does not: the outcome is keyed on customerId and
+   * the farm is a NEW customer record. The locks are the only cross-record
+   * control there is.
+   *
+   * Self-serve, because POST /subscribe creates the customer: submit the
+   * signup popup with a fresh email and a +91 number that passes the digit
+   * rules but has no WhatsApp account, collect the Rs 200 code by email,
+   * repeat. Bounded only by maxPerRun, which is 100 a day.
+   */
+  it('a code delivered by email cannot be farmed again from a second customer record', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131026 } });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect(clients.email.sent).toHaveLength(1);
+
+    // Tomorrow, a brand new customer record: same number, different address.
+    const later = fromISTWall(2026, 9, 25, 11, 0);
+    clients.shopify.seedCustomer(customer({
+      id: 'gid://shopify/Customer/891',
+      createdAt: '2026-10-24T05:00:00Z',
+      defaultEmailAddress: { emailAddress: 'second@example.com', marketingState: 'SUBSCRIBED', marketingUnsubscribeUrl: UNSUB },
+    }));
+    await W.onFirst('891', { ...deps, now: later });
+
+    expect((await getSubRec('891')).outcome).toBe('already-offered');
+    expect(clients.email.sent).toHaveLength(1);
+    expect(discounts(clients.shopify)).toHaveLength(1);
+  });
+
+  it('and the same farm on the email address, from a second number', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131026 } });
+    await W.onFirst(CUSTOMER_ID, deps);
+
+    const later = fromISTWall(2026, 9, 25, 11, 0);
+    clients.shopify.seedCustomer(customer({
+      id: 'gid://shopify/Customer/892',
+      createdAt: '2026-10-24T05:00:00Z',
+      defaultPhoneNumber: { phoneNumber: '+919637361372' },
+    }));
+    await W.onFirst('892', { ...deps, now: later });
+
+    expect((await getSubRec('892')).outcome).toBe('already-offered');
+    expect(discounts(clients.shopify)).toHaveLength(1);
+  });
+
+  /*
+   * THE OTHER HALF, and the reason the locks cannot simply be taken before the
+   * send: a fallback that reached nobody must still give them back, or one bad
+   * SES deploy burns every candidate's one welcome offer for ever.
+   */
+  /*
+   * THE FARM WITH NO PHONE IN IT AT ALL.
+   *
+   * /account/register on the storefront makes a Shopify customer from an email
+   * and nothing else, so `chooseChannel` answers `email` and the email
+   * lifetime lock is the only control in the way. Plus-tagged and dotted gmail
+   * aliases are the same inbox but were different lock keys, so one person
+   * could collect a Rs 200 code per alias per day, up to maxPerRun (100).
+   */
+  it('a gmail alias of an address already offered cannot farm a second code', async () => {
+    const mailbox = (address) => ({ emailAddress: address, marketingState: 'NOT_SUBSCRIBED', marketingUnsubscribeUrl: UNSUB });
+    const { clients, deps } = setup({
+      customers: [customer({ defaultPhoneNumber: null, defaultEmailAddress: mailbox('farmer@gmail.com') })],
+    });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect(clients.email.sent).toHaveLength(1);
+    expect(clients.email.sent[0].to).toBe('farmer@gmail.com');
+
+    const later = fromISTWall(2026, 9, 25, 11, 0);
+    clients.shopify.seedCustomer(customer({
+      id: 'gid://shopify/Customer/893',
+      createdAt: '2026-10-24T05:00:00Z',
+      defaultPhoneNumber: null,
+      defaultEmailAddress: mailbox('f.a.r.m.e.r+welcome@googlemail.com'),
+    }));
+    await W.onFirst('893', { ...deps, now: later });
+
+    expect((await getSubRec('893')).outcome).toBe('already-offered');
+    expect(clients.email.sent).toHaveLength(1);
+    expect([...clients.shopify.issued.keys()]).toHaveLength(1);
+  });
+
+  it('but a fallback that reached nobody leaves both locks free', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131026 }, email: { unavailable: true } });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect(clients.email.sent).toHaveLength(0);
+    expect(await getPhoneOfferLock(PHONE)).toBe(null);
+    expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
   });
 
   it('132001: the template is unusable, and the owner is told once a day', async () => {
@@ -860,6 +991,61 @@ describe('a send Meta refuses', () => {
     expect(discounts(ok.clients.shopify)).toHaveLength(0);
   });
 
+  /*
+   * THE MEMO CAN BE LOST AFTER THE MONEY IS SPENT.
+   *
+   * subRunOnce writes its SIDE#code row only once the side effect RETURNS, and
+   * that side effect creates a real Rs 200 single-use discount in the live shop
+   * and THEN writes the SUBCODE map row. A DynamoDB throttle, or the 60 second
+   * Lambda budget running out, landing in that gap leaves a live code in the
+   * admin that nothing remembers. The redelivery then drew five FRESH strings
+   * and minted a second code, up to maxReceiveCount (5) times.
+   *
+   * The fix is not a smaller window: the draws are committed to the record
+   * BEFORE any money is spent, so a retry walks the identical list, and a
+   * "taken" answer is resolved by asking Shopify whose code it is. The title
+   * carries this customer's own id, so the answer is unambiguous.
+   */
+  it('a redelivery that lost the code memo adopts that code instead of minting a second', async () => {
+    const { clients, deps } = setup();
+    const put = table.put;
+    let broke = false;
+    table.put = async (item) => {
+      if (!broke && String(item.PK).startsWith('SUBCODE#')) {
+        broke = true;
+        throw new Error('ProvisionedThroughputExceededException');
+      }
+      return put(item);
+    };
+    try {
+      await expect(W.onFirst(CUSTOMER_ID, deps)).rejects.toThrow(/Throughput/);
+    } finally {
+      table.put = put;
+    }
+    // The money is already spent, and nothing on the record remembers it.
+    expect([...clients.shopify.issued.keys()]).toHaveLength(1);
+    const minted = [...clients.shopify.issued.keys()][0];
+    expect(await table.get(`SUBOFFER#${CUSTOMER_ID}`, 'SIDE#code')).toBe(null);
+
+    await W.onFirst(CUSTOMER_ID, deps);
+
+    // ONE code exists in the shop, and it is the one already paid for.
+    expect([...clients.shopify.issued.keys()]).toEqual([minted]);
+    expect((await getSubRec(CUSTOMER_ID)).code).toBe(minted);
+    expect(customerTemplates(clients.whatsapp)).toEqual(['subscriber_offer_v1']);
+    expect(await getSubCodeMap(minted)).toMatchObject({ customerId: CUSTOMER_ID });
+  });
+
+  it('but a collision with somebody else\'s code still draws another', async () => {
+    // A FOREIGN code holding the string is not ours to adopt: the title says
+    // so, and handing a customer a discount created for someone else is the
+    // one answer worse than drawing again.
+    const { clients, deps } = setup({ shopify: { takenCodes: [1] } });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect([...clients.shopify.issued.keys()]).toHaveLength(1);
+    expect(customerTemplates(clients.whatsapp)).toEqual(['subscriber_offer_v1']);
+  });
+
   it('does nothing when a window opens on a phone with nothing parked', async () => {
     const { clients } = setup();
     await W.onWindowOpen(PHONE, { clients, now: NOW });
@@ -907,23 +1093,35 @@ describe('the delivery status webhook', () => {
     /*
      * R9, THE HIGHEST-CONSEQUENCE PATH IN THE FEATURE. The send was accepted
      * with a 200, so both lifetime locks are already written by the time this
-     * webhook lands. The offer is "once per person, EVER": leaving the locks
-     * in place would burn this customer permanently over a message they never
-     * received. Both locks go back, and the marketing cap with them, BEFORE
-     * anything is parked or emailed.
+     * webhook lands, and the marketing cap is spent. Both go back BEFORE
+     * anything is parked or emailed, because at that instant the customer has
+     * received nothing.
+     *
+     * The cap goes back and STAYS back: it is Meta's own per-user counter for
+     * templates, and an email does not touch it. The LOCKS are a different
+     * question, settled by whether the fallback below actually delivered, and
+     * that is the next two tests.
      */
-    expect(await getPhoneOfferLock(PHONE)).toBe(null);
-    expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
     expect(await canSendMarketing(PHONE, NOW, RULES.marketingCapDays)).toBe(true);
     expect((await getSubRec(CUSTOMER_ID))).toMatchObject({ deliveryFailed: true, deliveryError: 131049 });
     expect((await getSubParked(PHONE)).customerId).toBe(CUSTOMER_ID);
     expect(clients.email.sent).toHaveLength(1);
   });
 
-  it('a 131026 on the status webhook releases both locks but parks nothing', async () => {
-    const { deps } = setup();
+  it('and the fallback email landing takes both lifetime locks back up', async () => {
+    const { clients, deps } = setup();
+    await W.onFirst(CUSTOMER_ID, deps);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW, deps);
+    expect(clients.email.sent).toHaveLength(1);
+    expect(await getPhoneOfferLock(PHONE)).toMatchObject({ customerId: CUSTOMER_ID });
+    expect(await getEmailOfferLock(emailKey(EMAIL))).toMatchObject({ customerId: CUSTOMER_ID });
+  });
+
+  it('a 131026 on the status webhook releases both locks when nothing else reached them', async () => {
+    const { clients, deps } = setup({ email: { unavailable: true } });
     await W.onFirst(CUSTOMER_ID, deps);
     await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW, deps);
+    expect(clients.email.sent).toHaveLength(0);
     expect(await getSubParked(PHONE)).toBe(null);
     expect(await getPhoneOfferLock(PHONE)).toBe(null);
     expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
@@ -932,24 +1130,39 @@ describe('the delivery status webhook', () => {
   it('a failure with no error code at all still gives the locks back', async () => {
     // "Once ever" means a lock must never outlive a message nobody got, and we
     // do not get to wait for Meta to tell us which flavour of nothing it was.
-    const { deps } = setup();
+    const { clients, deps } = setup({ email: { unavailable: true } });
     await W.onFirst(CUSTOMER_ID, deps);
     await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [] }, NOW, deps);
+    expect(clients.email.sent).toHaveLength(0);
     expect(await getPhoneOfferLock(PHONE)).toBe(null);
     expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
     expect(await canSendMarketing(PHONE, NOW, RULES.marketingCapDays)).toBe(true);
   });
 
   it('and the offer can then genuinely be made again', async () => {
-    // The whole reason the locks go back: this person has had nothing.
-    const { clients, deps } = setup();
+    // The whole reason the locks go back: this person has had nothing. Email
+    // is unavailable here, so "nothing" is literally true.
+    const { clients, deps } = setup({ email: { unavailable: true } });
     await W.onFirst(CUSTOMER_ID, deps);
     await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW, deps);
+    expect(clients.email.sent).toHaveLength(0);
 
     const later = fromISTWall(2026, 9, 25, 11, 0);
     clients.shopify.seedCustomer(customer({ id: 'gid://shopify/Customer/891', createdAt: '2026-10-24T05:00:00Z' }));
     await W.onFirst('891', { ...deps, now: later });
     expect((await getSubRec('891')).outcome).not.toBe('already-offered');
+  });
+
+  it('but not once the fallback has actually delivered the code', async () => {
+    const { clients, deps } = setup();
+    await W.onFirst(CUSTOMER_ID, deps);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW, deps);
+    expect(clients.email.sent).toHaveLength(1);
+
+    const later = fromISTWall(2026, 9, 25, 11, 0);
+    clients.shopify.seedCustomer(customer({ id: 'gid://shopify/Customer/891', createdAt: '2026-10-24T05:00:00Z' }));
+    await W.onFirst('891', { ...deps, now: later });
+    expect((await getSubRec('891')).outcome).toBe('already-offered');
   });
 
   it('a good status touches neither the lock nor the cap', async () => {
@@ -1058,6 +1271,138 @@ describe('the email channel', () => {
     expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('email-send-failed');
     expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
     expect(clients.email.sent).toHaveLength(0);
+  });
+
+  /*
+   * THE SERVICE'S OWN HARD RULE, src/log.mjs line 4: "never log a full phone
+   * number, address, or token". A PROVIDER'S error message is the hole in it,
+   * and SES is in SANDBOX, where an unverified recipient comes back as
+   *
+   *   Email address is not verified. The following identities failed the check
+   *   in region ap-south-1: <the customer's own address>
+   *
+   * so on day one of the email channel EVERY attempt would write a real
+   * customer's address into CloudWatch, twice: once through the explicit
+   * log.error on this path and once through soft()'s generic error line, which
+   * logs err.message AND four frames of stack.
+   */
+  it('never writes the customer address to a log line, even when SES names it', async () => {
+    const address = 'priya.farm@example.com';
+    const { clients, deps } = setup({
+      customers: [emailOnly({ defaultEmailAddress: { emailAddress: address, marketingState: 'SUBSCRIBED', marketingUnsubscribeUrl: UNSUB } })],
+    });
+    clients.email.send = async () => {
+      const e = new Error(`Email address is not verified. The following identities failed the check in region ap-south-1: ${address}`);
+      e.name = 'MessageRejected';
+      throw e;
+    };
+
+    const seen = [];
+    const spies = ['log', 'warn', 'error'].map((m) => vi.spyOn(console, m).mockImplementation((...a) => seen.push(JSON.stringify(a))));
+    try {
+      await W.onFirst(CUSTOMER_ID, deps);
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+    }
+
+    expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('email-send-failed');
+    const all = seen.join('\n');
+    expect(all.length).toBeGreaterThan(0);
+    expect(all).not.toContain(address);
+    expect(all).not.toContain('priya.farm');
+    // Masking is not deleting: the diagnostic has to survive, or the owner
+    // cannot tell a sandbox rejection from a bad address.
+    expect(all).toContain('not verified');
+    expect(all).toContain('example.com');
+  });
+
+  /*
+   * A MARKETING EMAIL WITH NO WAY OUT OF IT.
+   *
+   * `marketingUnsubscribeUrl` is Shopify's and the code already treats it as
+   * nullable (`|| null`). When it IS null every unsubscribe route disappeared
+   * at once: the header was filtered out for being empty, and the HTML link
+   * and the text line are both behind the same ternary. What still went out
+   * was `List-Unsubscribe-Post: List-Unsubscribe=One-Click` on its own, which
+   * is a One-Click declaration with nothing to click — malformed under
+   * RFC 8058 and exactly the shape Gmail's and Yahoo's bulk sender rules
+   * check for.
+   *
+   * The population most likely to have no URL is the never-subscribed
+   * customer, and chooseChannel deliberately lets NOT_SUBSCRIBED through, so
+   * this is the main email path and not an edge.
+   */
+  it('always carries an unsubscribe, even when Shopify holds no URL for it', async () => {
+    const { clients, deps } = setup({
+      customers: [emailOnly({
+        defaultEmailAddress: { emailAddress: EMAIL, marketingState: 'NOT_SUBSCRIBED', marketingUnsubscribeUrl: null },
+      })],
+    });
+    await W.onFirst(CUSTOMER_ID, deps);
+
+    expect(clients.email.sent).toHaveLength(1);
+    const msg = clients.email.sent[0];
+    expect(msg.headers['List-Unsubscribe']).toMatch(/^<.+>$/);
+    // No One-Click without an HTTPS endpoint to POST to. Empty is what the
+    // real client drops before it reaches SES.
+    expect(msg.headers['List-Unsubscribe-Post']).toBe('');
+    expect(msg.html).toMatch(/unsubscrib/i);
+    expect(msg.text).toMatch(/unsubscrib/i);
+  });
+
+  it('and prefers Shopify own URL with One-Click when there is one', async () => {
+    const { clients, deps } = setup({ customers: [emailOnly()] });
+    await W.onFirst(CUSTOMER_ID, deps);
+    const msg = clients.email.sent[0];
+    expect(msg.headers['List-Unsubscribe']).toBe(`<${UNSUB}>`);
+    expect(msg.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+    expect(msg.html).toContain(UNSUB);
+  });
+
+  /*
+   * THE KILL SWITCH HAS TO HOLD ON EVERY SEND PATH, AND emailFallback IS THE
+   * ONE THAT ASKS NOBODY.
+   *
+   * Two gaps compose here. whatsapp.mjs re-checks `guard(to)` inside post(),
+   * so DRY_RUN holds there whatever the caller does; clients/email.mjs only
+   * consulted config.dryRun inside sendSkipReason(), which is an optimisation
+   * callers use to avoid spending a discount code before a gated send, NOT a
+   * gate. And emailFallback never asks it, while onSubStatus — its live entry
+   * point — checks neither DRY_RUN nor FLOW_W_ENABLED.
+   *
+   * So: owner throws the kill switch with a message in flight, Meta's status
+   * webhook lands seconds later reporting `failed`, and a real Rs 200 code
+   * goes to a real customer from a flow that is switched off. Since F1 that
+   * email also takes both lifetime locks, permanently consuming a customer
+   * through a send that was meant to be suppressed.
+   */
+  it('the real email client honours DRY_RUN itself, not just via sendSkipReason', async () => {
+    const was = config.dryRun;
+    config.dryRun = true;
+    try {
+      const res = await realEmail.send({
+        to: EMAIL, subject: 's', html: '<p>h</p>', text: 't', headers: {},
+      });
+      expect(res).toEqual({ skipped: 'dry_run' });
+    } finally {
+      config.dryRun = was;
+    }
+  });
+
+  it('a status webhook after the flow is switched off gives locks back but sends nothing', async () => {
+    const { clients, deps } = setup();
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect(await getPhoneOfferLock(PHONE)).toBeTruthy();
+
+    // The owner switches Flow W off. A status for the in-flight message lands.
+    config.flows.W = { enabled: false, startAt: '2026-10-01T00:00:00Z' };
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 131026 }] }, NOW, deps);
+
+    // Bookkeeping still runs: the customer received nothing, so "ever" is
+    // given back. But no consolation email goes out from a disabled flow.
+    expect(clients.email.sent).toHaveLength(0);
+    expect(await getPhoneOfferLock(PHONE)).toBe(null);
+    expect(await getEmailOfferLock(emailKey(EMAIL))).toBe(null);
   });
 
   it('and a dud address is simply allowed through to SES', async () => {

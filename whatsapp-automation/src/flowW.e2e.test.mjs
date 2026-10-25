@@ -265,9 +265,15 @@ describe('POSITIVE: the whole way through', () => {
 
     const rec = await getSubRec(ID);
     expect(rec.outcome).toBe('waiting-window');
-    expect(await getPhoneOfferLock(PHONE)).toBe(null);
     expect((await getSubParked(PHONE)).customerId).toBe(ID);
     expect(clients.email.sent).toHaveLength(1);
+    /*
+     * The fallback DELIVERED the code, so the once-per-person-ever lock is
+     * held even though WhatsApp refused the template. A park is still armed:
+     * the lock stops a SECOND offer, it does not stop this one being finished
+     * on the channel it was meant for, which is the next half of this test.
+     */
+    expect(await getPhoneOfferLock(PHONE)).toMatchObject({ customerId: ID });
 
     const later = new Date(NOW.getTime() + 2 * 3600 * 1000);
     await touchInbound(PHONE, later);

@@ -15,6 +15,7 @@ import { fromISTWall } from '../lib/time.mjs';
 import { bestPublicSavingPaise, tierMaxPaise } from './cart.mjs';
 import {
   istYesterdayWindow,
+  onSubscriberAllowlist,
   normalizeCustomer,
   subscriberEligible,
   chooseChannel,
@@ -572,6 +573,43 @@ describe('email addresses', () => {
     expect(a).not.toBe(emailKey('priya.test2@example.com'));
   });
 
+  /*
+   * THE KEY IS AN IDENTITY, NOT AN ADDRESS, and the farm it has to survive is
+   * one mailbox wearing many addresses.
+   *
+   * `a+1@gmail.com`, `a+2@gmail.com` and `a.b@gmail.com` are all the same
+   * inbox, but they are three different strings and so were three different
+   * lifetime locks. Anyone can register them at /account/register with no
+   * phone at all, which makes the email lock the ONLY control standing between
+   * one person and a fresh Rs 200 code every day.
+   *
+   * The sent-to address is normalizeEmail and is deliberately NOT canonicalised
+   * here: we must deliver to the address Shopify holds. Only the KEY folds.
+   */
+  it('folds a plus-tagged alias onto one key, which is the obvious farm', () => {
+    const base = emailKey('priya.test@example.com');
+    expect(emailKey('priya.test+one@example.com')).toBe(base);
+    expect(emailKey('priya.test+two+three@example.com')).toBe(base);
+    expect(emailKey('  PRIYA.TEST+Sale@Example.COM  ')).toBe(base);
+  });
+
+  it('and folds the gmail dot alias, because that is the same mailbox too', () => {
+    const base = emailKey('priyatest@gmail.com');
+    expect(emailKey('priya.test@gmail.com')).toBe(base);
+    expect(emailKey('p.r.i.y.a.t.e.s.t@gmail.com')).toBe(base);
+    // googlemail.com is an alias of gmail.com, not a separate provider.
+    expect(emailKey('priya.test+x@googlemail.com')).toBe(base);
+  });
+
+  it('but still tells two genuinely different people apart', () => {
+    expect(emailKey('a@example.com')).not.toBe(emailKey('b@example.com'));
+    expect(emailKey('a@example.com')).not.toBe(emailKey('a@example.net'));
+    // A dot is an alias only at Google. Anywhere else it is part of the name,
+    // and folding it would deny a real person their one offer.
+    expect(emailKey('a.b@example.com')).not.toBe(emailKey('ab@example.com'));
+    expect(emailKey('')).toBe(emailKey(null));
+  });
+
   it('is a hash and never the address itself, because the key lands in a DynamoDB PK', () => {
     expect(emailKey('priya.test@example.com')).not.toContain('priya');
     expect(emailKey('priya.test@example.com')).not.toContain('@');
@@ -689,5 +727,45 @@ describe('the template parameters', () => {
 
   it('every placeholder is filled, because a blank where a price goes is worse than a crash', () => {
     for (const [k, v] of Object.entries(vars())) expect(String(v).trim(), k).not.toBe('');
+  });
+});
+
+/*
+ * SHADOW MODE HAS TO BE ABLE TO REACH BOTH CHANNELS.
+ *
+ * The allowlist was compared against the phone alone, which failed CLOSED for
+ * an email-only candidate: safe, but it meant a three-day soak could not send
+ * one real email, and the email channel would have gone live as the only path
+ * in the feature nobody had ever exercised against a real inbox.
+ */
+describe('the shadow-mode allowlist names either channel', () => {
+  const whatsappCandidate = { phone: '+919999999999', email: 'someone@example.com' };
+  const emailOnly = { phone: null, email: 'owner@example.com' };
+
+  it('matches a phone entry against a phone candidate', () => {
+    expect(onSubscriberAllowlist(whatsappCandidate, ['+919999999999'])).toBe(true);
+    expect(onSubscriberAllowlist(whatsappCandidate, ['+918888888888'])).toBe(false);
+  });
+
+  it('matches an email entry against a candidate who has no usable number', () => {
+    expect(onSubscriberAllowlist(emailOnly, ['owner@example.com'])).toBe(true);
+    expect(onSubscriberAllowlist(emailOnly, ['+919999999999'])).toBe(false);
+  });
+
+  it('canonicalises BOTH sides, so a plus-tagged entry still matches the record', () => {
+    expect(onSubscriberAllowlist({ phone: null, email: 'owner@gmail.com' }, ['ow.ner+soak@googlemail.com'])).toBe(true);
+  });
+
+  it('one list can carry both channels at once', () => {
+    const list = ['+919999999999', 'owner@example.com'];
+    expect(onSubscriberAllowlist(whatsappCandidate, list)).toBe(true);
+    expect(onSubscriberAllowlist(emailOnly, list)).toBe(true);
+    expect(onSubscriberAllowlist({ phone: '+917777777777', email: 'stranger@example.com' }, list)).toBe(false);
+  });
+
+  it('and nothing matches an empty entry, a null candidate or an empty list', () => {
+    expect(onSubscriberAllowlist(emailOnly, ['', '  '])).toBe(false);
+    expect(onSubscriberAllowlist(null, ['owner@example.com'])).toBe(false);
+    expect(onSubscriberAllowlist(emailOnly, [])).toBe(false);
   });
 });

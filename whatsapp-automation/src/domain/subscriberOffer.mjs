@@ -291,15 +291,82 @@ export function normalizeEmail(raw) {
 }
 
 /**
- * sha256 of the NORMALISED address, hex.
+ * One MAILBOX, one spelling. The identity behind an address, not the address.
+ *
+ * This is NOT normalizeEmail and must not become it. normalizeEmail produces
+ * the string we SEND to, which has to be the address Shopify holds. This
+ * produces the string we LOCK on, and the farm it has to survive is one inbox
+ * wearing many addresses:
+ *
+ *   a+1@gmail.com, a+2@gmail.com, a.b@gmail.com and ab@googlemail.com are all
+ *   the same mailbox, and were four different lifetime locks.
+ *
+ * That matters because /account/register makes a Shopify customer from an
+ * email and nothing else: such a candidate has no phone, so the EMAIL lock is
+ * the only thing standing between one person and a fresh Rs 200 code every
+ * single day, bounded only by maxPerRun.
+ *
+ * A `+tag` is dropped everywhere, because every provider that supports `+` at
+ * all treats it as the same mailbox. Dots are folded ONLY at Google, because
+ * only Google ignores them; folding them everywhere would merge two real
+ * people and deny the second their one offer.
+ *
+ * @param {string|null|undefined} raw
+ */
+export function canonicalEmail(raw) {
+  const addr = normalizeEmail(raw);
+  const at = addr.lastIndexOf('@');
+  if (at < 1) return addr;
+  let local = addr.slice(0, at);
+  let domain = addr.slice(at + 1);
+  local = local.split('+')[0];
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  if (domain === 'gmail.com') local = local.replace(/\./g, '');
+  // An all-tag local part ("+x@gmail.com") would fold to nothing, which would
+  // make every such address one key. Keep the original rather than invent one.
+  return local ? `${local}@${domain}` : addr;
+}
+
+/**
+ * sha256 of the CANONICAL address, hex.
  *
  * A hash and never the address itself, because this lands in a DynamoDB
  * partition key and in an SQS message group id, and both are read back in
- * logs. Normalising first is what makes one person one key.
+ * logs.
  * @param {string|null|undefined} raw
  */
+/**
+ * Is this candidate named on the shadow-mode allowlist?
+ *
+ * MATCHES ON EITHER IDENTIFIER, and that is the whole point. The allowlist
+ * used to be compared against the phone alone, which made it fail closed for
+ * an email-only candidate: safe, but it meant the three-day soak could never
+ * send a single real email, so the email channel would have gone live as the
+ * only un-exercised path in the feature. An entry containing '@' is matched
+ * against the canonical address, so one list can name both channels:
+ *
+ *   FLOW_W_ALLOWLIST=+919999999999,owner@example.com
+ *
+ * Canonical on both sides, so putting the plus-tagged form of your own address
+ * on the list still matches the record Shopify holds.
+ *
+ * @param {{phone?: string|null, email?: string|null}|null} n
+ * @param {string[]} allowlist
+ */
+export function onSubscriberAllowlist(n, allowlist) {
+  if (!n) return false;
+  for (const raw of allowlist || []) {
+    const entry = String(raw || '').trim();
+    if (!entry) continue;
+    if (entry.includes('@')) {
+      if (n.email && canonicalEmail(entry) === canonicalEmail(n.email)) return true;
+    } else if (n.phone && entry === n.phone) return true;
+  }
+  return false;
+}
+
 export function emailKey(raw) {
-  return createHash('sha256').update(normalizeEmail(raw)).digest('hex');
+  return createHash('sha256').update(canonicalEmail(raw)).digest('hex');
 }
 
 /** Escape a value for HTML text or an attribute. Ampersand FIRST, or an escape

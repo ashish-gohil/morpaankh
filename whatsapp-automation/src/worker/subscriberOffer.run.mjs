@@ -23,6 +23,7 @@ import { RULES } from '../../messages/rules.mjs';
 import {
   normalizeCustomer, subscriberEligible, chooseChannel, phoneSkipReason, subscriberOfferGuard,
   subscriberCode, subscriberVars, topPicks, landingUrl, escapeHtml, minimumPaise, shopifyMinimumInr,
+  onSubscriberAllowlist,
 } from '../domain/subscriberOffer.mjs';
 import { formatExpiresAt } from '../domain/cart.mjs';
 import { heroImageUrl } from '../domain/order.mjs';
@@ -170,8 +171,25 @@ async function hasCart(deps, n, now) {
  * acceptable answer to it.
  */
 async function createCode(deps, id, n, endsAt, now, fixed = null) {
+  const title = `${SUBSCRIBER_OFFER_TITLE}${n.numericId}`;
   return subRunOnce(id, 'code', async () => {
-    const draws = fixed ? [fixed] : Array.from({ length: 5 }, () => subscriberCode(n.rawFirstName, RULES));
+    /*
+     * THE DRAWS ARE COMMITTED TO THE RECORD BEFORE ANY MONEY IS SPENT.
+     *
+     * subRunOnce records its result only once the side effect RETURNS, and
+     * this side effect creates a real Rs 200 discount and then writes the
+     * SUBCODE map. A throttle or the 60 second Lambda budget landing in that
+     * gap leaves a live code in the admin that nothing remembers, and a
+     * redelivery drawing FRESH strings would mint a second one, up to
+     * maxReceiveCount times.
+     *
+     * Memoising the whole draw LIST makes the retry deterministic: it walks
+     * the identical strings in the identical order, so Shopify refusing the
+     * first one is information rather than an accident, and the `taken`
+     * handler below can resolve it.
+     */
+    const draws = await subRunOnce(id, 'codedraws', async () =>
+      (fixed ? [fixed] : Array.from({ length: 5 }, () => subscriberCode(n.rawFirstName, RULES))));
     let lastErr = null;
     for (const code of draws) {
       try {
@@ -180,7 +198,8 @@ async function createCode(deps, id, n, endsAt, now, fixed = null) {
           // NEVER PII: this title shows in the Shopify admin's discount list,
           // and it is the same constant publicCodeDiscounts() excludes on, so
           // a code this flow issued can never become part of its own floor.
-          title: `${SUBSCRIBER_OFFER_TITLE}${n.numericId}`,
+          // It is ALSO how a retry recognises its own code below.
+          title,
           /*
            * The WALL clock, not the flow's logical `now`. The message goes out
            * the moment this returns, so the code has to be honourable the
@@ -202,6 +221,24 @@ async function createCode(deps, id, n, endsAt, now, fixed = null) {
         return made;
       } catch (e) {
         if (!/taken|unique|already/i.test(e.message)) throw e;
+        /*
+         * Shopify already holds this string, and there are exactly two ways
+         * that happens: an earlier attempt of OURS created it and lost its
+         * memo in the gap above, or it belongs to something else. The TITLE
+         * decides, and it carries this customer's own id, so the answer is
+         * never a guess.
+         *
+         * Ours: adopt it. Creating another would be the second Rs 200 code
+         * this whole function exists to prevent.
+         * Not ours: draw again. Handing a customer a discount created for
+         * somebody else is the one answer worse than a dropped message.
+         */
+        const held = await deps.clients.shopify.discountByCode(code);
+        if (held && held.title === title) {
+          log.warn('subscriber: adopting the code an earlier attempt already created', { customerId: id });
+          await setSubCodeMap(code, id);
+          return { code, discountId: held.id };
+        }
         lastErr = e;
         log.warn('subscriber: code collision, drawing another', { customerId: id });
       }
@@ -249,15 +286,37 @@ async function sendWhatsApp(deps, phone, vars, ctx, viaSession) {
   return { ...res, templateName: 'session:subscriber_offer' };
 }
 
+/**
+ * Where this message's unsubscribe points.
+ *
+ * Shopify's own URL whenever it has one, so that opting out here opts them out
+ * there too. It is NULLABLE, though, and when it was absent every route out of
+ * this list disappeared at once: the header was dropped for being empty and
+ * the body link and text line sit behind the same ternary. A marketing email
+ * with no opt-out is unlawful in most of the places it can land and is the
+ * fastest way to get a young SES identity put under review.
+ *
+ * So the fallback is a mailto to the human mailbox that already answers
+ * replies to this flow. It is a real opt-out: somebody reads it.
+ *
+ * @param {any} n a normalized customer
+ */
+const unsubscribeFor = (n) => {
+  if (n?.unsubscribeUrl) return String(n.unsubscribeUrl);
+  const box = config.emailReplyTo || config.emailFrom;
+  return box ? `mailto:${box}?subject=unsubscribe` : '';
+};
+
 /** Send the offer as an email. Returns the same `{messageId}|{skipped}` shape. */
 async function sendEmail(deps, n, vars, token, picks) {
   const utm = `utm_source=email&utm_medium=automation&utm_campaign=welcome_24h`;
+  const unsubscribeUrl = unsubscribeFor(n);
   const { subject, text, html } = renderSubscriberEmail({
     vars,
     rawFirstName: n.rawFirstName,
     url: `${config.publicBaseUrl}/w/${token}`,
     picks,
-    unsubscribeUrl: n.unsubscribeUrl,
+    unsubscribeUrl,
     shopUrl: STORE,
     utm,
     escapeHtml,
@@ -268,15 +327,19 @@ async function sendEmail(deps, n, vars, token, picks) {
     html,
     text,
     /*
-     * List-Unsubscribe is the header every inbox provider looks for, and it is
-     * Shopify's own URL so that unsubscribing here unsubscribes them there.
-     * Both values go through headerSafe: the URL comes from outside this
-     * service, and a bare CRLF in a header appends headers of somebody else's
-     * choosing to our message.
+     * List-Unsubscribe is the header every inbox provider looks for. Both
+     * values go through headerSafe: the URL comes from outside this service,
+     * and a bare CRLF in a header appends headers of somebody else's choosing
+     * to our message.
+     *
+     * One-Click is declared ONLY beside Shopify's HTTPS URL. RFC 8058 makes it
+     * a contract to accept a POST, which a mailto cannot honour, and a
+     * dangling `-Post` header with nothing to click is precisely what Gmail's
+     * and Yahoo's bulk sender rules look for.
      */
     headers: {
-      'List-Unsubscribe': n.unsubscribeUrl ? headerSafe(`<${n.unsubscribeUrl}>`) : '',
-      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'List-Unsubscribe': unsubscribeUrl ? headerSafe(`<${unsubscribeUrl}>`) : '',
+      'List-Unsubscribe-Post': n.unsubscribeUrl ? 'List-Unsubscribe=One-Click' : '',
     },
     // Shopify has already told us whether this address can receive at all.
     validFormat: n.emailValidFormat,
@@ -453,7 +516,7 @@ export async function onFirst(customerId, deps) {
    * CloudWatch, beside a masked phone, which undoes the masking for anybody
    * reading the line.
    */
-  if (config.subscriberOfferAllowlist.length && !(n.phone && config.subscriberOfferAllowlist.includes(n.phone))) {
+  if (config.subscriberOfferAllowlist.length && !onSubscriberAllowlist(n, config.subscriberOfferAllowlist)) {
     log.info('subscriber: would send', {
       customerId,
       phone: maskPhone(n.phone),
@@ -609,7 +672,7 @@ async function handleSendFailure(deps, customerId, e, now, n, vars, picks, token
       metric('SubscriberParkedForWindow', 1);
     }
     log.warn('subscriber: Meta refused the template, falling back to email', { customerId, waCode: code });
-    await emailFallback(deps, customerId, n, vars, picks, token);
+    await emailFallback(deps, customerId, n, vars, picks, token, now);
     return setSubOutcome(customerId, code === 131049 ? 'waiting-window' : `meta-${code}`);
   }
   if (isTemplateUnusable(e)) {
@@ -627,16 +690,36 @@ async function handleSendFailure(deps, customerId, e, now, n, vars, picks, token
 /**
  * The same offer, by email, after WhatsApp refused it.
  *
- * TAKES NO LOCK, on purpose. The lifetime locks are the record of the offer's
- * own channel having been accepted; this is a consolation delivery after a
- * refusal, and the terminal outcome on the record is what stops a second one.
- * Locking here would also fight onSubStatus, which has to be able to give both
- * locks back for a message nobody received.
+ * TAKES BOTH LIFETIME LOCKS, AND ONLY ONCE THE SEND IS ACCEPTED.
+ *
+ * Every WhatsApp-refusal path returns from onFirst before its own two
+ * lockPhoneOffer/lockEmailOffer lines, and on the async 131049 path
+ * onSubStatus has just RELEASED both. So if this delivery took no lock,
+ * nothing would hold one for a person who has the code in their inbox, and
+ * "once per person, ever" would be enforced only by `outcome`, which is keyed
+ * on customerId. The farm that beats a per-record check is a NEW RECORD: a
+ * fresh email and a +91 number with no WhatsApp account, through the public
+ * signup popup, collects a Rs 200 code by email and comes back tomorrow for
+ * another. The two locks are the only cross-record control there is.
+ *
+ * The locks go on AFTER the accept and never before, which is the same rule
+ * onFirst follows: a lock on a message nobody received burns that person's one
+ * welcome offer for ever, and `ever` has no expiry to wait out. A skipped,
+ * suppressed, invalid or unavailable send therefore still leaves both free,
+ * which is what lets onSubStatus hand them back for a message that reached
+ * nobody.
  *
  * soft(): the WhatsApp failure is already recorded and already the outcome. A
  * failing fallback must not turn a handled refusal into a redelivery.
  */
-async function emailFallback(deps, customerId, n, vars, picks, token) {
+async function emailFallback(deps, customerId, n, vars, picks, token, now = nowOf(deps)) {
+  /*
+   * THE KILL SWITCH. onFirst and onWindowOpen check this; onSubStatus
+   * deliberately does not, because giving the two lifetime locks back for a
+   * message nobody received is bookkeeping that must run even with the flow
+   * switched off. SENDING is not bookkeeping, so the check belongs here.
+   */
+  if (!config.flows.W.enabled) return null;
   if (!n?.email || n.emailMarketingState === 'UNSUBSCRIBED') return null;
   return soft('subscriberEmailFallback', async () => {
     const res = await sendEmail(deps, n, vars, token, picks);
@@ -645,6 +728,9 @@ async function emailFallback(deps, customerId, n, vars, picks, token) {
       return null;
     }
     metric('SubscriberEmailFallback', 1);
+    // NOT soft: this is the once-per-person-ever promise, and it is now owed.
+    if (n.phone) await lockPhoneOffer(n.phone, { customerId, now });
+    if (n.emailKey) await lockEmailOffer(n.emailKey, { customerId, now });
     await soft('subscriberRecordFallback', () =>
       recordSubMessage(customerId, res.messageId, { key: 'subscriber_offer', template: 'email-fallback' }), { customerId });
     return res;
@@ -794,7 +880,7 @@ export async function onSubStatus(customerId, st, now = new Date(), deps = null)
     if (!n) return;
     const picks = await bestSellers(deps);
     const vars = subscriberVars({ n, rec, topPicks: topPicks(picks), now, rules: RULES });
-    await emailFallback(deps, customerId, n, vars, picks, rec.token);
+    await emailFallback(deps, customerId, n, vars, picks, rec.token, now);
   }, { customerId });
 }
 

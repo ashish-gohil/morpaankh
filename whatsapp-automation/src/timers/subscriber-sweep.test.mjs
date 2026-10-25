@@ -255,6 +255,46 @@ describe('the blast radius', () => {
     expect(JSON.stringify(alerts(clients.whatsapp))).toMatch(/\b101\b/);
   });
 
+  /*
+   * THE GUARD MUST NOT VANISH WITH ITS OWN VALUE.
+   *
+   * `candidates.length > w().maxPerRun` compares against undefined if that key
+   * is ever renamed or dropped, and `5 > undefined` is false, so the ONE blast
+   * radius control in this feature silently became "no limit" and the sweep
+   * enqueued everything it found. No attacker needed: one bad deploy. Every
+   * other switch in this service fails closed (DRY_RUN defaults to true, an
+   * empty FLOW_W_START_AT means nobody is eligible, unreadable public codes
+   * refuse the send), and this one failed open.
+   */
+  it('a missing maxPerRun refuses the run instead of becoming no limit', async () => {
+    const was = RULES.subscriberOffer.maxPerRun;
+    delete RULES.subscriberOffer.maxPerRun;
+    try {
+      const clients = setup({ customers: many(3) });
+      const out = await sweepNewSubscribers(clients, NOW);
+      expect(out.skipped).toBe('too-many-candidates');
+      expect(_drainQueue()).toHaveLength(0);
+      expect(await getSweepDay(YESTERDAY.date)).toBe(null);
+      expect(alerts(clients.whatsapp)).toHaveLength(1);
+    } finally {
+      RULES.subscriberOffer.maxPerRun = was;
+    }
+  });
+
+  it('and the same for a nonsense limit', async () => {
+    const was = RULES.subscriberOffer.maxPerRun;
+    for (const bad of [0, -1, 1.5, '100', null]) {
+      _resetMemory();
+      RULES.subscriberOffer.maxPerRun = /** @type {any} */ (bad);
+      const clients = setup({ customers: many(3) });
+      // eslint-disable-next-line no-await-in-loop
+      const out = await sweepNewSubscribers(clients, NOW);
+      expect(out.skipped, String(bad)).toBe('too-many-candidates');
+      expect(_drainQueue(), String(bad)).toHaveLength(0);
+    }
+    RULES.subscriberOffer.maxPerRun = was;
+  });
+
   it('runs at exactly maxPerRun, because the limit is a limit and not a fence', async () => {
     const clients = setup({ customers: many(RULES.subscriberOffer.maxPerRun) });
     const out = await sweepNewSubscribers(clients, NOW);

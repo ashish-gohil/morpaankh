@@ -72,6 +72,22 @@ export const email = {
    */
   async send({ to, subject, html, text, headers = {}, validFormat }) {
     /*
+     * DRY_RUN IS RE-CHECKED HERE, not only in sendSkipReason, exactly as
+     * whatsapp.mjs re-checks guard(to) inside post().
+     *
+     * sendSkipReason is an OPTIMISATION: callers ask it so they do not spend a
+     * single-use discount code on a send that is about to be dropped. It is
+     * not the gate. Flow W's emailFallback never asks it (it is a consolation
+     * delivery after a refusal that is already recorded), and onSubStatus, its
+     * live entry point, checks neither DRY_RUN nor FLOW_W_ENABLED. So a status
+     * webhook landing just after the kill switch was thrown would otherwise
+     * put a real Rs 200 code in front of a real customer.
+     *
+     * First, before every other skip: a kill switch that loses to a dud
+     * address is not a kill switch.
+     */
+    if (config.dryRun) return { skipped: 'dry_run' };
+    /*
      * Shopify has already told us this address cannot receive. Skipping it
      * costs nothing; sending to it costs a bounce, and SES judges a sender on
      * its bounce RATE, not its bounce count. At one or two emails a day a

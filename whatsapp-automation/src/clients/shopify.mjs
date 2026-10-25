@@ -1188,9 +1188,42 @@ async function collectionBestSellers(handle, limit = 6) {
   });
 }
 
+/**
+ * One code discount, looked up by its code string, with the TITLE.
+ *
+ * Exists to answer exactly one question: when discountCodeBasicCreate says a
+ * code "has already been taken", is it a code WE created and then lost the
+ * memo for, or somebody else's? Both flows put an identifying title on every
+ * code they make (`Cart recovery #<id>`, `Subscriber offer #<id>`), so the
+ * title is the answer, and it is the only field worth reading here.
+ *
+ * Needs read_discounts, which this service already requires for
+ * publicCodeDiscounts(); there is no new scope. Returns null when nothing
+ * holds that string, which is itself an answer (the create failed for some
+ * other reason).
+ *
+ * @param {string} code
+ * @returns {Promise<{id: string, title: string}|null>}
+ */
+async function discountByCode(code) {
+  const data = await graphql(
+    `query SubCodeOwner($code: String!){
+       codeDiscountNodeByCode(code: $code){
+         id
+         codeDiscount { __typename ... on DiscountCodeBasic { title } }
+       } }`,
+    { code: String(code) },
+    { idempotent: true },
+  );
+  const node = data.codeDiscountNodeByCode;
+  if (!node) return null;
+  return { id: node.id, title: String(node.codeDiscount?.title || '') };
+}
+
 export const shopify = {
   graphql,
   getCustomer,
+  discountByCode,
   getCustomerByPhone,
   listNewCustomers,
   ordersByEmail,
