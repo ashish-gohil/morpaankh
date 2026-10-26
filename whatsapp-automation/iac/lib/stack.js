@@ -311,35 +311,35 @@ class WaAutomationStack extends cdk.Stack {
 
     /*
      * SES, on the WORKER role and nowhere else, because that is where the send
-     * happens: reconcile only enqueues.
+     * happens: reconcile only enqueues. Scoped to the one verified identity
+     * and, when EMAIL_FROM is set, to that exact address, so a flaw in a flow
+     * cannot send mail as anybody else on the domain.
      *
-     * THE `ses:FromAddress` CONDITION IS THE CONTROL, NOT THE RESOURCE LIST.
-     *
-     * This was scoped to `identity/morpaankh.in` alone, and on 2026-10-25 the
-     * first real email fallback died on it:
+     * IF THIS EVER DENIES A RECIPIENT, THE ACCOUNT IS BACK IN THE SES SANDBOX.
+     * In the sandbox every destination must itself be a verified identity, and
+     * SES enforces that by authorising SendEmail against the DESTINATION
+     * identity too, so a narrow resource list surfaces as
      *
      *   not authorized to perform 'ses:SendEmail' on resource
-     *   'arn:aws:ses:ap-south-1:...:identity/<the RECIPIENT>'
+     *   'arn:aws:ses:<region>:<acct>:identity/<the RECIPIENT>'
      *
-     * While the account is in the SES sandbox every destination must itself be
-     * a verified identity, and SES enforces that by authorising SendEmail
-     * against the DESTINATION identity too. A resource list naming only the
-     * sending domain therefore denies every real recipient, and iam
-     * simulate-principal-policy confirmed it: `identity/morpaankh.in` allowed,
-     * `identity/<a gmail address>` implicitDeny.
-     *
-     * So the resource is `identity/*` and the FromAddress condition is what
-     * keeps a flaw in a flow from sending mail as anybody else on the domain,
-     * which is the whole point and is unchanged by widening the resource: the
-     * worker can mail anyone, but only ever AS hello@morpaankh.in. With the
-     * narrow list the real outcome was not "safer", it was an unsendable
-     * channel that failed with an IAM error instead of a mail error.
+     * which reads like a policy bug and is really "that recipient is not
+     * verified". It cost exactly one send, on 2026-10-25, and was briefly
+     * "fixed" by widening the resource to identity/*. That was the wrong read:
+     * production access landed on 2026-10-26 and this narrow grant then sent to
+     * two unverified gmail addresses without complaint, because outside the
+     * sandbox SES authorises against the FROM identity only. Widening it bought
+     * nothing and gave the role the right to mail anyone from any identity on
+     * the account, so it was reverted. Verify with the quota, not the policy:
+     * `aws sesv2 get-account` reports ProductionAccessEnabled and Max24HourSend
+     * (50000 in production, 200 in the sandbox).
      */
     const emailFrom = String(props.emailFrom || '');
+    const emailIdentity = emailFrom.split('@')[1] || 'morpaankh.in';
     worker.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['ses:SendEmail'],
-        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${emailIdentity}`],
         ...(emailFrom ? { conditions: { StringEquals: { 'ses:FromAddress': emailFrom } } } : {}),
       }),
     );
