@@ -97,7 +97,14 @@ export async function onAddressText(orderId, text, deps) {
   const res = classifyAddressReply(text, n.zip);
   if (res.status === 'same') {
     try {
-      if (n.delhiveryAwb) await deps.clients.courier.ndrAction(n.delhiveryAwb, 'EDIT_DETAILS', { address: text, pin: res.pincode });
+      /*
+       * `add` is the field Delhivery documents, and the pincode is not a field
+       * at all. This sent { address, pin } until 2026-10-26, which is the same
+       * unknown-key mistake that got a re-attempt refused whole. Nothing is
+       * lost: classifyAddressReply only returns 'same' when the pincode has not
+       * changed, so there is no new pincode to send.
+       */
+      if (n.delhiveryAwb) await deps.clients.courier.ndrAction(n.delhiveryAwb, 'EDIT_DETAILS', { add: text });
       await sess(deps, n.verifiedPhone, 'ndr_address_saved', {});
       await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-address']);
     } catch (e) {

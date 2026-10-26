@@ -1,11 +1,28 @@
 /*
  * clients/courier.mjs — Courier interface, Delhivery Express API (static token).
  *
- * The account uses the classic Express API (Authorization: Token <token>). The
- * tracking endpoint below is verified working (2026-09-21). The edit-to-prepaid
- * (/api/p/edit) and NDR (/api/p/update) endpoints/fields are still best-known and
- * get verified on a staging AWB at Flow C go-live (DECISIONS E4-E6). All writes
- * are DRY_RUN-gated.
+ * The account uses the classic Express API (Authorization: Token <token>).
+ *
+ * THE TWO WRITE ENDPOINTS DO NOT TAKE THE SAME BODY SHAPE, which is the whole
+ * reason the NDR call was broken for as long as it was:
+ *
+ *   /api/p/edit    FLAT:  { waybill, ... }      proven live on 2026-10-23,
+ *                                               cancelling both legs of #1222
+ *                                               (via clients/logistics).
+ *   /api/p/update  NESTED: { data: [ { waybill, act, action_data? } ] }
+ *                                               matched to Delhivery's docs on
+ *                                               2026-10-26 after a FLAT body was
+ *                                               refused with "Invalid data
+ *                                               provided" on a real customer's
+ *                                               re-attempt. Schema verified
+ *                                               against the docs and asserted in
+ *                                               courier.test.mjs; no live AWB has
+ *                                               been through it yet.
+ *
+ * Read (tracking) is verified working (2026-09-21). editToPrepaid is the one
+ * write still unproven end to end: it is /api/p/edit, so the shape is right,
+ * but no order has actually been flipped to prepaid through it. All writes are
+ * DRY_RUN-gated.
  *
  * Interface (a Delhivery One impl could swap in behind the same shape):
  *   track(awbs[])                    -> [{ awb, status, statusType, statusDateTime, instructions, statusCode }]
@@ -96,10 +113,55 @@ export const courier = {
     return { ok: true };
   },
 
-  // TODO(Phase 7): confirm NDR endpoint + action names + next-day cutoff.
+  /*
+   * The NDR action body, as Delhivery documents it: a `data` ARRAY of action
+   * items, each carrying its per-action fields in a nested `action_data`.
+   *
+   *   { data: [ { waybill, act: 'RE-ATTEMPT' },
+   *             { waybill, act: 'EDIT_DETAILS', action_data: { name, add, phone } },
+   *             { waybill, act: 'DEFER_DLV',    action_data: { deferred_date } } ] }
+   *
+   * This posted a FLAT { waybill, act, ...opts } until 2026-10-26, when a real
+   * customer tapped "deliver tomorrow" on order 12712549155188 and Delhivery
+   * refused it with "Invalid data provided". Flow C caught the throw, told them
+   * a person would call, and alerted the owner, so the only cost was a delivery
+   * that was never re-booked and one ERROR line. The field names had never been
+   * checked against the docs: this call still carried "TODO(Phase 7): confirm
+   * NDR endpoint + action names" above it.
+   *
+   * action_data is a strict ALLOW LIST, because an unknown key is how a whole
+   * body gets rejected and that is exactly the failure above. The endpoint
+   * documents name, add and phone for EDIT_DETAILS and deferred_date for
+   * DEFER_DLV, and NO pincode field anywhere. The old caller sent `address` and
+   * `pin`; neither exists, and Flow C only ever edits an address whose pincode
+   * is unchanged, so there is nothing for a pincode field to carry.
+   *
+   * RE-ATTEMPT and DEFER_DLV also need the package to be pending on one of a
+   * listed set of status codes. We do not pre-check that here: the action is
+   * asynchronous, so a per-waybill refusal comes back from the NDR status API
+   * rather than from this call, and guessing the precondition is what produced
+   * the bug above.
+   */
   async ndrAction(awb, action, opts = {}) {
     if (config.dryRun) return { requestId: `dry_${awb}`, skipped: 'dry_run' };
-    const json = await req('POST', '/api/p/update', { waybill: awb, act: action, ...opts });
-    return { requestId: json.request_id || json.UPL };
+    const ACTION_FIELDS = ['name', 'add', 'phone', 'deferred_date'];
+    const actionData = Object.fromEntries(
+      ACTION_FIELDS.filter((k) => opts[k] !== undefined && opts[k] !== null).map((k) => [k, opts[k]]),
+    );
+    const item = { waybill: awb, act: action };
+    if (Object.keys(actionData).length) item.action_data = actionData;
+    const json = await req('POST', '/api/p/update', { data: [item] });
+    /*
+     * The endpoint is ASYNCHRONOUS: a 200 means "queued" and the UPL id is the
+     * receipt. A 200 carrying no id means nothing was queued, and the caller
+     * would otherwise tag the order and tell the customer their delivery is
+     * re-booked on the strength of an empty reply, which is the same silent
+     * failure in a politer form.
+     */
+    const requestId = json.request_id || json.UPL;
+    if (!requestId) {
+      throw new Error(`delhivery POST /api/p/update queued nothing: ${JSON.stringify(json).slice(0, 200)}`);
+    }
+    return { requestId };
   },
 };

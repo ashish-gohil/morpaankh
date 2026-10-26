@@ -166,3 +166,42 @@ describe('Flow C honours opt-out', () => {
     expect(sentTemplate(clients.whatsapp, 'ndr_action_v2')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+/*
+ * What Flow C hands the courier, as opposed to whether it called it.
+ *
+ * On 2026-10-26 a real customer tapped "deliver tomorrow" on order
+ * 12712549155188 and Delhivery refused the booking with "Invalid data
+ * provided". Every test above asserts the ACTION name and passed throughout,
+ * because the action name was never the problem: the fields beside it were.
+ * The address edit sent `address` and `pin`, and the endpoint documents neither
+ * (it takes `add`, `name` and `phone`, and has no pincode field at all).
+ *
+ * Flow C only edits an address whose pincode is unchanged, so there is nothing
+ * for a pincode field to carry even if one existed.
+ */
+describe('Flow C hands the courier the fields Delhivery documents', () => {
+  const ndr = (clients) => courierCalls(clients.courier).find((c) => c.op === 'ndrAction');
+
+  it('an address edit sends `add`, and no `address` or `pin`', async () => {
+    const { clients, deps } = setup();
+    await C.onNdrAddressStart('12345', deps);
+    await C.onAddressText('12345', 'New flat 5, MG Road, Jaipur 302001', deps);
+
+    const call = ndr(clients);
+    expect(call.action).toBe('EDIT_DETAILS');
+    expect(call.opts.add).toBe('New flat 5, MG Road, Jaipur 302001');
+    expect(call.opts).not.toHaveProperty('address');
+    expect(call.opts).not.toHaveProperty('pin');
+  });
+
+  it('a re-attempt sends nothing but the action', async () => {
+    const { clients, deps } = setup();
+    await C.onNdrReattempt('12345', deps);
+
+    const call = ndr(clients);
+    expect(call.action).toBe('RE-ATTEMPT');
+    expect(call.opts === undefined || Object.keys(call.opts).length === 0).toBe(true);
+  });
+});
