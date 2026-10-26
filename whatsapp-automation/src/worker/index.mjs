@@ -16,7 +16,7 @@ import { getAwbMap, getWamidMap } from '../store/maps.mjs';
 import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing, getAwaiting } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
-import { ownerAlert } from './send.mjs';
+import { ownerAlert, isWindowDeliverable } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
@@ -350,8 +350,19 @@ async function onWaStatus(m) {
    * incident email arriving beside it for the same event taught the owner to
    * ignore both.
    */
-  const HANDLED_FAILURES = new Set([131049, 131026]);
-  const level = st.status !== 'failed' ? 'info' : (HANDLED_FAILURES.has(code) ? 'warn' : 'error');
+  /*
+   * 130472 joins them, for the same reason. Meta holds a small share of numbers
+   * out of marketing messages to measure incrementality, so a held-out number
+   * refuses every marketing template and the send is not billed. Both flows now
+   * park the offer against that phone and fall back to email, which makes it a
+   * handled outcome like the two above; before 2026-10-26 it was neither
+   * handled nor quiet, and the two it refused that day paged the owner with an
+   * incident email describing retries and a dead letter queue that never
+   * happened.
+   */
+  const level = st.status !== 'failed' ? 'info'
+    : (isWindowDeliverable(code) || code === 131026) ? 'warn'
+    : 'error';
   log[level]('wa status', {
     status: st.status,
     phone: st.recipient_id ? `+${st.recipient_id}` : undefined,

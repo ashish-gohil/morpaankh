@@ -38,7 +38,7 @@ import {
 } from '../store/phoneProfile.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { verifiedPhoneFromNoteAttributes, verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
-import { tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
+import { tpl, sess, ownerAlert, isTemplateUnusable, isWindowDeliverable } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 
@@ -433,7 +433,7 @@ export async function onFirst(checkoutId, deps) {
  */
 async function handleSendFailure(deps, checkoutId, step, e, now, phone) {
   const code = e?.waCode;
-  if (code === 131049) {
+  if (isWindowDeliverable(code)) {
     /*
      * The park lives exactly as long as the offer does. Using the code's own
      * end date rather than a fresh rule is what stops onWindowOpen ever
@@ -442,7 +442,7 @@ async function handleSendFailure(deps, checkoutId, step, e, now, phone) {
     const rec = await getRec(checkoutId);
     const until = rec?.codeEndsAt ? new Date(rec.codeEndsAt) : new Date(now.getTime() + 24 * 3600 * 1000);
     if (phone) await soft('cartPark', () => parkForWindow(phone, checkoutId, until, now), { checkoutId });
-    log.warn('cart: Meta per-user marketing cap, parked for a service window', { checkoutId, step, waCode: code, until: until.toISOString() });
+    log.warn('cart: Meta refused the template for this recipient, parked for a service window', { checkoutId, step, waCode: code, until: until.toISOString() });
     metric('CartParkedForWindow', 1);
     return setOutcome(checkoutId, 'waiting-window');
   }
@@ -722,9 +722,9 @@ export async function onCartStatus(cartId, st, now = new Date()) {
      */
     const code = Number(fields.deliveryError);
     const endsAt = rec.codeEndsAt ? new Date(rec.codeEndsAt) : null;
-    if (code === 131049 && endsAt && endsAt.getTime() > now.getTime()) {
+    if (isWindowDeliverable(code) && endsAt && endsAt.getTime() > now.getTime()) {
       await soft('cartParkOnStatus', () => parkForWindow(rec.phone, cartId, endsAt, now), { cartId });
-      log.warn('cart: Meta per-user marketing cap on the status webhook, parked for a service window', {
+      log.warn('cart: Meta refused the template on the status webhook, parked for a service window', {
         cartId, until: endsAt.toISOString(),
       });
       metric('CartParkedForWindow', 1);

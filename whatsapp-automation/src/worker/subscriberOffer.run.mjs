@@ -45,7 +45,7 @@ import {
   isOptedOut, isUndeliverable, canSendMarketing, markMarketing, clearMarketing, touchInbound, windowOpen,
 } from '../store/phoneProfile.mjs';
 import { scheduleTimer } from '../timers/schedule.mjs';
-import { tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
+import { tpl, sess, ownerAlert, isTemplateUnusable, isWindowDeliverable } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 
@@ -650,20 +650,21 @@ export async function onFirst(customerId, deps) {
  * A WhatsApp send that threw. None of these take a lock: the customer received
  * nothing on WhatsApp.
  *
- * 131049 is the per-user MARKETING cap, counted across every business that
- * messages that person. Nothing we send or stop sending moves it and retrying
- * the template fails again, so the offer is parked against the phone until the
- * customer opens a 24 hour service window by writing to us, AND goes out by
- * email now, because the offer is only a day long and a park that never opens
- * is a person who got nothing.
+ * isWindowDeliverable covers 131049, the per-user MARKETING cap counted across
+ * every business that messages that person, and 130472, Meta's marketing
+ * experiment holdout. Neither moves for anything we send or stop sending, and
+ * retrying the template fails the same way, so the offer is parked against the
+ * phone until the customer opens a 24 hour service window by writing to us, AND
+ * goes out by email now, because the offer is only a day long and a park that
+ * never opens is a person who got nothing.
  *
  * 131026 means that number cannot receive WhatsApp at all, so no window helps
  * and there is nothing to park: the email is the only route left.
  */
 async function handleSendFailure(deps, customerId, e, now, n, vars, picks, token) {
   const code = e?.waCode;
-  if (code === 131049 || code === 131026) {
-    if (code === 131049) {
+  if (isWindowDeliverable(code) || code === 131026) {
+    if (isWindowDeliverable(code)) {
       const rec = await getSubRec(customerId);
       // The park lives exactly as long as the offer does, so onWindowOpen can
       // never deliver a message whose code has already closed.
@@ -673,7 +674,7 @@ async function handleSendFailure(deps, customerId, e, now, n, vars, picks, token
     }
     log.warn('subscriber: Meta refused the template, falling back to email', { customerId, waCode: code });
     await emailFallback(deps, customerId, n, vars, picks, token, now);
-    return setSubOutcome(customerId, code === 131049 ? 'waiting-window' : `meta-${code}`);
+    return setSubOutcome(customerId, isWindowDeliverable(code) ? 'waiting-window' : `meta-${code}`);
   }
   if (isTemplateUnusable(e)) {
     log.error('subscriber: template unusable', { customerId, waCode: code });
@@ -865,7 +866,7 @@ export async function onSubStatus(customerId, st, now = new Date(), deps = null)
   const code = Number(fields.deliveryError);
   const endsAt = rec.codeEndsAt ? new Date(rec.codeEndsAt) : null;
   const live = endsAt && endsAt.getTime() > now.getTime();
-  if (code === 131049 && rec.phone && live) {
+  if (isWindowDeliverable(code) && rec.phone && live) {
     await soft('subscriberParkOnStatus', () => parkSubForWindow(rec.phone, customerId, endsAt, now), { customerId });
     metric('SubscriberParkedForWindow', 1);
   }

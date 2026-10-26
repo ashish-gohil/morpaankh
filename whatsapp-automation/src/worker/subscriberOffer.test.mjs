@@ -1623,3 +1623,111 @@ describe('Flow R stands down for a live Flow W code', () => {
     expect((await getCartRec(CHECKOUT_ID)).outcome).not.toBe('subscriber-offer-live');
   });
 });
+
+// ---------------------------------------------------------------------------
+/*
+ * 130472, Meta's marketing-experiment holdout.
+ *
+ * BOTH of Flow W's WhatsApp candidates on 2026-10-26 failed with this code, and
+ * it was in neither of the two sets the failure branch reads, so it fell
+ * through to the generic path: locks back, email attempted, and NO park. Meta
+ * blocks only MARKETING templates to a held-out number and a free-form message
+ * inside an open 24 hour window still arrives, so a park is exactly what this
+ * code wants, the same as 131049.
+ *
+ * It cost one real customer their only offer: customer 25256497512820 had no
+ * email on file, so after the generic path there was no park to open and no
+ * inbox to fall back to, and the daily sweep only ever looks at yesterday, so
+ * nothing would ever pick them up again.
+ */
+describe('a send Meta refuses because the number is in an experiment (130472)', () => {
+  it('parks against the phone AND sends the email fallback, exactly like 131049', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 130472 } });
+    await W.onFirst(CUSTOMER_ID, deps);
+
+    const rec = await getSubRec(CUSTOMER_ID);
+    expect(rec.outcome).toBe('waiting-window');
+    const parked = await getSubParked(PHONE);
+    expect(parked.customerId).toBe(CUSTOMER_ID);
+    expect(parked.until).toBe(rec.codeEndsAt);
+    expect(clients.email.sent).toHaveLength(1);
+  });
+
+  /*
+   * THE CUSTOMER THE OLD CODE LOST. No email address, so the park is the only
+   * route their offer has left. Under the generic branch this person ended the
+   * day with a code they had never seen and no way for it to reach them.
+   */
+  it('parks a customer with no email, whose offer has nowhere else to go', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 130472 }, email: { unavailable: true } });
+    await W.onFirst(CUSTOMER_ID, deps);
+
+    expect(clients.email.sent).toHaveLength(0);
+    const parked = await getSubParked(PHONE);
+    expect(parked).not.toBe(null);
+    expect(parked.customerId).toBe(CUSTOMER_ID);
+    expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('waiting-window');
+  });
+
+  it('and the window opening delivers the same code they never saw', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 130472 }, email: { unavailable: true } });
+    await W.onFirst(CUSTOMER_ID, deps);
+    const rec = await getSubRec(CUSTOMER_ID);
+
+    // They write to us, which opens a 24 hour service window. The fake refuses
+    // TEMPLATES only, which is what Meta does for a held-out number.
+    const later = new Date(NOW.getTime() + 2 * 3600 * 1000);
+    await touchInbound(PHONE, later);
+    await W.onWindowOpen(PHONE, { clients, now: later });
+
+    expect(ctaSends(clients.whatsapp)).toHaveLength(1);
+    expect(codeIn(ctaSends(clients.whatsapp)[0])).toBe(rec.code);
+    // Delivered, so the park is spent and the lifetime lock is back up.
+    expect(await getSubParked(PHONE)).toBe(null);
+    expect(await getPhoneOfferLock(PHONE)).toBeTruthy();
+  });
+
+  /*
+   * The real arrival shape. Meta accepted both of today's sends with a 200 and
+   * reported 130472 seconds later on the status webhook, so firstSentAt was
+   * already stamped and both lifetime locks were already written. That is the
+   * path that has to park, and the path that did not.
+   */
+  it('parks when 130472 arrives asynchronously on the status webhook', async () => {
+    const { clients, deps } = setup();
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect(await getPhoneOfferLock(PHONE)).toBeTruthy();
+
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 130472 }] }, NOW, deps);
+
+    expect((await getSubRec(CUSTOMER_ID))).toMatchObject({ deliveryFailed: true, deliveryError: 130472 });
+    expect((await getSubParked(PHONE)).customerId).toBe(CUSTOMER_ID);
+    // The cap goes back regardless: Meta did not bill a held-out send, and the
+    // customer received nothing.
+    expect(await canSendMarketing(PHONE, NOW, RULES.marketingCapDays)).toBe(true);
+    expect(clients.email.sent).toHaveLength(1);
+  });
+
+  it('parks on the webhook even when there is no inbox to fall back to', async () => {
+    const { clients, deps } = setup({ email: { unavailable: true } });
+    await W.onFirst(CUSTOMER_ID, deps);
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 130472 }] }, NOW, deps);
+
+    expect(clients.email.sent).toHaveLength(0);
+    expect((await getSubParked(PHONE)).customerId).toBe(CUSTOMER_ID);
+  });
+
+  /*
+   * A park must never outlive the code it carries, or onWindowOpen delivers a
+   * discount that Shopify has already closed.
+   */
+  it('never parks past the code it carries', async () => {
+    const { deps } = setup();
+    await W.onFirst(CUSTOMER_ID, deps);
+    const rec = await getSubRec(CUSTOMER_ID);
+    const afterTheCode = new Date(new Date(rec.codeEndsAt).getTime() + 60 * 1000);
+
+    await W.onSubStatus(CUSTOMER_ID, { status: 'failed', errors: [{ code: 130472 }] }, afterTheCode, deps);
+    expect(await getSubParked(PHONE)).toBe(null);
+  });
+});

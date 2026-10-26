@@ -781,3 +781,66 @@ describe('reaching a customer the marketing cap would otherwise block', () => {
     expect(clients.whatsapp.sent).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+/*
+ * 130472, Meta's marketing-experiment holdout, in Flow R.
+ *
+ * Flow W hit this code twice on 2026-10-26 and Flow R carried the identical
+ * gap: both of its park branches tested `code === 131049` by hand, so a
+ * held-out number fell through to the generic path and the checkout was never
+ * parked. Meta refuses only MARKETING templates to these numbers; a free-form
+ * message inside an open 24 hour window still arrives. Nothing here had failed
+ * this way yet, which is the whole reason to fix it in the same pass rather
+ * than waiting for it to cost a cart.
+ */
+describe('a cart send Meta refuses because the number is in an experiment (130472)', () => {
+  it('parks the checkout against the phone, like 131049', async () => {
+    const { deps } = setup({ whatsapp: { failTemplateWith: 130472 } });
+    await R.onFirst(CHECKOUT_ID, deps);
+
+    const rec = await getRec(CHECKOUT_ID);
+    expect(rec.outcome).toBe('waiting-window');
+    const parked = await getParked(PHONE);
+    expect(parked.checkoutId).toBe(CHECKOUT_ID);
+    expect(parked.until).toBe(rec.codeEndsAt);
+    expect(await getPhoneLock(PHONE)).toBe(null);
+  });
+
+  it('parks when 130472 arrives asynchronously on the status webhook', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect(await getPhoneLock(PHONE)).toBeTruthy();
+
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 130472 }] }, NOW);
+
+    expect(await getRec(CHECKOUT_ID)).toMatchObject({ deliveryFailed: true, deliveryError: 130472 });
+    expect((await getParked(PHONE)).checkoutId).toBe(CHECKOUT_ID);
+    expect(await getPhoneLock(PHONE)).toBe(null);
+  });
+
+  it('and the window opening then delivers that checkout', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 130472 } });
+    await R.onFirst(CHECKOUT_ID, deps);
+    const rec = await getRec(CHECKOUT_ID);
+
+    const later = new Date(NOW.getTime() + 2 * 3600 * 1000);
+    await touchInbound(PHONE, later);
+    await R.onWindowOpen(PHONE, { clients, now: later });
+
+    const cta = clients.whatsapp.sent.filter((m) => m.type === 'cta_url');
+    expect(cta).toHaveLength(1);
+    expect(JSON.stringify(cta)).toContain(rec.code);
+    expect(await getParked(PHONE)).toBe(null);
+  });
+
+  it('never parks past the code it carries', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const rec = await getRec(CHECKOUT_ID);
+    const afterTheCode = new Date(new Date(rec.codeEndsAt).getTime() + 60 * 1000);
+
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 130472 }] }, afterTheCode);
+    expect(await getParked(PHONE)).toBe(null);
+  });
+});

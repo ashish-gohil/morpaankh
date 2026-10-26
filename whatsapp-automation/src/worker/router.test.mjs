@@ -362,3 +362,41 @@ describe('a slash command is only a command when an owner typed it', () => {
     await expect(text(OWNER_PHONE, '/sizechange 1214')).resolves.toMatchObject(replied);
   });
 });
+
+// ---------------------------------------------------------------------------
+/*
+ * 130472's log LEVEL, which is alert wiring and not decoration: the incident
+ * email in iac/lib/stack.js fires on any `level = "error"` line.
+ *
+ * Both of Flow W's candidates failed with 130472 on 2026-10-26 and both logged
+ * at ERROR, so the owner got incident mail reading "that step did not complete,
+ * it retries automatically, then parks in the dead letter queue". None of that
+ * was true: nothing retried and the DLQ stayed empty. Now that the code parks
+ * the offer and falls back to email it is a handled outcome, so it belongs
+ * beside 131049 and 131026 at WARN. MessageFailed still feeds the
+ * wa-whatsapp-failures alarm, so the count is not hidden.
+ */
+describe('a held-out number is a handled outcome, not an incident', () => {
+  it('logs 130472 as a warning carrying the code, not as an error', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await routes.wa_status({
+        kind: 'wa_status',
+        status: {
+          id: 'wamid.EXP1',
+          status: 'failed',
+          recipient_id: '919307740298',
+          errors: [{ code: 130472, title: "User's number is part of an experiment" }],
+        },
+      });
+
+      const said = (spy) => spy.mock.calls.flat().filter((l) => String(l).includes('wa status'));
+      expect(said(err)).toEqual([]);
+      expect(said(warn).join('')).toMatch(/130472/);
+    } finally {
+      err.mockRestore();
+      warn.mockRestore();
+    }
+  });
+});

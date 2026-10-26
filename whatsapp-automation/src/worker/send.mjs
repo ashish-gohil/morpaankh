@@ -29,6 +29,41 @@ const TEMPLATE_UNUSABLE = new Set([131052, 131053, 132000, 132001, 132005, 13200
 /** True when a send failed because of the template itself, not the recipient. */
 export const isTemplateUnusable = (err) => TEMPLATE_UNUSABLE.has(err?.waCode);
 
+/*
+ * Meta errors that mean "this RECIPIENT cannot be reached by a marketing
+ * template right now", while a free-form message inside an open 24 hour
+ * service window still arrives.
+ *
+ *  131049  the per-user marketing cap, counted across every business that
+ *          messages that person. Nothing we send or stop sending moves it.
+ *  130472  the number is in Meta's marketing-message experiment. Meta holds
+ *          out a small share of numbers to measure incrementality: marketing
+ *          templates to them are refused, the send is not billed, retrying
+ *          returns the same error, and there is no opt-out and no published
+ *          end date.
+ *
+ * Both are the same fact for us, so both get the same handling: park the offer
+ * against the phone and deliver it the moment the customer writes in. 130472
+ * was in neither code set until 2026-10-26, when it refused both of that day's
+ * Flow W candidates and the generic branch parked nothing. The customer who had
+ * no email on file therefore received nothing at all, and nothing would have
+ * come back for them: the daily sweep only ever looks at yesterday.
+ *
+ * This set is NOT the same question as isTemplateUnusable. That one is a fault
+ * in our template, fixed by sending a different one; these are facts about the
+ * person, fixed only by a different channel or an open window.
+ */
+const WINDOW_DELIVERABLE = new Set([131049, 130472]);
+
+/**
+ * True when Meta refused a marketing template for THIS recipient, but a
+ * free-form message inside an open service window would still reach them.
+ *
+ * Takes the numeric code rather than the error, because half the callers read
+ * it off a status webhook where there is no error object at all.
+ */
+export const isWindowDeliverable = (code) => WINDOW_DELIVERABLE.has(Number(code));
+
 export async function getNorm(deps, orderId) {
   const o = await deps.clients.shopify.getOrder(orderId);
   return o ? normalizeOrder(o) : null;
