@@ -14,10 +14,12 @@
  *                                               2026-10-26 after a FLAT body was
  *                                               refused with "Invalid data
  *                                               provided" on a real customer's
- *                                               re-attempt. Schema verified
- *                                               against the docs and asserted in
- *                                               courier.test.mjs; no live AWB has
- *                                               been through it yet.
+ *                                               re-attempt. SCHEMA PROVEN LIVE
+ *                                               2026-10-26: the production API
+ *                                               answered 201 "Request submitted
+ *                                               successfully!" + request_id
+ *                                               UPL14271544014443516401 to this
+ *                                               exact body.
  *
  * Read (tracking) is verified working (2026-09-21). editToPrepaid is the one
  * write still unproven end to end: it is /api/p/edit, so the shape is right,
@@ -141,6 +143,16 @@ export const courier = {
    * asynchronous, so a per-waybill refusal comes back from the NDR status API
    * rather than from this call, and guessing the precondition is what produced
    * the bug above.
+   *
+   * ponytail: A REQUEST ID IS A RECEIPT FOR QUEUEING, NOT FOR A RE-ATTEMPT.
+   * Proven on 2026-10-26 by submitting waybill 00000000000000, fourteen zeros
+   * and not a real AWB: the API still answered 201 with a request_id. So
+   * submission validates the SCHEMA and nothing else, and Flow C's
+   * ndr_reattempt_ok message still tells the customer "done" on the strength of
+   * a queued request. Closing that needs the Get NDR status API polled on the
+   * UPL id, which is the next piece of work here; until then a package that was
+   * ineligible fails silently, exactly as before, just no longer for every
+   * package.
    */
   async ndrAction(awb, action, opts = {}) {
     if (config.dryRun) return { requestId: `dry_${awb}`, skipped: 'dry_run' };
