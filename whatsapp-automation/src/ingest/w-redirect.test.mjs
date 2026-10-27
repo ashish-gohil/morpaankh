@@ -294,3 +294,70 @@ describe('what reaches the logs', () => {
     expect(all).not.toContain('919637361371');
   });
 });
+
+/*
+ * AN OVER-LONG TOKEN IS A STRANGER'S INPUT, NOT AN ERROR.
+ *
+ * DynamoDB caps a partition key at 2048 bytes, so `SUBLINK#<3000 chars>`
+ * raises a ValidationException, which escaped the handler as HTTP 500.
+ * Confirmed against production on 2026-10-27: /w, /r and /p all answered
+ * {"message":"Internal Server Error"} for a 3000 character token while a short
+ * garbage token redirected correctly.
+ *
+ * It breaks the rule this handler is built on, written at the top of the
+ * module: an unknown, guessed, expired or truncated token is a REDIRECT, never
+ * an error. A stranger could also tell our tokens apart from theirs by the
+ * status code, and every one of these is a link we put in a customer message.
+ *
+ * The bound lives in ids.mjs, next to randomToken, because the module that
+ * issues tokens is the one that knows how long one can be: 22 characters for a
+ * random token and about 60 for a signed Flow token, against a limit of 128.
+ */
+describe('an over-long token is redirected, not a 500', () => {
+  /*
+   * The in-memory table has no key-size limit, so the real fault cannot be
+   * reproduced without standing in for DynamoDB here. This mirrors it exactly:
+   * a partition key over 2048 bytes is rejected by the service, not by us.
+   */
+  const likeDynamo = async () => {
+    const { table } = await import('../store/table.mjs');
+    const real = table.get;
+    vi.spyOn(table, 'get').mockImplementation(async (pk, sk) => {
+      if (Buffer.byteLength(String(pk)) > 2048) {
+        const e = new Error('One or more parameter values were invalid: Size of hashkey has exceeded the maximum size limit of 2048 bytes');
+        /** @type {any} */ (e).name = 'ValidationException';
+        throw e;
+      }
+      return real(pk, sk);
+    });
+  };
+
+  it('sends a 3000 character token to the collection instead of throwing', async () => {
+    await likeDynamo();
+    const res = await handler(event({ pathParameters: { token: 'A'.repeat(3000) } }));
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toBe(COLLECTION);
+  });
+
+  it('never puts an over-long key in front of the store at all', async () => {
+    await likeDynamo();
+    const { table } = await import('../store/table.mjs');
+    await handler(event({ pathParameters: { token: 'A'.repeat(3000) } }));
+    // The guard is a length check before the lookup, so the store is never asked.
+    expect(table.get).not.toHaveBeenCalled();
+  });
+
+  it('still accepts a token of the full allowed length', async () => {
+    // 128 is the bound itself, so this has to reach the lookup and miss rather
+    // than be refused for its length: a guard set too tight breaks real links.
+    const res = await handler(event({ pathParameters: { token: 'A'.repeat(128) } }));
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toBe(COLLECTION);
+  });
+
+  it('a real token still works, so the guard is not in the way', async () => {
+    await seed();
+    const res = await handler(event());
+    expect(res.headers.Location).toBe(APPLIED);
+  });
+});

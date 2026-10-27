@@ -8,6 +8,7 @@ import { table } from '../store/table.mjs';
 import { getState } from '../store/orderState.mjs';
 import { hasTag } from '../domain/order.mjs';
 import { log } from '../log.mjs';
+import { pathToken } from '../lib/ids.mjs';
 
 const page = (message) =>
   '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
@@ -37,7 +38,7 @@ const html = (body) => ({ statusCode: 200, headers: { 'Content-Type': 'text/html
  * Both are one read each, on a route that runs once per customer tap.
  */
 export const handler = async (event) => {
-  const token = event?.pathParameters?.token || '';
+  const token = pathToken(event?.pathParameters?.token);
   const map = token ? await table.get(`PAYTOKEN#${token}`, 'MAP') : null;
   if (!map || !map.url) return html(EXPIRED_HTML);
 

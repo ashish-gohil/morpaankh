@@ -182,3 +182,18 @@ describe('the recovery key is a credential', () => {
     expect(lines.join('\n')).not.toContain(KEY);
   });
 });
+
+/*
+ * An over-long token is a stranger's input, not an error. DynamoDB caps a
+ * partition key at 2048 bytes, so a longer one raised a ValidationException
+ * that escaped as HTTP 500; confirmed against production on 2026-10-27. This
+ * module's own rule, stated at the top of the file, is that an old, guessed or
+ * truncated link goes to the shop.
+ */
+describe('an over-long token goes to the shop, not a 500', () => {
+  it('redirects a 3000 character token', async () => {
+    const res = await handler(event({ pathParameters: { token: 'A'.repeat(3000) } }));
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toBe('https://www.morpaankh.in');
+  });
+});

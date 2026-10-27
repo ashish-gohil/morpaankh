@@ -22,13 +22,14 @@ import { getSubLinkMap, getSubRec, countSubClick } from '../store/subscriberOffe
 import { isRealTap } from './cart-redirect.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric } from '../log.mjs';
+import { pathToken } from '../lib/ids.mjs';
 
 const STORE = 'https://www.morpaankh.in';
 const collection = () => `${STORE}/collections/${RULES.subscriberOffer.collectionHandle}`;
 const redirect = (location) => ({ statusCode: 302, headers: { Location: location, 'Cache-Control': 'no-store' }, body: '' });
 
 export const handler = async (event) => {
-  const token = event?.pathParameters?.token || '';
+  const token = pathToken(event?.pathParameters?.token);
   // A key lookup, not a search: a token is either a row or it is not, so a
   // path-traversal or an absolute URL in this slot is simply an unknown token.
   const map = token ? await getSubLinkMap(token) : null;

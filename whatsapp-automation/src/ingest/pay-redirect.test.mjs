@@ -56,3 +56,17 @@ describe('pay redirect', () => {
     expect(r.body).toMatch(/expired/i);
   });
 });
+
+/*
+ * An over-long token is a stranger's input, not an error. DynamoDB caps a
+ * partition key at 2048 bytes, so a longer one raised a ValidationException
+ * that escaped as HTTP 500; confirmed against production on 2026-10-27. A dead
+ * or unknown pay token is meant to render our own expired page.
+ */
+describe('an over-long token renders the expired page, not a 500', () => {
+  it('answers 200 with our page for a 3000 character token', async () => {
+    const res = await get('A'.repeat(3000));
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatch(/expired|no longer/i);
+  });
+});

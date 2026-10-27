@@ -33,6 +33,37 @@ export function randomToken(bytes = 16) {
   return randomBytes(bytes).toString('base64url');
 }
 
+/**
+ * The longest token this service can issue, with room to spare: randomToken(16)
+ * is 22 characters and a signed Flow token about 60.
+ *
+ * It lives here because this is the module that issues them, so this is the
+ * module that knows how long one can be.
+ */
+export const MAX_TOKEN_LENGTH = 128;
+
+/**
+ * A path token, or '' when it cannot be one of ours.
+ *
+ * Every /{token} route looks the token up as a DynamoDB PARTITION KEY, and
+ * DynamoDB caps those at 2048 bytes, so a longer one raises a
+ * ValidationException that escaped as HTTP 500. Confirmed against production
+ * on 2026-10-27: /w, /r and /p each answered "Internal Server Error" for a 3000
+ * character token while a short garbage token redirected correctly.
+ *
+ * That breaks the rule all three handlers are built on and state at the top of
+ * their modules: an unknown, guessed, expired or truncated token is a redirect
+ * to the shop, never an error. It also let a stranger tell our tokens apart
+ * from their own by the status code, on links we put in customer messages.
+ *
+ * Returning '' rather than throwing is what keeps that rule: each handler
+ * already treats an empty token as unknown and answers with the shop.
+ */
+export function pathToken(value) {
+  const s = String(value || '');
+  return s.length > 0 && s.length <= MAX_TOKEN_LENGTH ? s : '';
+}
+
 // ---- signed Flow tokens: "<orderId>.<expEpochSec>.<hmac>" -------------------
 /** @param {{orderId:string|number, exp:number}} claims @param {string} key */
 export function signToken({ orderId, exp }, key) {

@@ -22,6 +22,7 @@ import { getCartLinkMap, getRec, patchRec } from '../store/cartRecovery.mjs';
 import { CART_PAGES, cartPage } from '../../messages/pages.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric } from '../log.mjs';
+import { pathToken } from '../lib/ids.mjs';
 
 const STORE = 'https://www.morpaankh.in';
 const html = (body) => ({
@@ -108,7 +109,7 @@ export function buildTarget(rec, rules = RULES) {
 }
 
 export const handler = async (event) => {
-  const token = event?.pathParameters?.token || '';
+  const token = pathToken(event?.pathParameters?.token);
   const map = token ? await getCartLinkMap(token) : null;
   if (!map?.checkoutId) {
     // An old, guessed or truncated link. Send them to the shop, not an error.
