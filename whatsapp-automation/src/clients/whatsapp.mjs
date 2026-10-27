@@ -62,7 +62,20 @@ async function post(to, payload) {
       throw err;
     }
     metric('MessageSent', 1, { type: payload.type });
-    return { messageId: json.messages?.[0]?.id, raw: json };
+    const messageId = json.messages?.[0]?.id;
+    /*
+     * Meta has always returned messages[0].id on a 2xx, and this has never been
+     * seen. It is logged rather than thrown deliberately: a throw would
+     * redeliver the SQS record and risk a second copy of a message Meta may
+     * genuinely have accepted, which is the worse failure.
+     *
+     * It is logged at all because without a wamid there is no reverse map, so
+     * a later delivery failure could not be traced back to the order, which is
+     * exactly the silent failure dispatch() in worker/send.mjs now exists to
+     * close. If this ever fires, that is the hole reopening by another door.
+     */
+    if (!messageId) log.warn('wa send: 2xx with no message id', { type: payload.type });
+    return { messageId, raw: json };
   });
 }
 

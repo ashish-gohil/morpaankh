@@ -68,7 +68,33 @@ async function call(method, path, { body, form, idempotent = false } = {}) {
   }
   return withRetry(`delhivery.${path}`, async () => {
     const res = await fetch(`${BASE()}${path}`, { method, headers, body: payload });
-    const json = await res.json().catch(() => ({}));
+    const text = await res.text();
+    let json;
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      /*
+       * /api/p/edit ANSWERS XML, AND IT ANSWERS HTTP 200 WHEN IT REFUSES.
+       * Observed against production on 2026-10-27 with this adapter's own
+       * cancel body for an impossible waybill:
+       *
+       *   200 <root><error>Incorrect Waybill/OrderID, please try again</error>
+       *       <status>Failure</status>...</root>
+       *
+       * This was `res.json().catch(() => ({}))`, so that body became {} and
+       * cancel()'s refusal test, which reads json.status === false and
+       * json.remark, saw nothing to refuse and reported the parcel cancelled.
+       * In /replace that is the call that undoes a mis-booked leg, so the owner
+       * was told a parcel had been pulled back while it kept moving.
+       *
+       * Normalised to the JSON shape the callers already expect, so their
+       * refusal handling is left exactly as it was.
+       */
+      const tag = (name) => text.match(new RegExp(`<${name}>([^<]*)</${name}>`, 'i'))?.[1]?.trim();
+      const st = tag('status');
+      const remark = tag('error') || tag('remark') || '';
+      json = { status: st ? !/fail/i.test(st) : !remark, remark, raw: text.slice(0, 300) };
+    }
     if (!res.ok) {
       metric('CourierError', 1);
       const e = /** @type {any} */ (new Error(`delhivery ${method} ${path} failed: ${JSON.stringify(json).slice(0, 200)}`));

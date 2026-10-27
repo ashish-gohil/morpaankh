@@ -42,6 +42,16 @@ function stub(...responses) {
   globalThis.fetch = async (url, init) => {
     seen.push({ url: String(url), init });
     const r = responses[Math.min(seen.length - 1, responses.length - 1)];
+    // `raw` serves a body that is NOT JSON, which is what /api/p/edit really
+    // answers; json() then rejects exactly as the runtime's does.
+    if (r.raw !== undefined) {
+      return {
+        ok: r.status ? r.status < 300 : true,
+        status: r.status || 200,
+        json: async () => { throw new SyntaxError('Unexpected token < in JSON at position 0'); },
+        text: async () => r.raw,
+      };
+    }
     return {
       ok: r.status ? r.status < 300 : true,
       status: r.status || 200,
@@ -514,5 +524,60 @@ describe('the registry keeps the orchestrator provider neutral', () => {
   it('throws on a provider nobody implemented, rather than shipping with the wrong courier', () => {
     expect(() => makeLogistics('bluedart')).toThrow(/unknown logistics provider: bluedart/);
     expect(() => makeLogistics('')).toThrow(/unknown logistics provider/);
+  });
+});
+
+/*
+ * /api/p/edit ANSWERS XML, AND IT ANSWERS HTTP 200 WHEN IT REFUSES.
+ *
+ * Observed against production on 2026-10-27 by posting this adapter's own
+ * cancel body for waybill 00000000000000, which cannot exist:
+ *
+ *   200 <?xml version="1.0" encoding="utf-8"?>
+ *       <root><error>Incorrect Waybill/OrderID, please try again</error>
+ *       <status>Failure</status><waybill></waybill>
+ *       <order_id>00000000000000</order_id></root>
+ *
+ * cancel() already knows this trap and says so in its own docstring: "a
+ * refusal that arrives as HTTP 200 with a false status, which is the common
+ * shape". Its check reads json.status === false and json.remark, which is
+ * right for a JSON body and blind to this one: call() did
+ * `res.json().catch(() => ({}))`, so the XML became {}, `reason` was empty,
+ * `refused` came out false, and cancel answered { ok: true, cancelled: true }
+ * for a cancellation that never happened.
+ *
+ * In /replace that is the call that undoes a mis-booked leg, so the owner was
+ * told a parcel had been pulled back while it carried on moving.
+ *
+ * The XML is normalised in call() rather than in cancel(), so the refusal logic
+ * that was already correct is left exactly as it was.
+ */
+describe('/api/p/edit refuses in XML with HTTP 200', () => {
+  const XML_FAIL =
+    '<?xml version="1.0" encoding="utf-8"?>\n<root>' +
+    '<error>Incorrect Waybill/OrderID, please try again</error>' +
+    '<status>Failure</status><waybill></waybill><order_id>00000000000000</order_id></root>';
+  const XML_OK = '<?xml version="1.0" encoding="utf-8"?>\n<root><status>Success</status></root>';
+
+  it('reports the refusal instead of claiming the parcel was cancelled', async () => {
+    stub({ raw: XML_FAIL });
+    const r = await delhivery.cancel('00000000000000');
+    expect(r.cancelled).toBe(false);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/Incorrect Waybill\/OrderID/);
+  });
+
+  it('still reads an XML success as a cancellation', async () => {
+    stub({ raw: XML_OK });
+    expect(await delhivery.cancel('1234567890123')).toEqual({ ok: true, cancelled: true });
+  });
+
+  it('leaves a JSON refusal working exactly as before', async () => {
+    stub({ json: { status: false, remark: 'Shipment already picked up' } });
+    expect(await delhivery.cancel('1234567890123')).toEqual({
+      ok: false,
+      cancelled: false,
+      reason: 'Shipment already picked up',
+    });
   });
 });

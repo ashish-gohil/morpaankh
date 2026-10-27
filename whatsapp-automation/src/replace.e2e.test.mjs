@@ -115,7 +115,7 @@ const bodyOf = (init) => {
 const createdShipments = () =>
   wire.filter((c) => c.url.includes('/api/cmu/create.json')).map((c) => bodyOf(c.init).shipments[0]);
 
-const ok = (json) => ({ ok: true, status: 200, json: async () => json });
+const ok = (json) => ({ ok: true, status: 200, json: async () => json, text: async () => JSON.stringify(json) });
 const serviceable = { delivery_codes: [{ postal_code: { pickup: 'Y', pre_paid: 'Y', is_oda: 'N', remarks: '' } }] };
 
 /**
