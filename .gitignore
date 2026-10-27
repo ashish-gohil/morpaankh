@@ -11,3 +11,15 @@ gsc-*.json
 # morpaankh-seo-a17818cddb2f.json reached a commit and was then caught by
 # GitHub push protection instead of by us. The live key lives outside the repo.
 morpaankh-seo-*.json
+
+# Local env files. prod.env sits at this root for local runs against production
+# and carries the owner's phone, the return address and the GSTIN; the real
+# credentials live in AWS Secrets Manager, not here. whatsapp-automation/ has
+# these rules already, this root had none, and `*.env` is the shape `.env.*`
+# misses. The comment above about the GCP key is why this is worth the two
+# lines: that one reached a commit and was caught by GitHub push protection
+# rather than by us, and origin is PUBLIC.
+.env
+*.env
+.env.*
+!.env.example
