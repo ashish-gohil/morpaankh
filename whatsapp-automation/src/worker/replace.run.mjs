@@ -762,7 +762,7 @@ export async function execute(orderId, seqIn, deps, adminPhone, { holdsLock = fa
 
     // Only now, with both parcels booked. A pickup notice with no replacement
     // on the way is worse than silence.
-    const notified = await runOnce(orderId, `replace:${seq}:notify`, () => notifyCustomer(deps, req));
+    const notified = await runOnce(orderId, `replace:${seq}:notify`, () => notifyCustomer(deps, req, orderId));
     req = await store.patchRequest(orderId, seq, {
       state: 'CUSTOMER_NOTIFIED',
       notified,
@@ -896,7 +896,7 @@ async function labelFor(deps, awb) {
  * opt-out for inbound and tpl() checks undeliverable, and a /replace send goes
  * through neither of those doors.
  */
-async function notifyCustomer(deps, req) {
+async function notifyCustomer(deps, req, orderId) {
   if (!config.replaceNotifyCustomer) return { skipped: 'notify-off' };
   const phone = req.verifiedPhone;
   if (!phone) return { skipped: 'no-verified-phone' };
@@ -917,7 +917,11 @@ async function notifyCustomer(deps, req) {
   try {
     // The button tracks the pickup, which is the only leg the customer has to
     // be home for.
-    const r = await tpl(deps, phone, 'replacement_raised', vars, { token: req.returnAwb });
+    // orderId so the send is logged against the order: this template can be
+    // accepted and then refused seconds later on a status webhook that carries
+    // only the wamid, and without the reverse map that failure would reach
+    // nobody, which is the one thing this function promises not to do.
+    const r = await tpl(deps, phone, 'replacement_raised', vars, { token: req.returnAwb, orderId });
     if (r?.skipped) return { skipped: r.skipped };
     return { sent: 'template' };
   } catch (e) {

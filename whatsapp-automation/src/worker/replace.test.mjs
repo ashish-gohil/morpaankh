@@ -16,7 +16,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { _resetMemory } from '../store/table.mjs';
+import { _resetMemory, table } from '../store/table.mjs';
+import { getWamidMap } from '../store/maps.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { ensureState, patchState, patchFlowB, getSide } from '../store/orderState.mjs';
 import { getAwbMap } from '../store/maps.mjs';
@@ -676,6 +677,19 @@ describe('the customer message', () => {
     expect(m.type).toBe('template');
     expect(m.name).toBe('replacement_raised_v1');
     expect((await req()).notified).toMatchObject({ sent: 'template' });
+  });
+
+  it('logs the template against the order, so a later refusal reaches someone', async () => {
+    // "Never a silent failure" is this function's promise, and a template Meta
+    // accepts can still be refused seconds later on a status webhook carrying
+    // only the wamid. Without the reverse map onWaStatus names no order and the
+    // failure is dropped.
+    const { deps } = await setup();
+    await confirm(deps); // window closed, so it goes as a template
+    const rows = (await table.query(`ORDER#${ORDER}`)).filter((r) => String(r.SK).startsWith('MSG#'));
+    const row = rows.find((r) => r.key === 'replacement_raised');
+    expect(row).toBeTruthy();
+    expect(await getWamidMap(row.wamid)).toMatchObject({ orderId: String(ORDER), key: 'replacement_raised' });
   });
 
   it('is skipped with the admin told when the order has no OTP verified number', async () => {

@@ -24,7 +24,6 @@ import {
   patchFlowA,
   runOnce,
   getSide,
-  recordMessage,
 } from '../store/orderState.mjs';
 import { isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing } from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
@@ -164,7 +163,6 @@ export async function onCodTimer(orderId, deps) {
     // codConfirmAt is the only thing stopping a retry from sending a second
     // copy, and then let nothing after it throw.
     await patchFlowA(orderId, { step: 'order_confirmed', codConfirmAt: now.toISOString() });
-    await soft('recordMessage', () => recordMessage(orderId, res.messageId, { key: 'order_confirmed', template: res.templateName }), { orderId });
     await soft('tagsAdd:wa-order-confirmed', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-order-confirmed']), { orderId });
     return;
   }
@@ -195,7 +193,6 @@ export async function onCodTimer(orderId, deps) {
   // bookkeeping the customer never sees, and a throw here used to redeliver the
   // whole record and message them a second time.
   await patchFlowA(orderId, { step: 'confirm_sent', codConfirmAt: now.toISOString() });
-  await soft('recordMessage', () => recordMessage(orderId, res.messageId, { key: 'cod_confirm', template: res.templateName }), { orderId });
   await soft('tagsAdd:wa-cod-sent', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']), { orderId });
 
   await armTimer(orderId, 'reminder', deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours), now);
@@ -779,7 +776,6 @@ async function sendShipped(orderId, n, deps) {
       log.info('flowA shipped: send skipped', { orderId, skip: res.skipped });
       return null; // not recorded: a skipped send must not block the real one
     }
-    await recordMessage(orderId, res.messageId, { key: 'order_shipped', template: res.templateName });
     return { sent: true };
   });
 }

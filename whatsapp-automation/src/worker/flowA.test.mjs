@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { config } from '../config.mjs';
-import { _resetMemory } from '../store/table.mjs';
+import { _resetMemory, table } from '../store/table.mjs';
+import { getWamidMap } from '../store/maps.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
 import { setOptOut, setUndeliverable } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
@@ -897,4 +898,60 @@ describe('fewer messages, by default', () => {
 
 it('ships with the prepaid offer switched on', () => {
   expect(SHIPPED_prepaidOfferEnabled).toBe(true);
+});
+
+/*
+ * A send that Meta accepts and then refuses has to be traceable back to its
+ * order, or the failure reaches nobody.
+ *
+ * The status webhook carries the wamid and no order, so onWaStatus looks the
+ * order up through the reverse map written at send time. Only the confirmation
+ * and the shipped notice wrote one. The reminder and the prepaid offer did not,
+ * so a failure on either updated no row, added no wa-undeliverable tag and sent
+ * no owner alert: the handler resolved nothing and returned.
+ *
+ * Order #1230 paid for it on 2026-10-27. The prepaid fallback went out at
+ * 06:24:37Z with a 1,999 rupee payment link, Meta refused it with 131049
+ * thirteen seconds later, and nobody found out. The order shipped COD
+ * unconfirmed while the owner had no idea the offer had not arrived.
+ *
+ * These two assert the half that was missing, the map. router.test.mjs asserts
+ * the other half, that a map plus a failed status produces the tag and one
+ * owner alert.
+ */
+describe('Flow A: a reminder or an offer that fails can be traced back', () => {
+  const msgRows = async (orderId = '12345') =>
+    (await table.query(`ORDER#${orderId}`)).filter((r) => String(r.SK).startsWith('MSG#'));
+
+  it('leaves a wamid the reminder failure webhook can resolve', async () => {
+    const { clients, deps } = setup();
+    await A.onCodTimer('12345', deps);
+    await A.onReminder('12345', deps);
+
+    const row = (await msgRows()).find((r) => r.key === 'cod_reminder');
+    expect(row).toBeTruthy();
+    expect(row.template).toBe(names(clients.whatsapp).find((n) => n.startsWith('cod_reminder')));
+    expect(await getWamidMap(row.wamid)).toMatchObject({ orderId: '12345', key: 'cod_reminder' });
+  });
+
+  it('leaves a wamid the prepaid offer failure webhook can resolve', async () => {
+    RULES.prepaidOfferEnabled = true;
+    const { deps } = setup();
+    await A.onCodTimer('12345', deps);
+    await A.onFallback('12345', deps);
+
+    const row = (await msgRows()).find((r) => r.key === 'prepaid_offer');
+    expect(row).toBeTruthy();
+    expect(await getWamidMap(row.wamid)).toMatchObject({ orderId: '12345', key: 'prepaid_offer' });
+  });
+
+  it('records each send once, so the order history is not duplicated', async () => {
+    RULES.prepaidOfferEnabled = true;
+    const { deps } = setup();
+    await A.onCodTimer('12345', deps);
+    await A.onReminder('12345', deps);
+    await A.onFallback('12345', deps);
+    const keys = (await msgRows()).map((r) => r.key).sort();
+    expect(keys).toEqual(['cod_confirm', 'cod_reminder', 'prepaid_offer']);
+  });
 });

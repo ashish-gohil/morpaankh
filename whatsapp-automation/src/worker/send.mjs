@@ -8,6 +8,7 @@ import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/t
 import { renderSession } from '../../messages/session.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 import { isUndeliverable } from '../store/phoneProfile.mjs';
+import { recordMessage } from '../store/orderState.mjs';
 import { soft } from '../lib/resilience.mjs';
 
 /**
@@ -69,7 +70,29 @@ export async function getNorm(deps, orderId) {
   return o ? normalizeOrder(o) : null;
 }
 
-async function dispatch(deps, phone, def, vars, ctx) {
+/*
+ * Send one rendered template and log it against the order.
+ *
+ * The logging is HERE, and not at the call sites, because it is what makes a
+ * delivery failure recoverable and a call site cannot be trusted to remember.
+ * Meta accepts a template with a 200 and reports the failure seconds later on a
+ * status webhook carrying the wamid and nothing else, so onWaStatus can only
+ * find the order through the reverse map recordMessage writes. No map means no
+ * order: no wa-undeliverable tag for the owner to filter on and no owner alert.
+ *
+ * Three of the thirteen template send sites called recordMessage. The other ten
+ * sent real customer messages that no status webhook could trace back, and
+ * order #1230 paid for it on 2026-10-27: the prepaid fallback carrying a 1,999
+ * rupee payment link was refused with 131049 thirteen seconds after Meta
+ * accepted it, onWaStatus resolved no order and returned, and the order shipped
+ * COD unconfirmed with nobody aware the offer had never arrived.
+ *
+ * ctx.orderId is the marker, which twelve of the thirteen sites already passed
+ * for other reasons. A send without one is Flow W's or Flow R's: those write
+ * their own map against a customerId or a cartId, and an ORDER# row for them
+ * would point this handler at an order that does not exist.
+ */
+async function dispatch(deps, phone, def, vars, ctx, key) {
   const t = renderTemplateDef(def, vars, ctx);
   const res = await deps.clients.whatsapp.sendTemplate({
     to: phone,
@@ -77,6 +100,18 @@ async function dispatch(deps, phone, def, vars, ctx) {
     language: t.language,
     components: t.components,
   });
+  // The template recorded is the one Meta accepted, not the one first asked
+  // for: a fallback send means the customer holds a different version, and the
+  // row an owner reads has to name the message that actually arrived.
+  // soft, because the customer already has it. A throw here would redeliver the
+  // SQS record and send a second copy over a bookkeeping failure.
+  if (ctx.orderId && res?.messageId) {
+    await soft(
+      'recordMessage',
+      () => recordMessage(ctx.orderId, res.messageId, { key, template: t.name }),
+      { orderId: ctx.orderId },
+    );
+  }
   return { ...res, templateName: t.name };
 }
 
@@ -135,12 +170,12 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
       if (noImage) throw new Error(`template ${key} needs ctx.imageUrl and has no fallback`);
     } else {
       log.info('template: using the price-free version', { key, name: priceless.name, noImage: Boolean(noImage) });
-      return dispatch(deps, phone, priceless, vars, ctx);
+      return dispatch(deps, phone, priceless, vars, ctx, key);
     }
   }
 
   try {
-    return await dispatch(deps, phone, primary, vars, ctx);
+    return await dispatch(deps, phone, primary, vars, ctx, key);
   } catch (e) {
     if (!fallback || !TEMPLATE_UNUSABLE.has(e.waCode)) throw e;
     log.warn('template unusable, sending previous version', {
@@ -150,7 +185,7 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
       fallback: fallback.name,
     });
     metric('TemplateFallback', 1, { key });
-    return dispatch(deps, phone, fallback, vars, ctx);
+    return dispatch(deps, phone, fallback, vars, ctx, key);
   }
 }
 
