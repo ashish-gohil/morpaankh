@@ -276,3 +276,102 @@ describe('courier.ndrStatus', () => {
     expect(gets).toHaveLength(1);
   });
 });
+
+/*
+ * /api/p/edit ANSWERS XML, AND IT ANSWERS HTTP 200 WHEN IT REFUSES.
+ *
+ * Observed against production on 2026-10-27, posting the editToPrepaid body for
+ * waybill 00000000000000 (fourteen zeros, cannot exist):
+ *
+ *   HTTP 200
+ *   <?xml version="1.0" encoding="utf-8"?>
+ *   <root><error>Incorrect Waybill/OrderID, please try again</error>
+ *   <status>Failure</status><waybill></waybill>
+ *   <order_id>00000000000000</order_id></root>
+ *
+ * req() did `await res.json().catch(() => ({}))` and only threw on `!res.ok`.
+ * The XML never parsed, the catch turned it into `{}`, the status was 200, so
+ * editToPrepaid and cancel both returned { ok: true } for a refusal.
+ *
+ * That silently disabled a recovery path that was already written and correct.
+ * flowA's payment handler wraps editToPrepaid in soft() + runOnce, and on
+ * failure sets pendingCourierPrepaid, tags wa-courier-still-cod and alerts the
+ * owner, under a comment reading "the courier would collect the money a second
+ * time on delivery". soft() only fires on a throw, so none of it could ever
+ * run: a customer paid online, Shopify was flipped to prepaid, and if Delhivery
+ * refused the waybill edit the courier still collected cash on delivery with
+ * nobody told. Delhivery refuses edits on Dispatched, Picked Up, Collected,
+ * Delivered, LOST, RTO and DTO packages, which is exactly when someone pays a
+ * prepaid link late, so this was not a remote case.
+ *
+ * The same swallow covered cancel(): the Shopify order was cancelled and the
+ * customer told "cancelled", while the parcel kept moving.
+ *
+ * The check is scoped to NON-JSON bodies on purpose. /api/p/update and
+ * /api/cmu/get_bulk_upl answer JSON, and get_bulk_upl legitimately carries
+ * status "Failure" as DATA that ndrAction reads per waybill; throwing on that
+ * would break the confirmation above.
+ */
+describe('/api/p/edit refuses with HTTP 200 and an XML body', () => {
+  const xml = (status, error = '') =>
+    '<?xml version="1.0" encoding="utf-8"?>\n<root>' +
+    (error ? `<error>${error}</error>` : '') +
+    `<status>${status}</status><waybill></waybill><order_id>00000000000000</order_id></root>`;
+
+  const xmlReply = (body) => ({
+    ok: true,
+    status: 200,
+    json: async () => { throw new SyntaxError('Unexpected token < in JSON'); },
+    text: async () => body,
+  });
+
+  const serveXml = (body) => {
+    vi.stubGlobal('fetch', async (url, init) => {
+      posts.push({ url: String(url), method: init.method, body: JSON.parse(init.body) });
+      return xmlReply(body);
+    });
+  };
+
+  it('editToPrepaid throws instead of reporting a flip that never happened', async () => {
+    serveXml(xml('Failure', 'Incorrect Waybill/OrderID, please try again'));
+    await expect(courier.editToPrepaid('00000000000000'))
+      .rejects.toThrow(/Incorrect Waybill\/OrderID/);
+  });
+
+  it('cancel throws, so a parcel is never reported cancelled while it ships', async () => {
+    serveXml(xml('Failure', 'Incorrect Waybill/OrderID, please try again'));
+    await expect(courier.cancel('00000000000000')).rejects.toThrow(/Incorrect Waybill/);
+  });
+
+  it('a refusal is thrown once, not retried three times', async () => {
+    // It is a definitive answer, not a transport fault, so burning retries on
+    // it would just triple the calls before the same throw.
+    serveXml(xml('Failure', 'Incorrect Waybill/OrderID, please try again'));
+    await expect(courier.editToPrepaid('00000000000000')).rejects.toThrow();
+    expect(posts).toHaveLength(1);
+  });
+
+  it('still succeeds on an XML Success', async () => {
+    serveXml(xml('Success'));
+    await expect(courier.editToPrepaid('59152210001794')).resolves.toMatchObject({ ok: true });
+  });
+
+  it('treats a bare error element as a failure even without a status', async () => {
+    serveXml('<root><error>Package in non editable status</error></root>');
+    await expect(courier.editToPrepaid('59152210001794'))
+      .rejects.toThrow(/non editable status/);
+  });
+
+  it('leaves the JSON endpoints alone: a Failure from get_bulk_upl is data', async () => {
+    // ndrAction reads this per waybill. If req() threw on it, the confirmation
+    // step would turn every refusal into a transport error and lose the reason.
+    statusReplies = [{
+      status: 'Failure',
+      remark: 'Zero waybills affected',
+      request_id: UPL,
+      failed_wbns: [{ waybill: '111', message: 'Package in incorrect status', action: 'RE-ATTEMPT' }],
+      success_wbns: [],
+    }];
+    await expect(courier.ndrStatus(UPL)).resolves.toMatchObject({ status: 'Failure' });
+  });
+});

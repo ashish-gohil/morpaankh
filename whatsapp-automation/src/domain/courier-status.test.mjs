@@ -160,3 +160,65 @@ describe('a failed delivery attempt, from the real payloads', () => {
     }
   });
 });
+
+/*
+ * "NOT PICKED" CONTAINS "PICKED", and that is the third generation of the exact
+ * substring trap this module already documents twice (RTO reported as a
+ * delivery, "undelivered" matching /delivered/).
+ *
+ * Delhivery reports a shipment the courier never collected from us as Status
+ * "Not Picked", StatusType UD. `/picked/` matched it and returned PICKED_UP, so
+ * a parcel still sitting in our own warehouse was recorded as collected.
+ *
+ * Real payload, order #1217 (AWB 59152210001713), read from production on
+ * 2026-10-27. Shridhar asked to cancel on 22 Oct at 22:01; Delhivery honoured
+ * it, and our stored courierStatus still read PICKED_UP five days later:
+ *
+ *   Status "Not Picked" / UD / DTUP-210, Instructions "Seller cancelled the order"
+ *   scans: X-UCI Manifest uploaded -> FMPUR-101 Pickup scheduled
+ *          -> FMEOD-103 Shipper unavailable -> X-PNP Shipment not received from
+ *          client -> DTUP-210 Seller cancelled the order
+ *
+ * It is not cosmetic. PICKED_UP makes isCourierEditable false and
+ * isBeforePickup false, so for a parcel that is demonstrably still with us we
+ * would refuse the COD-to-prepaid flip (alerting the owner about a waybill that
+ * was perfectly editable) and tell a customer a cancellation came too late.
+ */
+describe('a shipment the courier never collected', () => {
+  const notPicked = (extra = {}) => ({
+    status: 'Not Picked',
+    statusType: 'UD',
+    statusCode: 'DTUP-210',
+    instructions: 'Seller cancelled the order',
+    ...extra,
+  });
+
+  it('is not reported as picked up', () => {
+    expect(mapCourierStatus(notPicked())).not.toBe('PICKED_UP');
+  });
+
+  it('reads a seller cancellation as CANCELLED', () => {
+    expect(mapCourierStatus(notPicked())).toBe('CANCELLED');
+  });
+
+  it('reads an uncollected parcel as still manifested, which is the truth', () => {
+    // X-PNP, the scan before the cancellation: the courier came and left
+    // without it, so the parcel is with us and every edit is still open.
+    expect(mapCourierStatus({
+      status: 'Not Picked',
+      statusType: 'UD',
+      statusCode: 'X-PNP',
+      instructions: 'Shipment not received from client',
+    })).toBe('MANIFESTED');
+  });
+
+  it('leaves it editable and cancellable, because it is still in our hands', () => {
+    const state = mapCourierStatus({ status: 'Not Picked', statusType: 'UD', statusCode: 'X-PNP' });
+    expect(isCourierEditable(state)).toBe(true);
+    expect(isBeforePickup(state)).toBe(true);
+  });
+
+  it('still reads a real pickup as PICKED_UP', () => {
+    expect(mapCourierStatus({ status: 'Picked Up', statusType: 'UD', statusCode: 'X-UCI' })).toBe('PICKED_UP');
+  });
+});

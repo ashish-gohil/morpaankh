@@ -58,13 +58,51 @@ async function req(method, path, body, { idempotent = false } = {}) {
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const text = await res.text();
+    let json = null; // null means the body was not JSON
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      json = null;
+    }
+    const fail = (detail, status) => {
       // Feeds the wa-courier-failures alarm. No dimensions, to match the alarm.
       metric('CourierError', 1);
-      const e = new Error(`delhivery ${method} ${path} failed: ${JSON.stringify(json).slice(0, 200)}`);
-      e.status = res.status;
+      const e = new Error(`delhivery ${method} ${path} failed: ${String(detail).slice(0, 200)}`);
+      if (status) e.status = status;
       throw e;
+    };
+    if (!res.ok) fail(text || res.statusText, res.status);
+    /*
+     * A NON-JSON BODY MEANS /api/p/edit, AND THAT ENDPOINT REFUSES WITH HTTP
+     * 200. Observed against production on 2026-10-27 for an impossible waybill:
+     *
+     *   200 <root><error>Incorrect Waybill/OrderID, please try again</error>
+     *       <status>Failure</status>...</root>
+     *
+     * This used to be `res.json().catch(() => ({}))`, so the XML never parsed,
+     * the catch turned a refusal into `{}`, res.ok was true and editToPrepaid
+     * and cancel both answered { ok: true }. That silently disarmed the already
+     * correct recovery in flowA, which sets pendingCourierPrepaid, tags
+     * wa-courier-still-cod and alerts the owner only when this THROWS: a
+     * customer could pay online, have Shopify flipped to prepaid, and still be
+     * asked for cash on delivery with nobody told. Delhivery refuses edits on
+     * Dispatched, Picked Up, Collected, Delivered, LOST, RTO and DTO packages,
+     * which is precisely when a prepaid link gets paid late.
+     *
+     * Scoped to non-JSON on purpose: /api/p/update and /api/cmu/get_bulk_upl
+     * answer JSON, and get_bulk_upl carries status "Failure" as DATA that
+     * ndrAction reads per waybill. Throwing on that would lose the reason.
+     *
+     * No retry is wanted here and none happens: the thrown error carries no
+     * retryable status or code, so withRetry treats it as definitive.
+     */
+    if (json === null) {
+      const tag = (name) => text.match(new RegExp(`<${name}>([^<]*)</${name}>`, 'i'))?.[1]?.trim();
+      const error = tag('error');
+      const status = tag('status');
+      if (error || /fail/i.test(status || '')) fail(error || `status ${status}`);
+      return { ok: true, raw: text };
     }
     return json;
   }, { idempotent });

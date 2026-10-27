@@ -80,6 +80,29 @@ export function mapCourierStatus(t = {}) {
   if (type === 'DL' || /delivered/.test(s)) return 'DELIVERED';
   if (/manifest/.test(s)) return 'MANIFESTED';
   if (/out for delivery|dispatched/.test(s)) return 'OUT_FOR_DELIVERY';
+  /*
+   * "NOT PICKED" CONTAINS "PICKED", so the test below matched a shipment the
+   * courier never collected and called it collected. Third generation of the
+   * substring trap documented twice above, and the negative has to be read
+   * before the positive for the same reason.
+   *
+   * Order #1217 (AWB 59152210001713), read from production on 2026-10-27:
+   * Status 'Not Picked', UD, DTUP-210, "Seller cancelled the order", after an
+   * X-PNP "Shipment not received from client". The customer had asked to cancel,
+   * Delhivery honoured it, and our stored state still said PICKED_UP five days
+   * later.
+   *
+   * MANIFESTED rather than UNKNOWN because it is the truth: the parcel is still
+   * in our hands, which keeps isCourierEditable and isBeforePickup true, so a
+   * COD-to-prepaid flip and a cancellation both stay open on a waybill where
+   * both really are. PICKED_UP closed them and sent the owner an alert about a
+   * waybill that was perfectly editable.
+   */
+  if (/not picked|not received/.test(s)) {
+    return /cancel/.test(s) || /cancel/.test(String(t.instructions || '').toLowerCase())
+      ? 'CANCELLED'
+      : 'MANIFESTED';
+  }
   if (/picked/.test(s)) return 'PICKED_UP';
   if (/lost/.test(s)) return 'LOST';
   if (/cancel/.test(s)) return 'CANCELLED';
