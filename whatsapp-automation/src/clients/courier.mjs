@@ -30,7 +30,8 @@
  *   track(awbs[])                    -> [{ awb, status, statusType, statusDateTime, instructions, statusCode }]
  *   editToPrepaid(awb)               -> { ok }
  *   cancel(awb)                      -> { ok }
- *   ndrAction(awb, action, opts)     -> { requestId }
+ *   ndrAction(awb, action, opts)     -> { requestId, confirmed } (throws if refused)
+ *   ndrStatus(requestId)             -> { status, remark, failed[], success[] }
  *
  * Exact endpoints/field names/prepaid value are OPEN until Phase 7 (verified on
  * staging with a test AWB); marked TODO(Phase 7). Every write is DRY_RUN-gated,
@@ -144,17 +145,19 @@ export const courier = {
    * rather than from this call, and guessing the precondition is what produced
    * the bug above.
    *
-   * ponytail: A REQUEST ID IS A RECEIPT FOR QUEUEING, NOT FOR A RE-ATTEMPT.
-   * Proven on 2026-10-26 by submitting waybill 00000000000000, fourteen zeros
-   * and not a real AWB: the API still answered 201 with a request_id. So
-   * submission validates the SCHEMA and nothing else, and Flow C's
-   * ndr_reattempt_ok message still tells the customer "done" on the strength of
-   * a queued request. Closing that needs the Get NDR status API polled on the
-   * UPL id, which is the next piece of work here; until then a package that was
-   * ineligible fails silently, exactly as before, just no longer for every
-   * package.
+   * A REQUEST ID IS A RECEIPT FOR QUEUEING, NOT FOR A RE-ATTEMPT, so this does
+   * not return until the status API has confirmed the waybill. Proven on
+   * 2026-10-26 by submitting waybill 00000000000000, fourteen zeros and not a
+   * real AWB: production still answered 201 with a request_id. Polling that same
+   * id on 2026-10-27 returned status Failure and "Incorrect waybill", so the
+   * re-attempt had never happened and the 201 said nothing about it.
+   *
+   * Timed against production the same day: a fresh request reads "Preload" for
+   * about a second and is definitive by ~2s. That is why confirmation is INLINE
+   * rather than on a timer; it costs a few seconds in a handler that already
+   * does Shopify reads, and it needs no new state and no new schedule.
    */
-  async ndrAction(awb, action, opts = {}) {
+  async ndrAction(awb, action, opts = {}, { delayMs = 700, attempts = 4 } = {}) {
     if (config.dryRun) return { requestId: `dry_${awb}`, skipped: 'dry_run' };
     const ACTION_FIELDS = ['name', 'add', 'phone', 'deferred_date'];
     const actionData = Object.fromEntries(
@@ -174,6 +177,68 @@ export const courier = {
     if (!requestId) {
       throw new Error(`delhivery POST /api/p/update queued nothing: ${JSON.stringify(json).slice(0, 200)}`);
     }
-    return { requestId };
+
+    /*
+     * Now find out whether the waybill was actually actioned. "Preload" means
+     * Delhivery has not decided yet, so wait and ask again.
+     *
+     * NOT CONFIRMED IS TREATED AS FAILED, deliberately. Flow C's replies are
+     * firm claims ("Done. Our courier partner will try again", "has the new
+     * address"), both call sites catch a throw and send the handoff plus an
+     * owner alert, and for a delivery the safe direction is to put a human on
+     * it. A false negative costs one owner alert and a phone call; a false
+     * positive costs a customer their parcel and tells them it is on the way.
+     */
+    for (let attempt = 1; ; attempt += 1) {
+      const st = await courier.ndrStatus(requestId);
+      const mine = (list) => list.find((w) => String(w.waybill) === String(awb));
+      const bad = mine(st.failed);
+      if (bad) {
+        metric('CourierNdrRefused', 1);
+        throw new Error(
+          `delhivery refused ${action} on ${awb}: ${bad.message || st.remark || st.status} (${requestId})`,
+        );
+      }
+      if (mine(st.success)) return { requestId, confirmed: true };
+      if (attempt >= attempts) {
+        metric('CourierNdrUnconfirmed', 1);
+        throw new Error(
+          `delhivery ${action} on ${awb} not confirmed after ${attempt} checks (${requestId}, status ${st.status})`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  },
+
+  /*
+   * Get NDR status: the only place that says whether an NDR action really
+   * happened. Documented path, verified against PRODUCTION on 2026-10-27 (the
+   * docs publish it under the staging host only):
+   *
+   *   GET /api/cmu/get_bulk_upl/<UPL id>?verbose=true
+   *   200 { status, remark, request_id, failed_wbns[], success_wbns[] }
+   *
+   * status is Preload while undecided, then Success, Partial or Failure. One
+   * request can carry several waybills, so the per-waybill verdict lives in the
+   * two lists and not in `status`: a Partial is a success for one waybill and a
+   * refusal for another. Each entry carries Delhivery's own reason, e.g.
+   * "Package in incorrect status" or "Incorrect waybill".
+   *
+   * A read, so no DRY_RUN gate, like track().
+   */
+  async ndrStatus(requestId) {
+    const json = await req(
+      'GET',
+      `/api/cmu/get_bulk_upl/${encodeURIComponent(requestId)}?verbose=true`,
+      undefined,
+      { idempotent: true },
+    );
+    return {
+      status: json.status,
+      remark: json.remark ?? null,
+      requestId: json.request_id || requestId,
+      failed: json.failed_wbns || [],
+      success: json.success_wbns || [],
+    };
   },
 };

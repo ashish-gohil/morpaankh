@@ -205,3 +205,60 @@ describe('Flow C hands the courier the fields Delhivery documents', () => {
     expect(call.opts === undefined || Object.keys(call.opts).length === 0).toBe(true);
   });
 });
+
+/*
+ * A refused NDR action must never be reported to the customer as done.
+ *
+ * ndrAction used to return as soon as Delhivery answered 201 with a UPL id, and
+ * that id is a receipt for QUEUEING only: whether the waybill was actioned is
+ * decided afterwards and published on the status API. Proven on 2026-10-26 by
+ * submitting waybill 00000000000000, which cannot exist and still got a 201;
+ * polling that id on 2026-10-27 returned "Failure" / "Incorrect waybill".
+ *
+ * So a package in the wrong status, the likeliest refusal by far, left the
+ * customer holding "Done. Our courier partner will try again on the next
+ * working day." for a re-attempt that was never going to happen, with no tag,
+ * no owner alert and no error. ndrAction now confirms before returning and
+ * throws otherwise, which lands in the handoff branch these two assert.
+ */
+describe('Flow C: Delhivery refuses the action after accepting the request', () => {
+  const refuse = (clients) => {
+    clients.courier.ndrAction = async (awb, action) => {
+      clients.courier.calls.push({ op: 'ndrAction', awb, action });
+      throw new Error(`delhivery refused ${action} on ${awb}: Package in incorrect status (UPL123)`);
+    };
+  };
+
+  it('tells the customer a person will call, not that it is done', async () => {
+    const { clients, deps } = setup();
+    refuse(clients);
+
+    await C.onNdrReattempt('12345', deps);
+
+    expect(sentText(clients.whatsapp, /Done\. Our courier partner will try again/)).toBe(false);
+    expect(sentText(clients.whatsapp, /arrange this by hand and call you shortly/)).toBe(true);
+    // The tag claims a booking, so it must not be written either.
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-ndr-reattempt');
+  });
+
+  it('alerts the owner, so the refusal reaches a human', async () => {
+    const { clients, deps } = setup();
+    refuse(clients);
+
+    await C.onNdrReattempt('12345', deps);
+
+    expect(clients.whatsapp.sent.some((s) => s.type === 'template' && /ops_alert/.test(s.name || ''))).toBe(true);
+  });
+
+  it('does not claim the courier has a new address when the edit was refused', async () => {
+    const { clients, deps } = setup();
+    refuse(clients);
+
+    // Same pincode as the order, so this reaches the EDIT_DETAILS branch.
+    await C.onAddressText('12345', 'New flat 5, MG Road, Jaipur 302001', deps);
+
+    expect(sentText(clients.whatsapp, /has the new address/)).toBe(false);
+    expect(sentText(clients.whatsapp, /arrange this by hand and call you shortly/)).toBe(true);
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-ndr-address');
+  });
+});
