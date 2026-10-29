@@ -135,5 +135,51 @@
     };
   }
 
+  /*
+    THE HOOK ABOVE IS NOT ENOUGH, and that gap is why recovery had nothing to
+    work with.
+
+    COD King's checkout, OTP step included, runs inside
+    #codk-full-modal-svelte: a SAME ORIGIN about:blank iframe that carries its
+    OWN window.fetch. The write that puts _otpVerifiedPhoneNumber on the cart
+    is made from in there, so the hook above, which is installed on this
+    window, never fires and the number lands without anyone on this page
+    noticing.
+
+    Proven live 29 Oct 2026: that frame's bundle builds
+    {_otpVerifiedPhoneNumber, _codkSessionId} and posts it to /cart/update.js,
+    the frame's fetch is a different function object from ours, our script is
+    not loaded in there, and in the capture endpoint's whole life it had
+    stored exactly one cart, a test posted by hand from the parent page. Over
+    the same days COD King's own dashboard held ten OTP verified abandoned
+    checkouts.
+
+    So while that modal is open we stop waiting to be told and ask the cart.
+    A poll and not a hook on the frame, because the frame is rewritten as the
+    shopper moves between steps and its bundle is already running before we
+    could patch it, and because this keeps working if COD King ever moves the
+    write to its own server.
+  */
+  var CODK_SEL = '#codk-full-modal-svelte, #codk-otp-widget-box';
+  // 2s is well inside the address step that follows OTP, so the number is
+  // seen while the shopper is still here. 600 asks caps one opening at 20
+  // minutes, so a tab left open overnight cannot poll forever.
+  var POLL_MS = 2000;
+  var POLL_MAX = 600;
+  var asks = 0;
+
+  function codkOpen() {
+    var els = document.querySelectorAll(CODK_SEL);
+    for (var i = 0; i < els.length; i++) if (els[i].offsetParent) return true;
+    return false;
+  }
+
+  setInterval(function () {
+    // Closed again: give the next opening a fresh budget.
+    if (!codkOpen()) { asks = 0; return; }
+    if (asks++ >= POLL_MAX) return;
+    check();
+  }, POLL_MS);
+
   check();
 }());
