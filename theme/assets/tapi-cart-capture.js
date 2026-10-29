@@ -168,9 +168,24 @@
   var POLL_MAX = 600;
   var asks = 0;
 
+  /*
+    NOT offsetParent. The modal is position:fixed, and a fixed element's
+    offsetParent is null in every browser even while it fills the screen, so
+    that test reads an open checkout as closed and the poll below never runs.
+    Measured on the live modal 29 Oct 2026: offsetParent null, client rect
+    492x682. getClientRects is the test that survives fixed positioning, and
+    visibility is checked separately because COD King keeps the frame in the
+    layout and hides it between steps.
+  */
+  function shown(el) {
+    if (!el.getClientRects().length) return false;
+    var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    return !cs || cs.visibility !== 'hidden';
+  }
+
   function codkOpen() {
     var els = document.querySelectorAll(CODK_SEL);
-    for (var i = 0; i < els.length; i++) if (els[i].offsetParent) return true;
+    for (var i = 0; i < els.length; i++) if (shown(els[i])) return true;
     return false;
   }
 

@@ -45,7 +45,7 @@ ok('section renders the enabled + endpoint config the asset parses');
 const asset = readFileSync(join(THEME, 'assets/tapi-cart-capture.js'), 'utf8');
 
 /** One run of the asset against a scripted cart. */
-function run({ codkOpen = () => false, cart }) {
+function run({ codkOpen = () => false, cart, hiddenStyle = false }) {
   const timeouts = [];          // {id, fn, ms}
   const intervals = [];
   const posts = [];             // capture endpoint bodies
@@ -60,9 +60,19 @@ function run({ codkOpen = () => false, cart }) {
   const sandbox = {
     document: {
       getElementById: el,
-      // Only the COD King modal selector is asked for; "visible" is offsetParent.
-      querySelectorAll: (sel) => (codkOpen() ? [{ offsetParent: {} }] : []),
+      /*
+       * The stub models the REAL modal, which matters more than it sounds.
+       * COD King's modal is position:fixed, so its offsetParent is null even
+       * while it fills the screen: a stub that handed back a truthy
+       * offsetParent let a predicate that can never fire on the live site
+       * pass this file. Measured 29 Oct 2026, offsetParent null and a client
+       * rect of 492x682.
+       */
+      querySelectorAll: () => (codkOpen()
+        ? [{ offsetParent: null, getClientRects: () => [{ width: 492, height: 682 }] }]
+        : [{ offsetParent: null, getClientRects: () => [] }]),
     },
+    getComputedStyle: () => ({ visibility: hiddenStyle ? 'hidden' : 'visible', display: 'block' }),
     localStorage: {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
       setItem: (k, v) => store.set(k, v),
@@ -161,7 +171,25 @@ function run({ codkOpen = () => false, cart }) {
   ok('the poll stops when the checkout modal closes');
 }
 
-// ---- 5. the poll is bounded ------------------------------------------------
+// ---- 5. a frame kept in the layout but hidden is not an open checkout -----
+
+{
+  // COD King leaves the frame in the page and flips visibility between steps,
+  // so "has a box" alone would poll on every page for twenty minutes.
+  const h = run({
+    codkOpen: () => true,
+    hiddenStyle: true,
+    cart: () => ({ token: 't12345678', items: [], attributes: {} }),
+  });
+  await h.drain();
+  const before = h.cartReads.length;
+  h.intervals[0].fn();
+  await h.drain();
+  assert.equal(h.cartReads.length, before, 'a hidden frame must not count as an open checkout');
+  ok('a frame hidden between steps is not treated as an open checkout');
+}
+
+// ---- 6. the poll is bounded ------------------------------------------------
 
 {
   let open = true;
