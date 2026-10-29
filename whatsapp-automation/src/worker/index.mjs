@@ -615,6 +615,12 @@ async function onSubOffer(m) {
 
 const routes = {
   shopify: onShopify,
+  /*
+   * A checkout, not an order. It carries the COD King verified number in
+   * note_attributes and is how Flow R learns about a shopper without having to
+   * watch COD King's user interface for it.
+   */
+  checkout: (m) => cartRecovery.onCheckoutSeen(m.payload, deps()),
   cart: onCart,
   suboffer: onSubOffer,
   wa_inbound: onWaInbound,

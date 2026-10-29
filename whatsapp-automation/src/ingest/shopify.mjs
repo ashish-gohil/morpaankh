@@ -1,7 +1,20 @@
 /*
- * ingest/shopify.mjs — Shopify webhooks -> FIFO, grouped per order.
+ * ingest/shopify.mjs — Shopify webhooks -> FIFO.
+ *
  * Topics: ORDERS_CREATE/UPDATED/CANCELLED, FULFILLMENTS_CREATE/UPDATE,
- * FULFILLMENT_EVENTS_CREATE. Payloads are REST-shaped.
+ * FULFILLMENT_EVENTS_CREATE, and CHECKOUTS_CREATE/UPDATE. Payloads are
+ * REST-shaped.
+ *
+ * A CHECKOUT IS NOT AN ORDER and is deliberately routed away from the order
+ * path below. It carries no order id, it is grouped by its own token so one
+ * shopper's checkouts cannot serialise behind another's order, and it feeds
+ * Flow R rather than any of the order flows.
+ *
+ * Why it is here at all: this is how the service learns a shopper passed COD
+ * King's OTP, and it is the ONLY way that does not depend on COD King's user
+ * interface. Shopify stamps `note_attributes` onto the checkout from the cart,
+ * so `_otpVerifiedPhoneNumber` arrives here signed, server to server, whoever
+ * wrote it and from whichever frame. See cartRecovery.onCheckoutSeen.
  */
 import { makeIngest } from './base.mjs';
 import { verifyShopify } from '../lib/signature.mjs';
@@ -19,6 +32,25 @@ export const shopifyIngest = {
   checkRequest: (h) => !config.shopDomain || h['x-shopify-shop-domain'] === config.shopDomain,
   toItems(h, body) {
     const topic = String(h['x-shopify-topic'] || '');
+
+    if (topic.startsWith('checkouts/')) {
+      /*
+       * `cart_token` first, so a checkout and the storefront capture of the
+       * same bag land on ONE row rather than racing as two. A completed
+       * checkout is dropped here: they bought, and there is nothing to win
+       * back.
+       */
+      const token = body.cart_token || body.token;
+      if (!token || body.completed_at) return [];
+      return [
+        {
+          message: { kind: 'checkout', topic, token: String(token), payload: body },
+          groupId: `checkout:${token}`,
+          dedupId: h['x-shopify-webhook-id'] || `${topic}:${token}:${body.updated_at || ''}`,
+        },
+      ];
+    }
+
     const orderId = orderIdFor(topic, body);
     if (!orderId) return [];
     const dedupId = h['x-shopify-webhook-id'] || `${topic}:${orderId}:${body.updated_at || ''}`;

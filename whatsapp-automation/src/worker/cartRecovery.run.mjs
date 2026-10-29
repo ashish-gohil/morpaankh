@@ -22,7 +22,7 @@ import {
   recoveryTimes, formatExpiresAt, formatTimeLeft,
 } from '../domain/cart.mjs';
 import { capturedToCheckout, variantGidsOf, isCapturedId } from '../domain/cartCapture.mjs';
-import { getCapture } from '../store/cartCapture.mjs';
+import { getCapture, putCapture } from '../store/cartCapture.mjs';
 import { itemLine, heroImageUrl } from '../domain/order.mjs';
 import { formatINR } from '../lib/money.mjs';
 import { randomToken } from '../lib/ids.mjs';
@@ -38,6 +38,7 @@ import {
 } from '../store/phoneProfile.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { verifiedPhoneFromNoteAttributes, verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
+import { cleanToken, cleanItems, cleanAttrs } from '../ingest/cart-capture.mjs';
 import { tpl, sess, ownerAlert, isTemplateUnusable, isWindowDeliverable } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
@@ -739,6 +740,64 @@ export async function onCartStatus(cartId, st, now = new Date()) {
  * router, so nothing here can fail an order confirmation. Idempotent: it keys
  * off the phone lock, and re-running it rewrites the same fields.
  */
+/**
+ * A Shopify checkout was created or changed: file it as a captured cart.
+ *
+ * THIS IS THE SOURCE THAT DOES NOT DEPEND ON COD KING'S USER INTERFACE, and
+ * that is the whole point of it.
+ *
+ * The storefront capture has to notice the moment COD King writes the verified
+ * number onto the cart, and COD King does that from inside its own same origin
+ * iframe, so the capture script is reduced to watching for a modal by element
+ * id and polling. That works today and breaks the day COD King renames a div.
+ * Shopify, by contrast, stamps the cart's attributes onto the checkout and
+ * sends them here signed, server to server, whoever wrote them and from
+ * whichever frame. Nothing in this path can be broken by a redesign.
+ *
+ * It is also strictly cheaper for the shopper: no polling, no extra requests,
+ * nothing added to the page at all.
+ *
+ * It does NOT replace `abandonedCheckouts`, it gets there first. Shopify only
+ * FILES a checkout as abandoned once it has contact details and a delay has
+ * passed, and on 29 Oct 2026 it held 3 of the 10 that COD King had seen. This
+ * webhook fires on the checkout itself.
+ *
+ * Everything downstream is untouched: this writes the same CAP row the
+ * storefront endpoint writes, and the five minute sweep reads it the same way.
+ * `capturedAt` moving forward on every update is deliberate and is what makes
+ * the shopper be messaged twenty minutes after they stop rather than mid
+ * checkout.
+ */
+export async function onCheckoutSeen(payload, deps) {
+  const now = nowOf(deps);
+  // Same rule as every other recipient in Flows A, B, C and R: the COD King
+  // verified number or nobody. A checkout without one is not a candidate.
+  const phone = verifiedPhoneFromNoteAttributes(payload?.note_attributes);
+  if (!phone) return { skipped: 'no-verified-phone' };
+
+  const token = cleanToken(payload?.cart_token || payload?.token);
+  if (!token) return { skipped: 'no-token' };
+
+  /*
+   * The SAME validators the public endpoint uses, imported rather than
+   * rewritten. Two copies of the attribute allowlist is how they drift, and
+   * this one decides whether a bag is read as a partial advance.
+   */
+  const items = cleanItems(
+    (payload?.line_items || []).map((li) => ({ id: String(li?.variant_id ?? ''), qty: li?.quantity })),
+  );
+  if (!items) return { skipped: 'unreadable-items' };
+
+  const attrs = cleanAttrs(
+    Object.fromEntries((payload?.note_attributes || []).map((a) => [a?.name, a?.value])),
+  );
+
+  const id = await putCapture({ token, phone, items, attrs, now });
+  log.info('checkout captured', { id, lines: items.length, phone: maskPhone(phone) });
+  metric('CheckoutCaptured', 1);
+  return { captured: id };
+}
+
 export async function onOrderCreated(payload, deps) {
   const now = nowOf(deps);
   const phone = verifiedPhoneFromNoteAttributes(payload?.note_attributes);

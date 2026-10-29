@@ -241,6 +241,16 @@ const TOPICS = [
   'FULFILLMENTS_CREATE',
   'FULFILLMENTS_UPDATE',
   'FULFILLMENT_EVENTS_CREATE',
+  /*
+   * Flow R's source of record for a shopper who passed COD King's OTP.
+   * Shopify stamps the cart's attributes onto the checkout, so
+   * _otpVerifiedPhoneNumber reaches us signed and server to server, whoever
+   * wrote it and from whichever frame, and long before Shopify decides to FILE
+   * that checkout as abandoned. Both topics: create is the first sighting and
+   * update is what keeps "last seen holding this bag" honest.
+   */
+  'CHECKOUTS_CREATE',
+  'CHECKOUTS_UPDATE',
 ];
 
 async function ensureWebhooks({ dryRun = true } = {}) {
