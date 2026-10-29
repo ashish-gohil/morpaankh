@@ -75,7 +75,10 @@
     }
 
     var body = JSON.stringify({
-      token: cart.token,
+      // Shopify hands this back as "<token>?key=<credential>". The key is not
+      // part of the cart's identity and this request has no business carrying
+      // one, so it is cut here as well as on the server.
+      token: String(cart.token).split('?')[0],
       phone: String(phone),
       items: items,
       attrs: codkAttrs(attrs)

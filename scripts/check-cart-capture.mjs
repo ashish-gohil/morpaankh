@@ -132,7 +132,7 @@ function run({ cart }) {
   let phone = '';
   const h = run({
     cart: () => ({
-      token: 'tok1234567890',
+      token: 'tok1234567890?key=0a1111a11aa11aaaaaa1111a1111a111',
       items: [{ variant_id: 54759640039796, quantity: 2 }],
       attributes: phone ? { _otpVerifiedPhoneNumber: phone, _codkAmountType: 'cod' } : {},
     }),
@@ -149,7 +149,13 @@ function run({ cart }) {
   assert.equal(h.posts.length, 1, 'a cart write made inside a child frame was NOT captured');
   const body = h.posts[0];
   assert.equal(body.phone, '919876543210');
-  assert.equal(body.token, 'tok1234567890');
+  /*
+   * The key= credential Shopify staples to /cart.js's token must not be in
+   * here. It is not part of the cart's identity and this request has no
+   * business carrying one. Live on 29 Oct 2026 it also made the server refuse
+   * every post as invalid_token.
+   */
+  assert.equal(body.token, 'tok1234567890', 'the key= credential must be cut from the token');
   assert.deepEqual(body.items, [{ id: '54759640039796', qty: 2 }]);
   assert.equal(body.attrs._codkAmountType, 'cod', 'COD King amount attrs must travel');
   assert.ok(!('_otpVerifiedPhoneNumber' in body.attrs), 'the number must not be copyable through attrs');
