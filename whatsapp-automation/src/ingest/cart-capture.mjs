@@ -51,9 +51,24 @@ async function withinRate(ip) {
   return false;
 }
 
-/** Shopify cart tokens are hex-ish and long; anything else is not one. */
+/**
+ * The cart's identity, with the credential Shopify now staples to it removed.
+ *
+ * `/cart.js` returns `token` as "<token>?key=<credential>" (61 characters, a
+ * `?` and an `=` in it), so the bare pattern below refused every post the
+ * storefront made. Measured live 29 Oct 2026: three `invalid_token` refusals
+ * from a real shopper's browser, while the checkout webhook, which receives
+ * the token WITHOUT that suffix, was accepted for the same bag.
+ *
+ * The suffix is DROPPED rather than allowed, for two reasons. It is a
+ * credential, the same `key=` that makes a recovery URL work, and this row's
+ * partition key is not the place for one. And it is not part of the cart's
+ * identity: keeping it would file one bag under two different primary keys
+ * depending on which source saw it first, which is exactly what the sources
+ * were built to converge on.
+ */
 export function cleanToken(raw) {
-  const s = String(raw || '').trim();
+  const s = String(raw || '').trim().split(/[?#]/)[0];
   return /^[A-Za-z0-9_-]{8,128}$/.test(s) ? s : null;
 }
 

@@ -42,6 +42,23 @@ describe('validation', () => {
     expect(cleanToken('short')).toBeNull();
     expect(cleanToken('../../etc/passwd')).toBeNull();
   });
+
+  /*
+   * THE ONE THAT WAS LIVE. /cart.js hands the browser
+   * "<token>?key=<credential>" and the old pattern refused the lot, so every
+   * post a real shopper's browser made came back invalid_token while the
+   * checkout webhook, which sees the token without the suffix, was accepted
+   * for the same bag. The suffix must be dropped, not allowed: it is a
+   * credential, and keeping it would file one bag under two keys.
+   */
+  it('drops the key= credential /cart.js staples to the token', () => {
+    expect(cleanToken('hWNIX6UNMbUsdHagyPXGGLXF?key=0a1111a11aa11aaaaaa1111a1111a111'))
+      .toBe('hWNIX6UNMbUsdHagyPXGGLXF');
+    // and both sources then agree on one row
+    expect(cleanToken('hWNIX6UNMbUsdHagyPXGGLXF?key=deadbeef'))
+      .toBe(cleanToken('hWNIX6UNMbUsdHagyPXGGLXF'));
+    expect(cleanToken('short?key=deadbeef')).toBeNull();
+  });
   it('never lets the body name the recipient through attrs', () => {
     expect(cleanAttrs({ _otpVerifiedPhoneNumber: '919999999999', _codkAmountType: 'cod' }))
       .toEqual({ _codkAmountType: 'cod' });
