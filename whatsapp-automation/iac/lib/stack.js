@@ -511,6 +511,14 @@ class WaAutomationStack extends cdk.Stack {
     // EVERY confirmation failed to deliver and this alarm stayed green, because
     // two is not five. At this volume a single customer who was not reached is
     // worth an email.
+    //
+    // What the threshold counts was narrowed on 29 Oct 2026, which is what
+    // makes it survivable. MessageFailed is now emitted ONLY for failures this
+    // service did not recover from; a 131049, 130472 or 131026 that parked and
+    // fell back to email is counted as MessageFailedHandled instead (see
+    // onWaStatus). Meta refuses roughly a third of this store's sends that way,
+    // so before the split this alarm mailed the owner several times a day for
+    // working behaviour, and the owner stopped reading it.
     alarm('whatsapp-failures', emf('MessageFailed'), 1);
     alarm('courier-failures', emf('CourierError'), 5);
 

@@ -131,36 +131,49 @@ export const handler = async (event) => {
       }
     : {};
 
+  /*
+   * EVERY REFUSAL IS LOGGED, and that is not tidiness.
+   *
+   * Until 29 Oct 2026 the four validation refusals below returned their status
+   * and said nothing, so a browser whose post was being turned away looked
+   * exactly like a browser that never posted: both leave an empty log. The
+   * day the storefront stopped capturing carts, the only evidence in CloudWatch
+   * was invocations that ran for 2ms and wrote nothing, which named no cause.
+   * A refusal is the one moment this endpoint knows something is wrong, so it
+   * is the one moment it must speak.
+   *
+   * The reason is a fixed label and never the value, because the body of a
+   * refused post is unvalidated input and one of its fields is a phone number.
+   */
+  const reject = (status, reason, fields = {}) => {
+    log.warn('cart capture refused', { reason, ...fields });
+    metric('CartCaptureRejected', 1, { reason });
+    return json(status, { ok: false, error: reason }, reason === 'forbidden_origin' ? {} : cors);
+  };
+
   if (method === 'OPTIONS') return { statusCode: allowed ? 204 : 403, headers: cors, body: '' };
-  if (method !== 'POST') return json(405, { ok: false, error: 'method_not_allowed' }, cors);
-  if (!allowed) {
-    log.warn('cart capture rejected origin', { origin });
-    metric('CartCaptureRejected', 1, { reason: 'origin' });
-    return json(403, { ok: false, error: 'forbidden_origin' });
-  }
+  if (method !== 'POST') return reject(405, 'method_not_allowed', { method });
+  if (!allowed) return reject(403, 'forbidden_origin', { origin });
 
   let body;
   try {
     body = JSON.parse(event.body || '{}');
   } catch {
-    return json(400, { ok: false, error: 'bad_json' }, cors);
+    return reject(400, 'bad_json');
   }
 
   /* The same normalizer Flow R's recipient rule uses, not a looser local one:
    * a number this endpoint accepted but the flow would later reject is a row
    * that can never be acted on. */
   const phone = normalizeVerifiedPhone(body.phone);
-  if (!phone) return json(422, { ok: false, error: 'invalid_phone' }, cors);
+  if (!phone) return reject(422, 'invalid_phone');
   const token = cleanToken(body.token);
-  if (!token) return json(422, { ok: false, error: 'invalid_token' }, cors);
+  if (!token) return reject(422, 'invalid_token');
   const items = cleanItems(body.items);
-  if (!items) return json(422, { ok: false, error: 'invalid_items' }, cors);
+  if (!items) return reject(422, 'invalid_items', { lines: Array.isArray(body.items) ? body.items.length : null });
 
   const ip = event?.requestContext?.http?.sourceIp || '';
-  if (!(await withinRate(ip))) {
-    metric('CartCaptureRejected', 1, { reason: 'rate' });
-    return json(429, { ok: false, error: 'rate_limited' }, cors);
-  }
+  if (!(await withinRate(ip))) return reject(429, 'rate_limited');
 
   try {
     const id = await putCapture({ token, phone, items, attrs: cleanAttrs(body.attrs) });

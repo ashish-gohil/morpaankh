@@ -316,9 +316,36 @@ async function onWaStatus(m) {
   // this line a message Meta "accepted" but never delivered is invisible: the
   // send logs success, the order is tagged, and nothing anywhere says it failed.
   const err = st.errors?.[0];
-  // Feeds the wa-whatsapp-failures alarm. Emitted with NO dimensions so it
-  // matches the alarm's dimensionless metric.
-  if (st.status === 'failed') metric('MessageFailed', 1);
+  /*
+   * HANDLED, in the one place that decides it. The log level below and the
+   * alarm metric above it read the SAME predicate, so the two can never drift
+   * into saying different things about the same failure.
+   */
+  const handled = isWindowDeliverable(code) || code === 131026;
+  /*
+   * Feeds the wa-whatsapp-failures alarm. Emitted with NO dimensions so it
+   * matches the alarm's dimensionless metric.
+   *
+   * ONLY THE FAILURES THIS SERVICE DID NOT RECOVER FROM COUNT HERE.
+   *
+   * The three codes below already had their log level demoted for being
+   * handled outcomes, but the metric kept counting them, so the alarm went on
+   * emailing the owner for every one of them. Meta refuses roughly a third of
+   * this store's sends with 131049 or 130472, each of which parks for the next
+   * window and falls back to email, and 131026 parks the number and raises its
+   * own send-failed owner alert naming the order. That is several incident
+   * emails a day for behaviour that is working, which is exactly the
+   * crying-wolf the log levels were demoted to stop: it taught the owner to
+   * ignore the mail, and the one that matters arrives looking identical.
+   *
+   * Threshold 1 on what is left is deliberately kept, for the reason it was
+   * set on 26 Sept: at this volume one customer we could neither reach nor
+   * recover is worth an email.
+   *
+   * The handled ones are still counted, under their own name, so the share of
+   * sends Meta refuses stays visible on a dashboard without being an incident.
+   */
+  if (st.status === 'failed') metric(handled ? 'MessageFailedHandled' : 'MessageFailed', 1);
   /*
    * 131049 is a WARN, not an ERROR, because it is now a HANDLED outcome rather
    * than a fault: onCartStatus parks the checkout and delivers it through the
@@ -360,9 +387,7 @@ async function onWaStatus(m) {
    * incident email describing retries and a dead letter queue that never
    * happened.
    */
-  const level = st.status !== 'failed' ? 'info'
-    : (isWindowDeliverable(code) || code === 131026) ? 'warn'
-    : 'error';
+  const level = st.status !== 'failed' ? 'info' : handled ? 'warn' : 'error';
   log[level]('wa status', {
     status: st.status,
     phone: st.recipient_id ? `+${st.recipient_id}` : undefined,

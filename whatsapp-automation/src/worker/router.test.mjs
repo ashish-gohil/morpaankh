@@ -373,23 +373,31 @@ describe('a slash command is only a command when an owner typed it', () => {
  * it retries automatically, then parks in the dead letter queue". None of that
  * was true: nothing retried and the DLQ stayed empty. Now that the code parks
  * the offer and falls back to email it is a handled outcome, so it belongs
- * beside 131049 and 131026 at WARN. MessageFailed still feeds the
- * wa-whatsapp-failures alarm, so the count is not hidden.
+ * beside 131049 and 131026 at WARN.
+ *
+ * The METRIC had to follow, which is the second test here. Demoting the log
+ * level silenced the incident email but not the wa-whatsapp-failures alarm,
+ * which sits at threshold 1 on MessageFailed and so went on mailing the owner
+ * for every one of the roughly one in three sends Meta refuses. A handled
+ * failure is now counted under its own name, so the alarm is left to the
+ * failures nobody recovered from.
  */
 describe('a held-out number is a handled outcome, not an incident', () => {
+  const status = (code) => ({
+    kind: 'wa_status',
+    status: {
+      id: `wamid.${code}`,
+      status: 'failed',
+      recipient_id: '919307740298',
+      errors: [{ code, title: 'refused' }],
+    },
+  });
+
   it('logs 130472 as a warning carrying the code, not as an error', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      await routes.wa_status({
-        kind: 'wa_status',
-        status: {
-          id: 'wamid.EXP1',
-          status: 'failed',
-          recipient_id: '919307740298',
-          errors: [{ code: 130472, title: "User's number is part of an experiment" }],
-        },
-      });
+      await routes.wa_status(status(130472));
 
       const said = (spy) => spy.mock.calls.flat().filter((l) => String(l).includes('wa status'));
       expect(said(err)).toEqual([]);
@@ -399,4 +407,46 @@ describe('a held-out number is a handled outcome, not an incident', () => {
       warn.mockRestore();
     }
   });
+
+  /*
+   * The alarm metric is dimensionless and matched by name, so the names are
+   * asserted literally: renaming either one here silently unhooks the alarm.
+   */
+  it.each([[131049], [130472], [131026]])(
+    'keeps a handled %i out of the alarm metric',
+    async (code) => {
+      const emitted = await metricsOf(() => routes.wa_status(status(code)));
+      expect(emitted).toContain('MessageFailedHandled');
+      expect(emitted).not.toContain('MessageFailed');
+    },
+  );
+
+  it('still counts a failure nothing recovered from, so the alarm can fire', async () => {
+    const emitted = await metricsOf(() => routes.wa_status(status(470)));
+    expect(emitted).toContain('MessageFailed');
+    expect(emitted).not.toContain('MessageFailedHandled');
+  });
 });
+
+/** The metric names emitted while `fn` runs, read off the EMF log lines. */
+async function metricsOf(fn) {
+  const names = [];
+  const spy = vi.spyOn(console, 'log').mockImplementation((line) => {
+    let parsed;
+    try { parsed = JSON.parse(line); } catch { return; }
+    for (const d of parsed?._aws?.CloudWatchMetrics || []) {
+      for (const m of d.Metrics || []) names.push(m.Name);
+    }
+  });
+  const quiet = [
+    vi.spyOn(console, 'warn').mockImplementation(() => {}),
+    vi.spyOn(console, 'error').mockImplementation(() => {}),
+  ];
+  try {
+    await fn();
+  } finally {
+    spy.mockRestore();
+    quiet.forEach((s) => s.mockRestore());
+  }
+  return names;
+}
