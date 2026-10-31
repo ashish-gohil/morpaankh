@@ -33,6 +33,18 @@ async function metaGet(path) {
   return json;
 }
 
+/*
+ * "Purchase" belongs to the Shopify Facebook & Instagram channel and nothing
+ * else. That channel pairs a browser event with a matching server event under
+ * one event_id, so Meta counts an order once. A Purchase sent from here would
+ * carry our own event_id, fail to deduplicate against the channel's, and
+ * inflate the count — which is exactly what Meta's own Automatic events did to
+ * this dataset on 24 Oct 2026 (one COD order counted up to three times).
+ * deliveredEventName comes from the environment, so the rule is enforced here
+ * rather than trusted. Backend outcomes get their own name: DeliveredPurchase.
+ */
+const RESERVED_EVENT_NAMES = new Set(['purchase']);
+
 /**
  * Send one DeliveredPurchase Conversions API event.
  * @param {object} p
@@ -44,8 +56,15 @@ async function metaGet(path) {
  * @param {string} [p.sourceUrl]   action_source_url
  */
 export async function sendDeliveredPurchase(p) {
+  const name = String(config.meta.deliveredEventName || '').trim();
+  if (RESERVED_EVENT_NAMES.has(name.toLowerCase())) {
+    throw new Error(
+      `META_DELIVERED_EVENT_NAME must not be "${name}": Purchase is the Shopify channel's event. ` +
+        'Use a distinct name such as DeliveredPurchase.',
+    );
+  }
   const event = {
-    event_name: config.meta.deliveredEventName,
+    event_name: name,
     event_time: p.eventTime,
     event_id: p.eventId,
     action_source: 'website',
