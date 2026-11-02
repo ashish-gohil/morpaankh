@@ -200,3 +200,29 @@ describe('convertToPrepaid never discounts a line the customer no longer has', (
     expect(disc.variables.lineItemId).toBe('gid://CalculatedLineItem/KEPT');
   });
 });
+
+/*
+ * A JS COMMENT INSIDE A GRAPHQL DOCUMENT IS A SYNTAX ERROR, and nothing in
+ * this suite would notice: the fakes never parse a query string, so the
+ * document is only ever read by Shopify.
+ *
+ * Shipped exactly that on 2026-11-02. A `/* *\/` block was added inside
+ * CHECKOUT_FIELDS to explain why the contact fields are selected; the Admin
+ * API answered HTTP 200 with `PARSE_ERROR ... unexpected invalid token ("/")`,
+ * listAbandonedCheckouts threw, and the whole five minute cart sweep went down
+ * until the live logs showed it. Comments inside a document are `#`.
+ */
+describe('the GraphQL documents are documents, not JavaScript', () => {
+  it('no query or mutation string carries a JS comment block', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./shopify.mjs', import.meta.url), 'utf8');
+    // Every backtick-delimited literal in the file, then only the ones that
+    // are GraphQL. Interpolations are left in place: a comment inside one of
+    // those constants still shows up in the constant's own literal.
+    const literals = src.match(/`[^`]*`/g) || [];
+    const documents = literals.filter((l) => /\b(query|mutation|fragment)\b/.test(l) || /\{\s*\w+\s*\{/.test(l));
+    expect(documents.length).toBeGreaterThan(5); // the regex still finds them
+    const offenders = documents.filter((d) => d.includes('/*') || d.includes('*/'));
+    expect(offenders.map((d) => d.slice(0, 120))).toEqual([]);
+  });
+});

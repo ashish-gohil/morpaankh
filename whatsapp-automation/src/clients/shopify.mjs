@@ -734,6 +734,17 @@ async function createDiscountCode({ code, title, startsAt, endsAt, amountInr, mi
  * `image { width height }` is needed by heroImageUrl, which clamps the square
  * crop to the shorter side rather than letting Shopify refuse to upscale.
  */
+/*
+ * THIS IS A GRAPHQL DOCUMENT, SO IT TAKES NO JAVASCRIPT COMMENTS. A `/* *\/`
+ * block in here is a syntax error at the slash, and the Admin API answers
+ * HTTP 200 with a PARSE_ERROR body, which surfaces as the whole cart sweep
+ * throwing. Comments inside a query are `#`; anything longer belongs here.
+ *
+ * The contact details exist for ONE reason: shopperKeys() matches this
+ * checkout against orders placed since, and an order that did not go through
+ * COD King's popup carries no _otpVerifiedPhoneNumber to match on. Read for
+ * suppression only, never used to address a message (hard rule 1).
+ */
 const CHECKOUT_FIELDS = `
   id
   name
@@ -743,12 +754,6 @@ const CHECKOUT_FIELDS = `
   totalPriceSet { shopMoney { amount } }
   totalDiscountSet { shopMoney { amount } }
   customAttributes { key value }
-  /*
-   * The contact details are here for ONE reason: shopperKeys() matches this
-   * checkout against orders placed since, and an order that did not go through
-   * COD King's popup carries no _otpVerifiedPhoneNumber to match on. Read for
-   * suppression only, never used to address a message (hard rule 1).
-   */
   customer { id firstName defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
   shippingAddress { firstName phone }
   billingAddress { firstName phone }
