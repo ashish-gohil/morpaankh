@@ -157,7 +157,14 @@ export async function markOrdered(key, { orderId, at, now = new Date() }) {
     key,
     orderId: String(orderId ?? ''),
     at: (at || now).toISOString(),
-    expiresAt: ttl(now),
+    /*
+     * SEVEN DAYS, not the table's 180. orderedSince only ever looks back over
+     * the longest a sequence can live (36 hours), so a row older than that is
+     * read and ignored. This key is derived from a customer's phone number and
+     * there is no reason to hold it for five months to answer a question about
+     * yesterday.
+     */
+    expiresAt: Math.floor(now.getTime() / 1000) + 7 * 86400,
   });
 }
 export const getOrdered = (key) => (key ? table.get(orderedPk(key), 'ORDERED') : Promise.resolve(null));
