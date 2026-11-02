@@ -31,6 +31,11 @@ import { fromISTWall } from './lib/time.mjs';
 import { setOptOut, setUndeliverable, touchInbound, markMarketing } from './store/phoneProfile.mjs';
 import { getRec, getPhoneLock } from './store/cartRecovery.mjs';
 import { sweepAbandonedCarts } from './timers/cart-sweep.mjs';
+import { putCapture, getCapture } from './store/cartCapture.mjs';
+import { getParked, getOrdered } from './store/cartRecovery.mjs';
+import { shopifyIngest } from './ingest/shopify.mjs';
+import { realClients } from './clients/index.mjs';
+import { routes } from './worker/index.mjs';
 import { handler as reconcile } from './timers/reconcile.mjs';
 import { handler as redirect } from './ingest/cart-redirect.mjs';
 import * as R from './worker/cartRecovery.run.mjs';
@@ -708,6 +713,319 @@ describe('NEGATIVE: the link itself', () => {
     await R.onTap(ID, 'help', OTHER, deps);
     expect(clients.whatsapp.sent).toHaveLength(before);
     expect((await getRec(ID)).helpRequestedAt).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ORDERED: every way an order can reach us, walked end to end
+//
+// These are the journeys that actually failed in production on 30 and 31 Oct
+// 2026. They run the REAL chain, including the real router, because the bug
+// was never in one guard: it was in what the pieces knew about each other.
+//
+//   checkouts/update webhook -> onCheckoutSeen -> CAP row
+//     -> sweepAbandonedCarts -> SQS -> onFirst
+//     -> orders/create webhook -> shopifyIngest -> routes.shopify -> the stop
+// ---------------------------------------------------------------------------
+describe('ORDERED: an order stops the sequence, whatever shape it arrives in', () => {
+  const VARIANT = 'gid://shopify/ProductVariant/54758494110068';
+  const CART_TOKEN = 'Z2NwLWFzaWEtc291dGgxOjAx';
+
+  /** The live COD King checkout webhook, which is how a cart is really seen. */
+  const checkoutWebhook = (over = {}) => ({
+    token: 'hWNIV3Gkef85j1R6nr2cSecm',
+    cart_token: CART_TOKEN,
+    completed_at: null,
+    created_at: '2026-10-12T05:00:00Z',
+    updated_at: '2026-10-12T05:00:00Z',
+    note_attributes: [
+      { name: '_otpVerifiedPhoneNumber', value: '919637361371' },
+      { name: '_codkSessionId', value: '9a221ac6-47de-41e9-90e5-1ad6cf353330' },
+      { name: '_codkAmountType', value: 'cod' },
+      { name: '_codkAmountValue', value: '50.0' },
+    ],
+    line_items: [{ variant_id: 54758494110068, quantity: 1 }],
+    ...over,
+  });
+
+  /** A fake with the variant the captured cart is priced against. */
+  function capturedWorld(opts = {}) {
+    const w = world([], opts);
+    w.clients.shopify.seedVariant({
+      id: VARIANT,
+      price: '1599.00',
+      availableForSale: true,
+      title: 'XS',
+      selectedOptions: [{ name: 'Size', value: 'XS' }],
+      product: { title: 'Khili Dhoop', featuredImage: { url: 'https://cdn.shopify.com/s/files/1/x/a.jpg?v=1', width: 1200, height: 1500 } },
+    });
+    w.clients.shopify.seedCustomerByPhone(PHONE, { id: 'gid://shopify/Customer/25164544835956', firstName: 'Bharti' });
+    return w;
+  }
+
+  /*
+   * The order webhook over the REAL router, with realClients swapped for the
+   * fakes for the duration. Driving routes.shopify rather than the handler
+   * directly is the point: the wiring between the ingest, Flow A and this hook
+   * is where a correct handler goes unreached.
+   */
+  async function orderWebhookThroughRouter(clients, payload) {
+    const [item] = shopifyIngest.toItems(
+      { 'x-shopify-topic': 'orders/create', 'x-shopify-webhook-id': `wh-${payload.id}` },
+      payload,
+    );
+    expect(item.message.kind).toBe('shopify');
+    const saved = { shopify: realClients.shopify, whatsapp: realClients.whatsapp };
+    realClients.shopify = clients.shopify;
+    realClients.whatsapp = clients.whatsapp;
+    try {
+      return await routes.shopify(item.message);
+    } finally {
+      Object.assign(realClients, saved);
+    }
+  }
+
+  /** A prepaid order through Shopify's own checkout: no COD King attribute. */
+  const prepaidOrder = (over = {}) => ({
+    id: 779001,
+    admin_graphql_api_id: 'gid://shopify/Order/779001',
+    name: '#1301',
+    created_at: '2026-10-12T05:30:00Z',
+    note_attributes: [],
+    discount_codes: [],
+    shipping_address: { phone: '+91 96373 61371' },
+    ...over,
+  });
+
+  it('THE PRODUCTION FAILURE: the capture is refreshed a second after the order, and nothing goes out', async () => {
+    /*
+     * #1234 exactly: order created 09:55:02Z, capture refreshed 09:55:03.116Z
+     * as the checkout completed, messaged 22 minutes later. The orders query
+     * was anchored on the capture, so the order sat one second outside it.
+     */
+    const { clients, deps } = capturedWorld();
+    const ORDER_AT = '2026-10-12T05:55:02Z';
+    const CAPTURED_AT = '2026-10-12T05:55:03.116Z';
+
+    // the checkout is seen, twice: once mid-session, once as the order lands
+    await R.onCheckoutSeen(checkoutWebhook(), { now: new Date('2026-10-12T05:00:00Z') });
+    await R.onCheckoutSeen(checkoutWebhook({ updated_at: CAPTURED_AT }), { now: new Date(CAPTURED_AT) });
+    expect((await getCapture(`cap_${CART_TOKEN}`)).capturedAt).toBe(CAPTURED_AT);
+
+    // they paid online, so the order carries no OTP attribute at all
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/779001', name: '#1301', createdAt: ORDER_AT,
+      customer: null, shippingAddress: { phone: '+919637361371' },
+    });
+
+    // 20 minutes after the capture, the sweep picks the cart up and queues it
+    const later = new Date('2026-10-12T06:17:00Z');
+    const { out, queued } = await sweepAndDrain(clients, later);
+    expect(out.enqueued).toEqual([`cap_${CART_TOKEN}`]);
+
+    await runQueue(queued, { ...deps, now: later });
+
+    expect(customerTemplates(clients.whatsapp)).toHaveLength(0);
+    expect(discounts(clients.shopify)).toHaveLength(0);
+    expect(await getPhoneLock(PHONE)).toBe(null);
+    expect((await getRec(`cap_${CART_TOKEN}`)).outcome).toBe('already-ordered');
+    expect(timerNames()).toHaveLength(0);
+  });
+
+  it('COD through COD King: the whole sequence is stopped the moment the order webhook lands', async () => {
+    const { clients, deps } = world();
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
+    expect(timerNames()).toContain(`R-${ID}-final`);
+    const rec = await getRec(ID);
+
+    // a COD order, 30 minutes later, carrying the OTP attribute
+    clients.shopify.seed({ id: 'gid://shopify/Order/779002', name: '#1302', createdAt: '2026-10-12T07:00:00Z' });
+    await orderWebhookThroughRouter(clients, order({
+      id: 779002, admin_graphql_api_id: 'gid://shopify/Order/779002', name: '#1302',
+      created_at: '2026-10-12T07:00:00Z',
+    }));
+
+    expect(timerNames()).not.toContain(`R-${ID}-final`);
+    // the reminder refuses even if its timer fires anyway
+    await R.onFinal(ID, { ...deps, now: new Date(rec.reminderAt) });
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
+  });
+
+  it('PREPAID from a different device and checkout: still stopped, on the shipping phone alone', async () => {
+    const { clients, deps } = world();
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    const rec = await getRec(ID);
+
+    /*
+     * Nothing links this to the cart but the number on the shipping address,
+     * and it was placed while message 1 was in flight, so it cannot be a
+     * recovery: the stop is the only thing that can end this sequence.
+     */
+    clients.shopify.seed({ id: 'gid://shopify/Order/779003', name: '#1303', createdAt: '2026-10-12T06:00:00Z' });
+    await orderWebhookThroughRouter(clients, prepaidOrder({
+      id: 779003, admin_graphql_api_id: 'gid://shopify/Order/779003', name: '#1303',
+      created_at: '2026-10-12T06:00:00Z', customer: null,
+    }));
+
+    const after = await getRec(ID);
+    expect(after.outcome).toBe('already-ordered');
+    expect(after.stoppedByOrder).toBe('779003');
+    expect(timerNames()).not.toContain(`R-${ID}-final`);
+    await R.onFinal(ID, { ...deps, now: new Date(rec.reminderAt) });
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
+  });
+
+  it('the order arrives BEFORE the sweep has even started a sequence', async () => {
+    /*
+     * No REC row exists yet, so there is nothing to stamp. The per-identity
+     * marker carries the answer instead, and it is read before Shopify is
+     * asked, which also covers the order search index lagging the create.
+     */
+    const { clients, deps } = capturedWorld();
+    await R.onCheckoutSeen(checkoutWebhook(), { now: new Date('2026-10-12T05:00:00Z') });
+
+    // the webhook lands first, and Shopify has NOT indexed the order yet
+    await orderWebhookThroughRouter(clients, prepaidOrder({ created_at: '2026-10-12T05:30:00Z' }));
+    expect(await getOrdered('p:9637361371')).toMatchObject({ orderId: '779001' });
+
+    const { queued } = await sweepAndDrain(clients, new Date('2026-10-12T05:45:00Z'));
+    expect(queued).toHaveLength(1); // the sweep still queues it: it decides nothing
+    await runQueue(queued, { ...deps, now: new Date('2026-10-12T05:45:00Z') });
+
+    expect(customerTemplates(clients.whatsapp)).toHaveLength(0);
+    expect(discounts(clients.shopify)).toHaveLength(0);
+    expect((await getRec(`cap_${CART_TOKEN}`)).outcome).toBe('already-ordered');
+  });
+
+  it('a checkout parked for a service window is released, and the customer writing in sends nothing', async () => {
+    // Meta refuses the template with the per-user marketing cap, so the
+    // checkout waits for a service window instead.
+    const { clients, deps } = world([cart()], { whatsapp: { failTemplateWith: 131049 } });
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    expect(await getParked(PHONE)).toMatchObject({ checkoutId: ID });
+
+    clients.shopify.seed({ id: 'gid://shopify/Order/779004', name: '#1304', createdAt: '2026-10-12T06:30:00Z' });
+    await orderWebhookThroughRouter(clients, prepaidOrder({
+      id: 779004, admin_graphql_api_id: 'gid://shopify/Order/779004', name: '#1304',
+      created_at: '2026-10-12T06:30:00Z',
+    }));
+    expect(await getParked(PHONE)).toBe(null);
+
+    // they write to us an hour later: the window is open and still nothing goes
+    const later = new Date(NOW.getTime() + 3600 * 1000);
+    await touchInbound(PHONE, later);
+    await R.onWindowOpen(PHONE, { clients, now: later });
+    expect(customerTemplates(clients.whatsapp)).toHaveLength(0);
+  });
+
+  it('a late, duplicated and out-of-order webhook storm changes nothing', async () => {
+    const { clients, deps } = world();
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    const rec = await getRec(ID);
+
+    clients.shopify.seed({ id: 'gid://shopify/Order/779005', name: '#1305', createdAt: '2026-10-12T06:00:00Z' });
+    const payload = prepaidOrder({
+      id: 779005, admin_graphql_api_id: 'gid://shopify/Order/779005', name: '#1305',
+      created_at: '2026-10-12T06:00:00Z',
+    });
+    // the same webhook five times over
+    for (let i = 0; i < 5; i += 1) await orderWebhookThroughRouter(clients, payload);
+    // then a replay of a DIFFERENT order from a week later, arriving out of
+    // order. By then the code has closed, so it has nothing left to stop.
+    await orderWebhookThroughRouter(clients, { ...payload, id: 779006, created_at: '2026-10-19T06:30:00Z' });
+
+    const after = await getRec(ID);
+    expect(after.outcome).toBe('already-ordered');
+    // The row is stamped once; nothing after it relabels why we stopped.
+    expect(after.stoppedByOrder).toBe('779005');
+    expect(after.outcomeAt).toBe((await getRec(ID)).outcomeAt);
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
+    await R.onFinal(ID, { ...deps, now: new Date(rec.reminderAt) });
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
+  });
+
+  it('a REAL recovery is still attributed, tagged and owed its gift', async () => {
+    /*
+     * Order #1239 reproduced: our code applied, inside the window, through
+     * Shopify's own checkout with no OTP attribute, and against a SECOND
+     * customer record COD King minted for the same person.
+     */
+    const { clients, deps } = world();
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    const rec = await getRec(ID);
+
+    clients.shopify.seed({ id: 'gid://shopify/Order/779007', name: '#1239', createdAt: '2026-10-12T07:26:00Z' });
+    await orderWebhookThroughRouter(clients, prepaidOrder({
+      id: 779007, admin_graphql_api_id: 'gid://shopify/Order/779007', name: '#1239',
+      created_at: '2026-10-12T07:26:00Z',
+      customer: { id: 25277029941620 },
+      discount_codes: [{ code: rec.code }],
+    }));
+
+    expect(await getRec(ID)).toMatchObject({ outcome: 'recovered', orderId: '779007', codeUsed: true });
+    expect(tagsAdded(clients.shopify)).toEqual(expect.arrayContaining(['wa-cart-recovered', 'gift-in-parcel']));
+    expect(timerNames()).not.toContain(`R-${ID}-final`);
+  });
+
+  it('a phone written any way at all still matches', async () => {
+    for (const written of ['0 96373 61371', '+91-96373-61371', '919637361371', '96373 61371', '+91 9637361371']) {
+      _resetMemory();
+      _resetTimers();
+      _drainQueue();
+      const { clients, deps } = world();
+      clients.shopify.seed({
+        id: 'gid://shopify/Order/779008', name: '#1308', createdAt: '2026-10-12T05:30:00Z',
+        customer: null, phone: written,
+      });
+      const { queued } = await sweepAndDrain(clients);
+      await runQueue(queued, deps);
+      expect(customerTemplates(clients.whatsapp), `written as ${written}`).toHaveLength(0);
+      expect((await getRec(ID)).outcome).toBe('already-ordered');
+    }
+  });
+
+  it('REGRESSION: a stranger ordering leaves the sequence completely alone', async () => {
+    const { clients, deps } = world();
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    const rec = await getRec(ID);
+
+    clients.shopify.seed({ id: 'gid://shopify/Order/779009', name: '#1309', createdAt: '2026-10-12T06:30:00Z' });
+    await orderWebhookThroughRouter(clients, prepaidOrder({
+      id: 779009, admin_graphql_api_id: 'gid://shopify/Order/779009', name: '#1309',
+      created_at: '2026-10-12T06:30:00Z',
+      customer: { id: 424242 }, phone: '+919000000001',
+      shipping_address: { phone: '+919000000001' }, email: 'someone@else.com',
+    }));
+
+    expect((await getRec(ID)).outcome).toBeUndefined();
+    expect(timerNames()).toContain(`R-${ID}-final`);
+    // and the reminder still goes out, exactly as before
+    await R.onFinal(ID, { ...deps, now: new Date(rec.reminderAt) });
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1', 'cart_final_v1']);
+  });
+
+  it('REGRESSION: an order six days old does not silence a fresh cart', async () => {
+    /*
+     * The owner's own number did this on 29 Oct: orders on 13 and 23 Oct, a
+     * new bag abandoned on the 29th. That message was correct, so the lookback
+     * is bounded at the longest a sequence can live rather than "ever".
+     */
+    const { clients, deps } = world();
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/779010', name: '#1310',
+      createdAt: '2026-10-06T06:30:00Z', // six days before this cart
+      customer: { id: 'gid://shopify/Customer/25164544835956' },
+    });
+    const { queued } = await sweepAndDrain(clients);
+    await runQueue(queued, deps);
+    expect(customerTemplates(clients.whatsapp)).toEqual(['cart_recovery_v1']);
   });
 });
 

@@ -56,17 +56,21 @@ async function onShopify(m) {
   const { topic, orderId, payload } = m;
   if (topic === 'orders/create') {
     /*
-     * Flow A runs FIRST and its result is what this returns. The cart hook is
-     * soft and comes after, because attributing a recovery is bookkeeping and
-     * an order confirmation is not: letting the hook throw would redeliver the
-     * record and re-run a handler that has already messaged the customer.
+     * THE SOFT HOOKS RUN FIRST, and Flow A's result is still what this
+     * returns. They used to come after, which coupled them to Flow A
+     * succeeding: Flow A throws to make SQS redeliver an order it could not
+     * read, so an order that exhausted its five attempts and reached the DLQ
+     * never reached these at all, and its cart recovery sequence kept its
+     * armed reminder. Both hooks only touch their own flows' rows and send
+     * nothing to the customer, so running them first cannot affect the order
+     * confirmation; they stay soft so neither can redeliver a record whose
+     * message has already gone out.
      */
-    const out = await flowA.onOrderCreate(orderId, deps());
     await soft('cartRecovery:onOrderCreated', () => cartRecovery.onOrderCreated(payload, deps()), { orderId });
     // Flow W, for the same reason and with the same discipline: attributing a
     // welcome offer is bookkeeping and an order confirmation is not.
     await soft('subscriberOffer:onOrderCreated', () => subscriberOffer.onOrderCreated(payload, deps()), { orderId });
-    return out;
+    return flowA.onOrderCreate(orderId, deps());
   }
   if (topic === 'orders/cancelled') return flowA.onStop(orderId, deps());
   if (topic === 'orders/updated') {
