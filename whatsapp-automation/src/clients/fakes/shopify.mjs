@@ -180,6 +180,12 @@ export function makeFakeShopify({
         .filter((c) => !c.completedAt && new Date(c.createdAt).getTime() >= since)
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     },
+    /*
+     * PROJECTED, not returned whole, because the real query selects a fixed
+     * field set and a test that matched on something outside it would pass
+     * here and fail in production. Keep this list identical to the query in
+     * clients/shopify.mjs ordersCreatedSince.
+     */
     async ordersCreatedSince(sinceISO) {
       calls.push({ op: 'ordersCreatedSince', sinceISO });
       const since = new Date(sinceISO).getTime();
@@ -190,8 +196,12 @@ export function makeFakeShopify({
           name: o.name,
           createdAt: o.createdAt,
           discountCodes: o.discountCodes || [],
+          email: o.email || null,
+          phone: o.phone || null,
           customAttributes: o.customAttributes || [],
           customer: o.customer || null,
+          shippingAddress: o.shippingAddress ? { phone: o.shippingAddress.phone || null } : null,
+          billingAddress: o.billingAddress ? { phone: o.billingAddress.phone || null } : null,
           totalPriceSet: o.totalPriceSet || null,
         }));
     },

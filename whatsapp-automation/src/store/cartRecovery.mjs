@@ -25,6 +25,8 @@ import { RULES } from '../../messages/rules.mjs';
 const recPk = (id) => `CART#${id}`;
 const lockPk = (phone) => `CARTREC#PHONE#${phone}`;
 const linkPk = (token) => `CARTLINK#${token}`;
+// One identity key, in the `p:`/`e:`/`c:` spelling identityKeys() produces.
+const orderedPk = (key) => `CARTREC#ORDERED#${key}`;
 
 /** TTL for a cart row: the service's normal retention, never the code end. */
 const ttl = (now = new Date()) => Math.floor(now.getTime() / 1000) + RULES.stateRetentionDays * 86400;
@@ -134,6 +136,31 @@ export async function recordCartMessage(id, wamid, data) {
   });
   await table.put({ PK: `WAMID#${wamid}`, SK: 'MAP', cartId: String(id), key: data?.key || null });
 }
+
+/*
+ * THIS PERSON HAS ORDERED, recorded by us at the moment the webhook arrives.
+ *
+ * It exists because `orders(query: "created_at:>=...")` is a SEARCH, and
+ * Shopify's order search index lags a create by seconds: the five minute sweep
+ * can land inside that gap, ask "has this person ordered", be told no, and
+ * send. The webhook carries no such lag, so the answer is kept here as well and
+ * read first. Written per IDENTITY KEY rather than per checkout, because at
+ * webhook time the checkout this belongs to may have no record yet, and
+ * because an order can name the person by an email or a customer id and carry
+ * no phone at all.
+ */
+export async function markOrdered(key, { orderId, at, now = new Date() }) {
+  if (!key) return;
+  await table.put({
+    PK: orderedPk(key),
+    SK: 'ORDERED',
+    key,
+    orderId: String(orderId ?? ''),
+    at: (at || now).toISOString(),
+    expiresAt: ttl(now),
+  });
+}
+export const getOrdered = (key) => (key ? table.get(orderedPk(key), 'ORDERED') : Promise.resolve(null));
 
 export const getPhoneLock = (phone) => table.get(lockPk(phone), 'LOCK');
 

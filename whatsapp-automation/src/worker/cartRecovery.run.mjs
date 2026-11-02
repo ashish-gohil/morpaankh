@@ -19,7 +19,7 @@ import { CART_RECOVERY_TITLE } from '../clients/shopify.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import {
   normalizeCheckout, cartEligible, computeCartOffer, personalCodeName, cartCode,
-  recoveryTimes, formatExpiresAt, formatTimeLeft,
+  recoveryTimes, formatExpiresAt, formatTimeLeft, shopperKeys, sameShopper, identityKeys,
 } from '../domain/cart.mjs';
 import { capturedToCheckout, variantGidsOf, isCapturedId } from '../domain/cartCapture.mjs';
 import { getCapture, putCapture } from '../store/cartCapture.mjs';
@@ -30,14 +30,14 @@ import { withinWindow } from '../lib/time.mjs';
 import {
   getRec, ensureRec, patchRec, setOutcome, cartRunOnce, recordCartMessage,
   getPhoneLock, lockPhone, releasePhoneLock, setCartLinkMap, alertOncePerDay,
-  parkForWindow, getParked, clearParked,
+  parkForWindow, getParked, clearParked, allRecs, markOrdered, getOrdered,
 } from '../store/cartRecovery.mjs';
 import { liveSubscriberOffer } from '../store/subscriberOffer.mjs';
 import {
   isOptedOut, isUndeliverable, getProfile, canSendMarketing, markMarketing, touchInbound, windowOpen,
 } from '../store/phoneProfile.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
-import { verifiedPhoneFromNoteAttributes, verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
+import { verifiedPhoneFromNoteAttributes } from '../lib/phone.mjs';
 import { cleanToken, cleanItems, cleanAttrs } from '../ingest/cart-capture.mjs';
 import { tpl, sess, ownerAlert, isTemplateUnusable, isWindowDeliverable } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -63,15 +63,41 @@ function cartVars(n, rec, now) {
  * Has this person ordered since they walked away? Asked of SHOPIFY, not of our
  * own table, because the order may have been placed on the website, by phone,
  * or by the owner by hand, and only one of those three reaches DynamoDB.
+ *
+ * THE GUARD THAT RUNS BEFORE EVERY SEND, and it used to miss most orders. It
+ * compared the Shopify customer id and COD King's _otpVerifiedPhoneNumber and
+ * nothing else, so a shopper who abandoned a COD cart and then paid online,
+ * from another device or in another checkout, matched neither and kept the
+ * whole sequence. sameShopper() now matches on any phone, any email or the
+ * customer id, from either side.
+ *
+ * THE WINDOW IS DELIBERATELY WIDER THAN THE CHECKOUT'S OWN AGE. A captured
+ * cart's createdAt is its `capturedAt`, which moves forward on every cart
+ * write, and Shopify clears the cart once an order is placed: that write
+ * dragged createdAt PAST the order, so `created_at:>=` skipped the very order
+ * it was looking for. The floor is now the longest a sequence can live
+ * (checkout age limit + code validity), so the order cannot fall behind it.
  */
-async function orderedSince(deps, n) {
-  const orders = await deps.clients.shopify.ordersCreatedSince(n.createdAt);
-  return orders.some((o) => {
-    if (n.customerGid && o.customer?.id === n.customerGid) return true;
-    // The library function, not a local copy: it already reads {key,value} and
-    // it keeps the mobile-prefix check a hand-rolled version drops.
-    return verifiedPhoneFromCustomAttributes(o.customAttributes) === n.verifiedPhone;
-  });
+async function orderedSince(deps, n, now) {
+  const spanMs = (r().maxCheckoutAgeHours + r().codeValidHours) * 3600 * 1000;
+  const since = new Date(Math.min(new Date(n.createdAt).getTime(), now.getTime() - spanMs));
+
+  /*
+   * OUR OWN RECORD FIRST. The Shopify read below is a search, and its index
+   * lags a create by seconds; the webhook does not.
+   */
+  for (const key of identityKeys(n.keys)) {
+    const row = await getOrdered(key);
+    if (row && new Date(row.at).getTime() >= since.getTime()) {
+      log.info('cart: we already recorded an order for this number, sending nothing', { order: row.orderId });
+      return true;
+    }
+  }
+
+  const orders = await deps.clients.shopify.ordersCreatedSince(since.toISOString());
+  const hit = orders.find((o) => sameShopper(shopperKeys(o), n.keys));
+  if (hit) log.info('cart: this shopper has already ordered, sending nothing', { order: hit.name || hit.id });
+  return Boolean(hit);
 }
 
 /**
@@ -255,7 +281,7 @@ export async function onFirst(checkoutId, deps) {
     return setOutcome(checkoutId, 'marketing-cap');
   }
 
-  if (await orderedSince(deps, n)) return setOutcome(checkoutId, 'already-ordered');
+  if (await orderedSince(deps, n, now)) return setOutcome(checkoutId, 'already-ordered');
 
   /*
    * The public codes are read BEFORE anything is created, and a failure to
@@ -364,6 +390,9 @@ export async function onFirst(checkoutId, deps) {
       .map((li) => ({ v: String(li.variantGid || '').split('/').pop(), q: li.quantity }))
       .filter((x) => x.v && x.v !== 'null'),
     customerGid: n.customerGid,
+    // For stopPendingForShopper: the REC row is all it has to match an order
+    // against, and a phone alone misses an order placed with only an address.
+    email: n.keys.emails[0] || null,
     checkoutCreatedAt: n.createdAt,
   });
 
@@ -509,7 +538,7 @@ export async function onFinal(checkoutId, deps) {
   const n = normalizeCheckout(raw);
   if (!n) return stop('checkout-gone');
   if (n.completedAt) return stop('completed');
-  if (await orderedSince(deps, n)) return stop('ordered');
+  if (await orderedSince(deps, n, now)) return stop('ordered');
 
   if (!withinWindow(now, r().sendWindow)) return stop('outside-window');
   const leftMs = new Date(rec.codeEndsAt).getTime() - now.getTime();
@@ -583,7 +612,7 @@ export async function onWindowOpen(phone, deps) {
 
   const n = normalizeCheckout(await readCheckout(deps, checkoutId));
   if (!n) return drop('checkout-gone', 'checkout-gone');
-  if (n.completedAt || (await orderedSince(deps, n))) return drop('ordered', 'already-ordered');
+  if (n.completedAt || (await orderedSince(deps, n, now))) return drop('ordered', 'already-ordered');
 
   let res;
   try {
@@ -734,13 +763,6 @@ export async function onCartStatus(cartId, st, now = new Date()) {
 }
 
 /**
- * An order arrived. Did it come from a cart message?
- *
- * Runs AFTER Flow A's own orders/create handler and is wrapped in soft() by the
- * router, so nothing here can fail an order confirmation. Idempotent: it keys
- * off the phone lock, and re-running it rewrites the same fields.
- */
-/**
  * A Shopify checkout was created or changed: file it as a captured cart.
  *
  * THIS IS THE SOURCE THAT DOES NOT DEPEND ON COD KING'S USER INTERFACE, and
@@ -798,15 +820,146 @@ export async function onCheckoutSeen(payload, deps) {
   return { captured: id };
 }
 
+/**
+ * An order arrived. Two separate questions, in this order:
+ *   1. did it come back from a cart message of ours (attribution), and
+ *   2. is any recovery message still pending for whoever placed it (the stop).
+ *
+ * Runs AFTER Flow A's own orders/create handler and is wrapped in soft() by the
+ * router, so nothing here can fail an order confirmation. Idempotent: both
+ * halves rewrite the same fields on a replay.
+ */
 export async function onOrderCreated(payload, deps) {
+  const keys = shopperKeys(payload);
+  /*
+   * ONE read of the recovery rows, shared by both halves: whose cart is this,
+   * judged by any identity the order carries.
+   */
+  const mine = (await allRecs()).filter((rec) => sameShopper(keys, shopperKeys(rec)));
+  /*
+   * ATTRIBUTION FIRST, THEN THE STOP, and the order is load-bearing.
+   * setOutcome is first-writer-wins, so stamping `already-ordered` on a row
+   * that is about to be recognised as `recovered` would cost this order its
+   * recovery label, its gift tag and the owner's missed-code alert.
+   */
+  const attributed = await attributeToRecovery(payload, deps, mine);
+  await stopPendingForShopper(payload, deps, keys, mine);
+  return attributed;
+}
+
+/**
+ * GUARD (a): this person has ordered, so every recovery message still pending
+ * for them stops now, whichever checkout it belongs to.
+ *
+ * WHY IT IS NOT KEYED ON THE PHONE LOCK, which is how the attribution below
+ * finds its row. The lock is written only after message 1 is accepted and is
+ * keyed on COD King's OTP number, so before this existed an order stopped
+ * nothing at all unless it carried that same attribute AND its sequence had
+ * already sent. A prepaid order through Shopify's own checkout carries no
+ * such attribute: the reminder stayed armed and went out hours later.
+ *
+ * Matching runs on every identity on the order (any phone, any email, the
+ * customer id) against the REC row, so a different checkout, a different
+ * device and a different gateway all land on the same person.
+ *
+ * Idempotent: a webhook that arrives twice, late, or out of order rewrites the
+ * same fields and deletes two already-deleted things.
+ */
+export async function stopPendingForShopper(payload, deps, keys = shopperKeys(payload), mine = null) {
   const now = nowOf(deps);
+  if (!keys.phones.length && !keys.emails.length && !keys.customerId) return { stopped: [] };
+
+  /*
+   * ponytail: a scan of the REC rows, matched in memory. This store takes one
+   * or two orders a day against tens of recovery rows, so a GSI by phone would
+   * be an index to keep correct for no measurable gain. Add one if order
+   * volume ever makes the scan the expensive part.
+   */
+  /*
+   * The order's own moment, not ours. A webhook replayed days later must not
+   * reopen the question for a sequence that had already ended, and in
+   * production the two values are seconds apart.
+   */
+  const placedAt = new Date(payload?.created_at || now);
+  for (const key of identityKeys(keys)) {
+    await soft('cartMarkOrdered', () => markOrdered(key, { orderId: payload?.id, at: placedAt, now }), { order: payload?.id });
+  }
+
+  const candidates = mine || (await allRecs()).filter((rec) => sameShopper(keys, shopperKeys(rec)));
+  const stopped = [];
+  for (const stale of candidates) {
+    /*
+     * RE-READ every row. The attribution above may have just stamped
+     * `recovered` on this very one, and relabelling that would cost the order
+     * its recovery, its gift tag and the owner's alert.
+     */
+    const rec = await getRec(stale.checkoutId);
+    if (!rec) continue;
+    // `waiting-window` is the one outcome that is NOT terminal: onWindowOpen
+    // still delivers from it the moment the customer writes in.
+    if (rec.outcome && rec.outcome !== 'waiting-window') continue;
+    if (rec.finalSentAt) continue; // both messages have gone, nothing is pending
+    /*
+     * The code has closed, so every send path already refuses this row on its
+     * own. Relabelling it would only tell the digest a different story about a
+     * sequence that ended days ago. A row with no codeEndsAt has not sent
+     * message 1 yet, and that is the one that most needs stopping.
+     */
+    if (rec.codeEndsAt && new Date(rec.codeEndsAt).getTime() <= placedAt.getTime()) continue;
+
+    const id = rec.checkoutId;
+    // patchRec rather than setOutcome, precisely so the `waiting-window` label
+    // above can be overwritten; setOutcome would leave the park live.
+    await patchRec(id, {
+      outcome: 'already-ordered',
+      outcomeAt: now.toISOString(),
+      stoppedByOrder: String(payload?.id ?? ''),
+    });
+    await soft('cartCancelFinalOnOrdered', () => cancelTimer({ flow: 'R', orderId: String(id), step: 'final' }), { checkoutId: id });
+    // The park is what onWindowOpen reads first, so clearing it is the stop.
+    if (rec.phone) await soft('cartClearParkOnOrdered', () => clearParked(rec.phone), { checkoutId: id });
+    stopped.push(id);
+  }
+  if (stopped.length) {
+    log.info('cart: this customer ordered, every pending recovery message stopped', {
+      order: payload?.name || payload?.id, stopped,
+    });
+    metric('CartStoppedByOrder', stopped.length);
+  }
+  return { stopped };
+}
+
+/**
+ * An order arrived from a recovery message: record it, tag it, pay the gift.
+ * Keyed on the phone lock, which is the only row that can say "this order came
+ * back from the message WE sent".
+ */
+async function attributeToRecovery(payload, deps, mine = null) {
+  const now = nowOf(deps);
+  /*
+   * THE PHONE LOCK FIRST, because it is the strongest statement available:
+   * that number holds the 30 day lease, so this is the cart we messaged.
+   *
+   * THEN THE IDENTITY MATCH, which is what was missing. Order #1239 on
+   * 31 Oct 2026 was a real recovery, placed 56 minutes after the message and
+   * carrying its code MORPAANKHVIP43, and it was never recognised: it went
+   * through Shopify's own checkout so it carried NO _otpVerifiedPhoneNumber,
+   * and COD King had minted a SECOND customer record for the same person, so
+   * even the customer id differed from the one on the cart. Nothing was
+   * tagged and the gift that message promised was never flagged to whoever
+   * packs the parcel. Only the shipping phone linked the two.
+   */
   const phone = verifiedPhoneFromNoteAttributes(payload?.note_attributes);
-  if (!phone) return;
-  const lock = await getPhoneLock(phone);
-  if (!lock?.checkoutId) return;
-  const checkoutId = lock.checkoutId;
-  const rec = await getRec(checkoutId);
+  const lock = phone ? await getPhoneLock(phone) : null;
+  let rec = lock?.checkoutId ? await getRec(lock.checkoutId) : null;
+  if (!rec?.firstSentAt) {
+    const candidates = (mine || (await allRecs()).filter((row) => sameShopper(shopperKeys(payload), shopperKeys(row))))
+      .filter((row) => row.firstSentAt)
+      .sort((x, y) => new Date(y.firstSentAt).getTime() - new Date(x.firstSentAt).getTime());
+    [rec] = candidates;
+  }
   if (!rec?.firstSentAt) return;
+  const checkoutId = rec.checkoutId;
   if (rec.orderId) return; // already attributed
 
   const placedAt = new Date(payload.created_at || now);

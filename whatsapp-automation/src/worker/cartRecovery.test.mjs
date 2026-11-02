@@ -30,8 +30,12 @@ function checkout(over = {}) {
       { key: '_otpVerifiedPhoneNumber', value: '919637361371' },
       { key: '_codkAmountType', value: 'cod' },
     ],
-    customer: { id: 'gid://shopify/Customer/25164544835956', firstName: 'Bharti' },
-    shippingAddress: { firstName: 'Bharti' },
+    customer: {
+      id: 'gid://shopify/Customer/25164544835956',
+      firstName: 'Bharti',
+      defaultEmailAddress: { emailAddress: 'bharti@example.com' },
+    },
+    shippingAddress: { firstName: 'Bharti', phone: '+919637361371' },
     lineItems: {
       nodes: [
         {
@@ -576,6 +580,255 @@ describe('an order that came back', () => {
     clients.shopify.calls.length = 0;
     await R.onOrderCreated(orderPayload({ note_attributes: [{ name: '_otpVerifiedPhoneNumber', value: '919000000000' }] }), deps);
     expect(tagsAdded(clients.shopify)).toHaveLength(0);
+  });
+});
+
+/*
+ * ORDERED, SO STOP. The bug this answers: a shopper abandoned a COD cart, came
+ * back and paid online, and still got the rest of the sequence. Flow R
+ * recognised a returning shopper by the Shopify customer id or by COD King's
+ * _otpVerifiedPhoneNumber repeated on the order, and a prepaid order placed in
+ * Shopify's own checkout carries neither.
+ */
+describe('a customer who has already ordered', () => {
+  // A PREPAID order through Shopify's own checkout: no COD King attribute
+  // anywhere, which is precisely the shape that used to match nothing.
+  const prepaidOrder = (over = {}) => ({
+    id: 777001,
+    name: '#1301',
+    created_at: '2026-10-12T06:30:00Z', // after the checkout, before message 1
+    note_attributes: [],
+    discount_codes: [],
+    ...over,
+  });
+
+  it('message 1 is not sent when the order is a second older than the cart record', async () => {
+    /*
+     * THE MEASURED PRODUCTION FAILURE, 30 and 31 Oct 2026, three times.
+     *
+     * A captured cart's createdAt is its `capturedAt`, and Shopify stamps the
+     * checkout one last time as the order completes, so the capture was
+     * refreshed ONE SECOND AFTER the order existed:
+     *
+     *   #1234 created 09:55:02Z, capturedAt 09:55:03.116Z, messaged 10:17
+     *   #1238 created 11:58:28Z, capturedAt 11:58:28.888Z, messaged 12:22
+     *   #1236 created 19:21:51Z, capturedAt 19:21:51.743Z, messaged 04:02 next
+     *           day, and the reminder went out 24 hours after that
+     *
+     * The guard asked Shopify for orders `created_at >= capturedAt`, so the
+     * order that caused the capture was a second outside its own query. Every
+     * one of those three rows had a customerGid that would have matched: the
+     * window was the whole bug, not the matching.
+     */
+    const { clients, deps } = setup({ cart: checkout({ createdAt: '2026-10-12T06:00:01Z' }) });
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/777004',
+      name: '#1234',
+      createdAt: '2026-10-12T06:00:00Z',
+      customAttributes: [{ key: '_otpVerifiedPhoneNumber', value: '919637361371' }],
+      customer: { id: 'gid://shopify/Customer/25164544835956' },
+    });
+
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect(await getRec(CHECKOUT_ID)).toMatchObject({ outcome: 'already-ordered' });
+    expect(templates(clients.whatsapp)).toHaveLength(0);
+
+    // The window itself, which is the fix: it reaches back past the cart row.
+    const asked = clients.shopify.calls.find((c) => c.op === 'ordersCreatedSince');
+    expect(new Date(asked.sinceISO).getTime()).toBeLessThan(new Date('2026-10-12T06:00:00Z').getTime());
+  });
+
+  it('message 1 is not sent when the order carries only an email', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/777001',
+      name: '#1301',
+      createdAt: '2026-10-12T06:30:00Z',
+      email: '  BHARTI@Example.COM ',
+      customer: null,
+    });
+
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect(await getRec(CHECKOUT_ID)).toMatchObject({ outcome: 'already-ordered' });
+    expect(templates(clients.whatsapp)).toHaveLength(0);
+    expect(await getPhoneLock(PHONE)).toBe(null);
+    expect(discounts(clients.shopify)).toHaveLength(0);
+  });
+
+  it('message 1 is not sent for an order from a different checkout and device', async () => {
+    /*
+     * Nothing links this order to the cart but the number on the shipping
+     * address: a different cart token, a guest checkout with no customer
+     * record, and no OTP attribute.
+     */
+    const { clients, deps } = setup();
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/777002',
+      name: '#1302',
+      createdAt: '2026-10-12T06:30:00Z',
+      customer: null,
+      shippingAddress: { phone: '+919637361371' },
+    });
+
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect(await getRec(CHECKOUT_ID)).toMatchObject({ outcome: 'already-ordered' });
+    expect(templates(clients.whatsapp)).toHaveLength(0);
+  });
+
+  it('matches a number typed in any format, including a leading zero', async () => {
+    for (const written of ['0 96373 61371', '+91-96373-61371', '919637361371', '96373-61371']) {
+      _resetMemory();
+      const { clients, deps } = setup();
+      clients.shopify.seed({
+        id: 'gid://shopify/Order/777003',
+        name: '#1303',
+        createdAt: '2026-10-12T06:30:00Z',
+        customer: null,
+        phone: written,
+      });
+      await R.onFirst(CHECKOUT_ID, deps);
+      expect((await getRec(CHECKOUT_ID)).outcome, `order phone written as ${written}`).toBe('already-ordered');
+      expect(templates(clients.whatsapp)).toHaveLength(0);
+    }
+  });
+
+  it('a prepaid order between the two messages cancels the reminder on the spot', async () => {
+    /*
+     * No _otpVerifiedPhoneNumber anywhere on this order, so before the fix it
+     * reached neither half of the handler: not attributed, and not stopped.
+     * It is now recognised as the recovery it is, which also cancels.
+     */
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const rec = await getRec(CHECKOUT_ID);
+    expect(timerNames()).toContain(`R-${CHECKOUT_ID}-final`);
+
+    // The customer id arrives as a REST number, not a gid.
+    await R.onOrderCreated(
+      prepaidOrder({ created_at: '2026-10-12T07:30:00Z', customer: { id: 25164544835956 } }),
+      { ...deps, now: new Date('2026-10-12T07:30:00Z') },
+    );
+
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('recovered');
+    expect(timerNames()).not.toContain(`R-${CHECKOUT_ID}-final`);
+    // And the reminder refuses even if its timer somehow still fires.
+    expect(await R.onFinal(CHECKOUT_ID, { ...deps, now: new Date(rec.reminderAt) }))
+      .toMatchObject({ skipped: 'outcome-recovered' });
+    expect(templates(clients.whatsapp)).not.toContain('cart_final_v1');
+  });
+
+  it('stops a sequence for an order placed while message 1 was in flight', async () => {
+    /*
+     * The order predates firstSentAt, so it cannot be a recovery and
+     * attribution rightly declines it. Somebody still has to stop the
+     * reminder, and before the fix nobody did.
+     */
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect(timerNames()).toContain(`R-${CHECKOUT_ID}-final`);
+    const rec = await getRec(CHECKOUT_ID);
+
+    await R.onOrderCreated(prepaidOrder({ created_at: '2026-10-12T06:20:00Z', phone: '9637361371' }), deps);
+
+    const after = await getRec(CHECKOUT_ID);
+    expect(after.outcome).toBe('already-ordered');
+    expect(after.stoppedByOrder).toBe('777001');
+    expect(after.orderId).toBeUndefined(); // not claimed as a recovery
+    expect(timerNames()).not.toContain(`R-${CHECKOUT_ID}-final`);
+    expect(await R.onFinal(CHECKOUT_ID, { ...deps, now: new Date(rec.reminderAt) }))
+      .toMatchObject({ skipped: 'outcome-already-ordered' });
+    expect(templates(clients.whatsapp)).not.toContain('cart_final_v1');
+  });
+
+  it('attributes a prepaid recovery the OTP attribute could never have matched', async () => {
+    /*
+     * ORDER #1239, 31 Oct 2026, reproduced. A real recovery: our code applied,
+     * 56 minutes after the message, through Shopify's own checkout so no OTP
+     * attribute, and COD King had minted a SECOND customer record for the same
+     * person so the customer id differed too. Only the shipping phone linked
+     * them, and nothing was tagged: the gift we promised was never flagged.
+     */
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const rec = await getRec(CHECKOUT_ID);
+
+    await R.onOrderCreated(
+      prepaidOrder({
+        created_at: '2026-10-12T07:26:00Z',
+        customer: { id: 25277029941620 }, // a different record for the same person
+        shipping_address: { phone: '+91 96373 61371' },
+        discount_codes: [{ code: rec.code }],
+      }),
+      { ...deps, now: new Date('2026-10-12T07:26:00Z') },
+    );
+
+    expect(await getRec(CHECKOUT_ID)).toMatchObject({ outcome: 'recovered', codeUsed: true });
+    expect(tagsAdded(clients.shopify)).toEqual(expect.arrayContaining(['wa-cart-recovered', 'gift-in-parcel']));
+  });
+
+  it('an order placed before message 1 ever went out stops the sequence too', async () => {
+    /*
+     * THE RACE. The order webhook can arrive before the sweep has even started
+     * the sequence, so there is no phone lock and no firstSentAt to hang the
+     * stop on. The REC row carries the stop instead, and onFirst refuses on it.
+     */
+    const { clients, deps } = setup();
+    await R.onOrderCreated(prepaidOrder({ customer: { id: 25164544835956 } }), deps);
+    expect(templates(clients.whatsapp)).toHaveLength(0);
+
+    // Now the sweep gets round to it, with Shopify not yet listing the order.
+    const blind = makeFakeClients();
+    blind.shopify.seedCheckout(checkout());
+    await R.onFirst(CHECKOUT_ID, { clients: blind, now: NOW });
+    expect(templates(blind.whatsapp)).toHaveLength(0);
+    expect(discounts(blind.shopify)).toHaveLength(0);
+  });
+
+  it('releases a checkout parked for a service window', async () => {
+    const { clients, deps } = setup({ whatsapp: { failTemplateWith: 131049 } });
+    await R.onFirst(CHECKOUT_ID, deps);
+    expect(await getParked(PHONE)).toBeTruthy();
+
+    await R.onOrderCreated(prepaidOrder({ created_at: '2026-10-12T07:30:00Z', phone: '9637361371' }), deps);
+    expect(await getParked(PHONE)).toBe(null);
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('already-ordered');
+
+    // The customer writing in can no longer deliver it.
+    const later = new Date(NOW.getTime() + 60 * 60 * 1000);
+    await touchInbound(PHONE, later);
+    await R.onWindowOpen(PHONE, { clients, now: later });
+    expect(templates(clients.whatsapp).filter((n) => n.startsWith('cart_'))).toHaveLength(0);
+  });
+
+  it('somebody else ordering does not stop a pending sequence', async () => {
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    await R.onOrderCreated(
+      prepaidOrder({ id: 777009, phone: '+919000000001', email: 'someone@else.com', customer: { id: 999 } }),
+      deps,
+    );
+    const after = await getRec(CHECKOUT_ID);
+    expect(after.outcome).toBeUndefined();
+    expect(timerNames()).toContain(`R-${CHECKOUT_ID}-final`);
+    expect(await R.onFinal(CHECKOUT_ID, { ...deps, now: new Date(after.reminderAt) })).toMatchObject({ sent: true });
+  });
+
+  it('a recovered order keeps its attribution and is not relabelled', async () => {
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const rec = await getRec(CHECKOUT_ID);
+    await R.onOrderCreated(
+      {
+        id: 5551212,
+        name: '#1201',
+        created_at: '2026-10-12T09:00:00Z',
+        note_attributes: [{ name: '_otpVerifiedPhoneNumber', value: '919637361371' }],
+        discount_codes: [{ code: rec.code }],
+      },
+      deps,
+    );
+    expect((await getRec(CHECKOUT_ID)).outcome).toBe('recovered');
+    expect(tagsAdded(clients.shopify)).toEqual(expect.arrayContaining(['wa-cart-recovered', 'gift-in-parcel']));
   });
 });
 

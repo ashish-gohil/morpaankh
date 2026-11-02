@@ -743,9 +743,15 @@ const CHECKOUT_FIELDS = `
   totalPriceSet { shopMoney { amount } }
   totalDiscountSet { shopMoney { amount } }
   customAttributes { key value }
-  customer { id firstName }
-  shippingAddress { firstName }
-  billingAddress { firstName }
+  /*
+   * The contact details are here for ONE reason: shopperKeys() matches this
+   * checkout against orders placed since, and an order that did not go through
+   * COD King's popup carries no _otpVerifiedPhoneNumber to match on. Read for
+   * suppression only, never used to address a message (hard rule 1).
+   */
+  customer { id firstName defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+  shippingAddress { firstName phone }
+  billingAddress { firstName phone }
   lineItems(first: 50) {
     nodes {
       title
@@ -850,8 +856,11 @@ async function ordersCreatedSince(sinceISO) {
          orders(first: 100, after: $after, query: $q, sortKey: CREATED_AT, reverse: true){
            edges { cursor node {
              id name createdAt discountCodes
+             email phone
              customAttributes { key value }
-             customer { id }
+             customer { id defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+             shippingAddress { phone }
+             billingAddress { phone }
              totalPriceSet { shopMoney { amount } }
            } } pageInfo { hasNextPage endCursor }
          } }`,

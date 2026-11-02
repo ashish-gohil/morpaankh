@@ -7,7 +7,7 @@
  * them, and they are converted once, on the way in.
  */
 import { toPaise } from '../lib/money.mjs';
-import { verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
+import { verifiedPhoneFromCustomAttributes, VERIFIED_KEY } from '../lib/phone.mjs';
 import { liveLineItems } from './order.mjs';
 import { afterStart } from './eligibility.mjs';
 import { istParts, fromISTWall, addHours, addMinutes, withinWindow, nextWindowTime, formatISTDate } from '../lib/time.mjs';
@@ -61,7 +61,104 @@ export function normalizeCheckout(c) {
     codkAmountType: attrs._codkAmountType || null,
     codkAmountValue: attrs._codkAmountValue || null,
     attrs,
+    // Every way this shopper can be recognised on an order placed later.
+    keys: shopperKeys(c),
   };
+}
+
+/*
+ * WHO THIS BAG BELONGS TO, so an order placed from any checkout, device or
+ * gateway can be matched back to it.
+ *
+ * This exists because Flow R used to recognise a returning shopper by two
+ * things only: the same Shopify customer id, or COD King's
+ * _otpVerifiedPhoneNumber repeated on the order. An order that never went
+ * through COD King's popup carries neither, so a shopper who abandoned a COD
+ * cart and then paid online was invisible and kept getting the recovery
+ * messages.
+ *
+ * READ, NEVER SENT TO. Hard rule 1 (lib/phone.mjs) says the recipient is the
+ * OTP-verified number and nothing else, and that is untouched: these keys
+ * decide only whether to STAY SILENT. A loose match here refuses a message; it
+ * can never address one.
+ */
+
+/** Last ten digits, when they look like an Indian mobile. Matching only. */
+export function phoneKey(raw) {
+  const ten = String(raw ?? '').replace(/\D/g, '').slice(-10);
+  return /^[6-9]\d{9}$/.test(ten) ? ten : null;
+}
+
+/** Lower-cased, trimmed, and only if it is shaped like an address at all. */
+export function emailKey(raw) {
+  const e = String(raw ?? '').trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : null;
+}
+
+/** 25164544835956 from either a gid or a REST numeric id. */
+export const idTail = (id) => {
+  const tail = String(id ?? '').split('/').pop();
+  return /^\d+$/.test(tail || '') ? tail : null;
+};
+
+const uniq = (list) => Array.from(new Set(list.filter(Boolean)));
+
+/**
+ * The identity keys of ANY of the four shapes this service holds a shopper in:
+ * an Admin API node (camelCase), a REST webhook payload (snake_case), a
+ * normalized checkout, or a Flow R REC row.
+ *
+ * One tolerant collector reading every spelling, rather than four readers that
+ * drift: a field a given shape does not have is simply one fewer key to match
+ * on, which is exactly the right behaviour.
+ *
+ * @param {any} src
+ * @returns {{phones: string[], emails: string[], customerId: string|null}}
+ */
+export function shopperKeys(src) {
+  if (!src || typeof src !== 'object') return { phones: [], emails: [], customerId: null };
+  const a = attrMap([...(src.customAttributes || []), ...(src.note_attributes || [])]);
+  return {
+    phones: uniq([
+      a[VERIFIED_KEY], src.verifiedPhone, src.phone,
+      src.customer?.phone, src.customer?.defaultPhoneNumber?.phoneNumber,
+      src.shippingAddress?.phone, src.shipping_address?.phone,
+      src.billingAddress?.phone, src.billing_address?.phone,
+    ].map(phoneKey)),
+    emails: uniq([
+      src.email, src.contact_email,
+      src.customer?.email, src.customer?.defaultEmailAddress?.emailAddress,
+    ].map(emailKey)),
+    customerId: idTail(src.customer?.id ?? src.customerGid) || null,
+  };
+}
+
+/**
+ * The same identity as a flat list of storage keys, prefixed by kind so a
+ * phone can never collide with a customer id.
+ * @param {{phones: string[], emails: string[], customerId: string|null}} k
+ */
+export const identityKeys = (k) => [
+  ...k.phones.map((ph) => `p:${ph}`),
+  ...k.emails.map((e) => `e:${e}`),
+  ...(k.customerId ? [`c:${k.customerId}`] : []),
+];
+
+/**
+ * Do these two key sets name the same person?
+ *
+ * Any one key in common is enough. The cost of a false match is one recovery
+ * message not sent; the cost of a miss is messaging somebody who has already
+ * paid, which is the bug this answers.
+ *
+ * @param {{phones: string[], emails: string[], customerId: string|null}} a
+ * @param {{phones: string[], emails: string[], customerId: string|null}} b
+ */
+export function sameShopper(a, b) {
+  if (!a || !b) return false;
+  if (a.customerId && a.customerId === b.customerId) return true;
+  if (a.phones.some((p) => b.phones.includes(p))) return true;
+  return a.emails.some((e) => b.emails.includes(e));
 }
 
 /**
