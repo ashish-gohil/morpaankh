@@ -19,6 +19,7 @@
 import { makeIngest } from './base.mjs';
 import { verifyShopify } from '../lib/signature.mjs';
 import { config } from '../config.mjs';
+import { log } from '../log.mjs';
 
 function orderIdFor(topic, body) {
   if (topic.startsWith('orders/')) return body.id;
@@ -52,7 +53,13 @@ export const shopifyIngest = {
     }
 
     const orderId = orderIdFor(topic, body);
-    if (!orderId) return [];
+    if (!orderId) {
+      // Never observed, and that is exactly why it is logged: a dropped order
+      // webhook is a customer who hears nothing, and this was the one place in
+      // the chain that could discard one without saying so.
+      log.warn('shopify ingest: order webhook carried no order id, dropped', { topic, reason: 'no-order-id' });
+      return [];
+    }
     const dedupId = h['x-shopify-webhook-id'] || `${topic}:${orderId}:${body.updated_at || ''}`;
     return [
       {

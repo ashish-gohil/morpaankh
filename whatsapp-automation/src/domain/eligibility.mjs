@@ -25,11 +25,15 @@ export function afterStart(n, startAt) {
 /**
  * Flow A order-level eligibility. cls is the STORED classification.
  *
- * Every known class qualifies. Only COD gets the confirm-and-convert chase;
- * PREPAID and PARTIAL get a plain order confirmation, which is why they are no
- * longer rejected here. Before this they were, so a customer who paid online at
- * checkout received nothing at all. UNKNOWN still gets no message, because we
- * cannot say anything true about an order we cannot read.
+ * EVERY class qualifies, UNKNOWN included. Only COD gets the confirm-and-convert
+ * chase; PREPAID, PARTIAL and UNKNOWN get a plain order confirmation, which
+ * names the items, the total and the packing team and promises nothing about
+ * payment. PREPAID and PARTIAL were rejected here once, so a customer who paid
+ * online received nothing; UNKNOWN was rejected until 2026-11-02, so an order
+ * whose gateway we could not read received nothing either (#1175, #1239).
+ *
+ * The class list is kept rather than dropped so a class name added later has to
+ * be considered here instead of silently inheriting a confirmation.
  *
  * @param {any} n @param {string} cls @param {{startAt?: string, orderAllowlist?: string[]}} [opts]
  * @returns {{ok:boolean, reason?:string}}
@@ -37,7 +41,7 @@ export function afterStart(n, startAt) {
 export function flowAEligible(n, cls, { startAt, orderAllowlist = [] } = {}) {
   const ex = excludeFromAll(n, { orderAllowlist });
   if (ex.excluded) return { ok: false, reason: ex.reason };
-  if (!['COD', 'PREPAID', 'PARTIAL'].includes(cls)) return { ok: false, reason: `class-${cls}` };
+  if (!['COD', 'PREPAID', 'PARTIAL', 'UNKNOWN'].includes(cls)) return { ok: false, reason: `class-${cls}` };
   if (!afterStart(n, startAt)) return { ok: false, reason: 'before-startAt' };
   return { ok: true };
 }

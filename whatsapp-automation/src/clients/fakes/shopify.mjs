@@ -10,6 +10,7 @@ export function makeFakeShopify({
   takenCodes = [],
   shipping = {},
   shippingScopeProblem = false,
+  phonesScopeProblem = false,
 } = {}) {
   const store = new Map(Object.entries(orders));
   const carts = new Map(Object.entries(checkouts));
@@ -31,6 +32,29 @@ export function makeFakeShopify({
     async getOrderByName(name) {
       const want = `#${String(name || '').trim().replace(/^#/, '')}`;
       return [...store.values()].find((o) => o.name === want) || null;
+    },
+    /*
+     * The phone fields alone, the same shape the real client returns.
+     *
+     * Answers from the SEEDED ORDER's own phone fields, which is what makes a
+     * test able to describe an order with a shipping phone and no OTP number.
+     * The real ORDER_FIELDS does not select these, so a flow can only reach
+     * them through this call, exactly as in production.
+     */
+    async getOrderPhones(idOrGid) {
+      calls.push({ op: 'getOrderPhones', idOrGid });
+      if (phonesScopeProblem) {
+        return { scopeProblem: true, order: null, shipping: null, billing: null, customer: null };
+      }
+      const o = store.get(gidOf(idOrGid)) || store.get(String(idOrGid));
+      if (!o) return null;
+      return {
+        scopeProblem: false,
+        order: o.phone || null,
+        shipping: o.shippingAddress?.phone || null,
+        billing: o.billingAddress?.phone || null,
+        customer: o.customer?.defaultPhoneNumber?.phoneNumber || null,
+      };
     },
     /*
      * Seed with makeFakeClients({ shopify: { shipping: { '12345': { address: {...}, lines: [...] } } } }).
@@ -143,8 +167,12 @@ export function makeFakeShopify({
     async ensureWebhooks() {
       return [];
     },
-    async ordersUpdatedSince() {
-      return [...store.values()].map((o) => ({ id: o.id, tags: o.tags }));
+    // `createdAt` as well as id + tags, exactly what the real one selects. Its
+    // absence meant the reconcile sweep's own startAt check could never pass
+    // against this fake, so no test could reach the re-arm.
+    async ordersUpdatedSince(sinceISO) {
+      calls.push({ op: 'ordersUpdatedSince', sinceISO });
+      return [...store.values()].map((o) => ({ id: o.id, createdAt: o.createdAt, tags: o.tags }));
     },
 
     // ---- Flow R ----------------------------------------------------------

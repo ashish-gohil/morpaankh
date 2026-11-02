@@ -86,13 +86,30 @@ describe('orders nobody messaged', () => {
     // An order that can never be confirmed (no verified phone, unreadable class)
     // would otherwise be re-enqueued every hour for as long as it exists.
     orders = [order('888', hoursAgo(5))];
+    // An hour apart, because the sweep now runs every 10 minutes and spaces its
+    // RETRIES an hour apart: three tries must still mean three hours, not half
+    // an hour, or one Shopify outage would spend every order's budget at once.
     for (let i = 0; i < 3; i += 1) {
-      expect((await sweepUnconfirmed(NOW)).requeued).toEqual(['888']);
+      const at = new Date(NOW.getTime() + i * 60 * 60000);
+      expect((await sweepUnconfirmed(at)).requeued).toEqual(['888']);
     }
-    const out = await sweepUnconfirmed(NOW);
+    const out = await sweepUnconfirmed(new Date(NOW.getTime() + 3 * 60 * 60000));
     expect(out.requeued).toEqual([]);
     expect(out.stuck).toEqual(['888']);
     expect((await getState('888')).flowA.sweepTries).toBe(3);
+  });
+
+  it('a ten minute sweep does not spend the retry budget in half an hour', async () => {
+    orders = [order('889', hoursAgo(5))];
+    expect((await sweepUnconfirmed(NOW)).requeued).toEqual(['889']);
+    // The next five sweeps are ten minutes apart: all of them leave it alone.
+    for (let i = 1; i <= 5; i += 1) {
+      const at = new Date(NOW.getTime() + i * 10 * 60000);
+      expect((await sweepUnconfirmed(at)).requeued).toEqual([]);
+    }
+    expect((await getState('889')).flowA.sweepTries).toBe(1);
+    // An hour after the first try it is eligible again.
+    expect((await sweepUnconfirmed(new Date(NOW.getTime() + 56 * 60000))).requeued).toEqual(['889']);
   });
 
   it('does nothing at all while Flow A is off', async () => {

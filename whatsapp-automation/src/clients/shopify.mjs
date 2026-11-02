@@ -199,6 +199,51 @@ async function getShippingDetails(numericOrGid) {
   };
 }
 
+/*
+ * Every phone field an order carries, and nothing else.
+ *
+ * Its own query on purpose. ORDER_FIELDS is on the hot path of every flow,
+ * every poll and every reconcile pass, and a phone number is protected
+ * customer data: widening the shared fragment would put one into the response
+ * of every order read the service makes, including the ones that only wanted a
+ * status. This is called ONLY when the order has no COD King OTP number, which
+ * is about one order in seven.
+ *
+ * Returns nulls rather than throwing when the app has no protected-customer-data
+ * approval, for the same reason getShippingDetails does: the caller's answer to
+ * "no number" is already a reason code, not an error.
+ */
+async function getOrderPhones(numericOrGid) {
+  const id = String(numericOrGid).startsWith('gid://') ? numericOrGid : `gid://shopify/Order/${numericOrGid}`;
+  const query = `query OrderPhones($id: ID!){
+    order(id:$id){
+      id
+      phone
+      shippingAddress { phone }
+      billingAddress { phone }
+      customer { id defaultPhoneNumber { phoneNumber } }
+    }
+  }`;
+  let data;
+  try {
+    data = await graphql(query, { id }, { idempotent: true });
+  } catch (e) {
+    if (/access denied|not approved|protected customer data|unauthorized/i.test(e.message || '')) {
+      return { scopeProblem: true, order: null, shipping: null, billing: null, customer: null };
+    }
+    throw e;
+  }
+  const o = data.order;
+  if (!o) return null;
+  return {
+    scopeProblem: false,
+    order: o.phone || null,
+    shipping: o.shippingAddress?.phone || null,
+    billing: o.billingAddress?.phone || null,
+    customer: o.customer?.defaultPhoneNumber?.phoneNumber || null,
+  };
+}
+
 /** Orders updated on/after sinceISO (id + createdAt + tags). Used by digest + reconcile. */
 async function ordersUpdatedSince(sinceISO) {
   const out = [];
@@ -1267,6 +1312,7 @@ export const shopify = {
   appendProductReview,
   createDiscountCode,
   ensureWebhooks,
+  getOrderPhones,
   getAbandonedCheckout,
   listAbandonedCheckouts,
   ordersCreatedSince,

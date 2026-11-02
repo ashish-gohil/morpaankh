@@ -58,9 +58,43 @@ describe('classify', () => {
     const n = normalizeOrder(codOrder({ displayFinancialStatus: 'PARTIALLY_PAID' }));
     expect(classify(n)).toBe('PARTIAL');
   });
-  it('UNKNOWN when nothing matches', () => {
-    const n = normalizeOrder(codOrder({ displayFinancialStatus: 'AUTHORIZED', paymentGatewayNames: ['Cashfree'], customAttributes: [] }));
+  it('UNKNOWN only when nothing says how they are paying', () => {
+    // No COD gateway, no Cash on Delivery shipping line, no COD King attribute,
+    // and nothing collected. This is the shape of an order created by an app or
+    // by the API before a payment is chosen.
+    const n = normalizeOrder(codOrder({
+      displayFinancialStatus: 'AUTHORIZED',
+      paymentGatewayNames: [],
+      customAttributes: [],
+      shippingLines: { nodes: [{ title: 'Standard', originalPriceSet: { shopMoney: { amount: '0.00' } } }] },
+    }));
     expect(classify(n)).toBe('UNKNOWN');
+  });
+
+  /*
+   * The four shapes that used to fall through to UNKNOWN and get no message at
+   * all. Each one is a real order from the last 30 days.
+   */
+  it('COD without COD King: a recovery link order (#1239)', () => {
+    const n = normalizeOrder(codOrder({ customAttributes: [] }));
+    expect(n.verifiedPhone).toBe(null);
+    expect(classify(n)).toBe('COD');
+  });
+  it('COD on the "manual" gateway: an admin order (#1188)', () => {
+    const n = normalizeOrder(codOrder({ paymentGatewayNames: ['manual'] }));
+    expect(classify(n)).toBe('COD');
+  });
+  it('COD from the shipping line alone, whatever the gateway says', () => {
+    const n = normalizeOrder(codOrder({ paymentGatewayNames: [], customAttributes: [] }));
+    expect(n.codShippingLine).toBe(true);
+    expect(classify(n)).toBe('COD');
+  });
+  it('a COD order with money already collected is not COD any more', () => {
+    const n = normalizeOrder(codOrder({
+      displayFinancialStatus: 'PAID',
+      netPaymentSet: { shopMoney: { amount: '1499.00' } },
+    }));
+    expect(classify(n)).toBe('PREPAID');
   });
 });
 
@@ -105,12 +139,14 @@ describe('eligibility', () => {
     expect(excludeFromAll(normalizeOrder(codOrder({ test: true }))).excluded).toBe(true);
     expect(excludeFromAll(normalizeOrder(codOrder({ test: true })), { orderAllowlist: ['12345'] }).excluded).toBe(false);
   });
-  it('rejects only UNKNOWN classes and pre-startAt', () => {
-    // PREPAID and PARTIAL qualify now: they get a plain confirmation, not the
-    // COD chase. Only an order we could not classify is left alone.
+  it('rejects only an unrecognised class and pre-startAt', () => {
+    // PREPAID, PARTIAL and UNKNOWN all qualify: they get a plain confirmation,
+    // not the COD chase. UNKNOWN was rejected here until 2026-11-02, which is
+    // what left four orders with no message of any kind.
     expect(flowAEligible(normalizeOrder(codOrder()), 'PARTIAL', { startAt }).ok).toBe(true);
     expect(flowAEligible(normalizeOrder(codOrder()), 'PREPAID', { startAt }).ok).toBe(true);
-    expect(flowAEligible(normalizeOrder(codOrder()), 'UNKNOWN', { startAt }).reason).toBe('class-UNKNOWN');
+    expect(flowAEligible(normalizeOrder(codOrder()), 'UNKNOWN', { startAt }).ok).toBe(true);
+    expect(flowAEligible(normalizeOrder(codOrder()), 'SOMETHING-NEW', { startAt }).reason).toBe('class-SOMETHING-NEW');
     expect(flowAEligible(normalizeOrder(codOrder()), 'COD', { startAt: '2026-12-01T00:00:00Z' }).reason).toBe('before-startAt');
     expect(flowAEligible(normalizeOrder(codOrder()), 'COD', {}).reason).toBe('before-startAt'); // no startAt => nothing qualifies
   });

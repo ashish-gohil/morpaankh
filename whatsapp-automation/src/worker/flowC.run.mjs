@@ -41,7 +41,10 @@ export async function onNdr(orderId, deps) {
   if (flowCOff('onNdr', orderId)) return;
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
-  if (!n || n.cancelledAt || !n.verifiedPhone) return;
+  if (!n || n.cancelledAt || !n.verifiedPhone) {
+    log.info('flowC ndr: not sent', { orderId, reason: !n ? 'order-unreadable' : n.cancelledAt ? 'cancelled' : 'no-phone-anywhere' });
+    return;
+  }
   // Flow C had NO opt-out check anywhere, while A and B both honour it, so a
   // customer who had sent STOP still received NDR and RTO templates. Opt-out is
   // a hard guardrail, not a per-flow preference.

@@ -376,8 +376,16 @@ class WaAutomationStack extends cdk.Stack {
     // to be found in minutes, not at 02:30 the next morning: the message says
     // "your order is confirmed, reply to cancel", and a day late it is worthless.
     // Nightly was the only pass before, and it did not look at orders at all.
+    /*
+     * Every 10 minutes, not hourly. A missed webhook used to mean the customer
+     * waited up to an hour for the confirmation of an order they had just
+     * placed, which is worth almost nothing by the time it lands. The sweep
+     * itself only re-arms orders with neither a confirmation nor a recorded
+     * skip, and RETRY_SPACING_MINUTES keeps each order's retry budget on the
+     * same hourly footing it had before.
+     */
     new events.Rule(this, 'ReconcileOrdersRule', {
-      schedule: events.Schedule.expression('cron(15 * * * ? *)'),
+      schedule: events.Schedule.rate(Duration.minutes(10)),
       targets: [new targets.LambdaFunction(reconcileFn, { event: events.RuleTargetInput.fromObject({ mode: 'orders' }) })],
     });
     /*

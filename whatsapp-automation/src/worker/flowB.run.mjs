@@ -101,7 +101,10 @@ export async function onDelivered(orderId, deliveredAt, deps) {
   const n = await getNorm(deps, orderId);
   const skip = reviewSkipReason(n);
   if (skip) return log.info('flowB: skip review ask', { orderId, skip });
-  if (!n.verifiedPhone) return;
+  if (!n.verifiedPhone) {
+    log.info('flowB: no recipient on this order, nothing sent', { orderId, reason: 'no-phone-anywhere' });
+    return;
+  }
   const st = await getState(orderId);
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed) return;
   // A real delivery OVERRIDES an assumed one. The assumed date is a guess five
@@ -135,7 +138,10 @@ export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
   const n = await getNorm(deps, orderId);
   const skip = reviewSkipReason(n);
   if (skip) return log.info('flowB: skip untracked review schedule', { orderId, skip });
-  if (!n.verifiedPhone) return;
+  if (!n.verifiedPhone) {
+    log.info('flowB: no recipient on this order, nothing sent', { orderId, reason: 'no-phone-anywhere' });
+    return;
+  }
   const st = await getState(orderId);
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed || st?.flowB?.scheduled) return;
 
@@ -153,7 +159,10 @@ export async function onReviewTimer(orderId, deps) {
   if (st?.flowB?.reviewed || st?.flowB?.reviewAsked) return;
   const n = await getNorm(deps, orderId);
   if (reviewSkipReason(n)) return;
-  if (!n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) return;
+  if (!n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) {
+    log.info('flowB review: not sent', { orderId, reason: n.verifiedPhone ? 'opted-out' : 'no-phone-anywhere' });
+    return;
+  }
   if (!(await canAskReview(n.verifiedPhone, now, RULES.reviewAskCapDays))) return;
 
   // Two ways to ask, same message. 'flow' opens the native WhatsApp Flow, which

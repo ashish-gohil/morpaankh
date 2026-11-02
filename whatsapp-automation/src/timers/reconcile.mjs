@@ -36,6 +36,17 @@ const LOOKBACK_HOURS = 36;
 // record five times, so nothing is "late" before this. Sweeping earlier would
 // race the normal path and send twice.
 const GRACE_MINUTES = 20;
+/*
+ * The sweep runs every 10 minutes (ReconcileOrdersRule), so an order that lost
+ * its webhook is confirmed within half an hour instead of within the hour.
+ *
+ * The RETRY spacing is deliberately kept at an hour. MAX_TRIES is a budget for
+ * a transient fault, and a ten minute sweep would otherwise burn all three in
+ * half an hour: a Shopify outage lasting forty minutes would exhaust every
+ * order's tries, raise a stuck alert for each one and then never try again,
+ * which is a worse failure than the one the sweep repairs.
+ */
+const RETRY_SPACING_MINUTES = 55;
 // After this many sweeps an order is not going to fix itself: something about it
 // is permanently unsendable (no verified phone, a class we cannot read). Keep
 // requeueing and we hammer Shopify and the queue forever for an order that can
@@ -87,6 +98,8 @@ export async function sweepUnconfirmed(now = new Date()) {
     if (st?.stoppedAt || st?.cancelledAt) continue; // nothing to tell them
 
     const tries = st?.flowA?.sweepTries || 0;
+    const lastTry = st?.flowA?.sweptAt ? new Date(st.flowA.sweptAt).getTime() : 0;
+    if (lastTry && now.getTime() - lastTry < RETRY_SPACING_MINUTES * 60 * 1000) continue;
     if (tries >= MAX_TRIES) {
       out.stuck.push(orderId);
       // Once per order, ever. The owner gets a name they can act on instead of
@@ -104,7 +117,7 @@ export async function sweepUnconfirmed(now = new Date()) {
       continue;
     }
 
-    await patchFlowA(orderId, { sweepTries: tries + 1 });
+    await patchFlowA(orderId, { sweepTries: tries + 1, sweptAt: now.toISOString() });
     await enqueue(
       { kind: 'timer', flow: 'A', orderId, step: 'cod' },
       { groupId: `order:${orderId}`, dedupId: `sweep-cod-${orderId}-${tries + 1}` },

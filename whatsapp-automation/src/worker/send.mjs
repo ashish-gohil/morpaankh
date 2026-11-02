@@ -4,6 +4,7 @@
  */
 import { config } from '../config.mjs';
 import { normalizeOrder } from '../domain/order.mjs';
+import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
@@ -65,9 +66,54 @@ const WINDOW_DELIVERABLE = new Set([131049, 130472]);
  */
 export const isWindowDeliverable = (code) => WINDOW_DELIVERABLE.has(Number(code));
 
+/*
+ * THE ONE ORDER INTAKE. Every order flow reads its order through here, so this
+ * is where the recipient is resolved and nowhere else.
+ *
+ * An order that came through COD King's popup carries the OTP verified number
+ * and nothing below runs. An order from a recovery link, a Cashfree checkout
+ * straight from the cart, a draft order, the admin or the API carries no OTP
+ * attribute at all, and every flow reads ONE field for the recipient, so those
+ * customers were dropped by Flows A, B and C alike: no confirmation, no
+ * dispatch message, no review ask, no NDR follow-up. See exception 2 in
+ * lib/phone.mjs for the owner's decision and its limits.
+ *
+ * The extra read is lazy, both senses: it only happens for an order with no
+ * verified number, and it asks for the phone fields alone.
+ */
 export async function getNorm(deps, orderId) {
   const o = await deps.clients.shopify.getOrder(orderId);
-  return o ? normalizeOrder(o) : null;
+  if (!o) return null;
+  const n = normalizeOrder(o);
+  if (n.verifiedPhone) {
+    n.phoneSource = 'otp';
+    return n;
+  }
+  n.phoneSource = null;
+  // A client without the method (an older fake) must not break the flows.
+  if (typeof deps.clients.shopify.getOrderPhones !== 'function') return n;
+
+  const p = await soft('getOrderPhones', () => deps.clients.shopify.getOrderPhones(orderId), { orderId });
+  if (!p) return n;
+  const r = resolveOrderPhone({ otp: null, order: p.order, shipping: p.shipping, billing: p.billing, customer: p.customer });
+  if (!r.phone) {
+    log.warn('order intake: no recipient on this order', {
+      orderId,
+      reason: p.scopeProblem ? 'phone-scope-denied' : 'no-usable-phone',
+      tried: r.tried.join(',') || 'none',
+    });
+    metric('OrderNoRecipient', 1, { reason: p.scopeProblem ? 'scope' : 'invalid' });
+    return n;
+  }
+  n.verifiedPhone = r.phone;
+  n.phoneSource = r.source;
+  log.info('order intake: recipient resolved without an OTP number', {
+    orderId,
+    source: r.source,
+    phone: maskPhone(r.phone),
+  });
+  metric('OrderPhoneFallback', 1, { source: r.source });
+  return n;
 }
 
 /*

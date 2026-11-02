@@ -77,6 +77,32 @@ export function liveLineItems(nodes) {
   return live.length ? live : nodes.map((li) => shape(li, li.quantity ?? 1));
 }
 
+/*
+ * Is the customer paying the courier?
+ *
+ * THREE SIGNALS, ANY ONE OF THEM, because each one is missing from real orders:
+ *
+ *   gateway      "Cash on Delivery (COD)" on a storefront order, but an order
+ *                created in the admin or by an app reads "manual" (#1188) or
+ *                carries no gateway at all, and one made before payment is
+ *                selected has none either.
+ *   shipping line the Cash on Delivery fee line. Present on 51 of the last 69
+ *                orders against 45 with the gateway string, so it is the single
+ *                most reliable signal this store has.
+ *   COD King     _codkAmountType == "cod", which only exists when the shopper
+ *                went through COD King's popup.
+ *
+ * Requiring COD King's attribute AND the gateway string was the whole bug:
+ * every COD order from a recovery link, a draft order, the admin or the API
+ * fell through to UNKNOWN and was never messaged (#1175, #1232, #1239).
+ */
+export function isCodOrder(n) {
+  if (!n) return false;
+  if (n.codkAmountType === 'cod') return true;
+  if (n.codShippingLine) return true;
+  return (n.gateways || []).some((g) => /cash on delivery|\bcod\b/i.test(String(g)));
+}
+
 /** @param {any} o a GraphQL order (shopify.getOrder shape) */
 export function normalizeOrder(o) {
   if (!o) return null;
@@ -109,6 +135,9 @@ export function normalizeOrder(o) {
     receivedPaise: toPaise(o.netPaymentSet?.shopMoney?.amount || 0),
     currentTotalPaise: toPaise(o.currentTotalPriceSet?.shopMoney?.amount || o.totalPriceSet?.shopMoney?.amount || 0),
     codFeePaise: codLine ? toPaise(codLine.originalPriceSet?.shopMoney?.amount || 0) : 0,
+    // Presence, not price: a free Cash on Delivery line costs 0 and still means
+    // the customer is paying the courier. isCodOrder reads this.
+    codShippingLine: Boolean(codLine),
     verifiedPhone: verifiedPhoneFromCustomAttributes(o.customAttributes),
     firstName: o.customer?.firstName || 'there',
     customerGid: o.customer?.id || null,

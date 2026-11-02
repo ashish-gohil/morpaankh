@@ -111,14 +111,31 @@ export async function onCodTimer(orderId, deps) {
   if (!n) return;
   const st = (await getState(orderId)) || {};
   const cls = st.class || classify(n);
-  await patchState(orderId, { class: cls, riskTag: n.riskTag, verifiedPhone: n.verifiedPhone, firstName: n.firstName, name: n.name });
+  // phoneSource records WHICH field the recipient came from, so an owner asking
+  // "who did we message about this order" has an answer that is not a guess.
+  await patchState(orderId, { class: cls, riskTag: n.riskTag, verifiedPhone: n.verifiedPhone, phoneSource: n.phoneSource || null, firstName: n.firstName, name: n.name });
 
   if (st.flowA?.codConfirmAt) return; // already sent (stale timer)
 
+  /*
+   * UNKNOWN NO LONGER MEANS SILENCE.
+   *
+   * It used to stop the flow dead, and that was the single biggest hole in it:
+   * any order we could not read the payment of got no confirmation, no tag and
+   * nothing but an owner alert. Four real orders in the last 30 days ended
+   * there (#1175, #1188, #1232, #1239) and two of them shipped without the
+   * customer ever hearing from us.
+   *
+   * Not being able to read the payment is a reason not to PROMISE anything
+   * about payment, which is all it ever was: order_confirmed names the items
+   * and the total and says the parcel is with the packing team, and every word
+   * of that is true whatever the gateway says. So the flow carries on into the
+   * non-COD branch below and the owner still gets told, once, that this one
+   * could not be read.
+   */
   if (cls === 'UNKNOWN') {
-    await codSkip(orderId, 'class-unknown');
-    await runOnce(orderId, 'alert-unknown', () => ownerAlert(deps, n.name, 'order class UNKNOWN, no Flow A'));
-    return;
+    await runOnce(orderId, 'alert-unknown', () =>
+      ownerAlert(deps, n.name, 'payment type could not be read, sent the plain order confirmation and no COD chase'));
   }
   const elig = flowAEligible(n, cls, { startAt: config.flows.A.startAt, orderAllowlist: config.orderAllowlist });
   if (!elig.ok) {
@@ -127,7 +144,10 @@ export async function onCodTimer(orderId, deps) {
     return;
   }
   if (!n.verifiedPhone) {
-    await codSkip(orderId, 'no-verified-phone');
+    // Reached only when the order has no OTP number AND no usable phone in any
+    // field; getNorm has already logged which fields it tried.
+    await codSkip(orderId, 'no-phone-anywhere');
+    log.warn('flowA cod: no recipient on this order, nothing sent', { orderId, reason: 'no-phone-anywhere' });
     await runOnce(orderId, 'tag-no-phone', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-no-verified-phone']));
     return;
   }
