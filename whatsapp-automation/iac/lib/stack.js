@@ -6,10 +6,12 @@
  * message or moves money; that is gated by config the operator flips later.
  */
 const path = require('path');
+const fs = require('fs');
 const cdk = require('aws-cdk-lib');
 const { Duration, RemovalPolicy } = cdk;
 const dynamodb = require('aws-cdk-lib/aws-dynamodb');
 const sqs = require('aws-cdk-lib/aws-sqs');
+const s3 = require('aws-cdk-lib/aws-s3');
 const lambda = require('aws-cdk-lib/aws-lambda');
 const { SqsEventSource } = require('aws-cdk-lib/aws-lambda-event-sources');
 const secretsmanager = require('aws-cdk-lib/aws-secretsmanager');
@@ -30,9 +32,43 @@ const CODE = lambda.Code.fromAsset(path.join(__dirname, '..', '..'), {
   exclude: ['iac', 'node_modules', '.git', 'cdk.out', 'data', '.env', '.env.*', '**/*.test.mjs', '**/*.md'],
 });
 
+/*
+ * The ONE npm dependency that reaches a Lambda, and it does so through a layer.
+ *
+ * CODE above excludes node_modules, so for most of this service's life nothing
+ * from npm ran in production at all. The P&L report needs exceljs to write an
+ * .xlsx, and widening that exclude would push vitest, typescript and the whole
+ * AWS SDK into all sixteen functions.
+ *
+ * Built by `npm run pnl:layer`, which is NOT part of cdk. So synth refuses when
+ * the directory is missing rather than deploying a function whose very first
+ * import throws at runtime, where the only symptom would be a report that never
+ * arrives.
+ */
+const PNL_LAYER_DIR = path.join(__dirname, '..', 'layers', 'pnl');
+
 class WaAutomationStack extends cdk.Stack {
   constructor(scope, id, props = {}) {
     super(scope, id, props);
+
+    // ---- S3: reports, snapshots and the ledger the owner uploads ---------
+    /*
+     * RETAIN and versioned, for the same reason the table is: a month's
+     * workbook is a financial record the owner may hand to an accountant, and
+     * a re-run of a month must not destroy what the previous run said. The
+     * snapshot beside it is what lets next month restate this one.
+     *
+     * Private with no exception. Nothing public ever needs to read it, which is
+     * also why the WhatsApp delivery path uploads the file to Meta rather than
+     * sending a link.
+     */
+    const reports = new s3.Bucket(this, 'Reports', {
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      versioned: true,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
 
     // ---- DynamoDB single table -------------------------------------------
     const table = new dynamodb.Table(this, 'Table', {
@@ -184,6 +220,17 @@ class WaAutomationStack extends cdk.Stack {
       PUBLIC_BASE_URL: props.publicBaseUrl || '',
       SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
       SCHEDULER_TARGET_ARN: queue.queueArn,
+      /*
+       * The P&L. These are on EVERY function, not just the report one, because
+       * the worker needs PNL_FUNCTION_NAME to hand `/pnl` off and REPORTS_BUCKET
+       * to store a ledger the owner sends in as a WhatsApp document.
+       */
+      PNL_ENABLED: String(props.pnlEnabled === true),
+      PNL_ADMIN_PHONES: props.pnlAdminPhones || '',
+      PNL_EMAIL_TO: props.pnlEmailTo || '',
+      PNL_FUNCTION_NAME: 'wa-pnl-report',
+      REPORTS_BUCKET: reports.bucketName,
+      META_AD_ACCOUNT_ID: props.metaAdAccountId || '',
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
     };
 
@@ -198,6 +245,7 @@ class WaAutomationStack extends cdk.Stack {
         environment: { ...commonEnv, ...(opts.env || {}) },
         reservedConcurrentExecutions: opts.reserved,
         ...(opts.logGroup ? { logGroup: opts.logGroup } : {}),
+        ...(opts.layers ? { layers: opts.layers } : {}),
       });
 
     // ingest (verify + dedupe + 200 fast): need table (dedupe) + queue (send) + secret
@@ -275,8 +323,54 @@ class WaAutomationStack extends cdk.Stack {
     const reconcileFn = makeFn('reconcile', 'src/timers/reconcile.handler', { timeout: Duration.seconds(300) });
     const digestFn = makeFn('digest', 'src/timers/digest.handler', { timeout: Duration.seconds(120) });
 
+    /*
+     * The monthly P&L. Its log group is CREATED here, like cart-redirect's and
+     * w-redirect's, because a Lambda's group does not exist until its first
+     * invocation and a subscription filter on a missing group fails the deploy.
+     * This one runs once a month, so "never yet invoked" is its normal state
+     * for most of any given month.
+     */
+    const pnlLogs = new logs.LogGroup(this, 'PnlReportLogs', {
+      logGroupName: '/aws/lambda/wa-pnl-report',
+      retention: logs.RetentionDays.THREE_MONTHS,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    if (!fs.existsSync(path.join(PNL_LAYER_DIR, 'nodejs', 'node_modules', 'exceljs'))) {
+      throw new Error(
+        `the P&L layer is not built: ${PNL_LAYER_DIR}/nodejs/node_modules/exceljs is missing. ` +
+          'Run `npm run pnl:layer` before cdk synth, diff or deploy. Without it wa-pnl-report ' +
+          'deploys fine and then throws on its first import, where the only symptom is a report ' +
+          'that never arrives.',
+      );
+    }
+    const pnlLayer = new lambda.LayerVersion(this, 'PnlLayer', {
+      code: lambda.Code.fromAsset(PNL_LAYER_DIR),
+      compatibleRuntimes: [lambda.Runtime.NODEJS_24_X],
+      description: 'exceljs, for the monthly P&L workbook',
+    });
+    /*
+     * Ten minutes and 1024 MB: a month is ~70 orders, ~50 tracking calls in
+     * batches of 25, a charges call per distinct leg, and then thirteen sheets
+     * of exceljs, which is the memory-hungry part.
+     *
+     * reserved: 1 is the brief's ask and is safe here. The comments above about
+     * reservations are from when this account's ceiling was 10; it now reports
+     * 1000 concurrent executions, so reserving one leaves 999 unreserved,
+     * far above the 100 AWS insists stay in the common pool. It is belt and
+     * braces anyway: the real guard against a double run is the PNL#<month>
+     * lock in the table, because two triggers a second apart would otherwise
+     * both pass a concurrency check.
+     */
+    const pnlFn = makeFn('pnl-report', 'src/timers/pnl-report.handler', {
+      timeout: Duration.minutes(10),
+      memory: 1024,
+      reserved: 1,
+      logGroup: pnlLogs,
+      layers: [pnlLayer],
+    });
+
     // ---- grants -----------------------------------------------------------
-    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, wRedirectFn, onboardingFn, subscribeFn, cartCaptureFn, worker, pollFn, reconcileFn, digestFn];
+    const allFns = [...Object.values(ingest), redirectFn, cartRedirectFn, wRedirectFn, onboardingFn, subscribeFn, cartCaptureFn, worker, pollFn, reconcileFn, digestFn, pnlFn];
     for (const fn of allFns) {
       table.grantReadWriteData(fn);
       /*
@@ -336,13 +430,36 @@ class WaAutomationStack extends cdk.Stack {
      */
     const emailFrom = String(props.emailFrom || '');
     const emailIdentity = emailFrom.split('@')[1] || 'morpaankh.in';
-    worker.addToRolePolicy(
+    const sesGrant = () =>
       new iam.PolicyStatement({
         actions: ['ses:SendEmail'],
         resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${emailIdentity}`],
         ...(emailFrom ? { conditions: { StringEquals: { 'ses:FromAddress': emailFrom } } } : {}),
-      }),
-    );
+      });
+    worker.addToRolePolicy(sesGrant());
+    // The report emails the workbook, always, and it is a different function
+    // from the worker, so it needs the same narrow grant of its own. Scoped the
+    // same way deliberately: read the long comment above before widening it.
+    pnlFn.addToRolePolicy(sesGrant());
+
+    /*
+     * The report reads and writes its bucket. The worker only writes, and only
+     * because a ledger arrives as a WhatsApp document it has to store.
+     */
+    reports.grantReadWrite(pnlFn);
+    reports.grantPut(worker);
+
+    /*
+     * `/pnl` arrives on the worker, which has 60 seconds. A month of Shopify
+     * orders plus fifty tracking calls does not fit, and there is no
+     * ack-then-continue mechanism inside the worker, so it acknowledges and
+     * invokes the report asynchronously.
+     *
+     * This is the first lambda:InvokeFunction grant in the service, which is
+     * why it is scoped to exactly one function ARN rather than added to the
+     * shared loop.
+     */
+    pnlFn.grantInvoke(worker);
 
     // ---- HTTP API ---------------------------------------------------------
     const api = new HttpApi(this, 'HttpApi', { apiName: 'wa-automation' });
@@ -478,9 +595,13 @@ class WaAutomationStack extends cdk.Stack {
     ];
     const reportedGroups = [
       ...reported.map((name) => [name, logs.LogGroup.fromLogGroupName(this, `Lg${name}`, `/aws/lambda/${name}`)]),
-      // The two groups this stack owns rather than imports.
+      // The groups this stack owns rather than imports.
       ['wa-cart-redirect', cartRedirectLogs],
       ['wa-w-redirect', wRedirectLogs],
+      // Without this line a failed monthly report would be silent until
+      // somebody noticed the email had not arrived, which is the same hole
+      // wa-subscribe sat in for two days.
+      ['wa-pnl-report', pnlLogs],
     ];
     for (const [name, lg] of reportedGroups) {
       // Two filters, which is the per-log-group maximum. The first catches our
@@ -569,6 +690,26 @@ class WaAutomationStack extends cdk.Stack {
     // so an uncaught failure, a bad deploy or a Secrets Manager outage, would
     // have taken the whole subscriber list offline silently.
     alarm('intake-errors', sumErrors(intakeFns), 1);
+    /*
+     * Its own alarm rather than a seat in pipelineFns, which is at 9 of
+     * CloudWatch's 10-metric ceiling for a math expression. Taking the last
+     * slot would leave the next function with nowhere to go, and a once-a-month
+     * job is worth watching on its own anyway: it has eleven chances a year to
+     * be noticed, so a missed failure is a missed month.
+     */
+    alarm('pnl-errors', pnlFn.metricErrors({ period: Duration.minutes(5) }), 1);
+
+    /*
+     * The 7th at 09:00 IST, for the month before. The 7th rather than the 1st
+     * so late-settling parcels from the end of the month have had a week to
+     * finish moving: a report run on the 1st would call a third of the month
+     * pending and be restated immediately.
+     */
+    new events.Rule(this, 'PnlMonthlyRule', {
+      ruleName: 'wa-pnl-monthly',
+      schedule: events.Schedule.expression('cron(30 3 7 * ? *)'), // 09:00 IST on the 7th
+      targets: [new targets.LambdaFunction(pnlFn, { event: events.RuleTargetInput.fromObject({ trigger: 'schedule' }) })],
+    });
 
     // ---- outputs ----------------------------------------------------------
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
@@ -576,6 +717,7 @@ class WaAutomationStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'QueueUrl', { value: queue.queueUrl });
     new cdk.CfnOutput(this, 'SecretsName', { value: secret.secretName });
     new cdk.CfnOutput(this, 'SchedulerRoleArn', { value: schedulerRole.roleArn });
+    new cdk.CfnOutput(this, 'ReportsBucket', { value: reports.bucketName });
   }
 }
 

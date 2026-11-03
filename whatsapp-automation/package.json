@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p jsconfig.json",
-    "dryrun:render": "node scripts/dryrun-render.mjs"
+    "dryrun:render": "node scripts/dryrun-render.mjs",
+    "pnl": "node scripts/pnl.mjs",
+    "pnl:layer": "bash scripts/build-pnl-layer.sh"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1150.0",

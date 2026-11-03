@@ -10,3 +10,7 @@ iac/node_modules/
 
 # CDK deploy outputs (non-secret, not committed)
 iac/cdk-outputs.json
+
+# Built by `npm run pnl:layer`, not committed: 193 packages of someone else's
+# code that npm can reproduce. cdk synth refuses when it is missing.
+iac/layers/

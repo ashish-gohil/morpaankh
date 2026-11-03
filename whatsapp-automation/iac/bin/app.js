@@ -46,6 +46,13 @@ new WaAutomationStack(app, 'WaAutomation', {
   delhiveryShippingMode: app.node.tryGetContext('delhiveryShippingMode') || 'Surface',
   sellerGstin: app.node.tryGetContext('sellerGstin') || '',
   replaceReturnTo: app.node.tryGetContext('replaceReturnTo') || {},
+  // The monthly P&L. Off unless the context says otherwise, like every flow.
+  // pnlAdminPhones empty means "whoever may run /replace", which itself falls
+  // back to ownerAlertPhones, so there is one list to maintain.
+  pnlEnabled: app.node.tryGetContext('pnlEnabled') === true,
+  pnlAdminPhones: app.node.tryGetContext('pnlAdminPhones') || '',
+  pnlEmailTo: app.node.tryGetContext('pnlEmailTo') || '',
+  metaAdAccountId: app.node.tryGetContext('metaAdAccountId') || '',
 });
 
 app.synth();

@@ -55,6 +55,11 @@
     "subscriberOfferAllowlist": "",
     "emailFrom": "hello@morpaankh.in",
     "emailReplyTo": "morpaankh.collection@gmail.com",
-    "replaceMode": "live"
+    "replaceMode": "live",
+    "pnlEnabled": true,
+    "pnlAdminPhones": "",
+    "pnlEmailTo": "morpaankh.collection@gmail.com,ashishgohil148@gmail.com",
+    "metaAdAccountId": "1046985611096981",
+    "_pnlNote": "LIVE from 2026-11-03. Reads a month of live orders and messages the OWNER only, never a customer. pnlAdminPhones empty means replaceAdminPhones, which means ownerAlertPhones. Run `npm run pnl:layer` before any cdk synth, diff or deploy: synth refuses without the exceljs layer."
   }
 }
