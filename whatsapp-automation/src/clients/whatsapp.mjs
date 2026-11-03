@@ -13,6 +13,8 @@
  *   sendCtaUrl({ to, body, buttonText, url })
  *   sendList({ to, body, buttonText, rows:[{id,title,description?}] })
  *   sendFlow({ to, body, flowId, flowToken, flowCta, flowActionData })
+ *   uploadMedia({ bytes, filename, mime }) -> { mediaId, skipped? }
+ *   sendDocument({ to, mediaId, link, filename, caption }) -> { messageId, skipped? }
  */
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
@@ -183,6 +185,79 @@ export const whatsapp = {
             flow_action_payload: flowActionData ? { screen: 'RATE', data: flowActionData } : undefined,
           },
         },
+      },
+    }),
+
+  /*
+   * Put a file on Meta's servers and get back the id a document message points
+   * at. Needed because the P&L report is an .xlsx the owner has to open, and a
+   * WhatsApp document message carries either a media id or a public link. We
+   * have no public host for it (the S3 bucket is private, by design), so the
+   * id is the only route.
+   *
+   * This is a write, so it honours DRY_RUN like every other write. It has no
+   * recipient, though, so it cannot honour the send allowlist: guard() asks
+   * about a phone and there is not one yet. That is safe because an upload
+   * messages nobody; the allowlist still gates sendDocument below, which is
+   * the call that actually reaches a person.
+   *
+   * Retried as idempotent: a retry after an unknown outcome leaves a second
+   * unreferenced media object on Meta (they expire in 30 days) and sends
+   * nothing, which is the cheap failure. The expensive one would be giving up
+   * and reporting the month as undeliverable.
+   */
+  uploadMedia: async ({ bytes, filename, mime }) => {
+    if (config.dryRun) {
+      log.info('wa media upload skipped', { skip: 'dry_run', filename, bytes: bytes?.length ?? 0 });
+      return { mediaId: 'dry_run:media', skipped: 'dry_run' };
+    }
+    const s = await getSecrets();
+    const url = `https://graph.facebook.com/${config.graphVersion}/${s.waPhoneNumberId}/media`;
+    return withRetry(
+      'whatsapp.uploadMedia',
+      async () => {
+        // FormData and Blob are globals on Node 18+, so this needs no
+        // dependency and no hand-rolled multipart boundary. Do NOT set
+        // Content-Type by hand: fetch has to add the boundary itself.
+        const form = new FormData();
+        form.append('messaging_product', 'whatsapp');
+        form.append('type', mime);
+        form.append('file', new Blob([bytes], { type: mime }), filename);
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${s.waAccessToken}` },
+          body: form,
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.id) {
+          const err = new Error(`wa media upload failed: ${json.error?.message || res.status}`);
+          err.waCode = json.error?.code;
+          err.status = res.status;
+          throw err;
+        }
+        metric('MediaUploaded', 1);
+        return { mediaId: String(json.id) };
+      },
+      { idempotent: true },
+    );
+  },
+
+  /*
+   * A document message. `mediaId` is what uploadMedia returned; `link` is the
+   * alternative Meta accepts, kept for a future public host.
+   *
+   * Free-form, so it only reaches the owner inside an open 24 hour window. A
+   * scheduled run at 09:00 has no window open, which is why the scheduled path
+   * emails the file and only a template with a document header can carry it
+   * unprompted. The caller decides; this is a primitive.
+   */
+  sendDocument: ({ to, mediaId, link, filename, caption }) =>
+    post(to, {
+      type: 'document',
+      document: {
+        ...(mediaId ? { id: mediaId } : { link }),
+        ...(filename ? { filename } : {}),
+        ...(caption ? { caption } : {}),
       },
     }),
 };

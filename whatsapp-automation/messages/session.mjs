@@ -370,6 +370,57 @@ export const SESSION = {
    * the owner typed, so the words are composed by the caller: a fixed body
    * would need one SESSION entry per outcome of every command.
    */
+  /*
+   * The monthly P&L, to the owner only. None of this copy ever reaches a
+   * customer, but it still obeys the registry rules (no dashes, no emoji) so
+   * one lint covers the whole registry and nobody has to remember which half
+   * is exempt.
+   *
+   * The summary is six lines on purpose: it is what the owner reads on a phone
+   * before deciding whether to open the workbook. Every number in it is also in
+   * the workbook, so the two can never disagree.
+   */
+  pnl_working: {
+    type: 'text',
+    body: 'Building the P&L for {{month}}. It takes about two minutes. I will send the workbook here when it is ready.',
+  },
+  pnl_summary: {
+    type: 'text',
+    body: [
+      'P&L {{month}} ({{state}})',
+      'Net: {{net}} ({{margin}} of net revenue)',
+      'Delivered {{delivered}} | RTO {{rto}} ({{rto_pct}}) | Pending {{pending}}',
+      'RTO loss both ways: {{rto_loss}}',
+      'Meta: {{meta}} | per delivered order {{meta_per_order}}',
+      'Courier charges: {{charge_basis}}',
+    ].join('\n'),
+  },
+  pnl_usage: {
+    type: 'text',
+    body:
+      'Usage: /pnl for last month, /pnl 2026-10 for a month, /pnl oct or /pnl oct 2026, ' +
+      'or /pnl mtd for this month so far. Send the Delhivery ledger as a file with the ' +
+      'caption /pnl-ledger 2026-10 to lock the actual courier charges.',
+  },
+  pnl_running: {
+    type: 'text',
+    body: 'A P&L for {{month}} is already being built. I will send it here as soon as it finishes.',
+  },
+  pnl_ledger_saved: {
+    type: 'text',
+    body:
+      'Ledger saved for {{month}}: {{rows}} rows, {{total}}. Run /pnl {{month}} again and the ' +
+      'report will use these actual charges instead of computed ones.',
+  },
+  /*
+   * A report that could not be built says so, with the reason, rather than
+   * going quiet. A month the owner never hears about is a month they assume
+   * was fine.
+   */
+  pnl_failed: {
+    type: 'text',
+    body: 'The P&L for {{month}} could not be built. {{reason}}',
+  },
   ops_reply: { type: 'text', body: '{{text}}' },
   pay_link_expired_page: {
     type: 'html',

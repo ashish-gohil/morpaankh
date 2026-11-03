@@ -48,6 +48,17 @@ const reviewFormBtn = (text) => ({ kind: 'url', text, base: `${REVIEW_FORM.base}
  */
 const imageHeader = (sample) => ({ format: 'IMAGE', sample });
 
+/*
+ * A DOCUMENT header, for a template whose whole point is the attached file.
+ *
+ * Meta wants a real uploaded document as the CREATE-time example, exactly as it
+ * does for an image, so templates-sync generates a one-cell workbook and puts
+ * it through the same resumable upload. `sampleName` is only the filename Meta
+ * shows in review. At SEND time the month's real workbook is supplied as a
+ * media id through ctx.mediaId.
+ */
+const documentHeader = (sampleName) => ({ format: 'DOCUMENT', sampleName });
+
 const SAMPLE_PRODUCT_IMAGE =
   'https://cdn.shopify.com/s/files/1/0998/6261/0292/files/WhatsAppImage2026-06-07at2.04.11PM.jpg?v=1780823415&width=800&height=800&crop=center';
 
@@ -539,6 +550,31 @@ export const TEMPLATES = {
     },
     buttons: [urlBtn('Shop best sellers', 'w'), qr('Talk to us', 'W', 'help')],
     footer: 'Reply STOP to stop these messages',
+  },
+
+  /*
+   * The monthly P&L workbook, to the owner.
+   *
+   * This exists because the scheduled run happens at 09:00 on the 7th, when
+   * there is no open 24 hour window to send a free-form document into. A
+   * template with a DOCUMENT header is the only way to put an unprompted file
+   * in front of someone on WhatsApp.
+   *
+   * UTILITY, not MARKETING: it is a report the business asked for about its own
+   * account, it carries no offer and no code, and the owner is the only
+   * recipient. Until Meta approves it the scheduled path emails the workbook
+   * and logs that WhatsApp was skipped, which is why nothing depends on it.
+   */
+  pnl_report_ready: {
+    name: 'pnl_report_ready_v1',
+    language: 'en',
+    category: 'UTILITY',
+    header: documentHeader('Morpaankh-PnL-sample.xlsx'),
+    body:
+      'Your Morpaankh profit and loss report for {{month}} is attached. ' +
+      'Net {{net}} on {{delivered}} delivered orders. ' +
+      'Open the workbook for the day by day and order by order breakdown.',
+    examples: { month: 'October 2026', net: '+₹18,420', delivered: '34' },
   },
 };
 

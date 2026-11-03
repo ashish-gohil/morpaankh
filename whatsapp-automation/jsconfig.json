@@ -8,10 +8,12 @@
     "strict": true,
     "noImplicitAny": false,
     "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 0,
     "allowJs": true,
     "types": ["node"]
   },
   "//": "checkJs runs over the dangerous pure logic only: lib + domain (+ messages/rules and config). Clients/ingest/worker do I/O and are exercised by tests, not the type checker.",
+  "//maxNodeModuleJsDepth": "0 because @types/node/process.d.ts imports 'string_decoder'. While the service had no dependencies that name resolved to nothing, so nothing happened. The moment exceljs put a real string_decoder into node_modules, tsc resolved the import to its CommonJS source and type-checked it under checkJs, and 46 errors in someone else's 2017 code failed our gate. 0 keeps tsc out of node_modules JS entirely. Do not remove it when adding a dependency.",
   "include": ["src/lib/**/*.mjs", "src/domain/**/*.mjs", "src/config.mjs"],
   "exclude": ["**/*.test.mjs", "node_modules"]
 }

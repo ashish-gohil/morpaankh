@@ -155,6 +155,32 @@ export const config = {
   replaceNotifyCustomer: bool(process.env.REPLACE_NOTIFY_CUSTOMER, true),
   replaceSendLabel: bool(process.env.REPLACE_SEND_LABEL, true),
 
+  /*
+   * The monthly profit and loss report (`/pnl`, and the 7th of the month).
+   *
+   * DEFAULT OFF, like every other flow, because the report reads a month of
+   * live orders and messages the owner. The numbers it leans on are not here:
+   * they are in RULES.pnl, so a rate change is one edit in one file.
+   *
+   * PNL_ADMIN_PHONES empty means "whoever may run /replace", which in turn
+   * falls back to the owner alert phones. One list to maintain until a second
+   * person genuinely needs it.
+   *
+   * PNL_FUNCTION_NAME is how the worker hands the job off. The worker has 60
+   * seconds and a month of orders does not fit, so `/pnl` acks and then invokes
+   * the report function asynchronously. Empty means the worker will answer that
+   * the report cannot be built here, rather than timing out halfway.
+   */
+  pnlEnabled: bool(process.env.PNL_ENABLED, false),
+  pnlAdminPhones: list(process.env.PNL_ADMIN_PHONES),
+  pnlEmailTo: list(process.env.PNL_EMAIL_TO),
+  pnlFunctionName: process.env.PNL_FUNCTION_NAME || '',
+  // Private, versioned, RETAINed. Holds the workbook, the snapshot that lets a
+  // month be restated, and the ledger files the owner uploads.
+  reportsBucket: process.env.REPORTS_BUCKET || '',
+  // The ad account the P&L reads spend from. Same account meta-outcomes uses.
+  metaAdAccountId: process.env.META_AD_ACCOUNT_ID || '',
+
   // Courier for /replace. One adapter per provider, picked here, so a new
   // courier is an adapter file plus this value and no orchestrator change.
   logisticsProvider: (process.env.LOGISTICS_PROVIDER || 'delhivery').toLowerCase(),

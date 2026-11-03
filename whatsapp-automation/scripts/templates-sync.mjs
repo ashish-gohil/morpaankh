@@ -69,21 +69,52 @@ async function appId() {
 }
 
 /**
- * Meta will not accept a URL as the example for a media header: it wants a
- * handle from the resumable upload API. Fetch the sample image and push it
- * through the two-step upload to get one.
+ * A one-cell workbook to be the CREATE-time example for a DOCUMENT header.
+ *
+ * The real monthly report is generated per run and kept in a private bucket, so
+ * there is no sample URL to fetch. Meta only needs something of the right type
+ * to look at in review, so a throwaway is both sufficient and honest: shipping
+ * a real month's figures to Meta as a template example would hand them the
+ * business's accounts.
  */
-async function headerHandle(sampleUrl) {
-  const res = await fetch(sampleUrl);
-  if (!res.ok) throw new Error(`sample image fetch failed (${res.status}): ${sampleUrl}`);
-  const bytes = Buffer.from(await res.arrayBuffer());
+async function sampleWorkbook(filename) {
+  const { default: ExcelJS } = await import('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Sample');
+  ws.getCell('A1').value = 'Morpaankh profit and loss';
+  ws.getCell('A2').value = 'This is a sample file for template review.';
+  const bytes = Buffer.from(await wb.xlsx.writeBuffer());
+  return { bytes, filename, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+}
+
+/**
+ * Meta will not accept a URL as the example for a media header: it wants a
+ * handle from the resumable upload API.
+ *
+ * `sample` is either a URL to fetch (an image header, the original case) or an
+ * already-built `{bytes, filename, mime}` (a document header, where there is
+ * nothing to fetch). The two-step upload is identical either way.
+ */
+async function headerHandle(sample) {
+  let bytes;
+  let filename;
+  let mime;
+  if (typeof sample === 'string') {
+    const res = await fetch(sample);
+    if (!res.ok) throw new Error(`sample image fetch failed (${res.status}): ${sample}`);
+    bytes = Buffer.from(await res.arrayBuffer());
+    filename = 'sample.jpg';
+    mime = 'image/jpeg';
+  } else {
+    ({ bytes, filename, mime } = sample);
+  }
   const id = await appId();
 
   const start = await (
-    await fetch(`${G}/${id}/uploads?file_name=sample.jpg&file_length=${bytes.length}&file_type=image/jpeg`, {
-      method: 'POST',
-      headers: auth,
-    })
+    await fetch(
+      `${G}/${id}/uploads?file_name=${encodeURIComponent(filename)}&file_length=${bytes.length}&file_type=${encodeURIComponent(mime)}`,
+      { method: 'POST', headers: auth },
+    )
   ).json();
   if (!start.id) throw new Error(`upload session failed: ${JSON.stringify(start).slice(0, 200)}`);
 
@@ -106,6 +137,19 @@ async function buildComponents(t) {
   // Meta expects HEADER, BODY, FOOTER, BUTTONS in that order.
   if (t.header?.format === 'IMAGE') {
     components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [await headerHandle(t.header.sample)] } });
+  }
+  /*
+   * A DOCUMENT header needs an uploaded example too, and there is no sample
+   * workbook to fetch from a URL: the real one is generated per month and lives
+   * in a private bucket. So we build a throwaway one-cell workbook here and
+   * upload that. It is never sent to anyone; Meta only looks at it in review.
+   */
+  if (t.header?.format === 'DOCUMENT') {
+    components.push({
+      type: 'HEADER',
+      format: 'DOCUMENT',
+      example: { header_handle: [await headerHandle(await sampleWorkbook(t.header.sampleName))] },
+    });
   }
   components.push({
     type: 'BODY',
@@ -182,7 +226,7 @@ for (const [key, t] of all) {
     continue;
   }
   if (!live) {
-    console.log(`  ${t.name}: would-create [${t.category}]${t.header ? ' +image header' : ''}`);
+    console.log(`  ${t.name}: would-create [${t.category}]${t.header ? ` +${t.header.format.toLowerCase()} header` : ''}`);
     // The whole point of the gate: a template the sender can reach that does
     // not exist at Meta is a send that will fail with 132001.
     notReady.push(`${t.name}: does not exist at Meta, run --live to submit it`);

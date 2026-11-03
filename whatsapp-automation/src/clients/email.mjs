@@ -18,6 +18,7 @@
  * send email", not "that address is bad".
  */
 import { config } from '../config.mjs';
+import { randomToken } from '../lib/ids.mjs';
 import { log, metric } from '../log.mjs';
 import { headerSafe } from '../../messages/email.mjs';
 
@@ -155,4 +156,101 @@ export const email = {
       throw e;
     }
   },
+
+  /**
+   * Send one email WITH a file attached.
+   *
+   * Separate from send() rather than an option on it, because the two use
+   * different SES content models and send() is on the customer path. An
+   * attachment needs Content.Raw and a hand-built MIME document; send() uses
+   * Content.Simple, which has no way to carry a file at all. Keeping them apart
+   * means nothing about this changes the behaviour of a customer email.
+   *
+   * The envelope From is still passed explicitly even though Raw carries its
+   * own From header: the worker's ses:SendEmail grant is conditioned on
+   * ses:FromAddress, and the condition is evaluated against the API parameter.
+   *
+   * @param {{to: string, subject: string, html: string, text: string,
+   *          attachment: {filename: string, mime: string, bytes: Uint8Array},
+   *          headers?: Record<string,string>}} args
+   * @returns {Promise<{messageId?: string, skipped?: string}>}
+   */
+  async sendWithAttachment({ to, subject, html, text, attachment, headers = {} }) {
+    if (config.dryRun) return { skipped: 'dry_run' };
+    if (!config.emailFrom) return { skipped: 'email-unavailable' };
+    if (!attachment?.bytes?.length) return { skipped: 'attachment-empty' };
+    const c = await client();
+    if (!c) return { skipped: 'email-unavailable' };
+
+    const from = headerSafe(config.emailFrom);
+    const replyTo = headerSafe(config.emailReplyTo || config.emailFrom);
+    const dest = headerSafe(to);
+    /*
+     * A subject that is pure ASCII travels as-is; anything else has to be an
+     * RFC 2047 encoded word or the rupee sign arrives as mojibake. Every
+     * subject this service sends for the P&L carries one, so this is the
+     * normal path, not the edge case.
+     */
+    const subj = /^[\x20-\x7E]*$/.test(subject)
+      ? headerSafe(subject)
+      : `=?UTF-8?B?${Buffer.from(headerSafe(subject), 'utf8').toString('base64')}?=`;
+
+    // Base64 bodies have to be wrapped: a line over 998 octets is not a legal
+    // MIME line and some relays will break it for us, in the wrong place.
+    const b64 = (buf) => (Buffer.from(buf).toString('base64').match(/.{1,76}/g) || []).join('\r\n');
+    const mixed = `mp_${randomToken(12)}`;
+    const alt = `alt_${randomToken(12)}`;
+    const extra = Object.entries(headers)
+      .filter(([, v]) => v != null && String(v) !== '')
+      .map(([k, v]) => `${headerSafe(k)}: ${headerSafe(v)}\r\n`)
+      .join('');
+
+    const mime =
+      `From: ${from}\r\n` +
+      `To: ${dest}\r\n` +
+      `Reply-To: ${replyTo}\r\n` +
+      `Subject: ${subj}\r\n` +
+      extra +
+      'MIME-Version: 1.0\r\n' +
+      `Content-Type: multipart/mixed; boundary="${mixed}"\r\n\r\n` +
+      `--${mixed}\r\n` +
+      `Content-Type: multipart/alternative; boundary="${alt}"\r\n\r\n` +
+      `--${alt}\r\n` +
+      'Content-Type: text/plain; charset=UTF-8\r\n' +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      `${b64(Buffer.from(text || '', 'utf8'))}\r\n` +
+      `--${alt}\r\n` +
+      'Content-Type: text/html; charset=UTF-8\r\n' +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      `${b64(Buffer.from(html || '', 'utf8'))}\r\n` +
+      `--${alt}--\r\n\r\n` +
+      `--${mixed}\r\n` +
+      `Content-Type: ${headerSafe(attachment.mime)}; name="${headerSafe(attachment.filename)}"\r\n` +
+      `Content-Disposition: attachment; filename="${headerSafe(attachment.filename)}"\r\n` +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      `${b64(attachment.bytes)}\r\n` +
+      `--${mixed}--\r\n`;
+
+    try {
+      const res = await c.send(
+        new c.SendEmailCommand({
+          FromEmailAddress: from,
+          Destination: { ToAddresses: [dest] },
+          Content: { Raw: { Data: Buffer.from(mime, 'utf8') } },
+        }),
+      );
+      metric('EmailSent', 1, { kind: 'attachment' });
+      return { messageId: res?.MessageId };
+    } catch (e) {
+      if (suppressed(e)) {
+        log.warn('email: address is on the SES suppression list, not retrying', {});
+        metric('EmailSuppressed', 1);
+        return { skipped: 'email-suppressed' };
+      }
+      throw e;
+    }
+  },
+
+  /** Test-only seam: the MIME document, so a test can assert its structure. */
+  _buildMime: null,
 };

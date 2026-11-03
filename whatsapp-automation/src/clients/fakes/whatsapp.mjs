@@ -42,5 +42,15 @@ export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null, tem
     sendCtaUrl: async (a) => rec('cta_url', a),
     sendList: async (a) => rec('list', a),
     sendFlow: async (a) => rec('flow', a),
+    /*
+     * Media upload records itself like a send so a test can assert the file
+     * that went up (name, mime, byte length) without holding the bytes. It
+     * returns a deterministic id so a golden test stays stable.
+     */
+    uploadMedia: async ({ bytes, filename, mime }) => {
+      sent.push({ type: 'media', filename, mime, bytes: bytes?.length ?? 0 });
+      return { mediaId: `fake-media-${filename}` };
+    },
+    sendDocument: async (a) => rec('document', a),
   };
 }
