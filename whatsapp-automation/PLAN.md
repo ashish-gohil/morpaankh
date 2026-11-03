@@ -258,3 +258,95 @@ orders placed by you only via `ORDER_ALLOWLIST`).
 Everything else marked "confirm" in the spec I will verify from Meta/Shopify/Razorpay/Delhivery
 docs or the live API at the start of the phase that needs it, and record the finding in
 `DECISIONS.md` (current best-known values are already listed there).
+
+---
+
+## 10. P&L report (`wa-pnl-report`, 2026-11-03)
+
+One month's profit and loss as an .xlsx, from live sources only, delivered to the owner.
+Automatic on the 7th at 09:00 IST for the previous month; manual by `/pnl`, `npm run pnl`,
+or `aws lambda invoke`.
+
+### 10.1 The five things the brief assumed that this repo does not have
+
+Each one is a real build item, not a config flag.
+
+| Assumed | Reality | What we do |
+|---|---|---|
+| `exceljs` is available | zero runtime deps; the shared Lambda asset excludes `node_modules` (`iac/lib/stack.js:29-31`) | a **Lambda layer**, built by `npm run pnl:layer`, carrying `exceljs` + `@aws-sdk/client-s3`. Synth throws if the layer dir is missing so a deploy cannot silently ship a broken function |
+| WhatsApp can send a document | no `document` type, no `/media` upload (`whatsapp.mjs`) | add `whatsapp.uploadMedia(bytes, filename, mime)` and `whatsapp.sendDocument({to, mediaId, filename, caption})`, both through the existing `post()` so they inherit DRY_RUN, the allowlist, retries and `metric('MessageSent',{type})` |
+| SES can attach a file | `Content.Simple` only (`email.mjs:122-136`) | add `email.sendWithAttachment()` building MIME for `Content.Raw`. Keep `send()` untouched |
+| an S3 bucket exists | none anywhere in the stack | new RETAIN + versioned + SSE + BLOCK_ALL bucket |
+| the worker can run the report | worker timeout 60 s, `lambda:InvokeFunction` granted to nobody | `/pnl` acks in the worker, then async-invokes `wa-pnl-report` (`InvocationType: 'Event'`). One scoped IAM statement on that one function ARN |
+
+### 10.2 Shape: adapters -> engine -> builder
+
+The engine is pure and type-checked. Adapters do I/O, the builder only renders.
+
+```
+src/domain/pnl/            PURE, in the jsconfig typecheck set
+  cohort.mjs      month boundary (IST), who is in, who is excluded
+  outcome.mjs     DELIVERED | RTO | PENDING | LOST | CANCELLED, Delhivery first
+  gst.mjs         slab rule, back GST out of an inclusive price
+  engine.mjs      rows + totals from normalized inputs. No clients, no clock, no fs
+src/pnl/                   I/O
+  sources/shopify.mjs      the month's orders, own query, own field set
+  sources/delhivery.mjs    tracking (chunked by 25) + charges per leg, cached
+  sources/meta.mjs         campaign insights by day, paged
+  sources/gateway.mjs      Razorpay fees; Cashfree -> config rate, ASSUMED
+  sources/ledger.mjs       parse an uploaded wallet/invoice file by HEADER NAME
+  sources/replacements.mjs REPL# rows for the month
+  snapshot.mjs             normalized inputs + totals -> S3
+  workbook.mjs             exceljs, 13 sheets
+  deliver.mjs              WhatsApp document + summary, email, S3
+src/timers/pnl-report.mjs  the Lambda handler
+src/worker/pnl.run.mjs     /pnl and /pnl-ledger
+scripts/pnl.mjs            npm run pnl
+```
+
+### 10.3 Rules carried over from `finance/pnl.mjs`, and the four that change
+
+Ported as-is: RTO recovers COGS in full (the garment comes back); packaging is charged on
+RTO too; a partial-payment order with duplicated line titles is **refused, not guessed**;
+only complete rows contribute to a total; `missing[]` vs `assumed[]` per row; the trust
+report (coverage %, tally of reasons, loss-making orders).
+
+Changed, with the reason:
+
+1. **Money moves to integer paise.** `finance/pnl.mjs` uses floats plus `r2()`;
+   `src/lib/money.mjs` says integer paise everywhere and format only at the edge.
+2. **GST is slab-based, not one rate.** 5% up to Rs 2,625 incl. GST per unit after
+   discounts, 18% above; flag a line within Rs 100 of the threshold. The old engine booked
+   **zero** GST when `pricesAreGstInclusive` was false; we never book zero silently.
+3. **`inputCreditOnCogs` is actually read.** It was dead config before.
+4. **Delhivery decides the outcome, not Shopify.** The old engine trusted
+   `shipment.status` loosely and inferred delivery from `financialStatus === 'PAID'`.
+   A paid status alone never proves delivery here.
+
+### 10.4 Facts proven against the live APIs on 2026-11-03
+
+Recorded in full in `DECISIONS.md` section V. The ones that shape the code:
+
+- Shopify's `created_at:` search filter **ignores the time of day**, so a month window must
+  over-fetch a day either side and filter in code on the real `createdAt`.
+- `ss=RTO` on the charges API returns **both legs in one row** (`charge_DL` and
+  `charge_RTO`). Never add a separate forward charge to it.
+- There is **no API source for Delhivery's real scanned weight**: `ChargedWeight` is null on
+  every shipment and the charges API echoes back the `cgm` you sent. Every computed charge
+  therefore rests on an assumed weight and is flagged.
+- On an RTO parcel `DeliveryDate` is the **return-accepted** time, not customer delivery.
+- `ref_ids` finds nothing for #1205 or #1233, so a fulfilled order without an AWB is MISSING.
+- No Delhivery wallet/invoice API exists on this account; actuals come from the owner's upload.
+- `courier.track` silently truncates to 25 AWBs. Chunk like `src/timers/track-active.mjs:21-25`.
+
+### 10.5 Guardrails
+
+- Never invent a number. A missing cost flags the row, leaves it out of totals, and is
+  counted on Summary with the money it affects.
+- Read-only towards Shopify, Delhivery, Meta and the gateways. Writes only to S3, the table
+  (`PNL#<month>` lock + snapshot index; `PNL#` is a free prefix) and messages to the owner.
+- `PNL#` rows must not use SK `STATE`, `REC`, `SUB` or `REPLOPEN`, and must never carry an
+  `activeShipment` attribute (that is what puts a row in GSI1 and makes the poller track it).
+- Workbook holds display name, city, state, pincode. No phone, no email, no street address.
+- Every money cell that is a total is a live formula **with its cached result written**.
+- Same inputs -> same workbook, except the generated-at stamp.

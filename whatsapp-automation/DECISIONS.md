@@ -1242,3 +1242,134 @@ Flow R through `cartCode` rather than invented here.
   and a collision there throws so SQS retries and ultimately DLQs with an owner
   alert. 8^4 = 4096 codes per first name, one code per person ever, one or two
   candidates a day: decades, not days.
+
+## V. /pnl: the monthly profit and loss report (2026-11-03)
+
+The brief called this "section P"; `## P.` was already taken on 2026-09-23, so it keeps the
+file's chronological lettering as V.
+
+### Proven against the live APIs before any feature code
+
+Every row below was a real call on 2026-11-03, not a doc reading.
+
+**Shopify.** `POST https://yaaijv-6p.myshopify.com/admin/api/2026-07/graphql.json`. The full
+P&L field set validates against the live 2026-07 schema and returns real values. Scopes the
+validator names: `read_orders`, `read_customers`, `read_products`, `read_inventory`.
+- `lineItems.variant.inventoryItem.unitCost.amount` **is readable with the token we already
+  hold**. Shopify relaxed this in Jan 2025 and the relaxation is in force here, so there is
+  no scope to add. 94 of 96 October line items carry a cost.
+- `shippingAddress { city provinceCode zip }` is readable; not protected-data denied.
+- `customerJourneySummary.lastVisit.utmParameters` is readable on 73 of 73 October orders.
+- **The `created_at:` search filter ignores the time of day.** Asking for
+  `created_at:>=2026-09-30T18:30:00Z` still returns #1168 (08:04Z) and #1169 (17:37Z), both
+  of which are September in IST. A month cohort therefore over-fetches a day either side and
+  filters in code on the real `createdAt`. Doing that yields exactly 71 orders, #1170-#1240.
+
+**Delhivery tracking.** `GET /api/v1/packages/json/?waybill=a,b,c` — **25 waybills in one
+call verified working**; `?ref_ids=<ref>` for the lookup. Real field names on
+`ShipmentData[].Shipment`:
+
+| What the P&L needs | The actual field |
+|---|---|
+| status text / type / code / date | `Status.Status` / `Status.StatusType` / `Status.StatusCode` / `Status.StatusDateTime` |
+| charged weight | `ChargedWeight` — **null on 89 of 89 shipments** |
+| origin | `Origin`, a depot NAME (`Surat_RingRd_C (Gujarat)`), not a pin |
+| destination pin | `Consignee.PinCode` (`Destination` is a city name) |
+| payment type | `OrderType` (`COD` / `Pre-paid` / `Pickup`) |
+| COD amount / invoice value | `CODAmount` / `InvoiceAmount` |
+| pickup / delivered | `PickUpDate`, `PickedupDate` / `DeliveryDate` |
+| RTO start / returned | `RTOStartedDate` / `ReturnedDate`, plus `ReverseInTransit` |
+
+Timestamps carry no offset and are IST. Statuses seen across 89 shipments: Delivered 65,
+RTO 9, In Transit 10, Not Picked 1, Pending 2, Dispatched 1, Manifested 1.
+
+- **On an RTO parcel `DeliveryDate` is the return-accepted time, not customer delivery.**
+  #1170's `DeliveryDate` 2026-10-13T16:46:36 is identical to its "RETURN Accepted" scan.
+  Reading `DeliveryDate` without first checking `Status.Status` would book an RTO as a sale.
+- **`ref_ids` finds nothing for #1205 or #1233**, with and without the leading `#`:
+  `{"Error":"No such waybill or Order Id found"}`. The brief expected this lookup to rescue a
+  fulfilled order with no AWB in Shopify. It does not, so those orders are MISSING.
+
+**Delhivery charges.** `GET /api/kinko/v1/invoice/charges/.json?md=S&ss=..&o_pin=..&d_pin=..&cgm=..&pt=..&cod=..`
+returns `status, zone, charged_weight, divisor (5000), wt_sop_type, gross_amount,
+total_amount, tax_data{SGST,CGST,IGST,...}` and a per-head breakdown `charge_DL, charge_RTO,
+charge_DTO, charge_COD, charge_DPH, charge_PEAK, charge_FS, charge_ROV, charge_INS, ...`.
+Verified arithmetic on #1170 (zone D1, 500 g):
+
+```
+ss=Delivered pt=COD : DL 52 + COD 40 + DPH 1.92 + PEAK 2 = gross 95.92 ; +SGST 8.63 +CGST 8.63 = total 113.18
+ss=RTO       pt=COD : DL 52 + RTO 52 + DPH 3.83 + PEAK 2 = gross 109.83 ; +9.88 +9.88       = total 129.59
+ss=DTO              : DTO 80 + DPH 2.95 + PEAK 2         = gross  84.95 ;                     total 100.25
+```
+
+`total_amount` includes GST, `gross_amount` is ex-GST.
+
+- **`ss=RTO` returns BOTH legs in one row.** The brief described `ss=RTO` as "the RTO return
+  leg"; it actually carries `charge_DL` and `charge_RTO` together. Adding a separate
+  `ss=Delivered` forward charge on top would double the forward freight on every RTO.
+- **`charged_weight` is just the `cgm` we sent, echoed back.** Combined with
+  `ChargedWeight: null` in tracking, **there is no API source anywhere for Delhivery's real
+  scanned weight.** Every computed charge rests on an assumed weight and must say so. The
+  uploaded ledger is the only exact source, which is what makes it worth asking for.
+
+**Delhivery ledger: no API.** 404 on `/api/cmu/wallet/balance`, `/api/wallet/balance`,
+`/api/kinko/v1/invoice/.json`, `/api/p/invoice`, `/api/v1/billing/invoices`,
+`/api/kinko/v1/invoice/backup/.json` (each answers an auth0 HTML login page, i.e. no such API
+path on this host). Actuals come from the owner's monthly upload, S3, or `--ledger`.
+
+**Meta Ads.** `act_1046985611096981`: currency INR, `timezone_name` **Asia/Kolkata** (so no
+timezone warning is needed on Summary), `account_status` 1. `/me/permissions` grants
+`ads_management, business_management, public_profile`. `ads_read` is **not** granted but
+`ads_management` covers the read and the insights call succeeded, so **no new Meta permission
+is needed** and the `meta-outcomes` System User token is sufficient. Campaign insights,
+`time_increment=1`, 1-31 Oct: 86 rows over 31 days, **total 39,161.21 = sales 34,879.40 +
+boost 4,281.81**, which matches the owner's independent snapshot exactly.
+- Classification: `OUTCOME_SALES` -> sales. Boosts are caught by the **`Instagram post:` name
+  prefix**, not the objective: one of the two boosts has objective `LINK_CLICKS`, which no
+  engagement/awareness objective list would catch. Zero campaigns unclassified.
+
+**Razorpay.** The stored key authenticates. `GET /v1/payments` for October returns **0
+payments** (Sep 4 captured, Jun-Aug 4 captured + 1 failed). Razorpay is used only for the
+prepaid-conversion **payment links**, and `reference_id` is `<orderNumber>-P1` — that is how a
+Razorpay payment maps to a Shopify order. Every October link is `expired` with
+`amount_paid: 0`. So **October Razorpay fees are genuinely 0.00, not missing.** `fee` and
+`tax` both exist on a payment, in paise, and `fee` includes `tax`.
+
+**Cashfree: no keys.** The string appears only in a comment in `src/clients/razorpay.mjs`.
+Nothing in `wa-automation/secrets`, `meta-outcomes/.env`, or the repo. The 17 October Cashfree
+orders therefore use `gatewayFeePct` from config, labelled ASSUMED, until keys exist.
+
+### The October cohort, reconciled before the engine was written
+
+Classifying the 71 live orders by the brief's own rules reproduces the owner's 3 Nov snapshot
+on every line: on record 71, excluded 9, cancelled 11, delivered 34, RTO 8, pending 9, lost 0.
+RTO is 8 orders in 7 parcels (#1208 and #1209 share AWB 59152210001584). Delivered is 34
+orders in 33 parcels because #1205 has no AWB at all. The only inferred outcome is #1205
+(COD cash recorded after fulfilment). Shopify-vs-Delhivery conflicts are exactly #1170,
+#1183 and #1203 — fulfilled, and `displayStatus: DELIVERED` with a `deliveredAt`, while
+Delhivery says RTO. Missing COGS is exactly #1174 "Toran" (no unit cost) and #1233 "Dupatta"
+(no variant).
+
+October has **zero genuine replacement jobs**: the one `REPL#` row in the table is test order
+#1222, state CANCELLED, tag `replace-payload-test`, and its two AWBs (59152210001805 "Not
+Picked", 59152210001794 "Closed Reverse Pickup") were never collected, so almost certainly
+never billed.
+
+### Decisions this forced
+
+- **`exceljs` arrives as a Lambda layer.** The service has zero runtime dependencies and the
+  shared asset excludes `node_modules`, so nothing from npm reaches a Lambda today. Widening
+  that exclude would ship vitest and the whole AWS SDK into all 15 functions. The layer is
+  built by `npm run pnl:layer` and synth throws if its directory is missing, so a deploy
+  cannot silently ship a function whose `import` will fail at runtime.
+- **`PNL#` is the key prefix** (verified free against every prefix in use). SK avoids
+  `STATE`, `REC`, `SUB` and `REPLOPEN`, all of which are scanned by other flows, and no
+  `PNL#` row ever carries `activeShipment`.
+- **`/pnl` acks in the worker and async-invokes the report function.** The worker is 60 s with
+  no ack-then-continue mechanism, and a month of Shopify orders plus ~50 tracking calls will
+  not fit. This needs one scoped `lambda:InvokeFunction` statement on the one function ARN;
+  it is the only new IAM in the feature besides S3 and SES.
+- **A new error alarm rather than joining `pipelineFns`.** That list is at 9 of CloudWatch's
+  10-metric cap for a math expression, and taking the last slot would leave the next function
+  with nowhere to go. `wa-pnl-report` also joins the `reported` log-group list, without which
+  its errors would go unreported the way `wa-subscribe` did for two days.

@@ -355,6 +355,112 @@ export const RULES = {
     hsnByHandle: {},
   },
 
+  /*
+   * The monthly profit and loss report. Every number the P&L leans on lives
+   * here so a rate change is one edit, and the Assumptions sheet of the
+   * workbook is generated from this block plus the source labels in
+   * src/domain/pnl/config.mjs.
+   *
+   * Nothing here is allowed to stand in for a cost we could actually read. A
+   * missing cost flags its row and leaves the totals; these are the values that
+   * are genuinely policy (what we pay for a poly bag) or genuinely statutory
+   * (the GST slabs), not guesses dressed up as data.
+   */
+  pnl: {
+    // A poly bag, the label and the tape, per parcel. Owner's figure.
+    packingCostPerOrderInr: 15,
+    // The studio. Every forward leg is quoted from here.
+    originPin: '395010',
+    // S is Delhivery's surface mode; E would be express and costs more.
+    shippingMode: 'S',
+    /*
+     * Apparel GST is slab-based and the slabs were revised in Sep 2025: 5% up
+     * to Rs 2,500 before GST, 18% above it. Our prices are GST-inclusive, so
+     * the boundary in shelf-price terms is 2500 * 1.05 = Rs 2,625.
+     *
+     * Checked per LINE, on the discounted unit price, not on the order total.
+     * Shopify gets this wrong in two ways we have measured, so its own
+     * taxLines are recorded for the mismatch list and never used to compute:
+     * it bills Gujarat orders as CGST 2.5% + SGST 5% instead of 2.5% + 2.5%,
+     * and it taxed #1227 (Raat Rani, Rs 2,749 after discount) at 5% when the
+     * slab says 18%.
+     */
+    gstSlabs: [
+      { ratePct: 5, upToInr: 2625 },
+      { ratePct: 18, upToInr: null },
+    ],
+    // A line this close to a slab boundary gets flagged, because a small
+    // discount change moves it across and swings the tax on it by 13 points.
+    gstThresholdFlagInr: 100,
+    /*
+     * FALSE until the owner's CA confirms it. While false, every cost is
+     * booked GST-inclusive and the 18% on Meta is its own line, which is the
+     * conservative reading: it understates profit rather than overstating it.
+     * Flipping it to true makes costs ex-GST and removes the Meta GST line.
+     */
+    gstInputCreditClaimed: false,
+    metaGstPct: 18,
+    /*
+     * ASSUMED. Cashfree carries every prepaid order on this store and we have
+     * no API keys for it, so the fee is a rate until keys exist. Razorpay is
+     * read live where it applies, which in October was nowhere: all its
+     * payment links expired unpaid.
+     */
+    gatewayFeePct: 2.0,
+    gatewayGstPct: 18,
+    /*
+     * Delhivery never returns the weight it actually scanned: ChargedWeight is
+     * null on every shipment this account has had, and the charges API echoes
+     * back whatever cgm you send it. So a computed charge has to assume a
+     * weight, and every row built that way says so.
+     *
+     * assumedWeightGrams is the same poly bag as RULES.replace.parcel.
+     * weightAlertGrams is the line past which a parcel looks like a weight
+     * dispute rather than a kurta set; the owner will set it from a weighed one.
+     */
+    assumedWeightGrams: 500,
+    weightAlertGrams: 600,
+    // Past this, ledger and computed disagree enough to be worth a human look.
+    ledgerVarianceAlertInr: 10,
+    /*
+     * DELIBERATELY EMPTY. Shopify plan, the COD King app, the domain and the
+     * WhatsApp API are all real monthly money, but the owner has not given the
+     * figures, and inventing them would put a wrong net profit on a document
+     * they may hand to an accountant. Empty shows as "not set" on Summary and
+     * the report says net profit is therefore optimistic.
+     */
+    fixedMonthlyCosts: [],
+    /*
+     * The founder's own orders and the service's test orders. These are real
+     * rows in Shopify and would otherwise read as sales.
+     */
+    excludeCustomers: ['Ashish Gohil'],
+    excludeSurnames: ['Gohil', 'Gohel'],
+    excludeTags: ['replace-payload-test', 'test'],
+    // awb -> rupees, for a parcel sent by some other courier.
+    manualCourierCostInr: {},
+    // campaign id -> 'sales' | 'boost' | 'other', when the name and objective
+    // are not enough. One October boost carries objective LINK_CLICKS, so the
+    // "Instagram post:" name prefix is what classifies it.
+    campaignTypeOverrides: {},
+    /*
+     * The owner's own rule of thumb for delivery plus packing per order. Used
+     * only as a soft check on Data Checks: off by more than 30% means either
+     * the rates moved or we are reading the wrong leg.
+     */
+    ruleOfThumbPrepaidInr: 110,
+    ruleOfThumbCodInr: 170,
+    ruleOfThumbTolerancePct: 30,
+    // Delhivery takes 25 waybills per tracking call and silently truncates
+    // past that rather than erring, so this is a correctness limit, not a tuning knob.
+    trackingBatchSize: 25,
+    // How long a month's lock is held, so a double trigger cannot run twice.
+    lockMinutes: 20,
+    // Keep a month's snapshot long enough to restate it next month and to
+    // answer "what did the report say at the time" for a year.
+    snapshotTtlDays: 400,
+  },
+
   // misc
   refundEtaText: '5 to 7 working days',
   stateRetentionDays: 180,
