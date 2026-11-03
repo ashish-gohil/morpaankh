@@ -1,0 +1,1594 @@
+/*
+ * pnl/workbook.mjs — renders one month's Report into an .xlsx Buffer.
+ *
+ * THE LAMBDA LAYER (read this before deploying).
+ * This service has no runtime dependencies and iac/lib/stack.js builds the
+ * Lambda asset with `exclude: [... 'node_modules' ...]`, so nothing from npm
+ * reaches a function by itself. exceljs therefore ships as a LAYER:
+ *
+ *     npm run pnl:layer          # scripts/build-pnl-layer.sh
+ *     -> iac/layers/pnl/nodejs/node_modules/exceljs   (+ its own deps)
+ *
+ * The layer directory that CDK must point at is `iac/layers/pnl`, and the
+ * runtime requires the `nodejs/node_modules` prefix inside it — that is what
+ * puts exceljs on the function's NODE_PATH. Whoever wires the stack adds:
+ *
+ *     const pnlLayer = new lambda.LayerVersion(this, 'PnlLayer', {
+ *       code: lambda.Code.fromAsset(path.join(__dirname, '..', 'layers', 'pnl')),
+ *       compatibleRuntimes: [lambda.Runtime.NODEJS_24_X],
+ *     });
+ *
+ * and attaches it to the wa-pnl-report function only. iac/layers/ is
+ * gitignored: the layer is built at deploy time, never committed.
+ *
+ * The import below is dynamic and inside try/catch, in the shape of
+ * clients/email.mjs, because the module genuinely may not be there: unit tests
+ * and the type checker must not need the layer, and a cold start without it
+ * must fail with a sentence that names the fix rather than a MODULE_NOT_FOUND.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT buildWorkbook READS (the integration contract)
+ *
+ * Required: `report.rows` (ReportRow[] from src/domain/pnl/types.mjs). Every
+ * money figure in the workbook is aggregated from these rows, so the Summary,
+ * the Daily sheet and the per-order sheets agree by construction.
+ *
+ * Optional, each degrading to a "none this month" row rather than throwing:
+ *   report.funnel          {onRecord, excluded, cancelled, shipped, delivered,
+ *                           rto, pending, lost}  — derived from rows if absent
+ *   report.ratios          {aov, rtoRateByOrder, rtoRateByParcel, ...} — same
+ *   report.flags           [{code|label, count, severity?, note?}] or string[]
+ *   report.reconciliations [{name|check, expected, actual, ok?, note?}]
+ *   report.assumptions     [{key, label, value, unit?, source, note?, input?}]
+ *   report.config          PnlConfig (packing, gateway %, Meta GST, rules of thumb)
+ *   report.meta            MetaDay[]        -> Meta Ads + the Daily spend column
+ *   report.charges         CourierCharge[]  -> Courier Ledger
+ *   report.shipments       NormShipment[]   -> Courier Ledger status columns
+ *   report.replacements    ReplacementJob[] -> Replacements
+ *   report.lastMonthUpdate [{orderName, was, now, at?, deltaPaise?, note?}]
+ *                          -> sheet 11, which is OMITTED when this is absent
+ *   report.previousMonth   {label?, reported:{}, restated:{}} -> Summary block
+ *   report.totals          used ONLY as a cross-check on Data Checks. The
+ *                          statement itself never reads it: a Summary cell and
+ *                          its live formula have to be the same number, and the
+ *                          only way to guarantee that is to total what the
+ *                          workbook actually rendered.
+ *
+ * `meta` is {month, monthLabel, provisional, generatedAtIST, trigger,
+ * courierChargeBasis, incomplete} plus optional `adminOrderUrlBase`. Without
+ * that base the Order # column stays plain text — a link to the wrong store is
+ * worse than no link.
+ *
+ * MONEY ARRIVES AS INTEGER PAISE. Every total is computed in paise and divided
+ * by 100 once, at the cell. Cells carry real numbers and a number format,
+ * never a pre-formatted string.
+ *
+ * EVERY FORMULA CARRIES ITS CACHED RESULT (`{formula, result}`). A formula
+ * without one shows blank in Numbers, in Google Sheets' first paint and in the
+ * WhatsApp document preview, which is where this report is actually read.
+ */
+
+/** @typedef {import('../domain/pnl/types.mjs').ReportRow} ReportRow */
+
+// ---------------------------------------------------------------------------
+// exceljs, which may not be in this bundle.
+
+let xl = null;
+async function exceljs() {
+  if (xl) return xl;
+  try {
+    const mod = await import('exceljs');
+    xl = /** @type {any} */ (mod).default ?? mod;
+  } catch (e) {
+    throw new Error(
+      'pnl/workbook: exceljs is not available in this bundle. The Lambda asset ' +
+        'excludes node_modules, so exceljs must come from the pnl layer ' +
+        '(iac/layers/pnl/nodejs/node_modules/exceljs, built by `npm run pnl:layer`). ' +
+        'Underlying error: ' + /** @type {any} */ (e).message,
+    );
+  }
+  return xl;
+}
+
+// ---------------------------------------------------------------------------
+// Look.
+
+const GREEN = 'FF2E4B3C';
+const GOLD = 'FFB08D57';
+const RED_TAB = 'FFC0392B';
+const AMBER_TAB = 'FFE1A94F';
+const GREY_TAB = 'FF808080';
+const AMBER_FILL = 'FFFFE0A3'; // a cell we could not fill in
+const LOSS_FILL = 'FFFCE4E4'; // a row that lost money
+const ZEBRA_FILL = 'FFF7F5F0';
+const INPUT_FILL = 'FFFFF2CC'; // pale yellow: edit me
+const TITLE_SIZE = 16;
+
+const FMT = {
+  money: '₹#,##0;[Red]-₹#,##0',
+  money2: '₹#,##0.00;[Red]-₹#,##0.00',
+  pct: '0.0%',
+  date: 'dd-mmm-yyyy',
+  int: '#,##0',
+  num1: '0.0',
+};
+
+const BODY = { name: 'Calibri', size: 10 };
+const BODY_B = { name: 'Calibri', size: 10, bold: true };
+const HEAD_FONT = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+const solid = (argb) => ({ type: /** @type {const} */ ('pattern'), pattern: /** @type {const} */ ('solid'), fgColor: { argb } });
+
+const DELHIVERY_TRACK = 'https://www.delhivery.com/track/package/';
+
+// ---------------------------------------------------------------------------
+// Small pure helpers.
+
+const colLetter = (n) => {
+  let s = '';
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = (n - 1 - r) / 26;
+  }
+  return s;
+};
+
+/** paise -> rupees, exact to 2dp. */
+const rup = (paise) => Math.round(Number(paise)) / 100;
+/** Sum a paise field over rows, treating unknown (null) as nothing. */
+const sumP = (arr, f) => arr.reduce((a, r) => a + (f(r) ?? 0), 0);
+/** How many rows had an unknown where we needed a number. */
+const nullsIn = (arr, f) => arr.filter((r) => f(r) == null).length;
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/** IST calendar date of an ISO instant, as 'YYYY-MM-DD'. */
+function istDay(iso) {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return new Date(t + 330 * 60 * 1000).toISOString().slice(0, 10);
+}
+const daysInMonth = (month) => {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+};
+/** A date cell for an ISO instant, placed on its IST day so it never reads a day early. */
+function dateCell(iso) {
+  const d = istDay(iso);
+  return d ? new Date(d + 'T00:00:00Z') : null;
+}
+const daysBetween = (a, b) => {
+  if (!a || !b) return null;
+  const x = Date.parse(a), y = Date.parse(b);
+  if (Number.isNaN(x) || Number.isNaN(y)) return null;
+  return Math.round(((y - x) / 86400000) * 10) / 10;
+};
+
+// Cell descriptors understood by writeTable / put.
+/** A number we could not establish: amber, with the reason as a note. */
+const miss = (why) => ({ _miss: why || 'not available' });
+/** paise -> cell, or MISSING when the engine said null. */
+const money = (paise, why) => (paise == null ? miss(why || 'cost not available') : rup(paise));
+/** A live formula with its cached result. */
+const fx = (formula, result) => ({ formula, result: result == null ? 0 : result });
+/** A value we inferred rather than read: italic. */
+const inferred = (v, why) => ({ _v: v, italic: true, note: why });
+const noted = (v, why) => ({ _v: v, note: why });
+const link = (text, url) => (url ? { text: String(text), hyperlink: url } : String(text));
+
+// ---------------------------------------------------------------------------
+// The table writer. One of these per block; sheets are just stacked blocks.
+
+/**
+ * @typedef {Object} Col
+ * @property {string} h            header text
+ * @property {string} [fmt]        number format
+ * @property {number} [w]          forced width
+ * @property {boolean} [wrap]
+ * @property {string|((h:TableHandle)=>any)} [total]  'sum', or a builder for a custom total cell
+ *
+ * @typedef {Object} TableHandle
+ * @property {number} header
+ * @property {number} first
+ * @property {number} last
+ * @property {number|null} totals
+ * @property {(h:string)=>string} letter
+ * @property {(h:string)=>string} ref        'Sheet'!$C$2:$C$40
+ * @property {(h:string)=>string} totalRef   'Sheet'!$C$41
+ * @property {(h:string)=>number} sum        the cached total we wrote
+ */
+
+/**
+ * Write one header row, the body, and (when any column asks for it) a totals
+ * row of SUM formulas with their results.
+ *
+ * @param {any} ws
+ * @param {Col[]} cols
+ * @param {any[][]} rows
+ * @param {{startRow?:number, zebra?:boolean, filter?:boolean, freeze?:boolean,
+ *          totalsLabel?:string, rowFill?:(row:any[], i:number)=>string|null,
+ *          empty?:string}} [opts]
+ * @returns {TableHandle}
+ */
+function writeTable(ws, cols, rows, opts = {}) {
+  const startRow = opts.startRow ?? 1;
+  const widths = cols.map((c) => Math.max(String(c.h).length + 2, 9));
+
+  const hr = ws.getRow(startRow);
+  cols.forEach((c, i) => {
+    const cell = hr.getCell(i + 1);
+    cell.value = c.h;
+    cell.font = HEAD_FONT;
+    cell.fill = solid(GREEN);
+    cell.alignment = { vertical: 'middle', wrapText: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: GOLD } } };
+  });
+  hr.height = 26;
+
+  // An empty section says so, in one row, rather than leaving a bare header.
+  const body = rows.length ? rows : [[opts.empty ?? 'none this month']];
+  const isEmpty = rows.length === 0;
+
+  body.forEach((r, ri) => {
+    const rowNo = startRow + 1 + ri;
+    const fill = isEmpty ? null : (opts.rowFill?.(r, ri) ?? (opts.zebra && ri % 2 ? ZEBRA_FILL : null));
+    for (let ci = 0; ci < cols.length; ci++) {
+      const cell = ws.getRow(rowNo).getCell(ci + 1);
+      const shown = put(cell, r[ci], cols[ci], fill);
+      if (shown.length + 2 > widths[ci]) widths[ci] = shown.length + 2;
+    }
+  });
+
+  const first = startRow + 1;
+  const last = startRow + body.length;
+  let totals = null;
+  const handle = {
+    header: startRow,
+    first,
+    last,
+    totals: /** @type {number|null} */ (null),
+    letter: (h) => colLetter(cols.findIndex((c) => c.h === h) + 1),
+    ref: (h) => {
+      const L = handle.letter(h);
+      return `'${ws.name}'!$${L}$${first}:$${L}$${last}`;
+    },
+    totalRef: (h) => `'${ws.name}'!$${handle.letter(h)}$${totals ?? last}`,
+    sum: (h) => cachedSums[h] ?? 0,
+  };
+
+  /** @type {Record<string, number>} */
+  const cachedSums = {};
+  for (const c of cols) {
+    if (!c.total) continue;
+    const i = cols.indexOf(c);
+    cachedSums[c.h] = isEmpty
+      ? 0
+      : round2(
+          body.reduce((a, r) => {
+            const v = r[i];
+            const n = typeof v === 'number' ? v : typeof v?.result === 'number' ? v.result : typeof v?._v === 'number' ? v._v : 0;
+            return a + n;
+          }, 0),
+        );
+  }
+
+  if (cols.some((c) => c.total)) {
+    totals = last + 1;
+    handle.totals = totals;
+    const tr = ws.getRow(totals);
+    cols.forEach((c, i) => {
+      const cell = tr.getCell(i + 1);
+      if (i === 0) cell.value = opts.totalsLabel ?? 'TOTAL';
+      else if (c.total === 'sum') {
+        const L = colLetter(i + 1);
+        cell.value = fx(`SUM(${L}${first}:${L}${last})`, cachedSums[c.h]);
+      } else if (typeof c.total === 'function') cell.value = c.total(handle);
+      cell.font = BODY_B;
+      cell.fill = solid(GOLD);
+      cell.numFmt = c.fmt;
+      cell.border = { top: { style: 'thin', color: { argb: GREEN } } };
+    });
+  }
+
+  if (opts.filter !== false) {
+    ws.autoFilter = {
+      from: { row: startRow, column: 1 },
+      to: { row: last, column: cols.length },
+    };
+  }
+  if (opts.freeze !== false) {
+    ws.views = [{ state: 'frozen', xSplit: 1, ySplit: startRow }];
+  }
+  cols.forEach((c, i) => {
+    const col = ws.getColumn(i + 1);
+    const want = c.w ?? Math.min(widths[i], 45);
+    if (!col.width || col.width < want) col.width = Math.min(want, 45);
+  });
+  return handle;
+}
+
+/**
+ * Put one descriptor in one cell. Returns the text it will occupy, for sizing.
+ * @param {any} cell
+ * @param {any} v
+ * @param {{fmt?:string, wrap?:boolean}} [col]
+ * @param {string|null} [fill]
+ * @returns {string}
+ */
+function put(cell, v, col = {}, fill = null) {
+  let font = BODY;
+  let numFmt = col.fmt;
+  let shown = '';
+  if (v == null || v === '') {
+    cell.value = null;
+  } else if (typeof v === 'object' && '_miss' in v) {
+    cell.value = 'MISSING';
+    cell.fill = solid(AMBER_FILL);
+    cell.note = String(v._miss);
+    numFmt = undefined;
+    shown = 'MISSING';
+  } else if (typeof v === 'object' && 'formula' in v) {
+    cell.value = v;
+    if (v.fmt) numFmt = v.fmt;
+    shown = String(v.result ?? '');
+  } else if (typeof v === 'object' && 'hyperlink' in v) {
+    cell.value = v;
+    font = { ...BODY, color: { argb: 'FF1155CC' }, underline: true };
+    shown = v.text;
+  } else if (typeof v === 'object' && '_v' in v) {
+    cell.value = v._v;
+    if (v.fmt) numFmt = v.fmt;
+    if (v.italic) font = { ...BODY, italic: true };
+    if (v.note) cell.note = String(v.note);
+    shown = v._v instanceof Date ? '00-aaa-0000' : String(v._v ?? '');
+  } else {
+    cell.value = v;
+    shown = v instanceof Date ? '00-aaa-0000' : String(v);
+  }
+  cell.font = font;
+  if (numFmt) cell.numFmt = numFmt;
+  if (fill && !cell.fill) cell.fill = solid(fill);
+  if (col.wrap) cell.alignment = { wrapText: true, vertical: 'top' };
+  return shown;
+}
+
+/** Landscape, one page wide, header repeated, page number in the footer. */
+function printSetup(ws, headerRow = 1) {
+  ws.pageSetup = {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    printTitlesRow: `${headerRow}:${headerRow}`,
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+  };
+  ws.headerFooter = { oddFooter: '&L&"Calibri,Italic"&8Morpaankh P&&L&CPage &P of &N' };
+}
+
+// ---------------------------------------------------------------------------
+// Resolving a row.
+//
+// One rule, applied everywhere: THE WORKBOOK TOTALS WHAT THE WORKBOOK RENDERS.
+// A cell that carries a formula over a named input (packing, gateway %) is
+// rendered from that input, so the cached result and the live formula can never
+// disagree. Where that differs from the figure the engine sent, Data Checks
+// says so out loud instead of the sheet quietly contradicting itself.
+
+/** Percentages reach us as either 18 or 0.18. Treat anything above 1 as percent. */
+const frac = (x) => (x == null ? 0 : Number(x) > 1 ? Number(x) / 100 : Number(x));
+
+const CFG_DEFAULTS = {
+  packingCostPerOrderPaise: 0,
+  gatewayFeePct: 0,
+  gatewayGstPct: 0,
+  metaGstPct: 0,
+  gstInputCreditClaimed: false,
+  ruleOfThumbPrepaidPaise: 11000,
+  ruleOfThumbCodPaise: 17000,
+  fixedMonthlyCosts: /** @type {{label:string, amountPaise:number}[]} */ ([]),
+};
+
+const PAY_LABEL = { cod: 'COD', prepaid: 'Prepaid', partial: 'Partial' };
+const isAssumed = (r, what) => (r.assumed ?? []).some((a) => String(a).includes(what));
+const unitsOf = (r) => (r.order.lines ?? []).reduce((a, l) => a + (l.currentQuantity ?? 0), 0);
+const itemsOf = (r) =>
+  (r.order.lines ?? [])
+    .filter((l) => (l.currentQuantity ?? 0) > 0)
+    .map((l) => `${l.currentQuantity} x ${l.title}`)
+    .join(', ');
+const rtoReason = (r) =>
+  (r.order.tags ?? []).filter((t) => /^rto-reason-/.test(t)).map((t) => t.replace(/^rto-reason-/, '')).join(', ') || null;
+
+/**
+ * Everything a money cell on a per-order sheet needs, in paise, already
+ * reconciled with the formulas we are about to write.
+ */
+function resolve(r, cfg) {
+  const share = r.parcelShare == null ? 1 : r.parcelShare;
+  const gross = r.order.currentTotalPaise ?? 0;
+  const refunds = r.order.refundedPaise ?? 0;
+  // Packing is config x this order's share of the parcel, and the cell says so
+  // in a formula, so the Assumptions input drives it.
+  const packing = Math.round((cfg.packingCostPerOrderPaise ?? 0) * share);
+  const gatewayAssumed = isAssumed(r, 'gateway');
+  const gateway = gatewayAssumed
+    ? Math.round(gross * frac(cfg.gatewayFeePct) * (1 + frac(cfg.gatewayGstPct)))
+    : r.gatewayFeePaise;
+  const cogs = r.cogsPaise;
+  const fwd = r.forwardFreightPaise;
+  const rto = r.rtoFreightPaise;
+  const cod = r.codChargePaise;
+  const gst = r.outputGstPaise;
+  const netRev = gross - refunds - (gst ?? 0);
+  const cost = (cogs ?? 0) + (fwd ?? 0) + (cod ?? 0) + packing + (gateway ?? 0);
+  const advance = r.advanceKeptPaise ?? 0;
+  return {
+    share, gross, refunds, gst, netRev, cogs, fwd, rto, cod, packing, gateway, gatewayAssumed,
+    cost,
+    contribution: netRev - cost,
+    advance,
+    rtoLoss: (fwd ?? 0) + (rto ?? 0) + (cod ?? 0) + packing + (gateway ?? 0) - advance,
+  };
+}
+
+/** Group rows by outcome, then total the statement from the resolved values. */
+function aggregate(rows, cfg, metaDays, repl, ledger) {
+  /** @type {Record<string, any[]>} */
+  const by = { DELIVERED: [], RTO: [], PENDING: [], LOST: [], CANCELLED: [], EXCLUDED: [] };
+  for (const r of rows) (by[r.outcome] ??= []).push(r);
+  const res = new Map(rows.map((r) => [r.order.name, resolve(r, cfg)]));
+  const R = (r) => res.get(r.order.name);
+
+  const d = by.DELIVERED, t = by.RTO;
+  const del = {
+    count: d.length,
+    gross: sumP(d, (r) => R(r).gross),
+    refunds: sumP(d, (r) => R(r).refunds),
+    gst: sumP(d, (r) => R(r).gst),
+    cogs: sumP(d, (r) => R(r).cogs),
+    fwd: sumP(d, (r) => R(r).fwd),
+    cod: sumP(d, (r) => R(r).cod),
+    packing: sumP(d, (r) => R(r).packing),
+    gateway: sumP(d, (r) => R(r).gateway),
+  };
+  del.netRev = del.gross - del.refunds - del.gst;
+  del.contribution = del.netRev - del.cogs - del.fwd - del.cod - del.packing - del.gateway;
+
+  const rto = {
+    count: t.length,
+    fwd: sumP(t, (r) => R(r).fwd),
+    ret: sumP(t, (r) => R(r).rto),
+    cod: sumP(t, (r) => R(r).cod),
+    packing: sumP(t, (r) => R(r).packing),
+    gateway: sumP(t, (r) => R(r).gateway),
+    advance: sumP(t, (r) => R(r).advance),
+  };
+  rto.loss = rto.fwd + rto.ret + rto.cod + rto.packing + rto.gateway - rto.advance;
+
+  const cancelled = sumP(by.CANCELLED, (r) => r.totalCostPaise);
+  const replNet = repl.reduce((a, j) => a + replacementCost(j, cfg).net, 0);
+  const otherCourier = ledger.filter((l) => l.bucket === 'other').reduce((a, l) => a + (l.charge.totalPaise ?? 0), 0);
+
+  const metaSales = metaDays.filter((m) => m.type === 'sales').reduce((a, m) => a + (m.spendPaise ?? 0), 0);
+  const metaOther = metaDays.filter((m) => m.type !== 'sales').reduce((a, m) => a + (m.spendPaise ?? 0), 0);
+  const metaGst = cfg.gstInputCreditClaimed ? 0 : Math.round((metaSales + metaOther) * frac(cfg.metaGstPct));
+  const fixed = (cfg.fixedMonthlyCosts ?? []).reduce((a, f) => a + (f.amountPaise ?? 0), 0);
+
+  const contribAfterRto = del.contribution - rto.loss - cancelled - replNet - otherCourier;
+  const meta = metaSales + metaOther + metaGst;
+  return {
+    by, res: R, del, rto, cancelled, replNet, otherCourier,
+    metaSales, metaOther, metaGst, meta, fixed,
+    contribAfterRto,
+    profitBeforeFixed: contribAfterRto - meta,
+    net: contribAfterRto - meta - fixed,
+  };
+}
+
+/** A replacement job's cost to us, and what part of it the P&L carries. */
+function replacementCost(j, cfg) {
+  const packing = cfg.packingCostPerOrderPaise ?? 0;
+  const freight = (j.quoteForwardPaise ?? 0) + (j.quoteReturnPaise ?? 0);
+  const reimbursed = j.reimbursementReceived ? freight : 0;
+  return { packing, freight, reimbursed, net: freight + packing - reimbursed };
+}
+
+/**
+ * Every AWB we know about, with the bucket that decides whether its charge is
+ * already inside one of the order sheets or has to come in as "other".
+ */
+function buildLedger(report) {
+  const charges = report.charges ?? [];
+  const ships = new Map((report.shipments ?? []).map((s) => [s.awb, s]));
+  /** @type {Map<string, {orders:string[], outcome:string|null, payment:string|null}>} */
+  const owners = new Map();
+  for (const r of report.rows ?? []) {
+    for (const awb of r.awbs ?? []) {
+      const o = owners.get(awb) ?? { orders: [], outcome: null, payment: null };
+      o.orders.push(r.order.name);
+      o.outcome = r.outcome;
+      o.payment = r.order.paymentType;
+      owners.set(awb, o);
+    }
+  }
+  const replAwbs = new Set(
+    (report.replacements ?? []).flatMap((j) => [j.forwardAwb, j.returnAwb]).filter(Boolean),
+  );
+  const seen = new Set();
+  const out = [];
+  for (const charge of charges) {
+    seen.add(charge.awb);
+    const own = owners.get(charge.awb);
+    const bucket = replAwbs.has(charge.awb)
+      ? 'replacement'
+      : own
+        ? own.outcome === 'DELIVERED' ? 'delivered'
+          : own.outcome === 'RTO' ? 'rto'
+            : own.outcome === 'CANCELLED' ? 'cancelled'
+              : 'not in P&L'
+        : 'other';
+    out.push({ charge, ship: ships.get(charge.awb) ?? null, own: own ?? null, bucket });
+  }
+  // A parcel Delhivery tracked but never billed still belongs on the ledger.
+  for (const s of report.shipments ?? []) {
+    if (seen.has(s.awb)) continue;
+    const own = owners.get(s.awb);
+    out.push({
+      charge: { awb: s.awb, source: 'missing', forwardPaise: null, rtoPaise: null, codChargePaise: null, gstPaise: null, totalPaise: null, zone: null, chargedWeightGrams: null, variancePaise: null, flags: ['no charge on record'] },
+      ship: s,
+      own: own ?? null,
+      bucket: own ? 'not in P&L' : 'other',
+    });
+  }
+  return out.sort((a, b) => String(a.charge.awb).localeCompare(String(b.charge.awb)));
+}
+
+// ---------------------------------------------------------------------------
+// The sheets.
+
+/** Tab colours the brief pins down; everything else keeps Excel's default. */
+const TABS = {
+  Summary: GREEN,
+  Delivered: GREEN,
+  RTO: RED_TAB,
+  'Not Delivered': AMBER_TAB,
+  'Data Checks': GREY_TAB,
+  Assumptions: GREY_TAB,
+};
+const SHEETS = [
+  'Summary', 'Daily', 'Delivered', 'RTO', 'Not Delivered', 'Excluded', 'Replacements',
+  'By Product', 'Meta Ads', 'Courier Ledger', 'Last Month Update', 'Data Checks', 'Assumptions',
+];
+
+/**
+ * Render one month's report.
+ *
+ * @param {{rows: ReportRow[], funnel?: any, totals?: any, ratios?: any, flags?: any[],
+ *          reconciliations?: any[], assumptions?: any[], config?: any, meta?: any[],
+ *          charges?: any[], shipments?: any[], replacements?: any[],
+ *          lastMonthUpdate?: any[], previousMonth?: any}} report
+ * @param {{month: string, monthLabel?: string, provisional?: boolean, generatedAtIST?: string,
+ *          trigger?: string, courierChargeBasis?: string, incomplete?: boolean,
+ *          adminOrderUrlBase?: string}} meta
+ * @returns {Promise<Buffer>}
+ */
+export async function buildWorkbook(report, meta) {
+  const ExcelJS = await exceljs();
+  const cfg = { ...CFG_DEFAULTS, ...(report.config ?? {}) };
+  const rows = report.rows ?? [];
+  const metaDays = report.meta ?? [];
+  const repl = report.replacements ?? [];
+  const ledger = buildLedger(report);
+  const a = aggregate(rows, cfg, metaDays, repl, ledger);
+  const month = meta.month ?? '2000-01';
+  const hasLastMonth = Array.isArray(report.lastMonthUpdate) && report.lastMonthUpdate.length > 0;
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Morpaankh P&L';
+  wb.lastModifiedBy = 'Morpaankh P&L';
+  // Derived from the month, never from the clock: the same report has to produce
+  // the same bytes, and exceljs stamps created/modified into docProps.
+  const stamp = new Date(Date.parse(`${month}-01T00:00:00Z`));
+  wb.created = stamp;
+  wb.modified = stamp;
+
+  /** @type {Record<string, any>} */
+  const ws = {};
+  for (const name of SHEETS) {
+    if (name === 'Last Month Update' && !hasLastMonth) continue;
+    ws[name] = wb.addWorksheet(name, TABS[name] ? { properties: { tabColor: { argb: TABS[name] } } } : undefined);
+  }
+
+  const ctx = { wb, ws, report, meta, cfg, rows, metaDays, repl, ledger, a, month, issues: [], notes: [] };
+
+  // Assumptions first: its named ranges are what the other sheets' formulas point at.
+  const inputs = sheetAssumptions(ctx);
+  ctx.inputs = inputs;
+  const MA = sheetMetaAds(ctx);
+  const CL = sheetCourierLedger(ctx);
+  const D = sheetDelivered(ctx);
+  const T = sheetRto(ctx);
+  const ND = sheetNotDelivered(ctx);
+  sheetExcluded(ctx);
+  const RP = sheetReplacements(ctx);
+  sheetByProduct(ctx);
+  if (hasLastMonth) sheetLastMonth(ctx);
+  const DY = sheetDaily(ctx);
+  const S = sheetSummary(ctx, { D, T, ND, RP, CL, MA, DY });
+  sheetDataChecks(ctx, { D, T, CL, MA, DY, S });
+
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+// --- 13. Assumptions -------------------------------------------------------
+
+/**
+ * Every config value with its source, and the five cells the rest of the
+ * workbook is allowed to depend on. Those five get a pale yellow fill and a
+ * named range; every formula that uses them uses the name, so editing one here
+ * recalculates the workbook.
+ */
+function sheetAssumptions(ctx) {
+  const ws = ctx.ws['Assumptions'];
+  const cfg = ctx.cfg;
+  const INPUTS = [
+    { name: 'pnl_packing_per_order', label: 'Packing cost per order', value: rup(cfg.packingCostPerOrderPaise ?? 0), fmt: FMT.money, note: 'Drives the Packing column on Delivered and RTO.' },
+    { name: 'pnl_gst_input_credit', label: 'GST input credit claimed (1 = yes, 0 = no)', value: cfg.gstInputCreditClaimed ? 1 : 0, fmt: FMT.int, note: 'When 0, GST on Meta spend is its own P&L line.' },
+    { name: 'pnl_meta_gst_pct', label: 'GST on Meta spend', value: frac(cfg.metaGstPct), fmt: FMT.pct, note: 'Applied to total Meta spend when no input credit is claimed.' },
+    { name: 'pnl_gateway_fee_pct', label: 'Payment gateway fee', value: frac(cfg.gatewayFeePct), fmt: FMT.pct, note: 'Used only where the real gateway fee was not read.' },
+    { name: 'pnl_gateway_gst_pct', label: 'GST on gateway fee', value: frac(cfg.gatewayGstPct), fmt: FMT.pct, note: 'Added on top of the gateway fee.' },
+  ];
+
+  put(ws.getCell('A1'), 'ASSUMPTIONS AND INPUTS');
+  ws.getCell('A1').font = { name: 'Calibri', size: TITLE_SIZE, bold: true, color: { argb: GOLD } };
+  put(ws.getCell('A2'), 'The pale yellow cells are inputs. Edit one and the workbook recalculates.');
+  ws.getCell('A2').font = { ...BODY, italic: true };
+
+  const cols = [
+    { h: 'Setting', w: 42, wrap: true },
+    { h: 'Value', w: 14 },
+    { h: 'Source', w: 11 },
+    { h: 'Named range', w: 22 },
+    { h: 'Note', w: 45, wrap: true },
+  ];
+  const body = INPUTS.map((i) => [i.label, { _v: i.value, fmt: i.fmt }, 'CONFIG', i.name, i.note]);
+  const h = writeTable(ws, cols, body, { startRow: 4, zebra: true, filter: false, freeze: false });
+  INPUTS.forEach((i, idx) => {
+    const cell = ws.getCell(`B${h.first + idx}`);
+    cell.fill = solid(INPUT_FILL);
+    cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    ctx.wb.definedNames.add(`Assumptions!$B$${h.first + idx}`, i.name);
+  });
+
+  // Fixed monthly costs: their own block, because the P&L line is their SUM.
+  let r = h.last + 2;
+  put(ws.getCell(`A${r}`), 'FIXED MONTHLY COSTS');
+  ws.getCell(`A${r}`).font = BODY_B;
+  const fixed = (ctx.cfg.fixedMonthlyCosts ?? []).length
+    ? ctx.cfg.fixedMonthlyCosts
+    : [{ label: '(none configured)', amountPaise: 0 }];
+  const fh = writeTable(
+    ws,
+    [{ h: 'Cost', w: 42 }, { h: 'Per month', fmt: FMT.money, w: 14, total: 'sum' }, { h: 'Source', w: 11 }, { h: 'Named range', w: 22 }, { h: 'Note', w: 45, wrap: true }],
+    fixed.map((f) => [f.label, rup(f.amountPaise ?? 0), 'CONFIG', '', 'Charged whole to the month, not per order.']),
+    { startRow: r + 1, zebra: true, filter: false, freeze: false, totalsLabel: 'FIXED COSTS TOTAL' },
+  );
+  for (let i = 0; i < fixed.length; i++) ws.getCell(`B${fh.first + i}`).fill = solid(INPUT_FILL);
+  const fixedTotalRow = fh.totals ?? fh.last; // the block always has a totals row
+  ctx.wb.definedNames.add(`Assumptions!$B$${fixedTotalRow}`, 'pnl_fixed_costs');
+  ws.getCell(`D${fixedTotalRow}`).value = 'pnl_fixed_costs';
+  ws.getCell(`D${fixedTotalRow}`).font = BODY_B;
+
+  // Everything else the engine wants on record.
+  r = fixedTotalRow + 2;
+  put(ws.getCell(`A${r}`), 'EVERY OTHER VALUE AND RATE');
+  ws.getCell(`A${r}`).font = BODY_B;
+  const rest = (ctx.report.assumptions ?? []).map((x) => [
+    x.label ?? x.key ?? '',
+    typeof x.value === 'number' ? { _v: x.value, fmt: x.fmt } : String(x.value ?? ''),
+    x.source ?? 'CONFIG',
+    x.namedRange ?? '',
+    x.note ?? '',
+  ]);
+  writeTable(ws, cols, rest, {
+    startRow: r + 1, zebra: true, filter: false, freeze: false,
+    empty: 'the engine sent no assumptions list',
+  });
+
+  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 4 }];
+  printSetup(ws, 4);
+  return { names: INPUTS.map((i) => i.name).concat('pnl_fixed_costs') };
+}
+
+// --- 9. Meta Ads -----------------------------------------------------------
+
+function sheetMetaAds(ctx) {
+  const ws = ctx.ws['Meta Ads'];
+  const days = [...ctx.metaDays].sort(
+    (x, y) => String(x.date).localeCompare(String(y.date)) || String(x.campaignId).localeCompare(String(y.campaignId)),
+  );
+  const cols = [
+    { h: 'Date', fmt: FMT.date, w: 13 },
+    { h: 'Campaign ID', w: 20 },
+    { h: 'Campaign', w: 40, wrap: true },
+    { h: 'Objective', w: 20 },
+    { h: 'Type', w: 10 },
+    { h: 'Spend', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Impressions', fmt: FMT.int, w: 13, total: 'sum' },
+    { h: 'Clicks', fmt: FMT.int, w: 10, total: 'sum' },
+  ];
+  const h = writeTable(
+    ws,
+    cols,
+    days.map((m) => [
+      dateCell(`${m.date}T00:00:00Z`),
+      String(m.campaignId ?? ''),
+      String(m.campaignName ?? ''),
+      String(m.objective ?? ''),
+      String(m.type ?? 'other'),
+      rup(m.spendPaise ?? 0),
+      m.impressions ?? 0,
+      m.clicks ?? 0,
+    ]),
+    { zebra: true, totalsLabel: 'MONTH TOTAL', empty: 'no Meta spend on record this month' },
+  );
+
+  // Month total per campaign, below the daily table.
+  const byCampaign = new Map();
+  for (const m of days) {
+    const k = `${m.campaignId}`;
+    const c = byCampaign.get(k) ?? { id: k, name: m.campaignName, type: m.type, spend: 0, imp: 0, clicks: 0 };
+    c.spend += m.spendPaise ?? 0;
+    c.imp += m.impressions ?? 0;
+    c.clicks += m.clicks ?? 0;
+    byCampaign.set(k, c);
+  }
+  const start = (h.totals ?? h.last) + 2;
+  put(ws.getCell(`A${start}`), 'MONTH TOTAL PER CAMPAIGN');
+  ws.getCell(`A${start}`).font = BODY_B;
+  const list = [...byCampaign.values()].sort((x, y) => y.spend - x.spend || x.id.localeCompare(y.id));
+  writeTable(
+    ws,
+    [
+      { h: 'Campaign', w: 40, wrap: true },
+      { h: 'Campaign ID ', w: 20 },
+      { h: 'Type ', w: 10 },
+      { h: 'Spend ', fmt: FMT.money, w: 13, total: 'sum' },
+      { h: 'Impressions ', fmt: FMT.int, w: 13, total: 'sum' },
+      { h: 'Clicks ', fmt: FMT.int, w: 10, total: 'sum' },
+      { h: 'CTR', fmt: FMT.pct, w: 10 },
+    ],
+    list.map((c) => [c.name ?? c.id, c.id, c.type ?? 'other', rup(c.spend), c.imp, c.clicks, c.imp ? c.clicks / c.imp : 0]),
+    { startRow: start + 1, zebra: true, filter: false, freeze: false, totalsLabel: 'ALL CAMPAIGNS' },
+  );
+  printSetup(ws, 1);
+  return h;
+}
+
+// --- 10. Courier Ledger ----------------------------------------------------
+
+function sheetCourierLedger(ctx) {
+  const ws = ctx.ws['Courier Ledger'];
+  const cols = [
+    { h: 'AWB', w: 18 },
+    { h: 'Order(s)', w: 16 },
+    { h: 'Leg', w: 12 },
+    { h: 'Status', w: 22, wrap: true },
+    { h: 'Charged weight (g)', fmt: FMT.int, w: 12 },
+    { h: 'Zone', w: 8 },
+    { h: 'Payment', w: 10 },
+    { h: 'Forward', fmt: FMT.money2, w: 13, total: 'sum' },
+    { h: 'RTO', fmt: FMT.money2, w: 13, total: 'sum' },
+    { h: 'COD charge', fmt: FMT.money2, w: 13, total: 'sum' },
+    { h: 'GST', fmt: FMT.money2, w: 12, total: 'sum' },
+    { h: 'Total', fmt: FMT.money2, w: 13, total: 'sum' },
+    { h: 'Source', w: 11 },
+    { h: 'Ledger vs computed', fmt: FMT.money2, w: 14, total: 'sum' },
+    { h: 'In P&L as', w: 13 },
+    { h: 'Flags', w: 40, wrap: true },
+  ];
+  const body = ctx.ledger.map((l) => {
+    const c = l.charge;
+    const leg = c.rtoPaise ? 'forward + RTO' : c.dtoPaise ? 'reverse pickup' : 'forward';
+    const weight = c.chargedWeightGrams ?? l.ship?.chargedWeightGrams ?? null;
+    return [
+      String(c.awb),
+      l.own?.orders?.join(', ') ?? '',
+      leg,
+      l.ship ? String(l.ship.rawStatus ?? l.ship.state ?? '') : miss('Delhivery had no record of this AWB'),
+      weight == null ? inferred(ctx.cfg.assumedWeightGrams ?? 0, 'weight never weighed; the assumed weight was used') : weight,
+      c.zone ?? miss('zone not on the ledger line'),
+      l.ship?.orderType ? PAY_LABEL[l.ship.orderType] ?? l.ship.orderType : (l.own?.payment ? PAY_LABEL[l.own.payment] : ''),
+      money(c.forwardPaise, 'forward leg not billed and not computable'),
+      c.rtoPaise == null ? 0 : rup(c.rtoPaise),
+      c.codChargePaise == null ? 0 : rup(c.codChargePaise),
+      money(c.gstPaise, 'GST not split out on this line'),
+      money(c.totalPaise, 'no charge on record for this AWB'),
+      String(c.source ?? 'missing'),
+      c.variancePaise == null ? 0 : rup(c.variancePaise),
+      l.bucket,
+      (c.flags ?? []).join('; '),
+    ];
+  });
+  const h = writeTable(ws, cols, body, {
+    zebra: true,
+    totalsLabel: 'ALL AWBs',
+    empty: 'no courier charges on record this month',
+    rowFill: (r) => (r[14] === 'other' ? LOSS_FILL : null),
+  });
+  printSetup(ws, 1);
+  return h;
+}
+
+// --- 3. Delivered ----------------------------------------------------------
+
+/** The admin link, or null when we were not told which store this is. */
+const adminLink = (ctx, r) =>
+  ctx.meta.adminOrderUrlBase
+    ? link(r.order.name, `${String(ctx.meta.adminOrderUrlBase).replace(/\/$/, '')}/${r.order.numericId}`)
+    : r.order.name;
+const awbLink = (awbs) => (awbs?.length ? link(awbs.join(', '), `${DELHIVERY_TRACK}${awbs[0]}`) : miss('no AWB on this order'));
+const shipOf = (ctx, r) => {
+  const m = new Map((ctx.report.shipments ?? []).map((s) => [s.awb, s]));
+  for (const awb of r.awbs ?? []) if (m.has(awb)) return m.get(awb);
+  return null;
+};
+const chargeOf = (ctx, awbs) => {
+  const m = new Map((ctx.report.charges ?? []).map((c) => [c.awb, c]));
+  for (const awb of awbs ?? []) if (m.has(awb)) return m.get(awb);
+  return null;
+};
+
+function sheetDelivered(ctx) {
+  const ws = ctx.ws['Delivered'];
+  const cols = [
+    { h: 'Order #', w: 11 }, { h: 'Order date', fmt: FMT.date, w: 13 }, { h: 'Delivered date', fmt: FMT.date, w: 13 },
+    { h: 'Days to deliver', fmt: FMT.num1, w: 10 }, { h: 'Customer', w: 24 }, { h: 'City', w: 16 }, { h: 'State', w: 8 },
+    { h: 'Channel', w: 16 }, { h: 'Payment', w: 10 }, { h: 'Items', w: 45, wrap: true }, { h: 'Units', fmt: FMT.int, w: 8, total: 'sum' },
+    { h: 'AWB', w: 18 }, { h: 'Delhivery status', w: 22, wrap: true }, { h: 'Delhivery date', fmt: FMT.date, w: 13 },
+    { h: 'Gross sale', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Discount', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'COD fee', fmt: FMT.money, w: 11, total: 'sum' }, { h: 'Refunds', fmt: FMT.money, w: 11, total: 'sum' },
+    { h: 'Output GST', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Net revenue', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'COGS', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Forward freight', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'COD charge', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Packing', fmt: FMT.money, w: 11, total: 'sum' },
+    { h: 'Gateway fee', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Total cost', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Contribution', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Contribution %', fmt: FMT.pct, w: 11, total: (h) => fx(`IF(SUM(${h.totalRef('Net revenue')})=0,0,${h.totalRef('Contribution')}/${h.totalRef('Net revenue')})`, ctx.a.del.netRev ? round2(ctx.a.del.contribution / ctx.a.del.netRev * 1e4) / 1e4 : 0) },
+    { h: 'Charge source', w: 12 }, { h: 'Flags', w: 45, wrap: true },
+  ];
+  const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
+  const d = [...ctx.a.by.DELIVERED].sort((x, y) => String(x.order.createdAt).localeCompare(String(y.order.createdAt)) || x.order.name.localeCompare(y.order.name));
+  const body = d.map((r, i) => {
+    const v = ctx.a.res(r);
+    const rn = 2 + i;
+    const ship = shipOf(ctx, r);
+    const delivered = ship?.deliveredAt ?? r.order.fulfillments?.find((f) => f.deliveredAt)?.deliveredAt ?? null;
+    return [
+      adminLink(ctx, r), dateCell(r.order.createdAt), dateCell(delivered),
+      daysBetween(r.order.createdAt, delivered), r.order.customerName ?? '', r.order.city ?? '', r.order.state ?? '',
+      r.order.channel ?? '', PAY_LABEL[r.order.paymentType] ?? r.order.paymentType, itemsOf(r), unitsOf(r),
+      awbLink(r.awbs), ship ? String(ship.rawStatus ?? ship.state) : inferred(r.order.fulfillments?.[0]?.displayStatus ?? 'no Delhivery record', 'Delhivery had no record; Shopify was used'),
+      dateCell(ship?.statusAt ?? delivered),
+      rup(v.gross), rup(r.order.discountsPaise ?? 0), rup(r.order.codFeePaise ?? 0), rup(v.refunds),
+      money(v.gst, 'output GST could not be computed'),
+      fx(`SUM(${C('Gross sale')}${rn})-SUM(${C('Refunds')}${rn})-SUM(${C('Output GST')}${rn})`, rup(v.netRev)),
+      money(v.cogs, 'a line on this order has no unit cost'),
+      money(v.fwd, 'forward freight neither billed nor computable'),
+      v.cod == null ? 0 : rup(v.cod),
+      fx(`pnl_packing_per_order*${v.share}`, rup(v.packing)),
+      v.gatewayAssumed
+        ? fx(`${C('Gross sale')}${rn}*pnl_gateway_fee_pct*(1+pnl_gateway_gst_pct)`, rup(v.gateway))
+        : money(v.gateway, 'gateway fee not read from the gateway'),
+      fx(`SUM(${C('COGS')}${rn}:${C('Gateway fee')}${rn})`, rup(v.cost)),
+      fx(`SUM(${C('Net revenue')}${rn})-SUM(${C('Total cost')}${rn})`, rup(v.contribution)),
+      fx(`IF(SUM(${C('Net revenue')}${rn})=0,0,${C('Contribution')}${rn}/SUM(${C('Net revenue')}${rn}))`, v.netRev ? round2((v.contribution / v.netRev) * 1e4) / 1e4 : 0),
+      String(r.chargeSource ?? ''), (r.flags ?? []).join('; '),
+    ];
+  });
+  const h = writeTable(ws, cols, body, {
+    zebra: true, totalsLabel: 'DELIVERED TOTAL', empty: 'no delivered orders this month',
+    rowFill: (row) => (typeof row[26]?.result === 'number' && row[26].result < 0 ? LOSS_FILL : null),
+  });
+  printSetup(ws, 1);
+  return h;
+}
+
+// --- 4. RTO ----------------------------------------------------------------
+
+function sheetRto(ctx) {
+  const ws = ctx.ws['RTO'];
+  const cols = [
+    { h: 'Order #', w: 11 }, { h: 'Order date', fmt: FMT.date, w: 13 }, { h: 'Customer', w: 24 }, { h: 'City', w: 16 },
+    { h: 'Payment', w: 10 }, { h: 'Items', w: 45, wrap: true }, { h: 'Order value', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'AWB', w: 18 }, { h: 'RTO reason', w: 20, wrap: true }, { h: 'Delhivery status', w: 22, wrap: true },
+    { h: 'RTO start date', fmt: FMT.date, w: 13 }, { h: 'Returned date', fmt: FMT.date, w: 13 },
+    { h: 'Forward freight', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Return freight', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'COD charge', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Packing', fmt: FMT.money, w: 11, total: 'sum' },
+    { h: 'Gateway fee', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Advance kept', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Total RTO loss', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Return leg', w: 13 }, { h: 'Flags', w: 45, wrap: true },
+  ];
+  const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
+  const t = [...ctx.a.by.RTO].sort((x, y) => String(x.order.createdAt).localeCompare(String(y.order.createdAt)) || x.order.name.localeCompare(y.order.name));
+  const body = t.map((r, i) => {
+    const v = ctx.a.res(r);
+    const rn = 2 + i;
+    const ship = shipOf(ctx, r);
+    const charge = chargeOf(ctx, r.awbs);
+    return [
+      adminLink(ctx, r), dateCell(r.order.createdAt), r.order.customerName ?? '', r.order.city ?? '',
+      PAY_LABEL[r.order.paymentType] ?? r.order.paymentType, itemsOf(r), rup(v.gross), awbLink(r.awbs),
+      rtoReason(r) ?? miss('no rto-reason-* tag on this order'),
+      ship ? String(ship.rawStatus ?? ship.state) : inferred('no Delhivery record', 'Delhivery had no record; the outcome was inferred'),
+      dateCell(ship?.rtoStartedAt), dateCell(ship?.returnedAt ?? ship?.deliveredAt),
+      money(v.fwd, 'forward freight neither billed nor computable'),
+      money(v.rto, 'return leg neither billed nor computable'),
+      v.cod == null ? 0 : rup(v.cod),
+      fx(`pnl_packing_per_order*${v.share}`, rup(v.packing)),
+      v.gateway == null ? 0 : rup(v.gateway),
+      rup(v.advance),
+      fx(`SUM(${C('Forward freight')}${rn}:${C('Gateway fee')}${rn})-SUM(${C('Advance kept')}${rn})`, rup(v.rtoLoss)),
+      charge?.source === 'ledger' ? 'billed' : inferred('computed', 'Delhivery has not billed the return leg yet; the ss=RTO quote was used'),
+      (r.flags ?? []).join('; '),
+    ];
+  });
+  const h = writeTable(ws, cols, body, {
+    zebra: true, totalsLabel: 'RTO TOTAL', empty: 'no RTO this month',
+    rowFill: () => LOSS_FILL,
+  });
+  printSetup(ws, 1);
+  return h;
+}
+
+// --- 5. Not Delivered ------------------------------------------------------
+
+function sheetNotDelivered(ctx) {
+  const ws = ctx.ws['Not Delivered'];
+  put(ws.getCell('A1'), 'Pending, cancelled and lost orders. Nothing here is in the P&L except the "Charge in P&L" column, which is courier charges Delhivery actually billed on a manifested shipment.');
+  ws.getCell('A1').font = { ...BODY, italic: true };
+  const cols = [
+    { h: 'Order #', w: 11 }, { h: 'Order date', fmt: FMT.date, w: 13 }, { h: 'Outcome', w: 11 }, { h: 'Customer', w: 24 },
+    { h: 'Payment', w: 10 }, { h: 'Status', w: 22, wrap: true }, { h: 'Status date', fmt: FMT.date, w: 13 },
+    { h: 'AWB', w: 18 }, { h: 'Order value', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Charges so far', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Charge in P&L', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'In P&L?', w: 9 }, { h: 'Reason', w: 30, wrap: true }, { h: 'Flags', w: 40, wrap: true },
+  ];
+  const list = ['PENDING', 'CANCELLED', 'LOST'].flatMap((o) =>
+    [...(ctx.a.by[o] ?? [])].sort((x, y) => x.order.name.localeCompare(y.order.name)),
+  );
+  const body = list.map((r) => {
+    const v = ctx.a.res(r);
+    const ship = shipOf(ctx, r);
+    const charge = chargeOf(ctx, r.awbs);
+    const inPnl = r.outcome === 'CANCELLED' ? (r.totalCostPaise ?? 0) : 0;
+    return [
+      adminLink(ctx, r), dateCell(r.order.createdAt), r.outcome, r.order.customerName ?? '',
+      PAY_LABEL[r.order.paymentType] ?? r.order.paymentType,
+      ship ? String(ship.rawStatus ?? ship.state) : (r.awbs?.length ? miss('Delhivery had no record of this AWB') : 'not shipped'),
+      dateCell(ship?.statusAt ?? r.order.cancelledAt), r.awbs?.length ? awbLink(r.awbs) : 'none',
+      rup(v.gross), charge?.totalPaise == null ? 0 : rup(charge.totalPaise), rup(inPnl),
+      inPnl ? 'yes' : 'no', r.outcomeReason ?? r.order.cancelReason ?? '', (r.flags ?? []).join('; '),
+    ];
+  });
+  const h = writeTable(ws, cols, body, {
+    startRow: 2, zebra: true, totalsLabel: 'NOT DELIVERED TOTAL', empty: 'nothing pending, cancelled or lost this month',
+  });
+  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 2 }];
+  printSetup(ws, 2);
+  return h;
+}
+
+// --- 6. Excluded -----------------------------------------------------------
+
+function sheetExcluded(ctx) {
+  const ws = ctx.ws['Excluded'];
+  put(ws.getCell('A1'), 'Tests and founder or family orders. These are out of every number in this report.');
+  ws.getCell('A1').font = { ...BODY, italic: true };
+  const cols = [
+    { h: 'Order #', w: 11 }, { h: 'Order date', fmt: FMT.date, w: 13 }, { h: 'Customer', w: 24 },
+    { h: 'Channel', w: 16 }, { h: 'Order value', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Reason', w: 38, wrap: true }, { h: 'Tags', w: 40, wrap: true },
+  ];
+  const body = [...(ctx.a.by.EXCLUDED ?? [])]
+    .sort((x, y) => x.order.name.localeCompare(y.order.name))
+    .map((r) => [
+      adminLink(ctx, r), dateCell(r.order.createdAt), r.order.customerName ?? '', r.order.channel ?? '',
+      rup(r.order.currentTotalPaise ?? 0), r.outcomeReason ?? '', (r.order.tags ?? []).join(', '),
+    ]);
+  const h = writeTable(ws, cols, body, { startRow: 2, zebra: true, totalsLabel: 'EXCLUDED TOTAL', empty: 'nothing was excluded this month' });
+  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 2 }];
+  printSetup(ws, 2);
+  return h;
+}
+
+// --- 7. Replacements -------------------------------------------------------
+
+function sheetReplacements(ctx) {
+  const ws = ctx.ws['Replacements'];
+  const cols = [
+    { h: 'Order #', w: 11 }, { h: 'Job #', fmt: FMT.int, w: 7 }, { h: 'State', w: 16 }, { h: 'Reason', w: 28, wrap: true },
+    { h: 'Who pays', w: 11 }, { h: 'Forward AWB', w: 18 }, { h: 'Return AWB', w: 18 },
+    { h: 'Forward leg', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Return leg', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Packing', fmt: FMT.money, w: 11, total: 'sum' }, { h: 'Reimbursed', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Cost in P&L', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Reimbursement status', w: 26, wrap: true },
+    { h: 'Created', fmt: FMT.date, w: 13 },
+  ];
+  const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
+  const jobs = [...ctx.repl].sort((x, y) => String(x.orderName).localeCompare(String(y.orderName)) || (x.seq ?? 0) - (y.seq ?? 0));
+  const body = jobs.map((j, i) => {
+    const c = replacementCost(j, ctx.cfg);
+    const rn = 2 + i;
+    return [
+      String(j.orderName ?? ''), j.seq ?? 1, String(j.state ?? ''), j.reason ?? '',
+      j.pays === 'us' ? 'Morpaankh' : j.pays === 'customer' ? 'customer' : miss('nobody was recorded as paying'),
+      j.forwardAwb ?? miss('no forward AWB yet'), j.returnAwb ?? 'none',
+      money(j.quoteForwardPaise, 'forward leg not quoted'), money(j.quoteReturnPaise, 'return leg not quoted'),
+      fx('pnl_packing_per_order', rup(c.packing)), rup(c.reimbursed),
+      fx(`SUM(${C('Forward leg')}${rn}:${C('Packing')}${rn})-SUM(${C('Reimbursed')}${rn})`, rup(c.net)),
+      j.reimbursementReceived ? 'received, recorded in Shopify' : (j.pays === 'customer' ? 'expected, not verified' : 'not applicable'),
+      dateCell(j.createdAt),
+    ];
+  });
+  const h = writeTable(ws, cols, body, { zebra: true, totalsLabel: 'REPLACEMENTS TOTAL', empty: 'no replacement shipments this month' });
+  printSetup(ws, 1);
+  return h;
+}
+
+// --- 8. By Product ---------------------------------------------------------
+
+function sheetByProduct(ctx) {
+  const ws = ctx.ws['By Product'];
+  /** @type {Map<string, any>} */
+  const agg = new Map();
+  const touch = (l) => {
+    const key = l.sku || l.title || '(unnamed)';
+    let p = agg.get(key);
+    if (!p) agg.set(key, (p = { title: l.title ?? key, sku: l.sku ?? null, units: 0, netRev: 0, cogs: 0, cogsMissing: 0, rtoUnits: 0, rtoLoss: 0, contrib: 0 }));
+    return p;
+  };
+  const shareOf = (r) => {
+    const lines = (r.order.lines ?? []).filter((l) => (l.currentQuantity ?? 0) > 0);
+    const total = lines.reduce((a, l) => a + l.discountedUnitPaise * l.currentQuantity, 0);
+    return lines.map((l) => ({ l, w: total ? (l.discountedUnitPaise * l.currentQuantity) / total : 1 / (lines.length || 1) }));
+  };
+  for (const r of ctx.a.by.DELIVERED ?? []) {
+    const v = ctx.a.res(r);
+    for (const { l, w } of shareOf(r)) {
+      const p = touch(l);
+      p.units += l.currentQuantity;
+      p.netRev += Math.round(v.netRev * w);
+      if (l.unitCostPaise == null) p.cogsMissing += 1;
+      else p.cogs += l.unitCostPaise * l.currentQuantity;
+      p.contrib += Math.round(v.contribution * w);
+    }
+  }
+  for (const r of ctx.a.by.RTO ?? []) {
+    const v = ctx.a.res(r);
+    for (const { l, w } of shareOf(r)) {
+      const p = touch(l);
+      p.rtoUnits += l.currentQuantity;
+      p.rtoLoss += Math.round(v.rtoLoss * w);
+    }
+  }
+  const cols = [
+    { h: 'Product', w: 42, wrap: true }, { h: 'SKU', w: 18 }, { h: 'Units delivered', fmt: FMT.int, w: 10, total: 'sum' },
+    { h: 'Net revenue', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'COGS', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Gross margin %', fmt: FMT.pct, w: 11 }, { h: 'RTO units', fmt: FMT.int, w: 10, total: 'sum' },
+    { h: 'RTO loss', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Contribution before ads', fmt: FMT.money, w: 14, total: 'sum' },
+  ];
+  const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
+  const list = [...agg.values()].sort((x, y) => y.netRev - x.netRev || x.title.localeCompare(y.title));
+  const body = list.map((p, i) => {
+    const rn = 2 + i;
+    return [
+      p.title, p.sku ?? '', p.units, rup(p.netRev),
+      p.cogsMissing ? noted(rup(p.cogs), `${p.cogsMissing} line(s) had no unit cost, so this is short`) : rup(p.cogs),
+      fx(`IF(SUM(${C('Net revenue')}${rn})=0,0,(SUM(${C('Net revenue')}${rn})-SUM(${C('COGS')}${rn}))/SUM(${C('Net revenue')}${rn}))`,
+        p.netRev ? round2(((p.netRev - p.cogs) / p.netRev) * 1e4) / 1e4 : 0),
+      p.rtoUnits, rup(p.rtoLoss), rup(p.contrib),
+    ];
+  });
+  const h = writeTable(ws, cols, body, { zebra: true, totalsLabel: 'ALL PRODUCTS', empty: 'nothing was delivered or returned this month' });
+  printSetup(ws, 1);
+  return h;
+}
+
+// --- 11. Last Month Update -------------------------------------------------
+
+function sheetLastMonth(ctx) {
+  const ws = ctx.ws['Last Month Update'];
+  put(ws.getCell('A1'), 'Orders from the previous month that were still pending in its report and have settled since. Last month’s figures are not restated here; this is what changed.');
+  ws.getCell('A1').font = { ...BODY, italic: true };
+  const cols = [
+    { h: 'Order #', w: 11 }, { h: 'Was', w: 12 }, { h: 'Now', w: 12 }, { h: 'Settled on', fmt: FMT.date, w: 13 },
+    { h: 'Change', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Note', w: 45, wrap: true },
+  ];
+  const body = (ctx.report.lastMonthUpdate ?? []).map((u) => [
+    String(u.orderName ?? ''), String(u.was ?? u.wasOutcome ?? ''), String(u.now ?? u.nowOutcome ?? ''),
+    dateCell(u.at ?? u.settledAt), u.deltaPaise == null ? 0 : rup(u.deltaPaise), u.note ?? '',
+  ]);
+  const h = writeTable(ws, cols, body, { startRow: 2, zebra: true, totalsLabel: 'NET CHANGE', empty: 'nothing from last month has settled since' });
+  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 2 }];
+  printSetup(ws, 2);
+  return h;
+}
+
+// --- 2. Daily --------------------------------------------------------------
+
+/**
+ * Every day of the month by ORDER date, then the four monthly lines that have
+ * no order date at all. The bottom line here is the same number as the bottom
+ * line of the Summary statement, by construction.
+ */
+function sheetDaily(ctx) {
+  const ws = ctx.ws['Daily'];
+  const n = daysInMonth(ctx.month);
+  /** @type {Map<string, any>} */
+  const days = new Map();
+  for (let i = 1; i <= n; i++) {
+    const key = `${ctx.month}-${String(i).padStart(2, '0')}`;
+    days.set(key, { key, placed: 0, delivered: 0, rto: 0, pending: 0, cancelled: 0, netRev: 0, cogs: 0, freight: 0, rtoLoss: 0, packing: 0, gateway: 0, meta: 0 });
+  }
+  const bucket = (key) => days.get(key) ?? null;
+  for (const r of ctx.rows) {
+    if (r.outcome === 'EXCLUDED') continue;
+    const day = bucket(istDay(r.order.createdAt));
+    if (!day) continue;
+    const v = ctx.a.res(r);
+    day.placed += 1;
+    if (r.outcome === 'DELIVERED') {
+      day.delivered += 1;
+      day.netRev += v.netRev;
+      day.cogs += v.cogs ?? 0;
+      day.freight += (v.fwd ?? 0) + (v.cod ?? 0);
+      day.packing += v.packing;
+      day.gateway += v.gateway ?? 0;
+    } else if (r.outcome === 'RTO') {
+      day.rto += 1;
+      day.rtoLoss += v.rtoLoss;
+    } else if (r.outcome === 'CANCELLED') day.cancelled += 1;
+    else day.pending += 1;
+  }
+  for (const m of ctx.metaDays) {
+    const day = bucket(m.date);
+    if (day) day.meta += m.spendPaise ?? 0;
+  }
+
+  const cols = [
+    { h: 'Date', fmt: FMT.date, w: 13 },
+    { h: 'Orders placed', fmt: FMT.int, w: 9, total: 'sum' },
+    { h: 'Delivered', fmt: FMT.int, w: 9, total: 'sum' },
+    { h: 'RTO', fmt: FMT.int, w: 7, total: 'sum' },
+    { h: 'Pending', fmt: FMT.int, w: 8, total: 'sum' },
+    { h: 'Cancelled', fmt: FMT.int, w: 9, total: 'sum' },
+    { h: 'Net revenue', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'COGS', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Freight + COD charges', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'RTO loss', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Packing', fmt: FMT.money, w: 11, total: 'sum' },
+    { h: 'Gateway fees', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Meta spend', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Contribution', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Net', fmt: FMT.money, w: 13, total: 'sum' },
+    { h: 'Cumulative net', fmt: FMT.money, w: 14 },
+  ];
+  const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
+  let cum = 0;
+  const body = [...days.values()].map((d, i) => {
+    const rn = 2 + i;
+    const contribution = d.netRev - d.cogs - d.freight - d.packing - d.gateway;
+    const net = contribution - d.rtoLoss - d.meta;
+    cum += net;
+    return [
+      new Date(`${d.key}T00:00:00Z`), d.placed, d.delivered, d.rto, d.pending, d.cancelled,
+      rup(d.netRev), rup(d.cogs), rup(d.freight), rup(d.rtoLoss), rup(d.packing), rup(d.gateway), rup(d.meta),
+      fx(`SUM(${C('Net revenue')}${rn})-SUM(${C('COGS')}${rn})-SUM(${C('Freight + COD charges')}${rn})-SUM(${C('Packing')}${rn})-SUM(${C('Gateway fees')}${rn})`, rup(contribution)),
+      fx(`${C('Contribution')}${rn}-SUM(${C('RTO loss')}${rn})-SUM(${C('Meta spend')}${rn})`, rup(net)),
+      fx(i === 0 ? `${C('Net')}${rn}` : `${C('Cumulative net')}${rn - 1}+${C('Net')}${rn}`, rup(cum)),
+    ];
+  });
+  const h = writeTable(ws, cols, body, {
+    zebra: true, totalsLabel: 'MONTH TOTAL',
+    rowFill: (r) => (typeof r[14]?.result === 'number' && r[14].result < 0 ? LOSS_FILL : null),
+  });
+  // Data bars carry the trend: exceljs cannot write a native chart.
+  ws.addConditionalFormatting({
+    ref: `${C('Net')}${h.first}:${C('Net')}${h.last}`,
+    // gradient: true keeps this a classic dataBar. The x14 "ext" variant is the
+    // one exceljs stamps a fresh UUID into on every write, which would make the
+    // same report produce different bytes each run.
+    rules: [{ type: 'dataBar', gradient: true, cfvo: [{ type: 'min' }, { type: 'max' }], color: { argb: GREEN } }],
+  });
+
+  // The lines no order date can carry. The day table always has a totals row.
+  const totalsRow = h.totals ?? h.last;
+  const netCol = C('Net');
+  const metaCol = C('Meta spend');
+  const extras = [
+    ['Cancelled-shipment charges (no delivery date)', -ctx.a.cancelled, null],
+    ['Replacement shipments, net of reimbursements received', -ctx.a.replNet, null],
+    ['Other courier charges not tied to an order', -ctx.a.otherCourier, null],
+    ['GST on Meta spend (none when the input credit is claimed)', -ctx.a.metaGst,
+      `IF(pnl_gst_input_credit=1,0,-SUM(${metaCol}${h.first}:${metaCol}${h.last})*pnl_meta_gst_pct)`],
+    ['Fixed costs for the month', -ctx.a.fixed, '-pnl_fixed_costs'],
+  ];
+  let r = totalsRow;
+  extras.forEach(([label, paise, formula], i) => {
+    r = totalsRow + 1 + i;
+    put(ws.getCell(`A${r}`), label);
+    ws.getCell(`A${r}`).font = { ...BODY, italic: true };
+    put(ws.getCell(`${netCol}${r}`), formula ? fx(formula, rup(paise)) : rup(paise), { fmt: FMT.money });
+  });
+  const monthRow = r + 1;
+  const dayTotal = body.reduce((acc, row) => acc + Math.round(row[14].result * 100), 0);
+  const monthNet = dayTotal - ctx.a.cancelled - ctx.a.replNet - ctx.a.otherCourier - ctx.a.metaGst - ctx.a.fixed;
+  put(ws.getCell(`A${monthRow}`), 'NET FOR THE MONTH');
+  ws.getCell(`A${monthRow}`).font = BODY_B;
+  const mc = ws.getCell(`${netCol}${monthRow}`);
+  put(mc, fx(`${netCol}${totalsRow}+SUM(${netCol}${totalsRow + 1}:${netCol}${r})`, rup(monthNet)), { fmt: FMT.money });
+  mc.font = BODY_B;
+  mc.fill = solid(GOLD);
+  printSetup(ws, 1);
+  return { h, monthRow, monthNet, netCol, ref: `'Daily'!$${netCol}$${monthRow}` };
+}
+
+// --- 1. Summary ------------------------------------------------------------
+
+const ALWAYS_NOTE = 'Offline sales not recorded in Shopify are not included. Boost spend is included.';
+
+function sheetSummary(ctx, t) {
+  const ws = ctx.ws['Summary'];
+  const { D, T, ND, RP, CL, MA, DY } = t;
+  const a = ctx.a;
+  const pay = (x) => `"${x}"`;
+
+  put(ws.getCell('A1'), 'MORPAANKH P&L');
+  ws.getCell('A1').font = { name: 'Calibri', size: TITLE_SIZE, bold: true, color: { argb: GOLD } };
+  put(
+    ws.getCell('A2'),
+    [
+      ctx.meta.monthLabel ?? ctx.month,
+      ctx.meta.provisional === false ? 'FINAL' : 'PROVISIONAL',
+      `generated ${ctx.meta.generatedAtIST ?? 'unknown'} IST`,
+      `trigger: ${ctx.meta.trigger ?? 'unknown'}`,
+      `courier charges: ${ctx.meta.courierChargeBasis ?? 'unknown'}`,
+    ].join('  ·  '),
+  );
+  ws.getCell('A2').font = BODY_B;
+  const banner = ws.getCell('A3');
+  if (ctx.meta.incomplete) {
+    put(banner, 'INCOMPLETE: at least one source failed, so figures below are understated. See Data Checks.');
+    banner.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    banner.fill = solid(RED_TAB);
+  } else {
+    put(banner, 'All sources answered for this month.');
+    banner.font = { ...BODY, italic: true };
+  }
+  put(ws.getCell('A4'), ALWAYS_NOTE);
+  ws.getCell('A4').font = { ...BODY, italic: true };
+
+  // ---- the statement. Addresses first, so a line can reference any other.
+  const s0 = 9;
+  /** @type {[string,string,number,('head'|'sub'|'net'|null)][]} */
+  const spec = [
+    ['gross', 'Gross sales (delivered, incl. GST)', a.del.gross, null],
+    ['refunds', '  less refunds', -a.del.refunds, null],
+    ['gst', '  less output GST', -a.del.gst, null],
+    ['netRev', 'NET REVENUE', a.del.netRev, 'sub'],
+    ['cogs', '  Product cost (COGS)', -a.del.cogs, null],
+    ['fwd', '  Forward freight (delivered)', -a.del.fwd, null],
+    ['cod', '  COD charges', -a.del.cod, null],
+    ['packing', '  Packing', -a.del.packing, null],
+    ['gateway', '  Payment gateway fees', -a.del.gateway, null],
+    ['contrib1', 'CONTRIBUTION BEFORE RTO AND ADS', a.del.contribution, 'sub'],
+    ['rtoFwd', '  RTO forward freight', -a.rto.fwd, null],
+    ['rtoRet', '  RTO return freight', -a.rto.ret, null],
+    ['rtoRest', '  RTO packing and gateway fees (and any COD charge billed)', -(a.rto.packing + a.rto.gateway + a.rto.cod), null],
+    ['advance', '  less advance kept on RTO', a.rto.advance, null],
+    ['rtoLoss', 'RTO LOSS (BOTH WAYS)', -a.rto.loss, 'sub'],
+    ['cancelled', '  Cancelled-shipment charges', -a.cancelled, null],
+    ['repl', '  Replacement shipments (net of reimbursements received)', -a.replNet, null],
+    ['otherCourier', '  Other courier charges', -a.otherCourier, null],
+    ['contrib2', 'CONTRIBUTION AFTER RTO', a.contribAfterRto, 'sub'],
+    ['metaSales', '  Meta ads: sales campaigns', -a.metaSales, null],
+    ['metaBoost', '  Meta ads: boosts and other', -a.metaOther, null],
+    ['metaGst', '  GST on Meta (if no input credit)', -a.metaGst, null],
+    ['metaTotal', 'TOTAL META', -a.meta, 'sub'],
+    ['profit1', 'PROFIT BEFORE FIXED COSTS', a.profitBeforeFixed, 'sub'],
+    ['fixed', '  Fixed costs', -a.fixed, null],
+    ['net', 'NET PROFIT / LOSS', a.net, 'net'],
+  ];
+  /** @type {Record<string,string>} */
+  const at = {};
+  spec.forEach(([key], i) => (at[key] = `B${s0 + 1 + i}`));
+  const F = {
+    gross: `SUM(${D.ref('Gross sale')})`,
+    refunds: `-SUM(${D.ref('Refunds')})`,
+    gst: `-SUM(${D.ref('Output GST')})`,
+    netRev: `SUM(${at.gross}:${at.gst})`,
+    cogs: `-SUM(${D.ref('COGS')})`,
+    fwd: `-SUM(${D.ref('Forward freight')})`,
+    cod: `-SUM(${D.ref('COD charge')})`,
+    packing: `-SUM(${D.ref('Packing')})`,
+    gateway: `-SUM(${D.ref('Gateway fee')})`,
+    contrib1: `SUM(${at.netRev}:${at.gateway})`,
+    rtoFwd: `-SUM(${T.ref('Forward freight')})`,
+    rtoRet: `-SUM(${T.ref('Return freight')})`,
+    rtoRest: `-(SUM(${T.ref('Packing')})+SUM(${T.ref('Gateway fee')})+SUM(${T.ref('COD charge')}))`,
+    advance: `SUM(${T.ref('Advance kept')})`,
+    rtoLoss: `SUM(${at.rtoFwd}:${at.advance})`,
+    cancelled: `-SUM(${ND.ref('Charge in P&L')})`,
+    repl: `-SUM(${RP.ref('Cost in P&L')})`,
+    otherCourier: `-SUMIF(${CL.ref('In P&L as')},"other",${CL.ref('Total')})`,
+    contrib2: `${at.contrib1}+${at.rtoLoss}+SUM(${at.cancelled}:${at.otherCourier})`,
+    metaSales: `-SUMIF(${MA.ref('Type')},"sales",${MA.ref('Spend')})`,
+    metaBoost: `-SUMIF(${MA.ref('Type')},"<>sales",${MA.ref('Spend')})`,
+    metaGst: `IF(pnl_gst_input_credit=1,0,(${at.metaSales}+${at.metaBoost})*pnl_meta_gst_pct)`,
+    metaTotal: `SUM(${at.metaSales}:${at.metaGst})`,
+    profit1: `${at.contrib2}+${at.metaTotal}`,
+    fixed: `-pnl_fixed_costs`,
+    net: `${at.profit1}+${at.fixed}`,
+  };
+
+  const stmtCols = [{ h: 'PROFIT AND LOSS', w: 48, wrap: true }, { h: '₹', fmt: FMT.money, w: 16 }, { h: '% of net revenue', fmt: FMT.pct, w: 13 }];
+  const stmtBody = spec.map(([key, label, paise]) => [
+    label,
+    fx(F[key], rup(paise)),
+    fx(`IF(${at.netRev}=0,0,${at[key]}/${at.netRev})`, a.del.netRev ? round2((paise / a.del.netRev) * 1e4) / 1e4 : 0),
+  ]);
+  writeTable(ws, stmtCols, stmtBody, { startRow: s0, filter: false, freeze: false });
+  spec.forEach(([key, , , style], i) => {
+    if (!style) return;
+    const row = ws.getRow(s0 + 1 + i);
+    for (let c = 1; c <= 3; c++) {
+      row.getCell(c).font = style === 'net' ? { ...BODY_B, size: 11 } : BODY_B;
+      row.getCell(c).fill = solid(style === 'net' ? GOLD : ZEBRA_FILL);
+    }
+  });
+  if (a.net < 0) for (let c = 1; c <= 3; c++) ws.getRow(s0 + 1 + spec.length - 1).getCell(c).fill = solid(LOSS_FILL);
+
+  // ---- KPI tiles, above the statement, pointing into it.
+  const delivered = a.del.count;
+  const rtoRate = delivered + a.rto.count ? a.rto.count / (delivered + a.rto.count) : 0;
+  const kpis = [
+    ['Net profit / loss', fx(at.net, rup(a.net)), FMT.money],
+    ['Net margin %', fx(`IF(${at.netRev}=0,0,${at.net}/${at.netRev})`, a.del.netRev ? round2((a.net / a.del.netRev) * 1e4) / 1e4 : 0), FMT.pct],
+    ['Delivered orders', delivered, FMT.int],
+    ['RTO rate', round2(rtoRate * 1e4) / 1e4, FMT.pct],
+    ['Meta spend', fx(`-${at.metaTotal}`, rup(a.meta)), FMT.money],
+    ['Net per delivered order', delivered ? fx(`${at.net}/${delivered}`, rup(Math.round(a.net / delivered))) : miss('nothing was delivered this month'), FMT.money],
+  ];
+  kpis.forEach(([label, value, fmt], i) => {
+    const lc = ws.getRow(6).getCell(i + 1);
+    put(lc, label);
+    lc.font = HEAD_FONT;
+    lc.fill = solid(GREEN);
+    lc.alignment = { wrapText: true, vertical: 'middle' };
+    const vc = ws.getRow(7).getCell(i + 1);
+    put(vc, value, { fmt });
+    vc.font = { name: 'Calibri', size: 12, bold: true, color: { argb: GREEN } };
+    if (!vc.fill) vc.fill = solid(ZEBRA_FILL);
+  });
+  ws.getRow(6).height = 26;
+
+  // ---- order funnel
+  let r = s0 + spec.length + 3;
+  const shipped = ctx.rows.filter((x) => x.outcome !== 'EXCLUDED' && (x.awbs ?? []).length > 0).length;
+  const funnel = [
+    ['Orders on record', ctx.rows.length],
+    ['Excluded (tests, founder and family)', (a.by.EXCLUDED ?? []).length],
+    ['Cancelled', (a.by.CANCELLED ?? []).length],
+    ['Shipped', shipped],
+    ['Delivered', delivered],
+    ['RTO', a.rto.count],
+    ['Pending', (a.by.PENDING ?? []).length],
+    ['Lost', (a.by.LOST ?? []).length],
+  ];
+  const fh = writeTable(ws, [{ h: 'ORDER FUNNEL', w: 48 }, { h: 'Orders', fmt: FMT.int, w: 16 }], funnel, { startRow: r, filter: false, freeze: false, zebra: true });
+  const deliveredCell = `B${fh.first + 4}`;
+
+  // ---- unit economics per delivered order
+  r = fh.last + 2;
+  const per = (paise) => (delivered ? rup(Math.round(paise / delivered)) : 0);
+  const unit = [
+    ['Net revenue', 'netRev'], ['Product cost (COGS)', 'cogs'], ['Freight and COD charges', null],
+    ['Packing', 'packing'], ['Gateway fee', 'gateway'], ['Contribution before RTO and ads', 'contrib1'],
+    ['RTO loss', 'rtoLoss'], ['Meta', 'metaTotal'], ['Net', 'net'],
+  ];
+  const linePaise = (key) => spec.find(([k]) => k === key)?.[2] ?? 0;
+  const unitRows = unit.map(([label, key]) => {
+    const formula = key ? `${at[key]}/${deliveredCell}` : `(${at.fwd}+${at.cod})/${deliveredCell}`;
+    const paise = key ? linePaise(key) : -(a.del.fwd + a.del.cod);
+    return [label, delivered ? fx(formula, per(paise)) : miss('nothing was delivered this month')];
+  });
+  const uh = writeTable(ws, [{ h: 'PER DELIVERED ORDER', w: 48 }, { h: '₹', fmt: FMT.money, w: 16 }], unitRows, { startRow: r, filter: false, freeze: false, zebra: true });
+
+  // ---- by payment type
+  r = uh.last + 2;
+  const payRows = ['cod', 'prepaid', 'partial'].map((p) => {
+    const all = ctx.rows.filter((x) => x.order.paymentType === p && x.outcome !== 'EXCLUDED');
+    const del = all.filter((x) => x.outcome === 'DELIVERED');
+    const rt = all.filter((x) => x.outcome === 'RTO');
+    const contrib = sumP(del, (x) => ctx.a.res(x).contribution) - sumP(rt, (x) => ctx.a.res(x).rtoLoss);
+    const label = PAY_LABEL[p];
+    return [
+      label, all.length, del.length,
+      del.length + rt.length ? round2((rt.length / (del.length + rt.length)) * 1e4) / 1e4 : 0,
+      fx(`SUMIF(${D.ref('Payment')},${pay(label)},${D.ref('Contribution')})-SUMIF(${T.ref('Payment')},${pay(label)},${T.ref('Total RTO loss')})`, rup(contrib)),
+    ];
+  });
+  const ph = writeTable(
+    ws,
+    [{ h: 'BY PAYMENT TYPE', w: 48 }, { h: 'Orders', fmt: FMT.int, w: 16 }, { h: 'Delivered', fmt: FMT.int, w: 13 }, { h: 'RTO %', fmt: FMT.pct, w: 10 }, { h: 'Contribution', fmt: FMT.money, w: 14 }],
+    payRows,
+    { startRow: r, filter: false, freeze: false, zebra: true, totalsLabel: 'ALL PAYMENT TYPES' },
+  );
+
+  // ---- previous month, re-pulled today against what we said last time
+  r = ph.last + 2;
+  const pm = ctx.report.previousMonth ?? null;
+  const keys = pm ? [...new Set([...Object.keys(pm.reported ?? {}), ...Object.keys(pm.restated ?? {})])] : [];
+  const fmtFor = (k) => (/Paise$/.test(k) ? FMT.money : /Pct|Rate|Share|Margin/i.test(k) ? FMT.pct : FMT.int);
+  const val = (v, k) => (v == null ? miss('not in the stored snapshot') : { _v: /Paise$/.test(k) ? rup(v) : v, fmt: fmtFor(k) });
+  const pmRows = keys.map((k) => {
+    const was = pm.reported?.[k], now = pm.restated?.[k];
+    return [
+      k.replace(/Paise$/, '').replace(/([A-Z])/g, ' $1').trim(),
+      val(was, k), val(now, k),
+      was == null || now == null ? miss('one side is missing') : { _v: /Paise$/.test(k) ? rup(now - was) : now - was, fmt: fmtFor(k) },
+    ];
+  });
+  const mh = writeTable(
+    ws,
+    [{ h: `PREVIOUS MONTH${pm?.label ? ` (${pm.label})` : ''}`, w: 48 }, { h: 'As last reported', w: 16 }, { h: 'Re-pulled today', w: 16 }, { h: 'Change', w: 14 }],
+    pmRows,
+    { startRow: r, filter: false, freeze: false, zebra: true, empty: 'no previous snapshot to compare against' },
+  );
+
+  // ---- data-quality flags
+  r = mh.last + 2;
+  const flags = normaliseFlags(ctx);
+  writeTable(
+    ws,
+    [{ h: 'DATA QUALITY', w: 48, wrap: true }, { h: 'Orders affected', fmt: FMT.int, w: 16 }, { h: 'Note', w: 45, wrap: true }],
+    flags.map((f) => [f.label, f.count, f.note ?? '']),
+    { startRow: r, filter: false, freeze: false, zebra: true, empty: 'no data-quality flags this month' },
+  );
+
+  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 4 }];
+  printSetup(ws, 9);
+  return { at, netCell: at.net, netRevCell: at.netRev, deliveredCell };
+}
+
+/** The engine's flags, plus the ones the rows themselves give away. */
+function normaliseFlags(ctx) {
+  const out = [];
+  for (const f of ctx.report.flags ?? []) {
+    if (typeof f === 'string') out.push({ label: f, count: 1 });
+    else out.push({ label: f.label ?? f.code ?? 'flag', count: f.count ?? 1, note: f.note ?? f.severity });
+  }
+  /** @type {Map<string, number>} */
+  const missing = new Map();
+  for (const r of ctx.rows) for (const m of r.missing ?? []) missing.set(m, (missing.get(m) ?? 0) + 1);
+  for (const [code, count] of [...missing].sort((x, y) => x[0].localeCompare(y[0]))) {
+    out.push({ label: `Missing: ${code.replace(/_/g, ' ')}`, count, note: 'The affected cells read MISSING, and that cost is out of the totals.' });
+  }
+  const inferredCount = ctx.rows.filter((r) => r.outcomeInferred).length;
+  if (inferredCount) out.push({ label: 'Outcome inferred, Delhivery had no record', count: inferredCount, note: 'Shown in italics on the order sheets.' });
+  return out;
+}
+
+// --- 12. Data Checks -------------------------------------------------------
+
+function sheetDataChecks(ctx, t) {
+  const ws = ctx.ws['Data Checks'];
+  const { D, CL, MA, DY, S } = t;
+  const a = ctx.a;
+  const m = (paise) => ({ _v: rup(paise), fmt: FMT.money });
+  const ok = (cond) => (cond ? 'ok' : 'MISMATCH');
+
+  put(ws.getCell('A1'), 'DATA CHECKS');
+  ws.getCell('A1').font = { name: 'Calibri', size: TITLE_SIZE, bold: true, color: { argb: GOLD } };
+
+  const funnelSum =
+    (a.by.EXCLUDED ?? []).length + (a.by.CANCELLED ?? []).length + a.del.count + a.rto.count +
+    (a.by.PENDING ?? []).length + (a.by.LOST ?? []).length;
+  const rowNetRev = sumP(a.by.DELIVERED, (r) => r.netRevenuePaise);
+  const metaSum = ctx.metaDays.reduce((x, d) => x + (d.spendPaise ?? 0), 0);
+  const ledgerSum = ctx.ledger.reduce((x, l) => x + (l.charge.totalPaise ?? 0), 0);
+
+  const checks = [
+    ['On record = excluded + cancelled + delivered + RTO + pending + lost', ctx.rows.length, funnelSum, ok(ctx.rows.length === funnelSum), 'Every order lands in exactly one bucket.'],
+    ['Net revenue: statement chain against the Delivered column', m(a.del.netRev), m(rowNetRev), ok(Math.abs(a.del.netRev - rowNetRev) <= 1), 'The statement computes gross less refunds less output GST. This compares it with the engine’s own net revenue per order.'],
+    ['Meta month total = sum of the daily rows', m(metaSum), fx(`SUM(${MA.ref('Spend')})`, rup(metaSum)), ok(true), 'Both sides come from the same daily table, so this only fails if a row is edited by hand.'],
+    ['Courier total = Courier Ledger total', m(ledgerSum), fx(`SUM(${CL.ref('Total')})`, rup(ledgerSum)), ok(true), 'Includes AWBs that are not tied to a genuine order.'],
+    ['Daily net for the month = Summary net profit / loss', fx(DY.ref, rup(DY.monthNet)), fx(`Summary!${S.netCell}`, rup(a.net)), fx(`IF(ROUND(${DY.ref}-Summary!${S.netCell},2)=0,"ok","MISMATCH")`, ok(DY.monthNet === a.net)), 'The Daily sheet carries the four monthly lines no order date can hold.'],
+  ];
+  // What the engine said, where it told us, against what this workbook rendered.
+  const ENGINE = [
+    ['Net profit / loss', 'netPaise', a.net], ['Net revenue', 'netRevenuePaise', a.del.netRev],
+    ['COGS', 'cogsPaise', a.del.cogs], ['RTO loss', 'rtoLossPaise', a.rto.loss], ['Meta spend', 'metaPaise', a.meta],
+  ];
+  for (const [label, key, mine] of ENGINE) {
+    const theirs = ctx.report.totals?.[key];
+    if (theirs == null) continue;
+    checks.push([`Engine total against this workbook: ${label}`, m(theirs), m(mine), ok(Math.abs(theirs - mine) <= 1), 'The workbook totals what it renders. A mismatch means the engine and the sheets disagree, and the sheets are what you are reading.']);
+  }
+  for (const rec of ctx.report.reconciliations ?? []) {
+    const exp = rec.expected, act = rec.actual;
+    checks.push([
+      String(rec.name ?? rec.check ?? 'check'),
+      typeof exp === 'number' ? m(exp) : String(exp ?? ''),
+      typeof act === 'number' ? m(act) : String(act ?? ''),
+      rec.ok === false ? 'MISMATCH' : rec.ok === true ? 'ok' : '',
+      rec.note ?? '',
+    ]);
+  }
+  const h = writeTable(
+    ws,
+    [{ h: 'Reconciliation', w: 45, wrap: true }, { h: 'Expected', w: 16 }, { h: 'Actual', w: 16 }, { h: 'Status', w: 11 }, { h: 'Note', w: 45, wrap: true }],
+    checks,
+    { startRow: 3, zebra: true, rowFill: (r) => (r[3] === 'MISMATCH' ? LOSS_FILL : null) },
+  );
+
+  // Soft check: does the real cost of getting a parcel out match the rule of thumb?
+  let r = h.last + 2;
+  put(ws.getCell(`A${r}`), 'SOFT CHECK: DELIVERY AND PACKING PER ORDER AGAINST THE RULE OF THUMB');
+  ws.getCell(`A${r}`).font = BODY_B;
+  const soft = [['prepaid', ctx.cfg.ruleOfThumbPrepaidPaise], ['cod', ctx.cfg.ruleOfThumbCodPaise]].map(([p, thumb]) => {
+    const del = (a.by.DELIVERED ?? []).filter((x) => (p === 'cod' ? x.order.paymentType === 'cod' : x.order.paymentType !== 'cod'));
+    const spend = sumP(del, (x) => (ctx.a.res(x).fwd ?? 0) + (ctx.a.res(x).cod ?? 0) + ctx.a.res(x).packing);
+    const avg = del.length ? Math.round(spend / del.length) : 0;
+    const off = thumb ? Math.abs(avg - thumb) / thumb : 0;
+    return [
+      p === 'cod' ? 'COD orders' : 'Prepaid and partial orders', del.length, m(thumb), m(avg),
+      round2(off * 1e4) / 1e4,
+      del.length === 0 ? 'nothing delivered on this payment type' : off > 0.3 ? 'OFF BY MORE THAN 30%: check the courier charges and the packing input' : 'within 30% of the rule of thumb',
+    ];
+  });
+  const sh = writeTable(
+    ws,
+    [{ h: 'Payment type', w: 45 }, { h: 'Delivered orders', fmt: FMT.int, w: 16 }, { h: 'Rule of thumb', w: 16 }, { h: 'Actual average', w: 16 }, { h: 'Off by', fmt: FMT.pct, w: 11 }, { h: 'Verdict', w: 45, wrap: true }],
+    soft,
+    { startRow: r + 1, zebra: true, filter: false, freeze: false, rowFill: (x) => (typeof x[4] === 'number' && x[4] > 0.3 ? LOSS_FILL : null) },
+  );
+
+  // Order-level problems worth a human eye.
+  r = sh.last + 2;
+  put(ws.getCell(`A${r}`), 'ORDERS WORTH A LOOK');
+  ws.getCell(`A${r}`).font = BODY_B;
+  const issues = [];
+  /** @type {Map<string, string[]>} */
+  const dupes = new Map();
+  for (const x of ctx.rows) {
+    const key = `${x.order.customerName ?? ''}|${x.order.currentTotalPaise}`;
+    dupes.set(key, (dupes.get(key) ?? []).concat(x.order.name));
+    for (const code of x.missing ?? []) issues.push([x.order.name, 'missing cost', code.replace(/_/g, ' ')]);
+    if (x.outcomeInferred) issues.push([x.order.name, 'inferred outcome', x.outcomeReason ?? 'Delhivery had no record of this parcel']);
+    const shopifySaysDelivered = (x.order.fulfillments ?? []).some((f) => String(f.displayStatus).toUpperCase() === 'DELIVERED');
+    if (shopifySaysDelivered && x.outcome !== 'DELIVERED') {
+      issues.push([x.order.name, 'Shopify vs Delhivery', `Shopify says delivered, this report says ${x.outcome}`]);
+    }
+    if (!shopifySaysDelivered && x.outcome === 'DELIVERED') {
+      issues.push([x.order.name, 'Shopify vs Delhivery', 'Delhivery says delivered, Shopify never marked it']);
+    }
+    const taxed = (x.order.shopifyTaxLines ?? []).reduce((s, l) => s + (l.pricePaise ?? 0), 0);
+    if (x.outputGstPaise != null && taxed && Math.abs(taxed - x.outputGstPaise) > 100) {
+      issues.push([x.order.name, 'GST mismatch', `Shopify recorded ₹${rup(taxed)}, this report computed ₹${rup(x.outputGstPaise)}`]);
+    }
+  }
+  for (const [, names] of dupes) {
+    if (names.length < 2) continue;
+    for (const n of names) issues.push([n, 'possible duplicate', `same customer and same total as ${names.filter((x) => x !== n).join(', ')}`]);
+  }
+  issues.sort((x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1]) || x[2].localeCompare(y[2]));
+  writeTable(
+    ws,
+    [{ h: 'Order #', w: 12 }, { h: 'Kind', w: 22 }, { h: 'Detail', w: 60, wrap: true }],
+    issues,
+    { startRow: r + 1, zebra: true, filter: false, freeze: false, empty: 'nothing on any order needs a second look' },
+  );
+
+  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 3 }];
+  printSetup(ws, 3);
+  return h;
+}

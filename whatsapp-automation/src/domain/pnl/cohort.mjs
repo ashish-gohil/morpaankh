@@ -1,0 +1,118 @@
+/*
+ * cohort.mjs — which month an order belongs to, and whether it counts at all.
+ *
+ * Pure. No clock: the month is an argument, never "now".
+ */
+import { istParts, fromISTWall } from '../../lib/time.mjs';
+
+/** @typedef {import('./types.mjs').NormOrder} NormOrder */
+/** @typedef {import('./types.mjs').PnlConfig} PnlConfig */
+
+/** ISO with no millis, so the window reads the way Shopify writes timestamps. */
+const iso = (d) => d.toISOString().replace('.000Z', 'Z');
+
+/**
+ * An IST calendar month as a half-open UTC window.
+ *
+ *   monthWindow('2026-10') -> 2026-09-30T18:30:00Z .. 2026-10-31T18:30:00Z
+ *
+ * The end is EXCLUSIVE. This exists because Shopify's `created_at:` search
+ * filter ignores the time of day: asking it for `>=2026-09-30T18:30:00Z` still
+ * returns #1168 (08:04Z) and #1169 (17:37Z), both September in IST. So the
+ * fetch over-fetches a day either side and the real cohort is cut here.
+ *
+ * @param {string} month 'YYYY-MM'
+ * @returns {{monthStartUtc:string, monthEndUtc:string}}
+ */
+export function monthWindow(month) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(month));
+  if (!m) throw new Error(`monthWindow: expected YYYY-MM, got ${month}`);
+  const y = Number(m[1]);
+  const mon = Number(m[2]) - 1;
+  if (mon < 0 || mon > 11) throw new Error(`monthWindow: no such month: ${month}`);
+  // Date.UTC rolls month 12 into January of y+1, so December needs no case.
+  return {
+    monthStartUtc: iso(fromISTWall(y, mon, 1, 0, 0)),
+    monthEndUtc: iso(fromISTWall(y, mon + 1, 1, 0, 0)),
+  };
+}
+
+/** The IST calendar date of a UTC timestamp, 'YYYY-MM-DD'. The daily series key. */
+export function istDateKey(isoUtc) {
+  const p = istParts(new Date(isoUtc));
+  return `${p.y}-${String(p.mon + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+}
+
+/** Every IST date in the window, in order. Empty days still get a row. */
+export function istDatesIn(monthStartUtc, monthEndUtc) {
+  const out = [];
+  const end = Date.parse(monthEndUtc);
+  for (let t = Date.parse(monthStartUtc); t < end; t += 24 * 60 * 60 * 1000) {
+    out.push(istDateKey(new Date(t).toISOString()));
+  }
+  return out;
+}
+
+/** True when the order was really created inside the IST month. */
+export function inCohort(order, monthStartUtc, monthEndUtc) {
+  const t = Date.parse(order.createdAt);
+  return t >= Date.parse(monthStartUtc) && t < Date.parse(monthEndUtc);
+}
+
+const words = (name) => String(name).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const eq = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+
+/**
+ * Section 6: does this order belong in the P&L at all.
+ *
+ * The excluded orders are real rows in Shopify and would otherwise read as
+ * sales, so they get their own sheet rather than being deleted. Ambiguity is
+ * always INCLUDED and flagged: an order wrongly dropped is invisible, an order
+ * wrongly kept is one line on a sheet someone reads.
+ *
+ * @param {NormOrder} order
+ * @param {PnlConfig} config
+ * @returns {{included:boolean, reason:string|null, flags:string[]}}
+ */
+export function classifyInclusion(order, config) {
+  const flags = [];
+  /*
+   * Draft orders and Claude-connector orders with a real customer are real
+   * WhatsApp and over-the-counter sales (#1188, #1233), so they stay in. They
+   * are flagged because their payment and shipping details were typed by hand.
+   */
+  if (order.channel === 'Manual') flags.push('manual_channel_review');
+
+  const name = (order.customerName || '').trim();
+  if (!name) {
+    const app = order.appName || order.sourceName;
+    return {
+      included: false,
+      reason: app ? `no customer (app order: ${app})` : 'no customer',
+      flags,
+    };
+  }
+
+  if ((config.excludeCustomers || []).some((c) => eq(c, name))) {
+    return { included: false, reason: `excluded customer: ${name}`, flags };
+  }
+
+  const nameWords = words(name);
+  for (const surname of config.excludeSurnames || []) {
+    if (nameWords.includes(String(surname).toLowerCase())) {
+      return { included: false, reason: `excluded surname: ${surname}`, flags };
+    }
+    // Contains it but not as a word ("Gohilwala"): ambiguous, so keep and flag.
+    if (name.toLowerCase().includes(String(surname).toLowerCase())) {
+      flags.push(`possible family name (${surname})`);
+    }
+  }
+
+  for (const tag of order.tags || []) {
+    if ((config.excludeTags || []).some((t) => eq(t, tag))) {
+      return { included: false, reason: `excluded tag: ${tag}`, flags };
+    }
+  }
+
+  return { included: true, reason: null, flags };
+}
