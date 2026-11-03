@@ -596,5 +596,48 @@ export const delhivery = {
   },
 };
 
+/**
+ * The WHOLE charges row, per head, for the monthly P&L.
+ *
+ * `quote` above answers the one question /replace asks ("roughly what will this
+ * leg cost"), so it returns total_amount and nothing else and swallows every
+ * failure as null. The P&L needs the breakdown instead: forward, RTO, DTO and
+ * COD separately, gross against total so GST is its own line, and the zone for
+ * the Data Checks sheet. Hence a second function rather than a wider `quote`,
+ * whose three callers want exactly the number they get today.
+ *
+ * `ss` IS THE LEG AND IT IS NOT A FREE CHOICE. Verified against production on
+ * 2026-11-03 (DECISIONS V): `ss=RTO` returns charge_DL AND charge_RTO in ONE
+ * row, so asking for ss=Delivered as well and adding them doubles the forward
+ * freight on every return. ss=DTO is a reverse pickup.
+ *
+ * It THROWS on a provider failure, unlike `quote`. A missing cost on a report
+ * has to read as missing, and a null that means "Delhivery was down" is
+ * indistinguishable from a null that means "no charge" by the time it reaches a
+ * spreadsheet cell.
+ *
+ * @param {{fromPin?:string, toPin?:string, weightGrams?:number, mode?:string,
+ *          ss?:'Delivered'|'RTO'|'DTO', paymentType?:string, codAmountInr?:number}} args
+ * @returns {Promise<any|null>} the row, or null when Delhivery returned none
+ */
+export async function chargesBreakdown({ fromPin, toPin, weightGrams, mode, ss, paymentType, codAmountInr } = {}) {
+  const md = /^(e|express)$/i.test(String(mode || '')) ? 'E' : 'S';
+  const qs = new URLSearchParams({
+    md,
+    ss: String(ss || 'Delivered'),
+    o_pin: digitsOnly(fromPin),
+    d_pin: digitsOnly(toPin),
+    cgm: String(Number(weightGrams) || 0),
+    pt: String(paymentType || '').toUpperCase() === 'COD' ? 'COD' : 'Pre-paid',
+    cod: String(Number(codAmountInr) || 0),
+  });
+  const json = await call('GET', `${CHARGES_PATH}?${qs}`, { idempotent: true });
+  const row = Array.isArray(json) ? json[0] : json;
+  // An empty body is an answer ("no rate for this lane"), not a transport
+  // failure, so it is a null rather than a throw.
+  if (!row || !Number.isFinite(Number(row.total_amount))) return null;
+  return row;
+}
+
 /* Test seam: the sanitisers and the classifier are the risky pure bits. */
 export const _internals = { clean, clamp, addressField, tenDigit, classifyCreate, codeFor, orderDate };

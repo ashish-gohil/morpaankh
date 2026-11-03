@@ -30,6 +30,15 @@ const FIELDS = {
   // signs its status-push webhook with (set when they enable it).
   delhiveryToken: 'DELHIVERY_TOKEN',
   delhiveryPushSecret: 'DELHIVERY_PUSH_SECRET',
+  /*
+   * Meta Marketing API, read only, for the monthly P&L's ad spend. Its own key
+   * rather than a shared one: the meta-outcomes System User token would do the
+   * job (ads_management covers the insights read, verified 2026-11-03), but it
+   * belongs to another service, and a monthly report must not be breakable by
+   * rotating a credential a customer-facing flow depends on. Absent means the
+   * P&L records a Meta source failure, never zero spend.
+   */
+  metaAdsToken: 'META_ADS_TOKEN',
   payTokenKey: 'PAY_TOKEN_KEY',
   flowTokenKey: 'FLOW_TOKEN_KEY',
 };
