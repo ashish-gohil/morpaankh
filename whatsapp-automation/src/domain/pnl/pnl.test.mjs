@@ -844,7 +844,42 @@ describe('an excluded order that really shipped', () => {
   });
 });
 
+describe('a parcel sent by another courier', () => {
+  it('uses the hand-entered cost, says it is assumed, and still reconciles', () => {
+    const awb = order('#1172').awbs[0];
+    const r = buildReport(
+      inputs({ config: { ...pnlConfig, manualCourierCostPaise: { [awb]: 14000 } } }),
+    );
+    const d = r.rows.find((x) => x.order.name === '#1172');
+    expect(d.forwardFreightPaise).toBe(14000);
+    expect(d.assumed).toContain('manual_courier_cost');
+    expect(d.complete).toBe(true);
+    expect(r.reconciliations.find((x) => x.key === 'courier').agree).toBe(true);
+  });
+
+  it('lets a real Delhivery charge win over the hand-entered one', () => {
+    const awb = order('#1172').awbs[0];
+    const r = buildReport(
+      inputs({
+        charges: [charge(awb, PREPAID_CHARGE)],
+        config: { ...pnlConfig, manualCourierCostPaise: { [awb]: 14000 } },
+      }),
+    );
+    expect(r.rows.find((x) => x.order.name === '#1172').forwardFreightPaise).toBe(6136);
+  });
+});
+
 describe('trust', () => {
+  it('warns when delivery plus packing drifts off the rule of thumb', () => {
+    const r = buildReport(
+      inputs({
+        charges: [charge(order('#1172').awbs[0], PREPAID_CHARGE)],
+        config: { ...pnlConfig, ruleOfThumbPrepaidPaise: 100 },
+      }),
+    );
+    expect(r.flags.some((f) => f.code === 'rule_of_thumb_off' && /prepaid/.test(f.note))).toBe(true);
+  });
+
   it('is provisional while anything is pending or blocked', () => {
     expect(report.provisional).toBe(true);
     expect(report.note).toMatch(/Offline sales not recorded in Shopify are not included/);

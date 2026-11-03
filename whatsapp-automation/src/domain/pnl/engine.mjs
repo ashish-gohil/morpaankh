@@ -614,6 +614,18 @@ export function buildReport(inputs) {
     r.order.fulfillments.length ? config.packingCostPerOrderPaise : 0,
   );
   const otherCourierPaise = otherCourierOnlyPaise + excludedPackingPaise;
+  /*
+   * Hand-entered costs are not in the ledger, so the reconciliation has to
+   * expect them on both sides or it fails every month there is a Tirupati
+   * parcel. Only the AWBs the rows actually costed count: an excluded order's
+   * parcel is never costed on its row.
+   */
+  const manualCourierPaise = sum(
+    [...new Set(rows.filter((r) => r.outcome !== 'EXCLUDED').flatMap((r) => r.awbs))].filter(
+      (a) => !chargeByAwb.has(a) && config.manualCourierCostPaise[a] != null,
+    ),
+    (a) => config.manualCourierCostPaise[a],
+  );
   for (const c of otherCharges) {
     flag('other_courier_charge', null, `${c.awb} is not tied to a settled order of this month`);
   }
@@ -829,7 +841,7 @@ export function buildReport(inputs) {
     },
     {
       key: 'courier',
-      label: 'Courier total = sum of the courier ledger',
+      label: 'Courier total = sum of the courier ledger (plus any hand-entered cost)',
       /*
        * Every paisa the courier billed, as the report attributed it, against
        * every paisa the ledger holds. Pending and incomplete rows are in here
@@ -841,10 +853,11 @@ export function buildReport(inputs) {
       a:
         sum(rows, (r) => (r.forwardFreightPaise ?? 0) + (r.rtoFreightPaise ?? 0) + (r.codChargePaise ?? 0)) +
         otherCourierOnlyPaise,
-      b: sum(inputs.charges, (c) => {
-        const legs = parcelLegs(c, config);
-        return legs ? legs.total : 0;
-      }),
+      b:
+        sum(inputs.charges, (c) => {
+          const legs = parcelLegs(c, config);
+          return legs ? legs.total : 0;
+        }) + manualCourierPaise,
       agree: false,
     },
   ].map((r) => ({ ...r, agree: r.a === r.b }));

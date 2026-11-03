@@ -2,10 +2,12 @@
  * fixtures.mjs — the real October 2026 cohort, normalised to the types.mjs
  * shapes and with customer names replaced by pseudonyms.
  *
- * GENERATED, then committed. It is a frozen copy of the live pull of
- * 2026-11-03 (71 orders #1170-#1240, 54 Delhivery parcels, 86 Meta rows),
- * which is what makes the funnel assertion in pnl.test.mjs a regression test
- * against reality rather than against our own opinion of it.
+ * Generated once from the live pull of 2026-11-03 and committed as a frozen
+ * copy: 71 orders #1170-#1240, the 48 Delhivery parcels they carry, and 86
+ * Meta rows totalling 39,161.21. That is what makes the funnel assertion in
+ * pnl.test.mjs a regression test against reality rather than against our own
+ * opinion of it, and it is why nothing here is regenerated on a whim. A later
+ * month gets its own fixture; this one does not move.
  *
  * The founder's display name is NOT anonymised: 'Ashish Gohil' is already in
  * RULES.pnl.excludeCustomers in committed code, and the exclusion rule under
