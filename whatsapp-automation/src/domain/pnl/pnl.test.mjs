@@ -555,6 +555,120 @@ describe('two orders in one parcel (#1208 + #1209 on 59152210001584)', () => {
   });
 });
 
+describe('three orders in one parcel', () => {
+  /*
+   * October's only shared parcel is two orders whose values happen to round
+   * cleanly, so it proves nothing about the allocation. This is the shape that
+   * does: three orders of Rs 2,099 / Rs 2,099 / Rs 650 on one waybill. Those
+   * weights are chosen because rounding each order's share on its own drifts a
+   * paisa on EVERY head at once, the forward leg and the COD charge and the
+   * packing. A paisa is not the problem; a Data Checks reconciliation that
+   * fails every month and gets ignored is.
+   */
+  const awb = order('#1172').awbs[0];
+  const base = order('#1172');
+  const clones = [
+    { ...base, name: '#9996', gid: 'gid://shopify/Order/9996', numericId: '9996', customerName: 'Clone One' },
+    {
+      ...base,
+      name: '#9997',
+      gid: 'gid://shopify/Order/9997',
+      numericId: '9997',
+      customerName: 'Clone Two',
+      currentTotalPaise: 65000,
+      totalPaise: 65000,
+      lines: base.lines.map((l) => ({ ...l, originalUnitPaise: 65000, discountedUnitPaise: 65000 })),
+    },
+  ];
+  const r = buildReport(inputs({ orders: [...OCT_ORDERS, ...clones], charges: [charge(awb, DELIVERED_COD_CHARGE)] }));
+  const legs = parcelLegs(charge(awb, DELIVERED_COD_CHARGE), pnlConfig);
+  const three = ['#1172', '#9996', '#9997'].map((n) => r.rows.find((x) => x.order.name === n));
+
+  it('splits the freight so the parts add back to the parcel exactly', () => {
+    expect(three.every((x) => x.outcome === 'DELIVERED')).toBe(true);
+    expect(three.reduce((a, x) => a + x.forwardFreightPaise, 0)).toBe(legs.forward);
+    expect(three.reduce((a, x) => a + x.codChargePaise, 0)).toBe(legs.cod);
+  });
+
+  it('splits the packing so the parts add back to one bag exactly', () => {
+    expect(three.reduce((a, x) => a + x.packingPaise, 0)).toBe(pnlConfig.packingCostPerOrderPaise);
+    // By value, so the Rs 650 order carries the smallest share of a cost that
+    // was incurred once.
+    expect(three[2].packingPaise).toBeLessThan(three[0].packingPaise);
+  });
+
+  it('still reconciles against the courier ledger', () => {
+    expect(r.reconciliations.find((x) => x.key === 'courier').agree).toBe(true);
+  });
+});
+
+describe("the adapter's CourierCharge invariants", () => {
+  /*
+   * The adapter folds Delhivery's surcharges (DPH, PEAK, FS, ROV) onto the leg
+   * that moved the parcel outward, because CourierCharge has no field for them.
+   * That makes forward + rto + dto + cod + gst === total_amount exactly, and
+   * this engine has to hold to it or the statement stops tying to the ledger.
+   */
+  const exact = {
+    awb: '59152210001315',
+    source: 'computed',
+    forwardPaise: 5392, // 52 DL + 1.92 DPH + 2 PEAK, the outward leg
+    rtoPaise: 5200,
+    dtoPaise: null,
+    codChargePaise: 391,
+    gstPaise: 1976,
+    totalPaise: 12959,
+    zone: 'D1',
+    chargedWeightGrams: null,
+    weightAssumed: true,
+    variancePaise: null,
+    flags: ['leg_not_final'],
+  };
+
+  it('holds the invariant: the legs plus GST are the total', () => {
+    expect(exact.forwardPaise + exact.rtoPaise + exact.codChargePaise + exact.gstPaise).toBe(exact.totalPaise);
+  });
+
+  it('passes the legs straight through when input credit is claimed', () => {
+    const legs = parcelLegs(exact, { ...pnlConfig, gstInputCreditClaimed: true });
+    expect(legs).toEqual({ forward: 5392, rto: 5200, dto: 0, cod: 391, total: 10983 });
+    expect(legs.total).toBe(exact.totalPaise - exact.gstPaise);
+  });
+
+  it('spreads the GST over the legs when it is not reclaimable, and still totals', () => {
+    const legs = parcelLegs(exact, pnlConfig);
+    expect(legs.forward + legs.rto + legs.dto + legs.cod).toBe(exact.totalPaise);
+    expect(legs.total).toBe(exact.totalPaise);
+  });
+
+  it("carries the adapter's leg_not_final flag onto the row rather than swallowing it", () => {
+    const r = buildReport(inputs({ charges: [exact] }));
+    const d = r.rows.find((x) => x.order.name === '#1170');
+    expect(d.outcome).toBe('RTO');
+    expect(d.flags).toContain('59152210001315: leg_not_final');
+    // A computed return leg is flagged, not withheld: it is the best number
+    // there is, and the row says where it came from.
+    expect(d.complete).toBe(true);
+    expect(d.chargeSource).toBe('computed');
+    expect(d.forwardFreightPaise + d.rtoFreightPaise + d.codChargePaise).toBe(exact.totalPaise);
+  });
+
+  it('reads RTO finality off ReturnedDate, because the state is always RTO_INITIATED', () => {
+    // mapCourierStatus answers RTO_INITIATED for every RTO this account has
+    // ever had: the status string is the bare word "RTO" at every stage.
+    const returned = shipmentsFor('#1170')[0];
+    expect(returned.state).toBe('RTO_INITIATED');
+    expect(returned.returnedAt).toBeTruthy();
+    expect(row('#1170').outcomeReason).toBe('Delhivery RTO, returned to origin');
+
+    const moving = shipmentsFor('#1227')[0];
+    expect(moving.state).toBe('RTO_INITIATED');
+    expect(moving.returnedAt).toBeNull();
+    expect(moving.reverseInTransit).toBe(true);
+    expect(row('#1227').outcomeReason).toBe('Delhivery RTO in progress');
+  });
+});
+
 describe('partial payment (COD King)', () => {
   it('earns the CURRENT TOTAL once Delhivery says delivered, not the net payment (#1197)', () => {
     const o = order('#1197');
