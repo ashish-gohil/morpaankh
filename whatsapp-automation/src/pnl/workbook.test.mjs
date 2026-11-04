@@ -524,6 +524,29 @@ describe('buildWorkbook', () => {
     expect(await nov.file('docProps/core.xml').async('string')).toContain('2026-11-01T00:00:00Z');
   });
 
+  // The engine wraps its Meta days as {rows, salesPaise, ...} and keeps charges,
+  // shipments and replacements out of the Report entirely. Both of those would
+  // silently empty three sheets, so both shapes are read.
+  it('reads the engine\u2019s own Meta wrapper as well as a bare array', async () => {
+    const f = fixture();
+    const bare = f.meta;
+    f.meta = { rows: bare, salesPaise: PAISE(2100), boostPaise: PAISE(300), otherPaise: 0, gstPaise: PAISE(432), totalPaise: PAISE(2832) };
+    const w = await reopen(await buildWorkbook(f, META));
+    expect(w.getWorksheet('Meta Ads').getCell('C2').value).toBe('Festive sales');
+    expect(w.getWorksheet('Summary').getCell('B32').value.result).toBe(-2832);
+  });
+
+  it('finds charges, shipments and replacements on report.inputs too', async () => {
+    const f = fixture();
+    const inputs = { charges: f.charges, shipments: f.shipments, replacements: f.replacements, meta: f.meta, config: f.config };
+    const w = await reopen(await buildWorkbook({ rows: f.rows, inputs }, META));
+    const CL = w.getWorksheet('Courier Ledger');
+    expect(CL.getCell('A2').value).toBe('111');
+    expect(CL.getCell('L2').value).toBe(76); // the charge itself, not a MISSING placeholder
+    expect(w.getWorksheet('Replacements').getCell('A2').value).toBe('#1170');
+    expect(w.getWorksheet('Meta Ads').getCell('C2').value).toBe('Festive sales');
+  });
+
   it('renders a "none this month" row instead of throwing when a section is missing', async () => {
     const bare = { rows: fixture().rows.slice(0, 1) };
     const w = await reopen(await buildWorkbook(bare, { month: '2026-10' }));

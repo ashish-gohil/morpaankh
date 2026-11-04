@@ -41,10 +41,19 @@
  *   report.reconciliations [{name|check, expected, actual, ok?, note?}]
  *   report.assumptions     [{key, label, value, unit?, source, note?, input?}]
  *   report.config          PnlConfig (packing, gateway %, Meta GST, rules of thumb)
- *   report.meta            MetaDay[]        -> Meta Ads + the Daily spend column
+ *   report.meta            MetaDay[], or the engine's own
+ *                          {rows, salesPaise, ...} wrapper -> Meta Ads + the
+ *                          Daily spend column. Both shapes are accepted.
  *   report.charges         CourierCharge[]  -> Courier Ledger
  *   report.shipments       NormShipment[]   -> Courier Ledger status columns
  *   report.replacements    ReplacementJob[] -> Replacements
+ *
+ * charges, shipments and replacements are NOT on the engine's Report: they are
+ * PnlInputs, and only the orchestrator has both. It can put them on the report
+ * it passes here, or hand the whole inputs object as `report.inputs`; either is
+ * read. Without them the Courier Ledger and Replacements sheets render their
+ * "none this month" row, which is a lie about a month that did have parcels,
+ * so the orchestrator has to pass them.
  *   report.lastMonthUpdate [{orderName, was, now, at?, deltaPaise?, note?}]
  *                          -> sheet 11, which is OMITTED when this is absent
  *   report.previousMonth   {label?, reported:{}, restated:{}} -> Summary block
@@ -498,8 +507,9 @@ function replacementCost(j, cfg) {
  * already inside one of the order sheets or has to come in as "other".
  */
 function buildLedger(report) {
-  const charges = report.charges ?? [];
-  const ships = new Map((report.shipments ?? []).map((s) => [s.awb, s]));
+  const charges = report.charges ?? report.inputs?.charges ?? [];
+  const shipList = report.shipments ?? report.inputs?.shipments ?? [];
+  const ships = new Map(shipList.map((s) => [s.awb, s]));
   /** @type {Map<string, {orders:string[], outcome:string|null, payment:string|null}>} */
   const owners = new Map();
   for (const r of report.rows ?? []) {
@@ -530,7 +540,7 @@ function buildLedger(report) {
     out.push({ charge, ship: ships.get(charge.awb) ?? null, own: own ?? null, bucket });
   }
   // A parcel Delhivery tracked but never billed still belongs on the ledger.
-  for (const s of report.shipments ?? []) {
+  for (const s of shipList) {
     if (seen.has(s.awb)) continue;
     const own = owners.get(s.awb);
     out.push({
@@ -564,9 +574,12 @@ const SHEETS = [
  * Render one month's report.
  *
  * @param {{rows: ReportRow[], funnel?: any, totals?: any, ratios?: any, flags?: any[],
- *          reconciliations?: any[], assumptions?: any[], config?: any, meta?: any[],
+ *          reconciliations?: any[], assumptions?: any[], config?: any,
+ *          meta?: any[]|{rows?: any[]},
  *          charges?: any[], shipments?: any[], replacements?: any[],
- *          lastMonthUpdate?: any[], previousMonth?: any}} report
+ *          lastMonthUpdate?: any[], previousMonth?: any,
+ *          inputs?: {meta?: any[]|{rows?: any[]}, charges?: any[], shipments?: any[],
+ *                    replacements?: any[], config?: any}}} report
  * @param {{month: string, monthLabel?: string, provisional?: boolean, generatedAtIST?: string,
  *          trigger?: string, courierChargeBasis?: string, incomplete?: boolean,
  *          adminOrderUrlBase?: string}} meta
@@ -574,10 +587,13 @@ const SHEETS = [
  */
 export async function buildWorkbook(report, meta) {
   const ExcelJS = await exceljs();
-  const cfg = { ...CFG_DEFAULTS, ...(report.config ?? {}) };
+  const cfg = { ...CFG_DEFAULTS, ...(report.config ?? report.inputs?.config ?? {}) };
   const rows = report.rows ?? [];
-  const metaDays = report.meta ?? [];
-  const repl = report.replacements ?? [];
+  // The engine wraps its Meta days as {rows, salesPaise, ...}; an adapter hands
+  // the bare array. Take either.
+  const metaRaw = report.meta ?? report.inputs?.meta ?? [];
+  const metaDays = Array.isArray(metaRaw) ? metaRaw : (metaRaw.rows ?? []);
+  const repl = report.replacements ?? report.inputs?.replacements ?? [];
   const ledger = buildLedger(report);
   const a = aggregate(rows, cfg, metaDays, repl, ledger);
   const month = meta.month ?? '2000-01';
@@ -829,12 +845,12 @@ const adminLink = (ctx, r) =>
     : r.order.name;
 const awbLink = (awbs) => (awbs?.length ? link(awbs.join(', '), `${DELHIVERY_TRACK}${awbs[0]}`) : miss('no AWB on this order'));
 const shipOf = (ctx, r) => {
-  const m = new Map((ctx.report.shipments ?? []).map((s) => [s.awb, s]));
+  const m = new Map((ctx.report.shipments ?? ctx.report.inputs?.shipments ?? []).map((s) => [s.awb, s]));
   for (const awb of r.awbs ?? []) if (m.has(awb)) return m.get(awb);
   return null;
 };
 const chargeOf = (ctx, awbs) => {
-  const m = new Map((ctx.report.charges ?? []).map((c) => [c.awb, c]));
+  const m = new Map((ctx.report.charges ?? ctx.report.inputs?.charges ?? []).map((c) => [c.awb, c]));
   for (const awb of awbs ?? []) if (m.has(awb)) return m.get(awb);
   return null;
 };
