@@ -118,15 +118,39 @@ function fixture() {
   const p1 = order('#1173', { createdAt: '2026-10-28T06:30:00Z', awbs: ['444'], fulfillments: [] });
   const c1 = order('#1174', { createdAt: '2026-10-29T06:30:00Z', cancelledAt: '2026-10-30T06:30:00Z', cancelReason: 'CUSTOMER', awbs: ['555'], customerName: 'E Customer' });
   const x1 = order('#1175', { createdAt: '2026-10-30T06:30:00Z', customerName: 'Ashish Gohil', tags: ['test-order'], awbs: [] });
+  /*
+   * #1176 is October's #1205: delivered, but with no AWB at all, so its freight
+   * is unknowable. The engine blocks it from every total. The workbook used to
+   * SUM it anyway, which put its revenue in and left its freight out, and the
+   * month read about Rs 2,046 richer than it was.
+   */
+  const b1 = order('#1176', {
+    createdAt: '2026-10-25T06:30:00Z',
+    awbs: [],
+    fulfillments: [],
+    customerName: 'F Customer',
+    currentTotalPaise: PAISE(2046),
+  });
 
   const rows = [
     row(d1, 'DELIVERED'),
+    // The engine sets complete:false whenever `missing` is non-empty, so a row
+    // with no unit cost is out of the totals too. The fixture has to say so or
+    // it would be describing a report the engine never produces.
     row(d2, 'DELIVERED', {
       cogsPaise: null,
       missing: ['unit_cost'],
+      complete: false,
       assumed: ['gateway_fee'],
       codChargePaise: PAISE(35),
       flags: ['no unit cost on the Taana line'],
+    }),
+    row(b1, 'DELIVERED', {
+      forwardFreightPaise: null,
+      codChargePaise: null,
+      missing: ['freight', 'awb'],
+      complete: false,
+      flags: ['no AWB on this order, so its freight is unknowable'],
     }),
     row(t1, 'RTO', {
       outputGstPaise: null,
@@ -195,7 +219,9 @@ function fixture() {
     flags: [{ code: 'ses_sandbox', label: 'Delhivery charge ledger was not uploaded', count: 3, note: 'Charges fell back to the computed rate card.' }],
     reconciliations: [{ name: 'Shopify page count', expected: 1, actual: 1, ok: true, note: 'single page of orders' }],
     assumptions: [{ key: 'originPin', label: 'Origin PIN', value: '395003', source: 'VERIFIED', note: 'Surat pickup' }],
-    totals: { netPaise: null },
+    // The engine's real key names. The count keys are exact and easy to read;
+    // the money keys get their own assertions in the blocked-row suite.
+    totals: { countedDelivered: 1, countedRto: 1, blockedDelivered: 2, blockedRto: 0 },
     lastMonthUpdate: [{ orderName: '#1140', was: 'PENDING', now: 'DELIVERED', at: '2026-10-03T06:00:00Z', deltaPaise: PAISE(820), note: 'settled after last month closed' }],
     previousMonth: { label: 'September 2026', reported: { netPaise: PAISE(-4000), deliveredOrders: 9 }, restated: { netPaise: PAISE(-3100), deliveredOrders: 10 } },
   };
@@ -211,6 +237,23 @@ const META = {
   incomplete: false,
   adminOrderUrlBase: 'https://admin.shopify.com/store/test-store/orders',
 };
+
+/**
+ * The row a Summary statement line sits on, found by its label.
+ *
+ * These were hardcoded (B35 for the net, B32 for TOTAL META) until the engine's
+ * LOST line shifted every row by one and five tests failed for no reason worth
+ * failing for. A label is the thing being asserted; the row number never was.
+ */
+function rowOf(ws, label) {
+  let n = 0;
+  ws.eachRow((r) => {
+    if (String(r.getCell(1).value ?? '').trim() === label.trim()) n = r.number;
+  });
+  expect(n, `no row labelled "${label}"`).toBeGreaterThan(0);
+  return n;
+}
+const cellOf = (ws, label) => ws.getCell(`B${rowOf(ws, label)}`);
 
 const reopen = async (buf) => {
   const wb = new ExcelJS.Workbook();
@@ -298,7 +341,7 @@ describe('buildWorkbook', () => {
     expect(D.getCell('AB2').numFmt).toBe('0.0%');
     expect(D.getCell('B2').numFmt).toBe('dd-mmm-yyyy');
     expect(wb.getWorksheet('Courier Ledger').getCell('L2').numFmt).toBe('₹#,##0.00;[Red]-₹#,##0.00');
-    expect(wb.getWorksheet('Summary').getCell('B10').numFmt).toBe('₹#,##0;[Red]-₹#,##0');
+    expect(cellOf(wb.getWorksheet('Summary'), 'Gross sales (delivered, incl. GST)').numFmt).toBe('₹#,##0;[Red]-₹#,##0');
   });
 
   it('freezes the header row and the first column on every sheet', () => {
@@ -365,7 +408,7 @@ describe('buildWorkbook', () => {
     const ND = wb.getWorksheet('Not Delivered');
     const RP = wb.getWorksheet('Replacements');
 
-    const summaryNet = p(S.getCell('B35'));
+    const summaryNet = p(cellOf(S, 'NET PROFIT / LOSS'));
     // The Daily sheet's bottom line: the day rows plus the monthly lines no
     // order date can carry.
     let netRow = 0;
@@ -395,16 +438,41 @@ describe('buildWorkbook', () => {
     expect(fromSheets).toBe(summaryNet);
   });
 
-  it('keeps the Summary statement in the brief’s order and labels the bottom line', () => {
+  it('keeps the Summary statement in the brief’s order, with the engine’s LOST line', () => {
     const S = wb.getWorksheet('Summary');
-    expect(S.getCell('A10').value).toBe('Gross sales (delivered, incl. GST)');
-    expect(S.getCell('A13').value).toBe('NET REVENUE');
-    expect(S.getCell('A19').value).toBe('CONTRIBUTION BEFORE RTO AND ADS');
-    expect(S.getCell('A24').value).toBe('RTO LOSS (BOTH WAYS)');
-    expect(S.getCell('A28').value).toBe('CONTRIBUTION AFTER RTO');
-    expect(S.getCell('A32').value).toBe('TOTAL META');
-    expect(S.getCell('A33').value).toBe('PROFIT BEFORE FIXED COSTS');
-    expect(S.getCell('A35').value).toBe('NET PROFIT / LOSS');
+    const labels = [];
+    for (let r = rowOf(S, 'Gross sales (delivered, incl. GST)'); r <= rowOf(S, 'NET PROFIT / LOSS'); r++) {
+      labels.push(String(S.getCell(`A${r}`).value));
+    }
+    expect(labels).toEqual([
+      'Gross sales (delivered, incl. GST)',
+      '  less refunds',
+      '  less output GST',
+      'NET REVENUE',
+      '  Product cost (COGS)',
+      '  Forward freight (delivered)',
+      '  COD charges',
+      '  Packing',
+      '  Payment gateway fees',
+      'CONTRIBUTION BEFORE RTO AND ADS',
+      '  RTO forward freight',
+      '  RTO return freight',
+      '  RTO packing and gateway fees (and any COD charge billed)',
+      '  less advance kept on RTO',
+      'RTO LOSS (BOTH WAYS)',
+      '  Cancelled-shipment charges',
+      '  Replacement shipments (net of reimbursements received)',
+      '  Other courier charges',
+      '  Lost shipments (product and freight)',
+      'CONTRIBUTION AFTER RTO',
+      '  Meta ads: sales campaigns',
+      '  Meta ads: boosts and other',
+      '  GST on Meta (if no input credit)',
+      'TOTAL META',
+      'PROFIT BEFORE FIXED COSTS',
+      '  Fixed costs',
+      'NET PROFIT / LOSS',
+    ]);
   });
 
   it('always carries the offline-sales note and the six KPI tiles', () => {
@@ -413,7 +481,7 @@ describe('buildWorkbook', () => {
     expect([1, 2, 3, 4, 5, 6].map((c) => S.getRow(6).getCell(c).value)).toEqual([
       'Net profit / loss', 'Net margin %', 'Delivered orders', 'RTO rate', 'Meta spend', 'Net per delivered order',
     ]);
-    expect(S.getRow(7).getCell(3).value).toBe(2);
+    expect(S.getRow(7).getCell(3).value).toBe(3); // three delivered; only one complete enough to count
   });
 
   it('shows a red INCOMPLETE banner only when a source failed', async () => {
@@ -444,9 +512,10 @@ describe('buildWorkbook', () => {
     expect(wb.getWorksheet('Delivered').getCell('X2').value.formula).toContain('pnl_packing_per_order');
     expect(wb.getWorksheet('RTO').getCell('P2').value.formula).toContain('pnl_packing_per_order');
     expect(wb.getWorksheet('Replacements').getCell('J2').value.formula).toContain('pnl_packing_per_order');
-    expect(wb.getWorksheet('Summary').getCell('B31').value.formula).toContain('pnl_gst_input_credit');
-    expect(wb.getWorksheet('Summary').getCell('B31').value.formula).toContain('pnl_meta_gst_pct');
-    expect(wb.getWorksheet('Summary').getCell('B34').value.formula).toContain('pnl_fixed_costs');
+    const S = wb.getWorksheet('Summary');
+    expect(cellOf(S, 'GST on Meta (if no input credit)').value.formula).toContain('pnl_gst_input_credit');
+    expect(cellOf(S, 'GST on Meta (if no input credit)').value.formula).toContain('pnl_meta_gst_pct');
+    expect(cellOf(S, 'Fixed costs').value.formula).toContain('pnl_fixed_costs');
     expect(wb.getWorksheet('Delivered').getCell('Y3').value.formula).toContain('pnl_gateway_fee_pct');
   });
 
@@ -504,11 +573,43 @@ describe('buildWorkbook', () => {
     expect(text).toContain('ok');
     expect(text.join(' | ')).toContain('RULE OF THUMB');
     expect(text.join(' | ')).toContain('possible duplicate');
+    // The counted/blocked cross-checks agree, and counts are not money-formatted.
+    const engineRows = [];
+    DC.eachRow((r) => {
+      const a = String(r.getCell(1).value ?? '');
+      if (a.startsWith('Engine total against this workbook:')) engineRows.push([a.split(': ')[1], r.getCell(2).value, r.getCell(4).value]);
+    });
+    expect(engineRows).toEqual([
+      ['Delivered orders counted in the totals', 1, 'ok'],
+      ['RTO orders counted in the totals', 1, 'ok'],
+      ['Delivered orders blocked from the totals', 2, 'ok'],
+      ['RTO orders blocked from the totals', 0, 'ok'],
+    ]);
   });
 
-  it('builds twice to the same bytes', async () => {
+  /*
+   * DETERMINISM, in the only form this stack can actually deliver.
+   *
+   * Raw byte-identity is not achievable and the assertion that claimed it was
+   * passing by luck: exceljs zips through archiver, which stamps every entry's
+   * local header with the wall clock (the first differing byte is 10, the DOS
+   * time field). Two builds match only when they land in the same second, so
+   * that test went green ~95% of runs and red the rest, which is worse than no
+   * test. exceljs exposes no hook for the entry date.
+   *
+   * What matters is that the same report produces the same WORKBOOK, so this
+   * compares the content of every entry in the archive, which is deterministic,
+   * and the docProps stamp is pinned to the month by the test below.
+   */
+  it('builds twice to the same content, entry for entry', async () => {
     const again = await buildWorkbook(fixture(), META);
-    expect(again.equals(buf)).toBe(true);
+    const [a, b] = await Promise.all([JSZip.loadAsync(buf), JSZip.loadAsync(again)]);
+    expect(Object.keys(b.files).sort()).toEqual(Object.keys(a.files).sort());
+    for (const name of Object.keys(a.files).sort()) {
+      if (a.files[name].dir) continue;
+      const [x, y] = await Promise.all([a.file(name).async('uint8array'), b.file(name).async('uint8array')]);
+      expect(Buffer.from(y).equals(Buffer.from(x)), name).toBe(true);
+    }
   });
 
   // Byte-identity alone would pass by luck: exceljs stamps docProps to the
@@ -533,7 +634,7 @@ describe('buildWorkbook', () => {
     f.meta = { rows: bare, salesPaise: PAISE(2100), boostPaise: PAISE(300), otherPaise: 0, gstPaise: PAISE(432), totalPaise: PAISE(2832) };
     const w = await reopen(await buildWorkbook(f, META));
     expect(w.getWorksheet('Meta Ads').getCell('C2').value).toBe('Festive sales');
-    expect(w.getWorksheet('Summary').getCell('B32').value.result).toBe(-2832);
+    expect(cellOf(w.getWorksheet('Summary'), 'TOTAL META').value.result).toBe(-2832);
   });
 
   it('finds charges, shipments and replacements on report.inputs too', async () => {
@@ -545,6 +646,123 @@ describe('buildWorkbook', () => {
     expect(CL.getCell('L2').value).toBe(76); // the charge itself, not a MISSING placeholder
     expect(w.getWorksheet('Replacements').getCell('A2').value).toBe('#1170');
     expect(w.getWorksheet('Meta Ads').getCell('C2').value).toBe('Festive sales');
+  });
+
+  /*
+   * THE OCTOBER REGRESSION.
+   *
+   * The engine blocks a row from every total when anything it needs is null.
+   * This workbook SUMmed every rendered row, so #1205's revenue and COGS landed
+   * in the totals while its freight did not, and Data Checks correctly read
+   * MISMATCH on net revenue, COGS and RTO loss. These assertions fail if an
+   * incomplete row ever gets back into a total.
+   */
+  describe('a row the engine blocked', () => {
+    const colOf = (ws, header, headerRow = 1) => {
+      let n = 0;
+      ws.getRow(headerRow).eachCell((c, i) => { if (c.value === header) n = i; });
+      expect(n, header).toBeGreaterThan(0);
+      return n;
+    };
+    // Column A is a hyperlink object on the order sheets, so read its text.
+    const textOf = (v) => String((v && typeof v === 'object' ? (v.text ?? v.result ?? '') : v) ?? '');
+    const totalRowOf = (ws, label) => {
+      let n = 0;
+      ws.eachRow((r) => { if (textOf(r.getCell(1).value) === label) n = r.number; });
+      expect(n, label).toBeGreaterThan(0);
+      return n;
+    };
+
+    it('stays visible on the sheet, with its real amounts', () => {
+      const D = wb.getWorksheet('Delivered');
+      const row = totalRowOf(D, '#1176');
+      expect(row).toBe(4);
+      expect(D.getCell(row, colOf(D, 'Gross sale')).value).toBe(2046); // shown, not hidden
+      expect(D.getCell(row, colOf(D, 'Forward freight')).value).toBe('MISSING');
+    });
+
+    it('is flagged out of the totals, in amber, with the reason', () => {
+      const D = wb.getWorksheet('Delivered');
+      const c = D.getCell(4, colOf(D, 'In totals'));
+      expect(c.value).toBe(0);
+      expect(c.fill.fgColor.argb).toBe('FFFFE0A3');
+      expect(String(c.note)).toContain('Excluded from every total');
+      expect(String(c.note)).toContain('freight');
+      // and the complete row is in
+      expect(D.getCell(2, colOf(D, 'In totals')).value).toBe(1);
+    });
+
+    it('is left out of the sheet total, by a SUMIF and not by a bare SUM', () => {
+      const D = wb.getWorksheet('Delivered');
+      const tr = totalRowOf(D, 'DELIVERED TOTAL');
+      const gross = D.getCell(tr, colOf(D, 'Gross sale'));
+      // Only #1170 counts: 2000, not 2000 + 1550 + 2046.
+      expect(gross.value.result).toBe(2000);
+      expect(gross.value.formula).toMatch(/^SUMIF\(/);
+      expect(gross.value.formula).toContain('$AE$2:$AE$4'); // the In totals column
+      expect(D.getCell(tr, colOf(D, 'COGS')).value.result).toBe(900);
+      expect(D.getCell(tr, colOf(D, 'In totals')).value.result).toBe(1); // one counted
+    });
+
+    it('never reaches the Summary statement', () => {
+      const S = wb.getWorksheet('Summary');
+      expect(cellOf(S, 'Gross sales (delivered, incl. GST)').value.result).toBe(2000);
+      expect(cellOf(S, '  Product cost (COGS)').value.result).toBe(-900);
+      expect(cellOf(S, 'NET REVENUE').value.result).toBe(2000 - 95.24);
+    });
+
+    it('is named on Summary with its count and its money', () => {
+      const S = wb.getWorksheet('Summary');
+      const text = [];
+      S.eachRow((r) => r.eachCell((c) => text.push(String(c.value ?? ''))));
+      const line = text.find((t) => t.includes('EXCLUDED FROM EVERY TOTAL'));
+      expect(line, 'Summary says nothing about the orders it left out').toBeTruthy();
+      expect(line).toContain('2 delivered orders are');
+      expect(line).toContain('3,596'); // 1550 + 2046 of gross sales
+      expect(line).toContain('#1171');
+      expect(line).toContain('#1176');
+    });
+
+    it('makes the engine cross-check read ok, and still MISMATCH when it should', async () => {
+      const gst1170 = Math.round(PAISE(2000) * (5 / 105));
+      const counted = {
+        netRevenuePaise: PAISE(2000) - gst1170,
+        cogsPaise: PAISE(900),
+        rtoLossPaise: PAISE(76) + PAISE(76) + PAISE(25) + PAISE(47.2) - PAISE(130),
+      };
+      const statuses = async (totals) => {
+        const w = await reopen(await buildWorkbook({ ...fixture(), totals }, META));
+        const DC = w.getWorksheet('Data Checks');
+        const out = [];
+        DC.eachRow((r) => {
+          if (String(r.getCell(1).value ?? '').startsWith('Engine total against this workbook:')) {
+            out.push([String(r.getCell(1).value).replace('Engine total against this workbook: ', ''), r.getCell(4).value]);
+          }
+        });
+        return out;
+      };
+      // The engine's counted figures: the workbook agrees with all three.
+      expect(await statuses(counted)).toEqual([
+        ['Net revenue', 'ok'], ['COGS', 'ok'], ['RTO loss', 'ok'],
+      ]);
+      // The pre-fix figures, which included the blocked rows: the tripwire fires.
+      const naive = {
+        netRevenuePaise: counted.netRevenuePaise + PAISE(1550) - Math.round(PAISE(1550) * (5 / 105)) + PAISE(2046) - Math.round(PAISE(2046) * (5 / 105)),
+        cogsPaise: counted.cogsPaise,
+        rtoLossPaise: counted.rtoLossPaise + PAISE(50), // a paisa is inside the rounding tolerance; fifty rupees is not
+      };
+      expect(await statuses(naive)).toEqual([
+        ['Net revenue', 'MISMATCH'], ['COGS', 'ok'], ['RTO loss', 'MISMATCH'],
+      ]);
+    });
+
+    it('keeps the Daily and Summary bottom lines tied with a blocked row present', () => {
+      const p = (c) => Math.round((typeof c.value === 'object' ? c.value.result : c.value) * 100);
+      const Daily = wb.getWorksheet('Daily');
+      let netRow = 0;
+      Daily.eachRow((r) => { if (r.getCell(1).value === 'NET FOR THE MONTH') netRow = r.number; });
+      expect(p(Daily.getCell(`O${netRow}`))).toBe(p(cellOf(wb.getWorksheet('Summary'), 'NET PROFIT / LOSS')));
+    });
   });
 
   it('renders a "none this month" row instead of throwing when a section is missing', async () => {
@@ -560,8 +778,9 @@ describe('buildWorkbook', () => {
   it('survives a month with no orders at all', async () => {
     const w = await reopen(await buildWorkbook({ rows: [] }, { month: '2026-10', monthLabel: 'October 2026' }));
     expect(w.getWorksheet('Delivered').getCell('A2').value).toBe('no delivered orders this month');
-    const net = w.getWorksheet('Summary').getCell('B35').value;
-    expect(net.formula).toBe('B33+B34');
+    const S = w.getWorksheet('Summary');
+    const net = cellOf(S, 'NET PROFIT / LOSS').value;
+    expect(net.formula).toBe(`B${rowOf(S, 'PROFIT BEFORE FIXED COSTS')}+B${rowOf(S, 'Fixed costs')}`);
     expect(net.result ?? 0).toBe(0); // exceljs's loader drops a zero result; the file has <v>0</v>
   });
 });

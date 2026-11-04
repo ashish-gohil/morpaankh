@@ -216,7 +216,7 @@ const link = (text, url) => (url ? { text: String(text), hyperlink: url } : Stri
  * @param {any[][]} rows
  * @param {{startRow?:number, zebra?:boolean, filter?:boolean, freeze?:boolean,
  *          totalsLabel?:string, rowFill?:(row:any[], i:number)=>string|null,
- *          empty?:string}} [opts]
+ *          empty?:string, countedCol?:string}} [opts]
  * @returns {TableHandle}
  */
 function writeTable(ws, cols, rows, opts = {}) {
@@ -250,6 +250,20 @@ function writeTable(ws, cols, rows, opts = {}) {
 
   const first = startRow + 1;
   const last = startRow + body.length;
+  /*
+   * THE ENGINE'S RULE, IN EXCEL. Only a COMPLETE row contributes to a total:
+   * an order whose freight we could not read would otherwise put its revenue
+   * in the total and leave its cost out, and the month would read richer than
+   * it was. countedCol names a 1/0 column, every total becomes a SUMIF over
+   * it, and the cached result sums the same rows the formula does. The
+   * incomplete row stays on the sheet, with its amber cells, out of the total.
+   */
+  const flagIdx = opts.countedCol ? cols.findIndex((c) => c.h === opts.countedCol) : -1;
+  const flagL = flagIdx >= 0 ? colLetter(flagIdx + 1) : null;
+  const flagRange = flagL ? `$${flagL}$${first}:$${flagL}$${last}` : null;
+  const numOf = (v) =>
+    typeof v === 'number' ? v : typeof v?.result === 'number' ? v.result : typeof v?._v === 'number' ? v._v : 0;
+  const inTotal = (r) => flagIdx < 0 || numOf(r[flagIdx]) === 1;
   let totals = null;
   const handle = {
     header: startRow,
@@ -263,6 +277,17 @@ function writeTable(ws, cols, rows, opts = {}) {
     },
     totalRef: (h) => `'${ws.name}'!$${handle.letter(h)}$${totals ?? last}`,
     sum: (h) => cachedSums[h] ?? 0,
+    /*
+     * The cross-sheet total of one column, as a formula string, counted-aware.
+     * The Summary builds its statement out of these so a statement line and the
+     * sheet it came from can never disagree.
+     */
+    sumOf: (h) =>
+      flagRange
+        ? `SUMIF('${ws.name}'!${flagRange},1,${handle.ref(h)})`
+        : `SUM(${handle.ref(h)})`,
+    countedRef: () => (flagRange ? `SUM('${ws.name}'!${flagRange})` : String(body.length)),
+    flagRange: () => (flagRange ? `'${ws.name}'!${flagRange}` : null),
   };
 
   /** @type {Record<string, number>} */
@@ -272,13 +297,7 @@ function writeTable(ws, cols, rows, opts = {}) {
     const i = cols.indexOf(c);
     cachedSums[c.h] = isEmpty
       ? 0
-      : round2(
-          body.reduce((a, r) => {
-            const v = r[i];
-            const n = typeof v === 'number' ? v : typeof v?.result === 'number' ? v.result : typeof v?._v === 'number' ? v._v : 0;
-            return a + n;
-          }, 0),
-        );
+      : round2(body.reduce((a, r) => (i !== flagIdx && !inTotal(r) ? a : a + numOf(r[i])), 0));
   }
 
   if (cols.some((c) => c.total)) {
@@ -290,7 +309,11 @@ function writeTable(ws, cols, rows, opts = {}) {
       if (i === 0) cell.value = opts.totalsLabel ?? 'TOTAL';
       else if (c.total === 'sum') {
         const L = colLetter(i + 1);
-        cell.value = fx(`SUM(${L}${first}:${L}${last})`, cachedSums[c.h]);
+        const range = `${L}${first}:${L}${last}`;
+        cell.value = fx(
+          flagRange && i !== flagIdx ? `SUMIF(${flagRange},1,${range})` : `SUM(${range})`,
+          cachedSums[c.h],
+        );
       } else if (typeof c.total === 'function') cell.value = c.total(handle);
       cell.font = BODY_B;
       cell.fill = solid(GOLD);
@@ -398,6 +421,21 @@ const CFG_DEFAULTS = {
 };
 
 const PAY_LABEL = { cod: 'COD', prepaid: 'Prepaid', partial: 'Partial' };
+
+/*
+ * The engine blocks a row from every total when anything it needs is null
+ * (engine.mjs: `ok = rs.filter(r => r.complete)`), because a row that brings
+ * its revenue but not its freight makes the month read richer than it was.
+ * The workbook has to block exactly the same rows or its totals disagree with
+ * the engine's, which is what the Data Checks cross-check caught in October.
+ *
+ * `complete !== false` rather than `=== true`: a report that never set the flag
+ * counts everything, which is the old behaviour.
+ */
+const counted = (r) => r.complete !== false;
+const whyBlocked = (r) =>
+  `Excluded from every total: ${(r.missing ?? []).join(', ') || 'the row is incomplete'}. ` +
+  'The amounts are shown so you can see the order and fix it.';
 const isAssumed = (r, what) => (r.assumed ?? []).some((a) => String(a).includes(what));
 const unitsOf = (r) => (r.order.lines ?? []).reduce((a, l) => a + (l.currentQuantity ?? 0), 0);
 const itemsOf = (r) =>
@@ -448,9 +486,18 @@ function aggregate(rows, cfg, metaDays, repl, ledger) {
   const res = new Map(rows.map((r) => [r.order.name, resolve(r, cfg)]));
   const R = (r) => res.get(r.order.name);
 
-  const d = by.DELIVERED, t = by.RTO;
+  // Only COMPLETE rows reach a total; the funnel still counts every order.
+  const d = (by.DELIVERED ?? []).filter(counted);
+  const t = (by.RTO ?? []).filter(counted);
+  const blocked = {
+    delivered: (by.DELIVERED ?? []).filter((r) => !counted(r)),
+    rto: (by.RTO ?? []).filter((r) => !counted(r)),
+    cancelled: (by.CANCELLED ?? []).filter((r) => !counted(r)),
+    lost: (by.LOST ?? []).filter((r) => !counted(r)),
+  };
   const del = {
-    count: d.length,
+    count: (by.DELIVERED ?? []).length,
+    counted: d.length,
     gross: sumP(d, (r) => R(r).gross),
     refunds: sumP(d, (r) => R(r).refunds),
     gst: sumP(d, (r) => R(r).gst),
@@ -464,7 +511,8 @@ function aggregate(rows, cfg, metaDays, repl, ledger) {
   del.contribution = del.netRev - del.cogs - del.fwd - del.cod - del.packing - del.gateway;
 
   const rto = {
-    count: t.length,
+    count: (by.RTO ?? []).length,
+    counted: t.length,
     fwd: sumP(t, (r) => R(r).fwd),
     ret: sumP(t, (r) => R(r).rto),
     cod: sumP(t, (r) => R(r).cod),
@@ -474,7 +522,10 @@ function aggregate(rows, cfg, metaDays, repl, ledger) {
   };
   rto.loss = rto.fwd + rto.ret + rto.cod + rto.packing + rto.gateway - rto.advance;
 
-  const cancelled = sumP(by.CANCELLED, (r) => r.totalCostPaise);
+  const cancelled = sumP((by.CANCELLED ?? []).filter(counted), (r) => r.totalCostPaise);
+  // The engine adds a LOST line the brief's statement does not have, because a
+  // lost parcel really loses both the garment and the freight.
+  const lost = sumP((by.LOST ?? []).filter(counted), (r) => r.totalCostPaise);
   const replNet = repl.reduce((a, j) => a + replacementCost(j, cfg).net, 0);
   const otherCourier = ledger.filter((l) => l.bucket === 'other').reduce((a, l) => a + (l.charge.totalPaise ?? 0), 0);
 
@@ -483,10 +534,10 @@ function aggregate(rows, cfg, metaDays, repl, ledger) {
   const metaGst = cfg.gstInputCreditClaimed ? 0 : Math.round((metaSales + metaOther) * frac(cfg.metaGstPct));
   const fixed = (cfg.fixedMonthlyCosts ?? []).reduce((a, f) => a + (f.amountPaise ?? 0), 0);
 
-  const contribAfterRto = del.contribution - rto.loss - cancelled - replNet - otherCourier;
+  const contribAfterRto = del.contribution - rto.loss - cancelled - replNet - otherCourier - lost;
   const meta = metaSales + metaOther + metaGst;
   return {
-    by, res: R, del, rto, cancelled, replNet, otherCourier,
+    by, res: R, del, rto, cancelled, lost, replNet, otherCourier, blocked,
     metaSales, metaOther, metaGst, meta, fixed,
     contribAfterRto,
     profitBeforeFixed: contribAfterRto - meta,
@@ -871,6 +922,7 @@ function sheetDelivered(ctx) {
     { h: 'Contribution', fmt: FMT.money, w: 13, total: 'sum' },
     { h: 'Contribution %', fmt: FMT.pct, w: 11, total: (h) => fx(`IF(SUM(${h.totalRef('Net revenue')})=0,0,${h.totalRef('Contribution')}/${h.totalRef('Net revenue')})`, ctx.a.del.netRev ? round2(ctx.a.del.contribution / ctx.a.del.netRev * 1e4) / 1e4 : 0) },
     { h: 'Charge source', w: 12 }, { h: 'Flags', w: 45, wrap: true },
+    { h: 'In totals', fmt: FMT.int, w: 9, total: 'sum' },
   ];
   const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
   const d = [...ctx.a.by.DELIVERED].sort((x, y) => String(x.order.createdAt).localeCompare(String(y.order.createdAt)) || x.order.name.localeCompare(y.order.name));
@@ -899,11 +951,14 @@ function sheetDelivered(ctx) {
       fx(`SUM(${C('Net revenue')}${rn})-SUM(${C('Total cost')}${rn})`, rup(v.contribution)),
       fx(`IF(SUM(${C('Net revenue')}${rn})=0,0,${C('Contribution')}${rn}/SUM(${C('Net revenue')}${rn}))`, v.netRev ? round2((v.contribution / v.netRev) * 1e4) / 1e4 : 0),
       String(r.chargeSource ?? ''), (r.flags ?? []).join('; '),
+      counted(r) ? 1 : noted(0, whyBlocked(r)),
     ];
   });
   const h = writeTable(ws, cols, body, {
     zebra: true, totalsLabel: 'DELIVERED TOTAL', empty: 'no delivered orders this month',
-    rowFill: (row) => (typeof row[26]?.result === 'number' && row[26].result < 0 ? LOSS_FILL : null),
+    countedCol: 'In totals',
+    rowFill: (row) =>
+      row[30]?._v === 0 ? AMBER_FILL : typeof row[26]?.result === 'number' && row[26].result < 0 ? LOSS_FILL : null,
   });
   printSetup(ws, 1);
   return h;
@@ -922,6 +977,7 @@ function sheetRto(ctx) {
     { h: 'COD charge', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Packing', fmt: FMT.money, w: 11, total: 'sum' },
     { h: 'Gateway fee', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Advance kept', fmt: FMT.money, w: 12, total: 'sum' },
     { h: 'Total RTO loss', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Return leg', w: 13 }, { h: 'Flags', w: 45, wrap: true },
+    { h: 'In totals', fmt: FMT.int, w: 9, total: 'sum' },
   ];
   const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
   const t = [...ctx.a.by.RTO].sort((x, y) => String(x.order.createdAt).localeCompare(String(y.order.createdAt)) || x.order.name.localeCompare(y.order.name));
@@ -945,11 +1001,13 @@ function sheetRto(ctx) {
       fx(`SUM(${C('Forward freight')}${rn}:${C('Gateway fee')}${rn})-SUM(${C('Advance kept')}${rn})`, rup(v.rtoLoss)),
       charge?.source === 'ledger' ? 'billed' : inferred('computed', 'Delhivery has not billed the return leg yet; the ss=RTO quote was used'),
       (r.flags ?? []).join('; '),
+      counted(r) ? 1 : noted(0, whyBlocked(r)),
     ];
   });
   const h = writeTable(ws, cols, body, {
     zebra: true, totalsLabel: 'RTO TOTAL', empty: 'no RTO this month',
-    rowFill: () => LOSS_FILL,
+    countedCol: 'In totals',
+    rowFill: (row) => (row[21]?._v === 0 ? AMBER_FILL : LOSS_FILL),
   });
   printSetup(ws, 1);
   return h;
@@ -959,7 +1017,7 @@ function sheetRto(ctx) {
 
 function sheetNotDelivered(ctx) {
   const ws = ctx.ws['Not Delivered'];
-  put(ws.getCell('A1'), 'Pending, cancelled and lost orders. Nothing here is in the P&L except the "Charge in P&L" column, which is courier charges Delhivery actually billed on a manifested shipment.');
+  put(ws.getCell('A1'), 'Pending, cancelled and lost orders. Nothing here is in the P&L except the "Charge in P&L" column: charges Delhivery billed on a manifested shipment that was cancelled, and the whole loss on a parcel that was lost. An incomplete row reads 0 there and says so, the same way the engine leaves it out.');
   ws.getCell('A1').font = { ...BODY, italic: true };
   const cols = [
     { h: 'Order #', w: 11 }, { h: 'Order date', fmt: FMT.date, w: 13 }, { h: 'Outcome', w: 11 }, { h: 'Customer', w: 24 },
@@ -975,14 +1033,17 @@ function sheetNotDelivered(ctx) {
     const v = ctx.a.res(r);
     const ship = shipOf(ctx, r);
     const charge = chargeOf(ctx, r.awbs);
-    const inPnl = r.outcome === 'CANCELLED' ? (r.totalCostPaise ?? 0) : 0;
+    const charged = r.outcome === 'CANCELLED' || r.outcome === 'LOST';
+    const inPnl = charged && counted(r) ? (r.totalCostPaise ?? 0) : 0;
     return [
       adminLink(ctx, r), dateCell(r.order.createdAt), r.outcome, r.order.customerName ?? '',
       PAY_LABEL[r.order.paymentType] ?? r.order.paymentType,
       ship ? String(ship.rawStatus ?? ship.state) : (r.awbs?.length ? miss('Delhivery had no record of this AWB') : 'not shipped'),
       dateCell(ship?.statusAt ?? r.order.cancelledAt), r.awbs?.length ? awbLink(r.awbs) : 'none',
-      rup(v.gross), charge?.totalPaise == null ? 0 : rup(charge.totalPaise), rup(inPnl),
-      inPnl ? 'yes' : 'no', r.outcomeReason ?? r.order.cancelReason ?? '', (r.flags ?? []).join('; '),
+      rup(v.gross), charge?.totalPaise == null ? 0 : rup(charge.totalPaise),
+      charged && !counted(r) ? noted(0, whyBlocked(r)) : rup(inPnl),
+      inPnl ? 'yes' : charged && !counted(r) ? 'no (incomplete)' : 'no',
+      r.outcomeReason ?? r.order.cancelReason ?? '', (r.flags ?? []).join('; '),
     ];
   });
   const h = writeTable(ws, cols, body, {
@@ -1066,7 +1127,7 @@ function sheetByProduct(ctx) {
     const total = lines.reduce((a, l) => a + l.discountedUnitPaise * l.currentQuantity, 0);
     return lines.map((l) => ({ l, w: total ? (l.discountedUnitPaise * l.currentQuantity) / total : 1 / (lines.length || 1) }));
   };
-  for (const r of ctx.a.by.DELIVERED ?? []) {
+  for (const r of (ctx.a.by.DELIVERED ?? []).filter(counted)) {
     const v = ctx.a.res(r);
     for (const { l, w } of shareOf(r)) {
       const p = touch(l);
@@ -1077,7 +1138,7 @@ function sheetByProduct(ctx) {
       p.contrib += Math.round(v.contribution * w);
     }
   }
-  for (const r of ctx.a.by.RTO ?? []) {
+  for (const r of (ctx.a.by.RTO ?? []).filter(counted)) {
     const v = ctx.a.res(r);
     for (const { l, w } of shareOf(r)) {
       const p = touch(l);
@@ -1151,16 +1212,21 @@ function sheetDaily(ctx) {
     if (!day) continue;
     const v = ctx.a.res(r);
     day.placed += 1;
+    // An incomplete row is counted as an order and left out of every amount,
+    // exactly as the engine does and as the order sheets' SUMIFs do.
+    const inTotal = counted(r);
     if (r.outcome === 'DELIVERED') {
       day.delivered += 1;
-      day.netRev += v.netRev;
-      day.cogs += v.cogs ?? 0;
-      day.freight += (v.fwd ?? 0) + (v.cod ?? 0);
-      day.packing += v.packing;
-      day.gateway += v.gateway ?? 0;
+      if (inTotal) {
+        day.netRev += v.netRev;
+        day.cogs += v.cogs ?? 0;
+        day.freight += (v.fwd ?? 0) + (v.cod ?? 0);
+        day.packing += v.packing;
+        day.gateway += v.gateway ?? 0;
+      }
     } else if (r.outcome === 'RTO') {
       day.rto += 1;
-      day.rtoLoss += v.rtoLoss;
+      if (inTotal) day.rtoLoss += v.rtoLoss;
     } else if (r.outcome === 'CANCELLED') day.cancelled += 1;
     else day.pending += 1;
   }
@@ -1223,6 +1289,7 @@ function sheetDaily(ctx) {
     ['Cancelled-shipment charges (no delivery date)', -ctx.a.cancelled, null],
     ['Replacement shipments, net of reimbursements received', -ctx.a.replNet, null],
     ['Other courier charges not tied to an order', -ctx.a.otherCourier, null],
+    ['Lost shipments (product and freight)', -ctx.a.lost, null],
     ['GST on Meta spend (none when the input credit is claimed)', -ctx.a.metaGst,
       `IF(pnl_gst_input_credit=1,0,-SUM(${metaCol}${h.first}:${metaCol}${h.last})*pnl_meta_gst_pct)`],
     ['Fixed costs for the month', -ctx.a.fixed, '-pnl_fixed_costs'],
@@ -1236,7 +1303,8 @@ function sheetDaily(ctx) {
   });
   const monthRow = r + 1;
   const dayTotal = body.reduce((acc, row) => acc + Math.round(row[14].result * 100), 0);
-  const monthNet = dayTotal - ctx.a.cancelled - ctx.a.replNet - ctx.a.otherCourier - ctx.a.metaGst - ctx.a.fixed;
+  const monthNet =
+    dayTotal - ctx.a.cancelled - ctx.a.replNet - ctx.a.otherCourier - ctx.a.lost - ctx.a.metaGst - ctx.a.fixed;
   put(ws.getCell(`A${monthRow}`), 'NET FOR THE MONTH');
   ws.getCell(`A${monthRow}`).font = BODY_B;
   const mc = ws.getCell(`${netCol}${monthRow}`);
@@ -1304,6 +1372,7 @@ function sheetSummary(ctx, t) {
     ['cancelled', '  Cancelled-shipment charges', -a.cancelled, null],
     ['repl', '  Replacement shipments (net of reimbursements received)', -a.replNet, null],
     ['otherCourier', '  Other courier charges', -a.otherCourier, null],
+    ['lost', '  Lost shipments (product and freight)', -a.lost, null],
     ['contrib2', 'CONTRIBUTION AFTER RTO', a.contribAfterRto, 'sub'],
     ['metaSales', '  Meta ads: sales campaigns', -a.metaSales, null],
     ['metaBoost', '  Meta ads: boosts and other', -a.metaOther, null],
@@ -1316,26 +1385,30 @@ function sheetSummary(ctx, t) {
   /** @type {Record<string,string>} */
   const at = {};
   spec.forEach(([key], i) => (at[key] = `B${s0 + 1 + i}`));
+  // Every one of these is a counted-aware total of a column on another sheet,
+  // so a statement line, its cached value and the sheet it came from are the
+  // same number by construction.
   const F = {
-    gross: `SUM(${D.ref('Gross sale')})`,
-    refunds: `-SUM(${D.ref('Refunds')})`,
-    gst: `-SUM(${D.ref('Output GST')})`,
+    gross: D.sumOf('Gross sale'),
+    refunds: `-${D.sumOf('Refunds')}`,
+    gst: `-${D.sumOf('Output GST')}`,
     netRev: `SUM(${at.gross}:${at.gst})`,
-    cogs: `-SUM(${D.ref('COGS')})`,
-    fwd: `-SUM(${D.ref('Forward freight')})`,
-    cod: `-SUM(${D.ref('COD charge')})`,
-    packing: `-SUM(${D.ref('Packing')})`,
-    gateway: `-SUM(${D.ref('Gateway fee')})`,
+    cogs: `-${D.sumOf('COGS')}`,
+    fwd: `-${D.sumOf('Forward freight')}`,
+    cod: `-${D.sumOf('COD charge')}`,
+    packing: `-${D.sumOf('Packing')}`,
+    gateway: `-${D.sumOf('Gateway fee')}`,
     contrib1: `SUM(${at.netRev}:${at.gateway})`,
-    rtoFwd: `-SUM(${T.ref('Forward freight')})`,
-    rtoRet: `-SUM(${T.ref('Return freight')})`,
-    rtoRest: `-(SUM(${T.ref('Packing')})+SUM(${T.ref('Gateway fee')})+SUM(${T.ref('COD charge')}))`,
-    advance: `SUM(${T.ref('Advance kept')})`,
+    rtoFwd: `-${T.sumOf('Forward freight')}`,
+    rtoRet: `-${T.sumOf('Return freight')}`,
+    rtoRest: `-(${T.sumOf('Packing')}+${T.sumOf('Gateway fee')}+${T.sumOf('COD charge')})`,
+    advance: T.sumOf('Advance kept'),
     rtoLoss: `SUM(${at.rtoFwd}:${at.advance})`,
-    cancelled: `-SUM(${ND.ref('Charge in P&L')})`,
+    cancelled: `-SUMIF(${ND.ref('Outcome')},"CANCELLED",${ND.ref('Charge in P&L')})`,
     repl: `-SUM(${RP.ref('Cost in P&L')})`,
     otherCourier: `-SUMIF(${CL.ref('In P&L as')},"other",${CL.ref('Total')})`,
-    contrib2: `${at.contrib1}+${at.rtoLoss}+SUM(${at.cancelled}:${at.otherCourier})`,
+    lost: `-SUMIF(${ND.ref('Outcome')},"LOST",${ND.ref('Charge in P&L')})`,
+    contrib2: `${at.contrib1}+${at.rtoLoss}+SUM(${at.cancelled}:${at.lost})`,
     metaSales: `-SUMIF(${MA.ref('Type')},"sales",${MA.ref('Spend')})`,
     metaBoost: `-SUMIF(${MA.ref('Type')},"<>sales",${MA.ref('Spend')})`,
     metaGst: `IF(pnl_gst_input_credit=1,0,(${at.metaSales}+${at.metaBoost})*pnl_meta_gst_pct)`,
@@ -1363,15 +1436,21 @@ function sheetSummary(ctx, t) {
   if (a.net < 0) for (let c = 1; c <= 3; c++) ws.getRow(s0 + 1 + spec.length - 1).getCell(c).fill = solid(LOSS_FILL);
 
   // ---- KPI tiles, above the statement, pointing into it.
-  const delivered = a.del.count;
-  const rtoRate = delivered + a.rto.count ? a.rto.count / (delivered + a.rto.count) : 0;
+  const fn = ctx.report.funnel ?? null;
+  const delivered = fn?.delivered ?? a.del.count;
+  const nRto = fn?.rto ?? a.rto.count;
+  // Per-order figures divide by the orders actually IN the totals, the way the
+  // engine's ratios do. countedRef() is live, so it follows the sheet.
+  const nCounted = a.del.counted;
+  const countedDiv = D.countedRef();
+  const rtoRate = delivered + nRto ? nRto / (delivered + nRto) : 0;
   const kpis = [
     ['Net profit / loss', fx(at.net, rup(a.net)), FMT.money],
     ['Net margin %', fx(`IF(${at.netRev}=0,0,${at.net}/${at.netRev})`, a.del.netRev ? round2((a.net / a.del.netRev) * 1e4) / 1e4 : 0), FMT.pct],
     ['Delivered orders', delivered, FMT.int],
     ['RTO rate', round2(rtoRate * 1e4) / 1e4, FMT.pct],
     ['Meta spend', fx(`-${at.metaTotal}`, rup(a.meta)), FMT.money],
-    ['Net per delivered order', delivered ? fx(`${at.net}/${delivered}`, rup(Math.round(a.net / delivered))) : miss('nothing was delivered this month'), FMT.money],
+    ['Net per delivered order', nCounted ? fx(`${at.net}/${countedDiv}`, rup(Math.round(a.net / nCounted))) : miss('no delivered order is complete enough to count'), FMT.money],
   ];
   kpis.forEach(([label, value, fmt], i) => {
     const lc = ws.getRow(6).getCell(i + 1);
@@ -1388,23 +1467,27 @@ function sheetSummary(ctx, t) {
 
   // ---- order funnel
   let r = s0 + spec.length + 3;
-  const shipped = ctx.rows.filter((x) => x.outcome !== 'EXCLUDED' && (x.awbs ?? []).length > 0).length;
+  /*
+   * The engine's funnel verbatim where it sent one. Recomputing "shipped" read
+   * 49 against the engine's 51 in October: the engine counts an order with a
+   * FULFILLMENT, this counted one with an AWB, and two parcels had the first
+   * without the second. One definition, and it is the engine's.
+   */
   const funnel = [
-    ['Orders on record', ctx.rows.length],
-    ['Excluded (tests, founder and family)', (a.by.EXCLUDED ?? []).length],
-    ['Cancelled', (a.by.CANCELLED ?? []).length],
-    ['Shipped', shipped],
+    ['Orders on record', fn?.onRecord ?? ctx.rows.length],
+    ['Excluded (tests, founder and family)', fn?.excluded ?? (a.by.EXCLUDED ?? []).length],
+    ['Cancelled', fn?.cancelled ?? (a.by.CANCELLED ?? []).length],
+    ['Shipped', fn?.shipped ?? ctx.rows.filter((x) => x.outcome !== 'EXCLUDED' && (x.order.fulfillments ?? []).length > 0).length],
     ['Delivered', delivered],
-    ['RTO', a.rto.count],
-    ['Pending', (a.by.PENDING ?? []).length],
-    ['Lost', (a.by.LOST ?? []).length],
+    ['RTO', nRto],
+    ['Pending', fn?.pending ?? (a.by.PENDING ?? []).length],
+    ['Lost', fn?.lost ?? (a.by.LOST ?? []).length],
   ];
   const fh = writeTable(ws, [{ h: 'ORDER FUNNEL', w: 48 }, { h: 'Orders', fmt: FMT.int, w: 16 }], funnel, { startRow: r, filter: false, freeze: false, zebra: true });
-  const deliveredCell = `B${fh.first + 4}`;
 
   // ---- unit economics per delivered order
   r = fh.last + 2;
-  const per = (paise) => (delivered ? rup(Math.round(paise / delivered)) : 0);
+  const per = (paise) => (nCounted ? rup(Math.round(paise / nCounted)) : 0);
   const unit = [
     ['Net revenue', 'netRev'], ['Product cost (COGS)', 'cogs'], ['Freight and COD charges', null],
     ['Packing', 'packing'], ['Gateway fee', 'gateway'], ['Contribution before RTO and ads', 'contrib1'],
@@ -1412,11 +1495,16 @@ function sheetSummary(ctx, t) {
   ];
   const linePaise = (key) => spec.find(([k]) => k === key)?.[2] ?? 0;
   const unitRows = unit.map(([label, key]) => {
-    const formula = key ? `${at[key]}/${deliveredCell}` : `(${at.fwd}+${at.cod})/${deliveredCell}`;
+    const formula = key ? `${at[key]}/${countedDiv}` : `(${at.fwd}+${at.cod})/${countedDiv}`;
     const paise = key ? linePaise(key) : -(a.del.fwd + a.del.cod);
-    return [label, delivered ? fx(formula, per(paise)) : miss('nothing was delivered this month')];
+    return [label, nCounted ? fx(formula, per(paise)) : miss('no delivered order is complete enough to count')];
   });
-  const uh = writeTable(ws, [{ h: 'PER DELIVERED ORDER', w: 48 }, { h: '₹', fmt: FMT.money, w: 16 }], unitRows, { startRow: r, filter: false, freeze: false, zebra: true });
+  const uh = writeTable(
+    ws,
+    [{ h: `PER DELIVERED ORDER (over ${nCounted} counted in the totals)`, w: 48, wrap: true }, { h: '₹', fmt: FMT.money, w: 16 }],
+    unitRows,
+    { startRow: r, filter: false, freeze: false, zebra: true },
+  );
 
   // ---- by payment type
   r = uh.last + 2;
@@ -1424,12 +1512,18 @@ function sheetSummary(ctx, t) {
     const all = ctx.rows.filter((x) => x.order.paymentType === p && x.outcome !== 'EXCLUDED');
     const del = all.filter((x) => x.outcome === 'DELIVERED');
     const rt = all.filter((x) => x.outcome === 'RTO');
-    const contrib = sumP(del, (x) => ctx.a.res(x).contribution) - sumP(rt, (x) => ctx.a.res(x).rtoLoss);
+    const contrib =
+      sumP(del.filter(counted), (x) => ctx.a.res(x).contribution) -
+      sumP(rt.filter(counted), (x) => ctx.a.res(x).rtoLoss);
     const label = PAY_LABEL[p];
     return [
       label, all.length, del.length,
       del.length + rt.length ? round2((rt.length / (del.length + rt.length)) * 1e4) / 1e4 : 0,
-      fx(`SUMIF(${D.ref('Payment')},${pay(label)},${D.ref('Contribution')})-SUMIF(${T.ref('Payment')},${pay(label)},${T.ref('Total RTO loss')})`, rup(contrib)),
+      fx(
+        `SUMIFS(${D.ref('Contribution')},${D.ref('Payment')},${pay(label)},${D.flagRange()},1)` +
+          `-SUMIFS(${T.ref('Total RTO loss')},${T.ref('Payment')},${pay(label)},${T.flagRange()},1)`,
+        rup(contrib),
+      ),
     ];
   });
   const ph = writeTable(
@@ -1472,12 +1566,30 @@ function sheetSummary(ctx, t) {
 
   ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 4 }];
   printSetup(ws, 9);
-  return { at, netCell: at.net, netRevCell: at.netRev, deliveredCell };
+  return { at, netCell: at.net, netRevCell: at.netRev, countedDiv };
 }
 
-/** The engine's flags, plus the ones the rows themselves give away. */
+/**
+ * The engine's flags, plus what the rows give away, plus the one line the brief
+ * asks for and the Summary had been missing: how many orders are out of every
+ * total and how much money they are. Without it the Summary under-reports and
+ * nothing on the page says why.
+ */
 function normaliseFlags(ctx) {
   const out = [];
+  for (const [bucket, label] of [['delivered', 'delivered order'], ['rto', 'RTO order'], ['cancelled', 'cancelled order'], ['lost', 'lost order']]) {
+    const rows = ctx.a.blocked[bucket] ?? [];
+    if (!rows.length) continue;
+    const gross = sumP(rows, (r) => r.order.currentTotalPaise);
+    const why = [...new Set(rows.flatMap((r) => r.missing ?? []))].map((m) => m.replace(/_/g, ' ')).join(', ');
+    out.push({
+      label:
+        `${rows.length} ${label}${rows.length === 1 ? ' is' : 's are'} EXCLUDED FROM EVERY TOTAL because the cost is incomplete ` +
+        `(₹${rup(gross).toLocaleString('en-IN')} of gross sales): ${rows.map((r) => r.order.name).join(', ')}`,
+      count: rows.length,
+      note: `Missing ${why || 'cost data'}. The orders are on their sheet with the amounts shown and "In totals" reading 0, so you can see them and fix them. This is the engine's rule: a row that brings its revenue but not its freight would make the month read richer than it was.`,
+    });
+  }
   for (const f of ctx.report.flags ?? []) {
     if (typeof f === 'string') out.push({ label: f, count: 1 });
     else out.push({ label: f.label ?? f.code ?? 'flag', count: f.count ?? 1, note: f.note ?? f.severity });
@@ -1505,37 +1617,77 @@ function sheetDataChecks(ctx, t) {
   put(ws.getCell('A1'), 'DATA CHECKS');
   ws.getCell('A1').font = { name: 'Calibri', size: TITLE_SIZE, bold: true, color: { argb: GOLD } };
 
-  const funnelSum =
-    (a.by.EXCLUDED ?? []).length + (a.by.CANCELLED ?? []).length + a.del.count + a.rto.count +
-    (a.by.PENDING ?? []).length + (a.by.LOST ?? []).length;
-  const rowNetRev = sumP(a.by.DELIVERED, (r) => r.netRevenuePaise);
+  const fn = ctx.report.funnel ?? null;
+  const onRecord = fn?.onRecord ?? ctx.rows.length;
+  const funnelSum = fn
+    ? fn.excluded + fn.cancelled + fn.delivered + fn.rto + fn.pending + fn.lost
+    : (a.by.EXCLUDED ?? []).length + (a.by.CANCELLED ?? []).length + a.del.count + a.rto.count +
+      (a.by.PENDING ?? []).length + (a.by.LOST ?? []).length;
+  const rowNetRev = sumP((a.by.DELIVERED ?? []).filter(counted), (r) => r.netRevenuePaise);
   const metaSum = ctx.metaDays.reduce((x, d) => x + (d.spendPaise ?? 0), 0);
   const ledgerSum = ctx.ledger.reduce((x, l) => x + (l.charge.totalPaise ?? 0), 0);
 
   const checks = [
-    ['On record = excluded + cancelled + delivered + RTO + pending + lost', ctx.rows.length, funnelSum, ok(ctx.rows.length === funnelSum), 'Every order lands in exactly one bucket.'],
+    ['On record = excluded + cancelled + delivered + RTO + pending + lost', onRecord, funnelSum, ok(onRecord === funnelSum), 'Every order lands in exactly one bucket.'],
     ['Net revenue: statement chain against the Delivered column', m(a.del.netRev), m(rowNetRev), ok(Math.abs(a.del.netRev - rowNetRev) <= 1), 'The statement computes gross less refunds less output GST. This compares it with the engine’s own net revenue per order.'],
     ['Meta month total = sum of the daily rows', m(metaSum), fx(`SUM(${MA.ref('Spend')})`, rup(metaSum)), ok(true), 'Both sides come from the same daily table, so this only fails if a row is edited by hand.'],
     ['Courier total = Courier Ledger total', m(ledgerSum), fx(`SUM(${CL.ref('Total')})`, rup(ledgerSum)), ok(true), 'Includes AWBs that are not tied to a genuine order.'],
     ['Daily net for the month = Summary net profit / loss', fx(DY.ref, rup(DY.monthNet)), fx(`Summary!${S.netCell}`, rup(a.net)), fx(`IF(ROUND(${DY.ref}-Summary!${S.netCell},2)=0,"ok","MISMATCH")`, ok(DY.monthNet === a.net)), 'The Daily sheet carries the four monthly lines no order date can hold.'],
   ];
-  // What the engine said, where it told us, against what this workbook rendered.
+  /*
+   * THE TRIPWIRE. These rows are why the October run caught the workbook
+   * totalling rows the engine had blocked, so they stay even when green, and
+   * the key names are the engine's real ones: `netPaise` and `metaPaise` did
+   * not exist, so those two comparisons had been silently skipping.
+   */
   const ENGINE = [
-    ['Net profit / loss', 'netPaise', a.net], ['Net revenue', 'netRevenuePaise', a.del.netRev],
-    ['COGS', 'cogsPaise', a.del.cogs], ['RTO loss', 'rtoLossPaise', a.rto.loss], ['Meta spend', 'metaPaise', a.meta],
+    ['Net profit / loss', 'netProfitPaise', a.net],
+    ['Gross sales', 'grossSalesPaise', a.del.gross],
+    ['Net revenue', 'netRevenuePaise', a.del.netRev],
+    ['COGS', 'cogsPaise', a.del.cogs],
+    ['Forward freight', 'forwardFreightPaise', a.del.fwd],
+    ['Packing', 'packingPaise', a.del.packing],
+    ['Gateway fees', 'gatewayFeesPaise', a.del.gateway],
+    ['Contribution before RTO and ads', 'contributionBeforeRtoAndAdsPaise', a.del.contribution],
+    ['RTO loss', 'rtoLossPaise', a.rto.loss],
+    ['Cancelled-shipment charges', 'cancelledShipmentChargesPaise', a.cancelled],
+    ['Replacement shipments', 'replacementShipmentsPaise', a.replNet],
+    ['Other courier charges', 'otherCourierChargesPaise', a.otherCourier],
+    ['Lost shipments', 'lostShipmentsPaise', a.lost],
+    ['Contribution after RTO', 'contributionAfterRtoPaise', a.contribAfterRto],
+    ['Total Meta', 'totalMetaPaise', a.meta],
+    ['Fixed costs', 'fixedCostsPaise', a.fixed],
+    ['Delivered orders counted in the totals', 'countedDelivered', a.del.counted],
+    ['RTO orders counted in the totals', 'countedRto', a.rto.counted],
+    ['Delivered orders blocked from the totals', 'blockedDelivered', a.blocked.delivered.length],
+    ['RTO orders blocked from the totals', 'blockedRto', a.blocked.rto.length],
   ];
+  const isCount = (key) => /^counted|^blocked/.test(key);
   for (const [label, key, mine] of ENGINE) {
     const theirs = ctx.report.totals?.[key];
     if (theirs == null) continue;
-    checks.push([`Engine total against this workbook: ${label}`, m(theirs), m(mine), ok(Math.abs(theirs - mine) <= 1), 'The workbook totals what it renders. A mismatch means the engine and the sheets disagree, and the sheets are what you are reading.']);
-  }
-  for (const rec of ctx.report.reconciliations ?? []) {
-    const exp = rec.expected, act = rec.actual;
+    const show = isCount(key) ? (v) => v : m;
     checks.push([
-      String(rec.name ?? rec.check ?? 'check'),
+      `Engine total against this workbook: ${label}`,
+      show(theirs), show(mine),
+      ok(Math.abs(theirs - mine) <= 1),
+      'The workbook totals what it renders, and only the rows the engine counted. A mismatch means the engine and the sheets disagree, and the sheets are what you are reading.',
+    ]);
+  }
+  /*
+   * The engine sends {key, label, a, b, agree}. Reading `name`/`expected`/
+   * `actual` found none of them, so its three reconciliations rendered as a
+   * bare "check" with two empty cells. Both spellings are read now.
+   */
+  for (const rec of ctx.report.reconciliations ?? []) {
+    const exp = rec.a ?? rec.expected;
+    const act = rec.b ?? rec.actual;
+    const agree = rec.agree ?? rec.ok;
+    checks.push([
+      String(rec.label ?? rec.name ?? rec.check ?? rec.key ?? 'check'),
       typeof exp === 'number' ? m(exp) : String(exp ?? ''),
       typeof act === 'number' ? m(act) : String(act ?? ''),
-      rec.ok === false ? 'MISMATCH' : rec.ok === true ? 'ok' : '',
+      agree === false ? 'MISMATCH' : agree === true ? 'ok' : '',
       rec.note ?? '',
     ]);
   }
