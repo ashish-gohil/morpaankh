@@ -25,6 +25,7 @@ import * as variantChange from './variantChange.run.mjs';
 import * as cartRecovery from './cartRecovery.run.mjs';
 import * as subscriberOffer from './subscriberOffer.run.mjs';
 import * as replace from './replace.run.mjs';
+import * as pnl from './pnl.run.mjs';
 
 // Derived from the registry, never hand-listed, so adding a template without a
 // legacy version cannot silently drop off this list.
@@ -121,8 +122,17 @@ async function onWaInbound(m) {
    * customers, not about us talking to ourselves, so an admin who once sent
    * STOP must still be able to run a command and get an answer back.
    */
-  const typed = (msg.text?.body || '').trim();
-  if (typed.startsWith('/') && isAdminPhone(phone)) return onOwnerCommand(phone, typed);
+  /*
+   * A caption counts as typing. `/pnl-ledger 2026-10` arrives as the CAPTION on
+   * an attached statement, not as a text message, so a gate that reads only
+   * msg.text.body would never see it and the command would appear to do
+   * nothing at all. The document is passed through so the handler can fetch
+   * the bytes by media id.
+   */
+  const typed = (msg.text?.body || msg.document?.caption || msg.image?.caption || '').trim();
+  if (typed.startsWith('/') && isAdminPhone(phone)) {
+    return onOwnerCommand(phone, typed, msg.document || null);
+  }
 
   if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
 
@@ -230,6 +240,10 @@ const COMMANDS = {
   '/replace': (phone, args, typed) => replace.onOwnerRequest(typed, deps(), phone),
   '/replace-order': (phone, args, typed) => replace.onOwnerRequest(typed, deps(), phone),
   '/rp': (phone, args, typed) => replace.onOwnerRequest(typed, deps(), phone),
+  '/pnl': (phone, args, typed) => pnl.onOwnerRequest(typed, deps(), phone),
+  // The only command that needs the attachment: it arrives as a caption on the
+  // statement file itself.
+  '/pnl-ledger': (phone, args, typed, document) => pnl.onLedgerUpload(typed, deps(), phone, document),
 };
 
 const OWNER_HELP = [
@@ -240,6 +254,12 @@ const OWNER_HELP = [
   '',
   '/replace 1214 noor m xl',
   'Books a reverse pickup of the size M and sends size XL instead. Also /replace status, cancel, retry, list.',
+  '',
+  '/pnl',
+  'Last month profit and loss, as a workbook. Also /pnl 2026-10, /pnl oct, /pnl oct 2026, /pnl mtd.',
+  '',
+  '/pnl-ledger 2026-10',
+  'Send the Delhivery statement as a file with this as its caption, to lock the actual courier charges.',
 ].join('\n');
 
 /**
@@ -255,12 +275,12 @@ const OWNER_HELP = [
  */
 const isAdminPhone = (phone) => config.ownerAlertPhones.includes(phone) || replace.isReplaceAdmin(phone);
 
-async function onOwnerCommand(phone, typed) {
+async function onOwnerCommand(phone, typed, document = null) {
   const [cmd, ...rest] = typed.split(/\s+/);
   const name = cmd.toLowerCase();
   log.info('owner command', { cmd: name });
   const fn = COMMANDS[name];
-  if (fn) return fn(phone, rest.join(' '), typed);
+  if (fn) return fn(phone, rest.join(' '), typed, document);
   return sendSessionTo(phone, 'ops_reply', {
     text: name === '/help' ? OWNER_HELP : `I do not know ${name}.\n\n${OWNER_HELP}`,
   });

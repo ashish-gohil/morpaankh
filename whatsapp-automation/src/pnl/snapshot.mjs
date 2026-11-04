@@ -69,6 +69,16 @@ async function client() {
       send: (cmd) => c.send(cmd),
       PutObjectCommand: mod.PutObjectCommand,
       GetObjectCommand: mod.GetObjectCommand,
+      /*
+       * Guarded, not destructured. A vitest ESM mock THROWS on access to an
+       * export it does not define, so reading this unconditionally turned a
+       * mocked S3 into 's3-unavailable' and took the snapshot test down. The
+       * guard also means a bundle without the command degrades the ledger
+       * lookup instead of breaking snapshots, which is the right order of
+       * importance: a snapshot is a financial record, a ledger lookup is a
+       * convenience.
+       */
+      ListObjectsV2Command: 'ListObjectsV2Command' in mod ? mod.ListObjectsV2Command : null,
     };
   } catch (e) {
     s3Broken = true;
@@ -195,4 +205,57 @@ export async function getSnapshot(month) {
 export function _resetS3() {
   s3 = null;
   s3Broken = false;
+}
+
+/*
+ * The owner's Delhivery ledger, as sent in on WhatsApp.
+ *
+ * Kept as the raw bytes under inputs/delhivery/<month>/ rather than parsed and
+ * thrown away, because the parse is by header name and header names change:
+ * when a future statement arrives in a shape the parser does not know, the file
+ * that proved it is still there to read.
+ */
+export async function putInput({ month, filename, bytes, now = new Date() }) {
+  if (!bucket()) return { skipped: 'no-bucket' };
+  const c = await client();
+  if (!c) return { skipped: 's3-unavailable' };
+  const safe = String(filename || 'ledger').replace(/[^A-Za-z0-9._-]/g, '_').slice(-80);
+  const Key = `${keys.inputsPrefix(month)}${now.toISOString().replace(/[:.]/g, '-')}-${safe}`;
+  await c.send(
+    new c.PutObjectCommand({ Bucket: bucket(), Key, Body: bytes, ContentType: 'application/octet-stream' }),
+  );
+  log.info('pnl ledger stored', { month, key: Key, bytes: bytes?.length ?? 0 });
+  return { key: Key };
+}
+
+/**
+ * The most recently uploaded ledger for a month, so a plain `/pnl 2026-10`
+ * picks up a file the owner sent in days earlier without them having to say so.
+ * @returns {Promise<{bytes: Uint8Array, filename: string}|null>}
+ */
+export async function getLatestInput(month) {
+  if (!bucket()) return null;
+  const c = await client();
+  if (!c) return null;
+  if (!c.ListObjectsV2Command) return null;
+  try {
+    const list = await c.send(
+      new c.ListObjectsV2Command({ Bucket: bucket(), Prefix: keys.inputsPrefix(month) }),
+    );
+    const items = (list.Contents || []).filter((o) => o.Size > 0);
+    if (!items.length) return null;
+    // Keys are ISO-stamped, so lexical order is chronological order.
+    items.sort((a, b) => (a.Key < b.Key ? 1 : -1));
+    const newest = items[0];
+    const res = await c.send(new c.GetObjectCommand({ Bucket: bucket(), Key: newest.Key }));
+    const bytes = Buffer.from(await res.Body.transformToByteArray());
+    log.info('pnl ledger found in s3', { month, key: newest.Key, bytes: bytes.length });
+    return { bytes, filename: newest.Key.split('/').pop() || 'ledger.csv' };
+  } catch (e) {
+    log.warn('pnl: could not read a stored ledger, falling back to computed charges', {
+      month,
+      err: /** @type {any} */ (e).message?.slice(0, 160),
+    });
+    return null;
+  }
 }

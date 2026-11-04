@@ -275,6 +275,53 @@ function missingCharge(awb, flags) {
  *          config?: any, charges?: typeof chargesBreakdown}} args
  * @returns {Promise<import('../../domain/pnl/types.mjs').CourierCharge[]>}
  */
+/*
+ * Delhivery rate-limits the charges API, and says so with HTTP 200 and an XML
+ * body: <root><detail>Request was throttled. Expected available in 25 seconds.
+ * </detail></root>. The client turns that into a throw, so withRetry sees it,
+ * but withRetry backs off in hundreds of milliseconds and gives up after three
+ * attempts. A throttle asks for TWENTY FIVE SECONDS, so every attempt lands
+ * inside the same closed window and the lane degrades to "missing".
+ *
+ * Measured on the first live October run: a month has around forty distinct
+ * lanes, the first handful answer, and then every remaining one was throttled
+ * and dropped. The whole month's freight went missing, which blocks every row
+ * from the totals. That is the correct behaviour for an unknown cost and the
+ * wrong outcome for a cost we can simply wait for.
+ *
+ * So the throttle gets its own waiter: read the number of seconds Delhivery
+ * names, sleep that long, try again. Capped, and bounded by an attempt budget,
+ * because a report that never finishes is also a report that never arrives.
+ */
+const THROTTLE_RE = /throttled.*?available in (\d+)\s*second/i;
+const MAX_THROTTLE_WAIT_MS = 35000;
+
+export function throttleWaitMs(err) {
+  const m = THROTTLE_RE.exec(String(/** @type {any} */ (err)?.message || ''));
+  if (!m) return 0;
+  // A second of headroom: "available in 25" means not yet at 25.
+  return Math.min((Number(m[1]) + 1) * 1000, MAX_THROTTLE_WAIT_MS);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Call `fn`, waiting out a Delhivery throttle rather than treating it as a failure. */
+export async function awaitingThrottle(fn, { attempts = 3, onWait = null } = {}) {
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      const wait = throttleWaitMs(e);
+      if (!wait || i === attempts) throw e;
+      if (onWait) onWait(wait, i);
+      await sleep(wait);
+    }
+  }
+  throw last;
+}
+
 export async function fetchCharges({ shipments, orders = [], config = {}, charges = chargesBreakdown }) {
   const originPin = config.originPin || RULES.pnl.originPin;
   const mode = config.shippingMode || RULES.pnl.shippingMode;
@@ -337,15 +384,26 @@ export async function fetchCharges({ shipments, orders = [], config = {}, charge
     let row = cache.get(key);
     if (row === undefined) {
       try {
-        row = await charges({
-          fromPin: originPin,
-          toPin: destPin,
-          weightGrams: cgm,
-          mode,
-          ss: /** @type {any} */ (ss),
-          paymentType: pt,
-          codAmountInr: codInr,
-        });
+        row = await awaitingThrottle(
+          () =>
+            charges({
+              fromPin: originPin,
+              toPin: destPin,
+              weightGrams: cgm,
+              mode,
+              ss: /** @type {any} */ (ss),
+              paymentType: pt,
+              codAmountInr: codInr,
+            }),
+          {
+            onWait: (ms, attempt) =>
+              log.info('pnl delhivery: charges throttled, waiting it out', {
+                ms,
+                attempt,
+                lane: `${originPin}->${destPin} ${ss} ${pt}`,
+              }),
+          },
+        );
       } catch (e) {
         // One lane failing must not cost the other 88 parcels their freight.
         log.warn('pnl delhivery: charges unavailable for a lane', {

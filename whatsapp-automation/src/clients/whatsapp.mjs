@@ -15,6 +15,7 @@
  *   sendFlow({ to, body, flowId, flowToken, flowCta, flowActionData })
  *   uploadMedia({ bytes, filename, mime }) -> { mediaId, skipped? }
  *   sendDocument({ to, mediaId, link, filename, caption }) -> { messageId, skipped? }
+ *   downloadMedia(mediaId) -> { bytes, mime, filename }
  */
 import { config } from '../config.mjs';
 import { getSecrets } from '../secrets.mjs';
@@ -240,6 +241,35 @@ export const whatsapp = {
       },
       { idempotent: true },
     );
+  },
+
+  /*
+   * Fetch a file the owner sent us, by media id. Two hops, which is Meta's
+   * design: the id resolves to a short-lived signed URL, and that URL needs the
+   * same bearer token again.
+   *
+   * A READ, so it skips the send gate for the same reason listTemplates does:
+   * DRY_RUN and the allowlist are about not messaging people, and downloading a
+   * spreadsheet messages nobody. Gating it would have made `/pnl-ledger`
+   * silently do nothing in exactly the configuration used to rehearse it.
+   */
+  downloadMedia: async (mediaId) => {
+    const s = await getSecrets();
+    const meta = await fetch(`https://graph.facebook.com/${config.graphVersion}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${s.waAccessToken}` },
+    });
+    const info = await meta.json().catch(() => ({}));
+    if (!meta.ok || !info.url) {
+      throw new Error(`wa media lookup failed: ${info.error?.message || meta.status}`);
+    }
+    const file = await fetch(info.url, { headers: { Authorization: `Bearer ${s.waAccessToken}` } });
+    if (!file.ok) throw new Error(`wa media download failed: ${file.status}`);
+    return {
+      bytes: Buffer.from(await file.arrayBuffer()),
+      mime: info.mime_type || '',
+      filename: info.file_name || '',
+      bytesExpected: Number(info.file_size) || 0,
+    };
   },
 
   /*

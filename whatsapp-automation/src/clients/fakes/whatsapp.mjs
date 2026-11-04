@@ -1,5 +1,5 @@
 /* Fake WhatsApp client: records every send, returns a deterministic messageId. */
-export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null, templates = {} } = {}) {
+export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null, templates = {}, media = {} } = {}) {
   const sent = [];
   let n = 0;
   const rec = (type, args) => {
@@ -52,5 +52,6 @@ export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null, tem
       return { mediaId: `fake-media-${filename}` };
     },
     sendDocument: async (a) => rec('document', a),
+    downloadMedia: async (id) => media[id] || { bytes: Buffer.from(''), mime: '', filename: '' },
   };
 }
