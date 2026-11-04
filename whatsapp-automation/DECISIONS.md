@@ -1373,3 +1373,39 @@ never billed.
   10-metric cap for a math expression, and taking the last slot would leave the next function
   with nowhere to go. `wa-pnl-report` also joins the `reported` log-group list, without which
   its errors would go unreported the way `wa-subscribe` did for two days.
+
+### Found by the first live run, not by any test (2026-11-04)
+
+**The charges API throttles, and reports it as HTTP 200.** The body is XML:
+`<root><detail>Request was throttled. Expected available in 25 seconds.</detail></root>`.
+`withRetry` backs off in hundreds of milliseconds and gives up after three
+attempts, so all three landed inside the same closed 25 second window. On the
+first live October run a handful of lanes answered and every remaining one was
+dropped: the whole month's freight read MISSING, which correctly but uselessly
+blocked every row from the totals. Charges now parse the number of seconds
+Delhivery names and wait it out, capped at 35 s and attempt-bounded. October
+went from almost nothing counted to 33 delivered and 9 RTO.
+
+No test could have caught this. The fakes never throttle, and a month is the
+first time the service makes forty charges calls in a row.
+
+**The workbook totals what the workbook renders, and cross-checks the engine.**
+Every Summary total is a SUMIF over an "In totals" flag column on the order
+sheets, so a cell and its live formula can never disagree, and `report.totals`
+appears only as ~20 cross-check rows on Data Checks. That design earned itself
+immediately: the rows caught the workbook summing a row the engine had blocked
+(#1205, no AWB, so freight MISSING, Rs 2,046 of revenue and Rs 780 of COGS),
+then a packing split that lost a paisa per shared parcel, then a test order's
+replacement charge reaching the statement. None of those were visible in the
+engine's own tests, because the engine was right every time.
+
+**A killed run leaves its lock for 20 minutes.** `PNL#<month>` / `LOCK` is a
+lease, so a terminated CLI or a timed-out Lambda self-heals at the end of it.
+The RUNBOOK carries the one-line delete-item for clearing it sooner.
+
+**#1219 moved after the owner's snapshot.** Its RTO started
+2026-11-03T22:02:15, so the live month reads 9 RTO / 8 pending where the 3 Nov
+snapshot said 8 / 9. Verified directly against the waybill rather than assumed:
+`StatusType: RT`, `RTOStartedDate` set, `ReturnedDate` null. This is the drift
+the cohort is supposed to show, not an error, and it is why the report carries a
+"Last Month Update" block at all.
