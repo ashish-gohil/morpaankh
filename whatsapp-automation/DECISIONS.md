@@ -1409,3 +1409,50 @@ snapshot said 8 / 9. Verified directly against the waybill rather than assumed:
 `StatusType: RT`, `RTOStartedDate` set, `ReturnedDate` null. This is the drift
 the cohort is supposed to show, not an error, and it is why the report carries a
 "Last Month Update" block at all.
+
+### The adversarial audit (2026-11-04)
+
+A verifier that had not seen the build checked the live October report against
+the sources. What it VERIFIED, by pulling the sources itself rather than reading
+the code: all 44 delivered and RTO rows exact against live Shopify (gross =
+`currentTotalPrice`, COGS = sum of `currentQuantity x unitCost`, and name, city,
+province and payment type correct on every row); 18 of 18 live charges calls
+exact including zone, COD charge and GST; all 8 RTO lanes answered by ONE
+`ss=RTO` call with no separate forward call added, so no double counting; the
+#1208 + #1209 split adding back to the parcel to the paisa; #1205 out of every
+money column; the partial-payment revenue rule; Meta exact to the paisa per
+campaign including the `LINK_CLICKS` boost; and `customerDeliveredAt()`
+returning null for every RTO shipment, so the `DeliveryDate` trap is shut.
+
+It also found nine real defects. The two that mattered:
+
+**A tripwire that could not trip.** Two Data Checks reconciliation rows took
+their status from a literal `true` rather than a comparison, so they printed
+"ok" whatever the cells held, including after the exact hand edit one of them
+said it existed to catch. A check that cannot fail is worse than no check,
+because it is read as reassurance.
+
+**The provenance line for the month's one inferred delivery was backwards.**
+#1205 read "Delhivery says delivered, Shopify never marked it" when Delhivery
+has no record of the parcel at all and Shopify had marked it FULFILLED. The real
+basis is the COD-cash-after-fulfilment inference, which the row above it stated
+correctly. Cause: the workbook re-implemented the conflict test instead of
+calling `shopifyConflict()`, losing its "no shipments means no conflict" guard.
+On a report whose central claim is that Delhivery decides, that was the worst
+available line to get backwards, and it is the argument for rendering from the
+domain function rather than re-deriving a rule at the edge.
+
+The rest were a contradictory soft check answered twice with different verdicts,
+two unlabelled GST bases 2.38 apart on every COD order, a charged-weight column
+header that read as measured when the figure is the one we sent, preview quotes
+printed under charge headers, a duplicate-order detector keyed on a null, and
+Rs 99.95 of unrefunded deposit booked as income on one RTO while the identical
+order beside it was only asked about.
+
+Two things worth keeping from the exercise. The month genuinely MOVES: across
+three runs on 4 Nov the funnel went 34 delivered / 8 pending to 35 / 7 as
+parcels settled, and Delhivery's own RTO quotes drift a few rupees between runs
+while the API throttles. And the cohort is orders PLACED in the month, so 4 of
+35 delivered orders settled in November carrying 17.7% of net revenue. All three
+are correct behaviour; the first two are why the report says PROVISIONAL and the
+third is why the statement now states its own cut.
