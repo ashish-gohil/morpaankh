@@ -63,6 +63,31 @@ checkout. That is an explicit owner decision (2026-10-24) recorded at the top of
 `src/lib/phone.mjs`, it validates the number through the same
 `normalizeVerifiedPhone`, and `FLOW_W_ALLOWLIST` shadow mode is the mitigation.
 
+## Monthly profit and loss (`/pnl`)
+
+One month's P&L as an .xlsx workbook, from live sources only, to the owner on
+WhatsApp and by email. Automatic on the 7th at 09:00 IST for the month before;
+on demand with `/pnl`, `/pnl 2026-10`, `/pnl oct`, `/pnl mtd`, or
+`npm run pnl -- --month 2026-10 --no-send`.
+
+Thirteen sheets: Summary (the P&L statement, six KPI tiles, the order funnel,
+unit economics, data-quality flags), Daily, Delivered, RTO, Not Delivered,
+Excluded, Replacements, By Product, Meta Ads, Courier Ledger, Last Month Update,
+Data Checks, Assumptions. Every total is a live Excel formula with its cached
+result written, so it opens correct in Excel, Numbers, Sheets and the WhatsApp
+preview and still recalculates when you edit an Assumptions input.
+
+**The rule that shapes all of it: a cost we could not read is never a zero.**
+A row with a missing cost is flagged, left out of every total, and counted on
+Summary with the money it affects. Delhivery decides whether an order was
+delivered, not Shopify, because a PAID status alone never proves delivery and
+Shopify reports RTO parcels as fulfilled and delivered.
+
+Needs the exceljs layer: run `npm run pnl:layer` before any `cdk synth`, `diff`
+or `deploy`. Synth refuses without it. See RUNBOOK.md for the ledger upload,
+which is the only way to get exact courier charges, and DECISIONS.md section V
+for what was proven against the live APIs.
+
 ## Architecture
 
 Provider webhooks (Shopify, WhatsApp, Razorpay, Delhivery) hit an API Gateway HTTP

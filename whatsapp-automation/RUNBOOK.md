@@ -331,3 +331,134 @@ which is why `status` asks the courier directly.
    + Razorpay before re-driving anything; the `SIDE#` idempotency records prevent
    double side effects on replay.
 4. Fix root cause, then `replay-dlq.mjs --confirm`.
+
+## /pnl: monthly profit and loss
+
+One month's P&L as an .xlsx, built from live sources only and sent to you. It
+reads Shopify, Delhivery, Meta and Razorpay and writes nothing back to any of
+them: the only writes are the reports bucket, a lock row, and messages to you.
+
+### Running it
+
+Three ways, all the same code:
+
+```
+/pnl                       last month
+/pnl 2026-10               a month
+/pnl oct                   the most recent October that has finished
+/pnl oct 2026
+/pnl mtd                   this month so far, provisional by definition
+```
+
+```bash
+npm run pnl -- --month 2026-10            # builds AND sends
+npm run pnl -- --month 2026-10 --no-send  # writes the file only
+npm run pnl -- --month 2026-10 --out ~/Desktop
+npm run pnl -- --month 2026-10 --ledger ./statement.csv
+```
+
+```bash
+aws lambda invoke --function-name wa-pnl-report \
+  --cli-binary-format raw-in-base64-out \
+  --payload '{"month":"2026-10"}' /tmp/pnl.json
+```
+
+Automatically on the **7th at 09:00 IST** for the previous month
+(`wa-pnl-monthly`, `cron(30 3 7 * ? *)`). The 7th rather than the 1st because a
+report run on the 1st calls a third of the month pending and gets restated a
+week later.
+
+`/pnl` replies at once and then hands the work to `wa-pnl-report`: the worker
+has 60 seconds and a month is three or four minutes, mostly waiting on
+Delhivery. Expect the workbook about two minutes after the reply.
+
+### "It said a run is already in flight"
+
+A `PNL#<month>` / `LOCK` row, leased for 20 minutes. A run killed halfway (a
+terminated CLI, a Lambda timeout) leaves it behind and it clears itself at the
+end of the lease. To clear it now:
+
+```bash
+aws dynamodb delete-item --table-name wa-automation --region ap-south-1 \
+  --key '{"PK":{"S":"PNL#2026-10"},"SK":{"S":"LOCK"}}'
+```
+
+### The courier charges line, and why it matters
+
+The header of every report says one of two things:
+
+- **Delhivery ledger (exact)** - a statement you uploaded is being used.
+- **computed from Delhivery rates and an assumed weight** - the default.
+
+It says "assumed weight" because **Delhivery does not return the weight it
+scanned**, by any API this account can call: `ChargedWeight` is null on every
+shipment and the charges API echoes back whatever weight you send it. So a
+computed charge is this rate card applied to 500 g, and the real parcel might
+have been billed at more. Every row built that way is flagged.
+
+The only exact source is the statement. To upload one:
+
+1. Delhivery One > Finances > Invoices > the AWB-wise backup for the month
+   (or Finances > Wallet > Transactions). Save it as **CSV**.
+2. Send it to the business WhatsApp number from an admin phone, as a **file**,
+   with the caption `/pnl-ledger 2026-10`.
+3. It replies with the rows and total it read. The file is kept in S3 whatever
+   the parse said.
+4. Run `/pnl 2026-10` again. It picks the statement up from the bucket on its
+   own and the header flips to "ledger (exact)", with a per-AWB variance column
+   on Courier Ledger. A gap over Rs 10 is flagged, which is usually a weight
+   dispute.
+
+XLSX is not parsed: save as CSV. The parser reads by HEADER NAME, never column
+position, so a reordered export is fine and a renamed column is a clear warning
+rather than a wrong number.
+
+### Reading it: the one rule
+
+**A row with a missing cost is excluded from every total**, and the Summary says
+how many orders and how much money that is. It is never guessed and never
+treated as zero. So if net profit looks better or worse than you expect, read
+the DATA QUALITY block on Summary first: an order with no AWB, or a product with
+no cost per item, leaves the totals entirely.
+
+The two that recur:
+
+- **no unit cost** - fix at Shopify admin > product > variant > Cost per item.
+  October had two: "Toran" on #1174 and the custom "Dupatta" on #1233.
+- **no AWB** - the parcel went out by another courier, or the tracking number
+  never reached Shopify. `ref_ids` does NOT rescue these, verified. Either add
+  the cost by hand in `RULES.pnl.manualCourierCostInr` keyed by AWB, or accept
+  the exclusion.
+
+### Config
+
+Every number is in `messages/rules.mjs` under `RULES.pnl`, and every one of them
+appears on the Assumptions sheet with VERIFIED, ASSUMED or CONFIG against it.
+The switches are context in `iac/cdk.json`: `pnlEnabled`, `pnlAdminPhones`
+(empty means whoever may run `/replace`), `pnlEmailTo`.
+
+Still ASSUMED as of 2026-11-04, and each one moves the bottom line:
+
+- `gatewayFeePct` 2.0 - Cashfree carries every prepaid order and we have no API
+  keys for it. Razorpay is read live where it applies, which in October was
+  nowhere: all its payment links expired unpaid.
+- `gstInputCreditClaimed` false - while false, costs are booked GST-inclusive
+  and the 18% on Meta is its own line. That understates profit rather than
+  overstating it, which is the safe direction until your CA confirms.
+- `assumedWeightGrams` 500 - see above; the ledger is the fix.
+- `fixedMonthlyCosts` empty - shows as "not set" and net profit is flagged
+  optimistic until the Shopify plan, COD King, domain and WhatsApp API figures
+  are in.
+
+### Before you trust a deploy
+
+`cdk synth` REFUSES if the exceljs layer is missing, so run `npm run pnl:layer`
+first. Without the layer the function deploys clean and then throws on its first
+import, and the only symptom is a report that never arrives.
+
+### Rerunning a month
+
+Safe and idempotent: a re-run overwrites nothing. Each run writes its own
+`reports/<month>/<runId>.xlsx` and `snapshots/<month>/<runId>.json`, the bucket
+is versioned, and next month's "Last Month Update" block reads the newest
+snapshot to show what has settled since.

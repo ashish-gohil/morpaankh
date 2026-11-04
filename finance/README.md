@@ -100,3 +100,26 @@ These block full coverage. Each is listed in `cost-model.json` with `MISSING`.
   so cost attribution falls back to product title.
 - Two orders per month ship via **Tirupati Courier** ("Other"), not Delhivery.
   They will never resolve against the Delhivery MCP and need manual cost entry.
+
+---
+
+## Superseded by `wa-pnl-report` (2026-11-04)
+
+The rules in this folder were **ported** into the live service and this engine is
+no longer the one that produces a P&L. There is deliberately only one engine.
+
+See `whatsapp-automation/`:
+
+- `src/domain/pnl/` - the accounting rules from `pnl.mjs`, now pure, in integer
+  paise, and under test. Four rules changed on purpose: money is paise rather
+  than rupee floats; GST is slab-based per line rather than one rate (and never
+  silently zero); `inputCreditOnCogs` is actually read; and **Delhivery decides
+  whether an order was delivered**, not Shopify, because a PAID status alone
+  never proves delivery.
+- `src/pnl/` - the live adapters, the workbook, the delivery.
+- `RUNBOOK.md` > "/pnl: monthly profit and loss" - how to run it.
+- `DECISIONS.md` > section V - what was proven against the live APIs first.
+
+The files here are kept as the rationale document: `cost-model.json` records
+which numbers were VERIFIED and which were guessed, and that history is why the
+new engine refuses to invent a cost.
