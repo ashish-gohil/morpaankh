@@ -468,10 +468,28 @@ function resolve(r, cfg) {
   const base = cfg.packingCostPerOrderPaise ?? 0;
   const packing = r.packingPaise ?? Math.round(base * share);
   const packingFactor = base ? Math.round((packing / base) * 1e6) / 1e6 : 0;
-  const gatewayAssumed = isAssumed(r, 'gateway');
-  const gateway = gatewayAssumed
-    ? Math.round(gross * frac(cfg.gatewayFeePct) * (1 + frac(cfg.gatewayGstPct)))
-    : r.gatewayFeePaise;
+  /*
+   * GATEWAY FEE COMES FROM THE ENGINE, not from a recompute on the order total.
+   *
+   * A fee is only charged where money actually moved through a gateway: a
+   * prepaid order on its full total less refunds, a PARTIAL order on the
+   * deposit alone, and a COD order never. Recomputing from
+   * `order.currentTotalPaise` charged a partial order on money that never
+   * reached a gateway, which is where October's Rs 71.52 on the delivered
+   * gateway line and Rs 47.06 on the RTO line both came from (RTO loss carries
+   * the gateway fee too).
+   *
+   * `onlinePaise` mirrors the engine's own base so the cell's formula, which
+   * has to stay live on the gateway inputs, recalculates to the same figure.
+   */
+  const onlinePaise =
+    r.order.paymentType === 'prepaid'
+      ? Math.max(0, gross - refunds)
+      : r.order.paymentType === 'partial'
+        ? (r.order.prepaidReceivedPaise ?? 0)
+        : 0;
+  const gatewayAssumed = isAssumed(r, 'gateway') && onlinePaise > 0;
+  const gateway = r.gatewayFeePaise;
   const cogs = r.cogsPaise;
   const fwd = r.forwardFreightPaise;
   const rto = r.rtoFreightPaise;
@@ -481,7 +499,8 @@ function resolve(r, cfg) {
   const cost = (cogs ?? 0) + (fwd ?? 0) + (cod ?? 0) + packing + (gateway ?? 0);
   const advance = r.advanceKeptPaise ?? 0;
   return {
-    share, gross, refunds, gst, netRev, cogs, fwd, rto, cod, packing, packingFactor, gateway, gatewayAssumed,
+    share, gross, refunds, gst, netRev, cogs, fwd, rto, cod, packing, packingFactor,
+    gateway, gatewayAssumed, onlinePaise,
     cost,
     contribution: netRev - cost,
     advance,
@@ -537,7 +556,8 @@ function aggregate(rows, cfg, metaDays, repl, ledger) {
   // The engine adds a LOST line the brief's statement does not have, because a
   // lost parcel really loses both the garment and the freight.
   const lost = sumP((by.LOST ?? []).filter(counted), (r) => r.totalCostPaise);
-  const replNet = repl.reduce((a, j) => a + replacementCost(j, cfg).net, 0);
+  const chargeByAwb = new Map((ledger ?? []).map((l) => [String(l.charge.awb), l.charge]));
+  const replNet = repl.reduce((a, j) => a + replacementCost(j, cfg, (awb) => chargeByAwb.get(awb)).net, 0);
   const otherCourier = ledger.filter((l) => l.bucket === 'other').reduce((a, l) => a + (l.charge.totalPaise ?? 0), 0);
 
   const metaSales = metaDays.filter((m) => m.type === 'sales').reduce((a, m) => a + (m.spendPaise ?? 0), 0);
@@ -556,12 +576,48 @@ function aggregate(rows, cfg, metaDays, repl, ledger) {
   };
 }
 
-/** A replacement job's cost to us, and what part of it the P&L carries. */
-function replacementCost(j, cfg) {
-  const packing = cfg.packingCostPerOrderPaise ?? 0;
-  const freight = (j.quoteForwardPaise ?? 0) + (j.quoteReturnPaise ?? 0);
-  const reimbursed = j.reimbursementReceived ? freight : 0;
-  return { packing, freight, reimbursed, net: freight + packing - reimbursed };
+/**
+ * A replacement job's cost to us, and what part of it the P&L carries. This
+ * mirrors engine.mjs replacementTotals() line for line, because the statement
+ * line is the engine's number.
+ *
+ * A CANCELLED job is NOT COSTED. October's only replacement was test order
+ * #1222, cancelled, on an order excluded by tag, with neither parcel ever
+ * collected. The engine skipped it and this sheet charged Rs 99.02 for it.
+ *
+ * Each leg is the LEDGER charge where Delhivery billed one, and only falls back
+ * to the quote when it did not. Reimbursement counts only when the customer is
+ * the one paying and the money is actually recorded.
+ *
+ * @param {any} j
+ * @param {any} cfg
+ * @param {(awb: string) => any} [chargeFor] ledger lookup by AWB
+ */
+function replacementCost(j, cfg, chargeFor) {
+  const cancelled = String(j.state).toUpperCase() === 'CANCELLED';
+  const leg = (awb, quote) => {
+    if (!awb) return { paise: 0, billed: false };
+    const total = chargeFor?.(String(awb))?.totalPaise;
+    if (total != null) return { paise: Number(total), billed: true };
+    return { paise: quote == null ? 0 : Number(quote), billed: false, quoted: quote != null };
+  };
+  const fwd = leg(j.forwardAwb, j.quoteForwardPaise);
+  const ret = leg(j.returnAwb, j.quoteReturnPaise);
+  const packing = cancelled || !j.forwardAwb ? 0 : (cfg.packingCostPerOrderPaise ?? 0);
+  const reimbursed =
+    j.pays === 'customer' && j.reimbursementReceived
+      ? (j.quoteForwardPaise ?? 0) + (j.quoteReturnPaise ?? 0)
+      : 0;
+  return {
+    cancelled,
+    fwd,
+    ret,
+    packing,
+    freight: fwd.paise + ret.paise,
+    reimbursed,
+    // Cancelled: the engine costs nothing, so neither does the statement.
+    net: cancelled ? 0 : fwd.paise + ret.paise + packing - reimbursed,
+  };
 }
 
 /**
@@ -583,8 +639,16 @@ function buildLedger(report) {
       owners.set(awb, o);
     }
   }
+  /*
+   * Only a job the statement actually costs claims its AWBs. The engine pushes
+   * nothing onto repl.awbs for a CANCELLED job, so if Delhivery did bill one of
+   * its parcels the charge belongs under "Other courier charges", not here.
+   */
   const replAwbs = new Set(
-    (report.replacements ?? []).flatMap((j) => [j.forwardAwb, j.returnAwb]).filter(Boolean),
+    (report.replacements ?? report.inputs?.replacements ?? [])
+      .filter((j) => String(j.state).toUpperCase() !== 'CANCELLED')
+      .flatMap((j) => [j.forwardAwb, j.returnAwb])
+      .filter(Boolean),
   );
   const seen = new Set();
   const out = [];
@@ -956,7 +1020,10 @@ function sheetDelivered(ctx) {
       v.cod == null ? 0 : rup(v.cod),
       fx(`pnl_packing_per_order*${v.packingFactor}`, rup(v.packing)),
       v.gatewayAssumed
-        ? fx(`${C('Gross sale')}${rn}*pnl_gateway_fee_pct*(1+pnl_gateway_gst_pct)`, rup(v.gateway))
+        ? fx(
+            `${rup(v.onlinePaise)}*pnl_gateway_fee_pct*(1+IF(pnl_gst_input_credit=1,0,pnl_gateway_gst_pct))`,
+            rup(v.gateway),
+          )
         : money(v.gateway, 'gateway fee not read from the gateway'),
       fx(`SUM(${C('COGS')}${rn}:${C('Gateway fee')}${rn})`, rup(v.cost)),
       fx(`SUM(${C('Net revenue')}${rn})-SUM(${C('Total cost')}${rn})`, rup(v.contribution)),
@@ -1101,18 +1168,38 @@ function sheetReplacements(ctx) {
     { h: 'Created', fmt: FMT.date, w: 13 },
   ];
   const C = (h) => colLetter(cols.findIndex((c) => c.h === h) + 1);
+  const chargeByAwb = new Map((ctx.ledger ?? []).map((l) => [String(l.charge.awb), l.charge]));
   const jobs = [...ctx.repl].sort((x, y) => String(x.orderName).localeCompare(String(y.orderName)) || (x.seq ?? 0) - (y.seq ?? 0));
   const body = jobs.map((j, i) => {
-    const c = replacementCost(j, ctx.cfg);
+    const c = replacementCost(j, ctx.cfg, (awb) => chargeByAwb.get(awb));
     const rn = 2 + i;
+    const legCell = (awb, side) =>
+      !awb
+        ? 0
+        : side.billed
+          ? noted(rup(side.paise), 'billed by Delhivery, taken from the ledger')
+          : side.quoted
+            ? inferred(rup(side.paise), 'not billed yet, the quote was used')
+            : miss('neither billed nor quoted');
     return [
       String(j.orderName ?? ''), j.seq ?? 1, String(j.state ?? ''), j.reason ?? '',
       j.pays === 'us' ? 'Morpaankh' : j.pays === 'customer' ? 'customer' : miss('nobody was recorded as paying'),
       j.forwardAwb ?? miss('no forward AWB yet'), j.returnAwb ?? 'none',
-      money(j.quoteForwardPaise, 'forward leg not quoted'), money(j.quoteReturnPaise, 'return leg not quoted'),
-      fx('pnl_packing_per_order', rup(c.packing)), rup(c.reimbursed),
-      fx(`SUM(${C('Forward leg')}${rn}:${C('Packing')}${rn})-SUM(${C('Reimbursed')}${rn})`, rup(c.net)),
-      j.reimbursementReceived ? 'received, recorded in Shopify' : (j.pays === 'customer' ? 'expected, not verified' : 'not applicable'),
+      legCell(j.forwardAwb, c.fwd), legCell(j.returnAwb, c.ret),
+      c.packing ? fx('pnl_packing_per_order', rup(c.packing)) : 0,
+      rup(c.reimbursed),
+      // A cancelled job is not costed, so the P&L takes nothing from it, and the
+      // cell says why rather than quietly reading 0.
+      c.cancelled
+        ? noted(0, 'The job was cancelled, so the engine does not cost it and neither does the P&L. The legs above are what it would have cost.')
+        : fx(`SUM(${C('Forward leg')}${rn}:${C('Packing')}${rn})-SUM(${C('Reimbursed')}${rn})`, rup(c.net)),
+      c.cancelled
+        ? 'not applicable, job cancelled'
+        : j.reimbursementReceived
+          ? 'received, recorded in Shopify'
+          : j.pays === 'customer'
+            ? 'expected, not verified'
+            : 'not applicable',
       dateCell(j.createdAt),
     ];
   });

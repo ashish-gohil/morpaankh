@@ -150,7 +150,9 @@ function fixture() {
   });
 
   const rows = [
-    row(d1, 'DELIVERED'),
+    // Prepaid, and the fee was not read from the gateway, so the cell has to
+    // recalculate from the config. Base: the full total.
+    row(d1, 'DELIVERED', { assumed: ['gateway_rate'] }),
     // The engine sets complete:false whenever `missing` is non-empty, so a row
     // with no unit cost is out of the totals too. The fixture has to say so or
     // it would be describing a report the engine never produces.
@@ -158,7 +160,7 @@ function fixture() {
       cogsPaise: null,
       missing: ['unit_cost'],
       complete: false,
-      assumed: ['gateway_fee'],
+      gatewayFeePaise: 0, // COD: no money went through a gateway
       codChargePaise: PAISE(35),
       flags: ['no unit cost on the Taana line'],
     }),
@@ -556,7 +558,7 @@ describe('buildWorkbook', () => {
     expect(cellOf(S, 'GST on Meta (if no input credit)').value.formula).toContain('pnl_gst_input_credit');
     expect(cellOf(S, 'GST on Meta (if no input credit)').value.formula).toContain('pnl_meta_gst_pct');
     expect(cellOf(S, 'Fixed costs').value.formula).toContain('pnl_fixed_costs');
-    expect(wb.getWorksheet('Delivered').getCell('Y3').value.formula).toContain('pnl_gateway_fee_pct');
+    expect(wb.getWorksheet('Delivered').getCell('Y2').value.formula).toContain('pnl_gateway_fee_pct');
   });
 
   it('marks a cost it could not read MISSING, in amber, with the reason as a note', () => {
@@ -865,6 +867,141 @@ describe('buildWorkbook', () => {
       f.rows[0].parcelShare = 0.5;
       const w = await reopen(await buildWorkbook(f, META));
       expect(packingCell(w).value.result).toBe(12.5);
+    });
+  });
+
+  /*
+   * A gateway fee is only charged where money actually moved through a gateway.
+   * Recomputing it from the order total charged a PARTIAL order on money that
+   * never reached one, which was October's Rs 71.52 on the delivered gateway
+   * line and the same Rs 47.06 on the RTO line, since RTO loss carries the
+   * gateway fee too.
+   */
+  describe('gateway fees', () => {
+    const gatewayCell = (w, r = 2) => {
+      const D = w.getWorksheet('Delivered');
+      let col = 0;
+      D.getRow(1).eachCell((c, i) => { if (c.value === 'Gateway fee') col = i; });
+      return D.getCell(r, col);
+    };
+
+    it('charges a prepaid order on its full total', () => {
+      const c = gatewayCell(wb);
+      expect(c.value.result).toBe(47.2);
+      expect(c.value.formula).toBe('2000*pnl_gateway_fee_pct*(1+IF(pnl_gst_input_credit=1,0,pnl_gateway_gst_pct))');
+    });
+
+    it('charges a partial order on the DEPOSIT, not the order total', async () => {
+      const f = fixture();
+      const o = f.rows[0].order;
+      o.paymentType = 'partial';
+      o.currentTotalPaise = PAISE(3000);
+      o.prepaidReceivedPaise = PAISE(150); // the 5% deposit
+      // What the engine computes: round(15000*2/100)=300, +round(300*18/100)=54.
+      f.rows[0].gatewayFeePaise = 354;
+      const w = await reopen(await buildWorkbook(f, META));
+      const c = gatewayCell(w);
+      // The old recompute used the 3000 total and said 70.80, a 20x overcharge.
+      expect(c.value.result).toBe(3.54);
+      expect(c.value.formula).toBe('150*pnl_gateway_fee_pct*(1+IF(pnl_gst_input_credit=1,0,pnl_gateway_gst_pct))');
+      expect(cellOf(w.getWorksheet('Summary'), '  Payment gateway fees').value.result).toBe(-3.54);
+    });
+
+    it('never charges a COD order, and never writes it a formula', () => {
+      // #1171 is COD. No money moved through a gateway, so there is nothing to
+      // recalculate and nothing to charge.
+      const c = gatewayCell(wb, 3);
+      expect(c.value).toBe(0);
+      expect(c.value?.formula).toBeUndefined();
+    });
+
+    it('leaves a fee the gateway really reported alone', async () => {
+      const f = fixture();
+      f.rows[0].assumed = [];          // read from Razorpay, not assumed
+      f.rows[0].gatewayFeePaise = 5111;
+      const w = await reopen(await buildWorkbook(f, META));
+      const c = gatewayCell(w);
+      expect(c.value).toBe(51.11);     // a plain number: editing the config must not move it
+      expect(c.value?.formula).toBeUndefined();
+    });
+
+    it('carries the engine\u2019s gateway fee into RTO loss', async () => {
+      const f = fixture();
+      // The RTO order is partial. Its fee is on the deposit of 130.
+      const rto = f.rows.find((r) => r.outcome === 'RTO');
+      rto.gatewayFeePaise = 307;
+      const w = await reopen(await buildWorkbook(f, META));
+      const T = w.getWorksheet('RTO');
+      let col = 0;
+      T.getRow(1).eachCell((c, i) => { if (c.value === 'Gateway fee') col = i; });
+      expect(T.getCell(2, col).value).toBe(3.07);
+      // 76 + 76 + 0 + 25 + 3.07 - 130 = 50.07
+      expect(cellOf(w.getWorksheet('Summary'), 'RTO LOSS (BOTH WAYS)').value.result).toBe(-50.07);
+    });
+  });
+
+  /*
+   * October's only replacement was test order #1222: CANCELLED, on an order
+   * excluded by tag, with neither parcel ever collected. The engine does not
+   * cost a cancelled job; this sheet charged Rs 99.02 for it.
+   */
+  describe('a cancelled replacement job', () => {
+    const cellIn = (w, header) => {
+      const R = w.getWorksheet('Replacements');
+      let col = 0;
+      R.getRow(1).eachCell((c, i) => { if (c.value === header) col = i; });
+      expect(col, header).toBeGreaterThan(0);
+      return R.getCell(2, col);
+    };
+    const cancelledFixture = () => {
+      const f = fixture();
+      f.replacements[0] = { ...f.replacements[0], state: 'CANCELLED' };
+      return f;
+    };
+
+    it('costs the P&L nothing, and says why', async () => {
+      const w = await reopen(await buildWorkbook(cancelledFixture(), META));
+      expect(cellIn(w, 'Cost in P&L').value).toBe(0);
+      expect(String(cellIn(w, 'Cost in P&L').note)).toContain('cancelled');
+      expect(cellIn(w, 'Packing').value).toBe(0); // never packed
+      // exceljs's loader drops a zero result; the file carries <v>0</v>.
+      expect(cellOf(w.getWorksheet('Summary'), '  Replacement shipments (net of reimbursements received)').value.result ?? 0).toBe(0);
+    });
+
+    it('stays on the sheet with the legs it would have cost', async () => {
+      const w = await reopen(await buildWorkbook(cancelledFixture(), META));
+      expect(cellIn(w, 'State').value).toBe('CANCELLED');
+      expect(cellIn(w, 'Forward leg').value).toBe(76);
+      expect(cellIn(w, 'Reimbursement status').value).toBe('not applicable, job cancelled');
+    });
+
+    it('releases its AWBs, so a charge Delhivery really billed is not lost', async () => {
+      const f = cancelledFixture();
+      // Delhivery billed the forward parcel even though the job was cancelled.
+      f.charges.push({ ...f.charges[0], awb: '777', totalPaise: PAISE(76), flags: [] });
+      const w = await reopen(await buildWorkbook(f, META));
+      const CL = w.getWorksheet('Courier Ledger');
+      const found = [];
+      CL.eachRow((r) => found.push([r.getCell(1).value, r.getCell(15).value]));
+      expect(found).toContainEqual(['777', 'other']); // not "replacement"
+      expect(cellOf(w.getWorksheet('Summary'), '  Other courier charges').value.result).toBe(-152);
+    });
+
+    it('still costs a live job, preferring the ledger over the quote', async () => {
+      const f = fixture();
+      f.charges.push({ ...f.charges[0], awb: '777', totalPaise: PAISE(90), flags: [] });
+      const w = await reopen(await buildWorkbook(f, META));
+      expect(cellIn(w, 'Forward leg').value).toBe(90); // billed, not the 76 quote
+      expect(String(cellIn(w, 'Forward leg').note)).toContain('ledger');
+      expect(cellIn(w, 'Cost in P&L').value.result).toBe(90 + 76 + 25);
+    });
+
+    it('only credits a reimbursement the customer actually paid', async () => {
+      const f = fixture();
+      f.replacements[0] = { ...f.replacements[0], pays: 'us', reimbursementReceived: true };
+      const w = await reopen(await buildWorkbook(f, META));
+      // pays === 'us', so a recorded reimbursement is not ours to credit.
+      expect(cellIn(w, 'Reimbursed').value).toBe(0);
     });
   });
 
