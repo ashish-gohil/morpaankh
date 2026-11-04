@@ -257,6 +257,8 @@ function fixture() {
     // actual/ok found none of them and rendered a bare "check" with empty cells.
     reconciliations: [
       { key: 'courier', label: 'Courier total = sum of the courier ledger (plus any hand-entered cost)', a: PAISE(491), b: PAISE(491), agree: true },
+      // Counts, not paise. Rupee-formatting this read "0.09" for nine orders.
+      { key: 'funnel', label: 'On record = excluded + cancelled + delivered + RTO + pending + lost', a: 9, b: 9, agree: true },
     ],
     assumptions: [{ key: 'originPin', label: 'Origin PIN', value: '395003', source: 'VERIFIED', note: 'Surat pickup' }],
     // The engine's real key names. The count keys are exact and easy to read;
@@ -1048,6 +1050,10 @@ describe('buildWorkbook', () => {
     expect(DC.getCell(row, 2).value).toBe(491); // a, not an empty cell
     expect(DC.getCell(row, 3).value).toBe(491); // b
     expect(DC.getCell(row, 4).value).toBe('ok'); // agree
+    // Its funnel reconciliation counts orders, so it must not be read as paise.
+    const funnelRows = [];
+    DC.eachRow((r) => { if (String(r.getCell(1).value ?? '').startsWith('On record =')) funnelRows.push(r.getCell(2).value); });
+    expect(funnelRows).toEqual([9, 9]); // mine and the engine's, both as counts
   });
 
   it('renders a "none this month" row instead of throwing when a section is missing', async () => {

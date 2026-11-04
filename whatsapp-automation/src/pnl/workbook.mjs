@@ -1781,13 +1781,15 @@ function sheetDataChecks(ctx, t) {
     const exp = rec.a ?? rec.expected;
     const act = rec.b ?? rec.actual;
     const agree = rec.agree ?? rec.ok;
-    checks.push([
-      String(rec.label ?? rec.name ?? rec.check ?? rec.key ?? 'check'),
-      typeof exp === 'number' ? m(exp) : String(exp ?? ''),
-      typeof act === 'number' ? m(act) : String(act ?? ''),
-      agree === false ? 'MISMATCH' : agree === true ? 'ok' : '',
-      rec.note ?? '',
-    ]);
+    const label = String(rec.label ?? rec.name ?? rec.check ?? rec.key ?? 'check');
+    /*
+     * The engine's reconciliations carry no unit, and its funnel one counts
+     * ORDERS. Rupee-formatting that turned "71 orders" into 0.71, which reads
+     * like a rounding error in a sheet whose whole job is to be trusted.
+     */
+    const isOrders = /funnel|orders|count/i.test(`${rec.key ?? ''} ${label}`);
+    const show = (v) => (typeof v !== 'number' ? String(v ?? '') : isOrders ? v : m(v));
+    checks.push([label, show(exp), show(act), agree === false ? 'MISMATCH' : agree === true ? 'ok' : '', rec.note ?? '']);
   }
   const h = writeTable(
     ws,
