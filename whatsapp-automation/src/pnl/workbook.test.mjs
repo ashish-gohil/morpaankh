@@ -126,10 +126,27 @@ function fixture() {
    */
   const b1 = order('#1176', {
     createdAt: '2026-10-25T06:30:00Z',
+    // A fulfillment but NO AWB. This is also why the engine's `shipped` (which
+    // counts fulfillments) read 51 against a recount of AWBs that read 49.
     awbs: [],
-    fulfillments: [],
+    fulfillments: [{ status: 'SUCCESS', displayStatus: 'DELIVERED', createdAt: '2026-10-26T06:00:00Z', deliveredAt: '2026-10-28T09:00:00Z', awb: null, company: null }],
     customerName: 'F Customer',
     currentTotalPaise: PAISE(2046),
+  });
+
+  // A parcel that was lost: the engine gives it its own statement line, because
+  // it loses both the garment and the freight.
+  const l1 = order('#1177', {
+    createdAt: '2026-10-18T06:30:00Z', awbs: ['666'], customerName: 'G Customer',
+    currentTotalPaise: PAISE(1800),
+    fulfillments: [{ status: 'SUCCESS', displayStatus: 'IN_TRANSIT', createdAt: '2026-10-19T06:00:00Z', deliveredAt: null, awb: '666', company: 'Delhivery' }],
+  });
+  // A cancelled parcel whose charge we could not read: the charge must NOT be
+  // in the P&L, the same way the engine leaves it out.
+  const c2 = order('#1178', {
+    createdAt: '2026-10-27T06:30:00Z', cancelledAt: '2026-10-28T06:30:00Z', cancelReason: 'DECLINED',
+    awbs: ['888'], customerName: 'H Customer', currentTotalPaise: PAISE(900),
+    fulfillments: [{ status: 'SUCCESS', displayStatus: 'IN_TRANSIT', createdAt: '2026-10-27T10:00:00Z', deliveredAt: null, awb: '888', company: 'Delhivery' }],
   });
 
   const rows = [
@@ -165,6 +182,13 @@ function fixture() {
     row(p1, 'PENDING', { forwardFreightPaise: PAISE(76), gatewayFeePaise: PAISE(47.2) }),
     row(c1, 'CANCELLED', { totalCostPaise: PAISE(76), forwardFreightPaise: PAISE(76) }),
     row(x1, 'EXCLUDED', { outcomeReason: 'tagged test-order' }),
+    row(l1, 'LOST', { totalCostPaise: PAISE(1200), outcomeReason: 'Delhivery marked it lost' }),
+    row(c2, 'CANCELLED', {
+      totalCostPaise: PAISE(76),
+      missing: ['freight'],
+      complete: false,
+      flags: ['cancelled after manifest, charge not on the ledger'],
+    }),
   ];
 
   const ship = (awb, state, over = {}) => ({
@@ -198,12 +222,17 @@ function fixture() {
       ship('333', 'RTO_DELIVERED', { statusType: 'RT', rtoStartedAt: '2026-10-16T06:00:00Z', returnedAt: '2026-10-22T06:00:00Z', deliveredAt: null }),
       ship('444', 'IN_TRANSIT', { statusType: 'UD', deliveredAt: null }),
       ship('555', 'MANIFESTED', { statusType: 'UD', deliveredAt: null }),
+      ship('666', 'LOST', { statusType: 'UD', deliveredAt: null }),
+      ship('888', 'MANIFESTED', { statusType: 'UD', deliveredAt: null }),
     ],
     charges: [
       charge('111'),
       charge('222', { codChargePaise: PAISE(35), totalPaise: PAISE(111) }),
       charge('333', { source: 'computed', rtoPaise: PAISE(76), totalPaise: PAISE(152), variancePaise: null, flags: ['return leg computed'] }),
       charge('555', { totalPaise: PAISE(76) }),
+      charge('666', { totalPaise: PAISE(76) }),
+      // Delhivery billed the forward leg before the order was cancelled.
+      charge('888', { totalPaise: PAISE(76) }),
       charge('999', { totalPaise: PAISE(76), flags: ['AWB not tied to any order'] }),
     ],
     meta: [
@@ -216,12 +245,21 @@ function fixture() {
       forwardAwb: '777', returnAwb: '778', quoteForwardPaise: PAISE(76), quoteReturnPaise: PAISE(76),
       reimbursementReceived: false, createdAt: '2026-10-20T06:30:00Z',
     }],
+    /*
+     * The engine's funnel, taken verbatim. `shipped` is 6 because six orders
+     * have a fulfillment; counting AWBs here gives 5, since #1176 has none.
+     */
+    funnel: { onRecord: 9, excluded: 1, cancelled: 2, shipped: 8, delivered: 3, rto: 1, pending: 1, lost: 1 },
     flags: [{ code: 'ses_sandbox', label: 'Delhivery charge ledger was not uploaded', count: 3, note: 'Charges fell back to the computed rate card.' }],
-    reconciliations: [{ name: 'Shopify page count', expected: 1, actual: 1, ok: true, note: 'single page of orders' }],
+    // The engine's shape: {key, label, a, b, agree}. Reading name/expected/
+    // actual/ok found none of them and rendered a bare "check" with empty cells.
+    reconciliations: [
+      { key: 'courier', label: 'Courier total = sum of the courier ledger (plus any hand-entered cost)', a: PAISE(491), b: PAISE(491), agree: true },
+    ],
     assumptions: [{ key: 'originPin', label: 'Origin PIN', value: '395003', source: 'VERIFIED', note: 'Surat pickup' }],
     // The engine's real key names. The count keys are exact and easy to read;
     // the money keys get their own assertions in the blocked-row suite.
-    totals: { countedDelivered: 1, countedRto: 1, blockedDelivered: 2, blockedRto: 0 },
+    totals: { lostShipmentsPaise: PAISE(1200), countedDelivered: 1, countedRto: 1, blockedDelivered: 2, blockedRto: 0 },
     lastMonthUpdate: [{ orderName: '#1140', was: 'PENDING', now: 'DELIVERED', at: '2026-10-03T06:00:00Z', deltaPaise: PAISE(820), note: 'settled after last month closed' }],
     previousMonth: { label: 'September 2026', reported: { netPaise: PAISE(-4000), deliveredOrders: 9 }, restated: { netPaise: PAISE(-3100), deliveredOrders: 10 } },
   };
@@ -247,8 +285,10 @@ const META = {
  */
 function rowOf(ws, label) {
   let n = 0;
+  // The FIRST match: the statement comes before the per-delivered-order block,
+  // and the two share labels like "Product cost (COGS)".
   ws.eachRow((r) => {
-    if (String(r.getCell(1).value ?? '').trim() === label.trim()) n = r.number;
+    if (!n && String(r.getCell(1).value ?? '').trim() === label.trim()) n = r.number;
   });
   expect(n, `no row labelled "${label}"`).toBeGreaterThan(0);
   return n;
@@ -580,6 +620,7 @@ describe('buildWorkbook', () => {
       if (a.startsWith('Engine total against this workbook:')) engineRows.push([a.split(': ')[1], r.getCell(2).value, r.getCell(4).value]);
     });
     expect(engineRows).toEqual([
+      ['Lost shipments', 1200, 'ok'],
       ['Delivered orders counted in the totals', 1, 'ok'],
       ['RTO orders counted in the totals', 1, 'ok'],
       ['Delivered orders blocked from the totals', 2, 'ok'],
@@ -756,6 +797,25 @@ describe('buildWorkbook', () => {
       ]);
     });
 
+    it('keeps a blocked cancelled charge out of the P&L column', () => {
+      const ND = wb.getWorksheet('Not Delivered');
+      const inPnl = colOf(ND, 'Charge in P&L', 2);
+      const row = totalRowOf(ND, '#1178');
+      expect(ND.getCell(row, colOf(ND, 'Charges so far', 2)).value).toBe(76); // what Delhivery shows
+      expect(ND.getCell(row, inPnl).value).toBe(0); // what the P&L takes
+      expect(String(ND.getCell(row, inPnl).note)).toContain('Excluded from every total');
+      expect(ND.getCell(row, colOf(ND, 'In P&L?', 2)).value).toBe('no (incomplete)');
+      // the complete cancelled order's charge IS in
+      expect(ND.getCell(totalRowOf(ND, '#1174'), inPnl).value).toBe(76);
+    });
+
+    it('gives a lost parcel its own statement line', () => {
+      const S = wb.getWorksheet('Summary');
+      expect(cellOf(S, '  Lost shipments (product and freight)').value.result).toBe(-1200);
+      const ND = wb.getWorksheet('Not Delivered');
+      expect(ND.getCell(totalRowOf(ND, '#1177'), colOf(ND, 'Charge in P&L', 2)).value).toBe(1200);
+    });
+
     it('keeps the Daily and Summary bottom lines tied with a blocked row present', () => {
       const p = (c) => Math.round((typeof c.value === 'object' ? c.value.result : c.value) * 100);
       const Daily = wb.getWorksheet('Daily');
@@ -763,6 +823,51 @@ describe('buildWorkbook', () => {
       Daily.eachRow((r) => { if (r.getCell(1).value === 'NET FOR THE MONTH') netRow = r.number; });
       expect(p(Daily.getCell(`O${netRow}`))).toBe(p(cellOf(wb.getWorksheet('Summary'), 'NET PROFIT / LOSS')));
     });
+  });
+
+  it('builds the statement out of counted-aware sums, not bare SUMs', () => {
+    // A bare SUM here would show the right cached number with a formula that
+    // recalculates to a different one, which is the whole failure this fix is
+    // about: a cell that disagrees with its own formula the moment Excel opens.
+    const S = wb.getWorksheet('Summary');
+    const D = wb.getWorksheet('Delivered');
+    let flag = 0;
+    D.getRow(1).eachCell((c, i) => { if (c.value === 'In totals') flag = i; });
+    const flagL = D.getColumn(flag).letter;
+    for (const label of [
+      'Gross sales (delivered, incl. GST)', '  less refunds', '  less output GST',
+      '  Product cost (COGS)', '  Forward freight (delivered)', '  COD charges',
+      '  Packing', '  Payment gateway fees',
+    ]) {
+      const f = cellOf(S, label).value.formula;
+      expect(f, label).toContain("SUMIF('Delivered'!");
+      expect(f, label).toContain(`$${flagL}$`);
+      expect(f, label).toMatch(/,1,/);
+    }
+    for (const label of ['  RTO forward freight', '  RTO return freight', '  less advance kept on RTO']) {
+      expect(cellOf(S, label).value.formula, label).toContain("SUMIF('RTO'!");
+    }
+    // and by-payment-type contribution has to exclude them too (column E)
+    expect(S.getCell(rowOf(S, 'COD'), 5).value.formula).toContain('SUMIFS(');
+  });
+
+  it('takes the funnel from the engine rather than recounting it', () => {
+    const S = wb.getWorksheet('Summary');
+    // Six orders have a fulfillment; only five have an AWB. The engine counts
+    // fulfillments, and the sheet has to agree with the engine.
+    expect(cellOf(S, 'Shipped').value).toBe(8);
+    expect(cellOf(S, 'Orders on record').value).toBe(9);
+    expect(cellOf(S, 'Delivered').value).toBe(3);
+  });
+
+  it('renders the engine\u2019s own reconciliations with their numbers', () => {
+    const DC = wb.getWorksheet('Data Checks');
+    let row = 0;
+    DC.eachRow((r) => { if (String(r.getCell(1).value ?? '').startsWith('Courier total = sum of')) row = r.number; });
+    expect(row, 'the engine reconciliation did not render').toBeGreaterThan(0);
+    expect(DC.getCell(row, 2).value).toBe(491); // a, not an empty cell
+    expect(DC.getCell(row, 3).value).toBe(491); // b
+    expect(DC.getCell(row, 4).value).toBe('ok'); // agree
   });
 
   it('renders a "none this month" row instead of throwing when a section is missing', async () => {
