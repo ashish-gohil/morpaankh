@@ -511,6 +511,19 @@ describe('buildWorkbook', () => {
     expect(again.equals(buf)).toBe(true);
   });
 
+  // Byte-identity alone would pass by luck: exceljs stamps docProps to the
+  // second, so two builds in the same second match even if the stamp came from
+  // the clock. This pins it to the month instead.
+  it('stamps the file from the month, not from the clock', async () => {
+    const zip = await JSZip.loadAsync(buf);
+    const core = await zip.file('docProps/core.xml').async('string');
+    expect(core).toContain('<dcterms:created xsi:type="dcterms:W3CDTF">2026-10-01T00:00:00Z</dcterms:created>');
+    expect(core).toContain('<dcterms:modified xsi:type="dcterms:W3CDTF">2026-10-01T00:00:00Z</dcterms:modified>');
+    // A different month is a different stamp, so the pin is real and not a constant.
+    const nov = await JSZip.loadAsync(await buildWorkbook(fixture(), { ...META, month: '2026-11' }));
+    expect(await nov.file('docProps/core.xml').async('string')).toContain('2026-11-01T00:00:00Z');
+  });
+
   it('renders a "none this month" row instead of throwing when a section is missing', async () => {
     const bare = { rows: fixture().rows.slice(0, 1) };
     const w = await reopen(await buildWorkbook(bare, { month: '2026-10' }));
