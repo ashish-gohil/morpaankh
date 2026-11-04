@@ -23,3 +23,8 @@ morpaankh-seo-*.json
 *.env
 .env.*
 !.env.example
+
+# Generated P&L workbooks and snapshots. A workbook carries customer display
+# names, cities and pincodes, and this repository is PUBLIC, so these must never
+# be committed. `npm run pnl` writes here.
+finance/out/

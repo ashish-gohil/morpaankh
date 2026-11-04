@@ -105,7 +105,13 @@ if (r.skipped) {
   process.exit(0);
 }
 
-const outDir = args.out ? resolve(args.out) : join(ROOT, 'finance', 'out');
+/*
+ * The repo's own finance/out, which is where the previous engine wrote too.
+ * NOT inside whatsapp-automation/: a workbook carries customer display names,
+ * cities and pincodes, and this repository is public, so the one place it may
+ * land is a path that is ignored. See the .gitignore entry.
+ */
+const outDir = args.out ? resolve(args.out) : resolve(ROOT, '..', 'finance', 'out');
 mkdirSync(outDir, { recursive: true });
 const file = join(outDir, r.filename);
 writeFileSync(file, r.bytes);
