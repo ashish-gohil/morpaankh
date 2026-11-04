@@ -825,6 +825,49 @@ describe('buildWorkbook', () => {
     });
   });
 
+  /*
+   * The engine splits one parcel's packing across the orders in it with a
+   * remainder-preserving split, and an order that shipped in two parcels pays
+   * twice. Recomputing `config x parcelShare` with Math.round got both wrong,
+   * and that was October's Rs 47.06 RTO-loss disagreement.
+   */
+  describe('packing', () => {
+    const packingCell = (w) => {
+      const D = w.getWorksheet('Delivered');
+      let col = 0;
+      D.getRow(1).eachCell((c, i) => { if (c.value === 'Packing') col = i; });
+      return D.getCell(2, col);
+    };
+
+    it('charges an order that shipped in two parcels twice, as the engine did', async () => {
+      const f = fixture();
+      f.rows[0].packingPaise = PAISE(50);
+      const w = await reopen(await buildWorkbook(f, META));
+      expect(packingCell(w).value.result).toBe(50);
+      expect(packingCell(w).value.formula).toBe('pnl_packing_per_order*2');
+      expect(cellOf(w.getWorksheet('Summary'), '  Packing').value.result).toBe(-50);
+    });
+
+    it('keeps the odd paisa of a shared parcel exactly where the engine put it', async () => {
+      const f = fixture();
+      f.rows[0].parcelShare = 0.5;
+      f.rows[0].packingPaise = 1251; // the engine's half of 25.00, remainder included
+      const w = await reopen(await buildWorkbook(f, META));
+      // config x share rounded would have said 12.50. The engine said 12.51.
+      expect(packingCell(w).value.result).toBe(12.51);
+      expect(packingCell(w).value.formula).toBe('pnl_packing_per_order*0.5004');
+      expect(cellOf(w.getWorksheet('Summary'), '  Packing').value.result).toBe(-12.51);
+    });
+
+    it('still falls back to config x share when the engine sent no packing', async () => {
+      const f = fixture();
+      f.rows[0].packingPaise = null;
+      f.rows[0].parcelShare = 0.5;
+      const w = await reopen(await buildWorkbook(f, META));
+      expect(packingCell(w).value.result).toBe(12.5);
+    });
+  });
+
   it('builds the statement out of counted-aware sums, not bare SUMs', () => {
     // A bare SUM here would show the right cached number with a formula that
     // recalculates to a different one, which is the whole failure this fix is

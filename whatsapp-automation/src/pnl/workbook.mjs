@@ -454,9 +454,20 @@ function resolve(r, cfg) {
   const share = r.parcelShare == null ? 1 : r.parcelShare;
   const gross = r.order.currentTotalPaise ?? 0;
   const refunds = r.order.refundedPaise ?? 0;
-  // Packing is config x this order's share of the parcel, and the cell says so
-  // in a formula, so the Assumptions input drives it.
-  const packing = Math.round((cfg.packingCostPerOrderPaise ?? 0) * share);
+  /*
+   * PACKING COMES FROM THE ENGINE, not from a share recomputed here.
+   *
+   * The engine splits one parcel's packing across the orders in it with a
+   * remainder-preserving split, and an order that shipped in two parcels pays
+   * for two. Recomputing `config x parcelShare` with Math.round got both of
+   * those wrong, which is where October's Rs 47.06 RTO-loss disagreement came
+   * from. The cell still has to recalculate when the packing input is edited,
+   * so it carries `pnl_packing_per_order * factor`, where the factor is this
+   * order's multiple of one packing unit as the engine worked it out.
+   */
+  const base = cfg.packingCostPerOrderPaise ?? 0;
+  const packing = r.packingPaise ?? Math.round(base * share);
+  const packingFactor = base ? Math.round((packing / base) * 1e6) / 1e6 : 0;
   const gatewayAssumed = isAssumed(r, 'gateway');
   const gateway = gatewayAssumed
     ? Math.round(gross * frac(cfg.gatewayFeePct) * (1 + frac(cfg.gatewayGstPct)))
@@ -470,7 +481,7 @@ function resolve(r, cfg) {
   const cost = (cogs ?? 0) + (fwd ?? 0) + (cod ?? 0) + packing + (gateway ?? 0);
   const advance = r.advanceKeptPaise ?? 0;
   return {
-    share, gross, refunds, gst, netRev, cogs, fwd, rto, cod, packing, gateway, gatewayAssumed,
+    share, gross, refunds, gst, netRev, cogs, fwd, rto, cod, packing, packingFactor, gateway, gatewayAssumed,
     cost,
     contribution: netRev - cost,
     advance,
@@ -943,7 +954,7 @@ function sheetDelivered(ctx) {
       money(v.cogs, 'a line on this order has no unit cost'),
       money(v.fwd, 'forward freight neither billed nor computable'),
       v.cod == null ? 0 : rup(v.cod),
-      fx(`pnl_packing_per_order*${v.share}`, rup(v.packing)),
+      fx(`pnl_packing_per_order*${v.packingFactor}`, rup(v.packing)),
       v.gatewayAssumed
         ? fx(`${C('Gross sale')}${rn}*pnl_gateway_fee_pct*(1+pnl_gateway_gst_pct)`, rup(v.gateway))
         : money(v.gateway, 'gateway fee not read from the gateway'),
@@ -995,7 +1006,7 @@ function sheetRto(ctx) {
       money(v.fwd, 'forward freight neither billed nor computable'),
       money(v.rto, 'return leg neither billed nor computable'),
       v.cod == null ? 0 : rup(v.cod),
-      fx(`pnl_packing_per_order*${v.share}`, rup(v.packing)),
+      fx(`pnl_packing_per_order*${v.packingFactor}`, rup(v.packing)),
       v.gateway == null ? 0 : rup(v.gateway),
       rup(v.advance),
       fx(`SUM(${C('Forward freight')}${rn}:${C('Gateway fee')}${rn})-SUM(${C('Advance kept')}${rn})`, rup(v.rtoLoss)),
