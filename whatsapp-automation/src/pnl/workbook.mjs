@@ -77,6 +77,8 @@
  * WhatsApp document preview, which is where this report is actually read.
  */
 
+import { shopifyConflict } from '../domain/pnl/outcome.mjs';
+
 /** @typedef {import('../domain/pnl/types.mjs').ReportRow} ReportRow */
 
 // ---------------------------------------------------------------------------
@@ -437,6 +439,20 @@ const whyBlocked = (r) =>
   `Excluded from every total: ${(r.missing ?? []).join(', ') || 'the row is incomplete'}. ` +
   'The amounts are shown so you can see the order and fix it.';
 const isAssumed = (r, what) => (r.assumed ?? []).some((a) => String(a).includes(what));
+
+/**
+ * Delhivery has never returned a weighed figure on this account: ChargedWeight
+ * is null on every shipment, and the charges API echoes back the cgm we sent.
+ * So a weight is "assumed" unless the charge line explicitly says otherwise.
+ */
+const WEIGHT_NOTE =
+  'This is the weight we SENT to Delhivery, not a weight anyone measured. ' +
+  'Delhivery returns no charged weight on this account, and its charges API echoes back ' +
+  'the value we pass it, so every freight figure on this report rests on this assumption. ' +
+  'Upload the Delhivery charge ledger to replace it with actuals.';
+const weightAssumed = (l) =>
+  l.charge?.weightAssumed !== false &&
+  (l.charge?.weightAssumed === true || l.ship?.chargedWeightGrams == null);
 const unitsOf = (r) => (r.order.lines ?? []).reduce((a, l) => a + (l.currentQuantity ?? 0), 0);
 const itemsOf = (r) =>
   (r.order.lines ?? [])
@@ -916,7 +932,7 @@ function sheetCourierLedger(ctx) {
     { h: 'Order(s)', w: 16 },
     { h: 'Leg', w: 12 },
     { h: 'Status', w: 22, wrap: true },
-    { h: 'Charged weight (g)', fmt: FMT.int, w: 12 },
+    { h: 'Weight used (g)', fmt: FMT.int, w: 12 },
     { h: 'Zone', w: 8 },
     { h: 'Payment', w: 10 },
     { h: 'Forward', fmt: FMT.money2, w: 13, total: 'sum' },
@@ -938,7 +954,15 @@ function sheetCourierLedger(ctx) {
       l.own?.orders?.join(', ') ?? '',
       leg,
       l.ship ? String(l.ship.rawStatus ?? l.ship.state ?? '') : miss('Delhivery had no record of this AWB'),
-      weight == null ? inferred(ctx.cfg.assumedWeightGrams ?? 0, 'weight never weighed; the assumed weight was used') : weight,
+      /*
+       * NOT A SCANNED FACT. Delhivery returns ChargedWeight null on every
+       * shipment this account has ever had, and the charges API echoes back
+       * the cgm we sent it, so a bare 500 in this column read as measured.
+       * Anything not actually weighed is italic with the reason on the cell.
+       */
+      weightAssumed(l)
+        ? inferred(weight ?? ctx.cfg.assumedWeightGrams ?? 0, WEIGHT_NOTE)
+        : weight,
       c.zone ?? miss('zone not on the ledger line'),
       l.ship?.orderType ? PAY_LABEL[l.ship.orderType] ?? l.ship.orderType : (l.own?.payment ? PAY_LABEL[l.own.payment] : ''),
       money(c.forwardPaise, 'forward leg not billed and not computable'),
@@ -958,6 +982,7 @@ function sheetCourierLedger(ctx) {
     empty: 'no courier charges on record this month',
     rowFill: (r) => (r[14] === 'other' ? LOSS_FILL : null),
   });
+  ws.getRow(1).getCell(cols.findIndex((c) => c.h === 'Weight used (g)') + 1).note = WEIGHT_NOTE;
   printSetup(ws, 1);
   return h;
 }
@@ -975,6 +1000,41 @@ const shipOf = (ctx, r) => {
   for (const awb of r.awbs ?? []) if (m.has(awb)) return m.get(awb);
   return null;
 };
+/**
+ * Forward freight, with a note when the figure rests on the assumed weight
+ * rather than on anything Delhivery weighed or billed.
+ */
+const freightCell = (ctx, r, v) => {
+  if (v.fwd == null) return miss('forward freight neither billed nor computable');
+  const charge = chargeOf(ctx, r.awbs);
+  const assumed = charge ? charge.weightAssumed !== false : true;
+  return assumed && charge?.source !== 'ledger'
+    ? inferred(rup(v.fwd), `Computed from the rate card at an ASSUMED weight. ${WEIGHT_NOTE}`)
+    : rup(v.fwd);
+};
+
+/**
+ * Output GST, with the base stated on any order carrying a COD fee.
+ *
+ * Two figures with the word "slab" near them sit on each delivered COD row and
+ * they are 2.38 apart: this cell backs the slab out of the FULL current total
+ * including the fee, while the engine's "Shopify GST x vs slab y" flag in the
+ * Flags column compares against the product lines alone, because gst.mjs
+ * excludes the fee on purpose. Both are right; neither said which base it used.
+ */
+const gstCell = (r, v) => {
+  if (v.gst == null) return miss('output GST could not be computed');
+  const fee = r.order.codFeePaise ?? 0;
+  if (fee <= 0) return rup(v.gst);
+  return noted(
+    rup(v.gst),
+    `BASE: the full current total, INCLUDING the ₹${rup(fee)} COD fee, which carries the ` +
+      `order's highest line rate. The "Shopify GST ... vs slab ..." flag on this row uses a ` +
+      `different base, the product lines alone with the fee excluded, so the two differ by the ` +
+      `GST on the fee. Both are intended; this cell is the one the P&L uses.`,
+  );
+};
+
 const chargeOf = (ctx, awbs) => {
   const m = new Map((ctx.report.charges ?? ctx.report.inputs?.charges ?? []).map((c) => [c.awb, c]));
   for (const awb of awbs ?? []) if (m.has(awb)) return m.get(awb);
@@ -1013,10 +1073,10 @@ function sheetDelivered(ctx) {
       awbLink(r.awbs), ship ? String(ship.rawStatus ?? ship.state) : inferred(r.order.fulfillments?.[0]?.displayStatus ?? 'no Delhivery record', 'Delhivery had no record; Shopify was used'),
       dateCell(ship?.statusAt ?? delivered),
       rup(v.gross), rup(r.order.discountsPaise ?? 0), rup(r.order.codFeePaise ?? 0), rup(v.refunds),
-      money(v.gst, 'output GST could not be computed'),
+      gstCell(r, v),
       fx(`SUM(${C('Gross sale')}${rn})-SUM(${C('Refunds')}${rn})-SUM(${C('Output GST')}${rn})`, rup(v.netRev)),
       money(v.cogs, 'a line on this order has no unit cost'),
-      money(v.fwd, 'forward freight neither billed nor computable'),
+      freightCell(ctx, r, v),
       v.cod == null ? 0 : rup(v.cod),
       fx(`pnl_packing_per_order*${v.packingFactor}`, rup(v.packing)),
       v.gatewayAssumed
@@ -1070,7 +1130,7 @@ function sheetRto(ctx) {
       rtoReason(r) ?? miss('no rto-reason-* tag on this order'),
       ship ? String(ship.rawStatus ?? ship.state) : inferred('no Delhivery record', 'Delhivery had no record; the outcome was inferred'),
       dateCell(ship?.rtoStartedAt), dateCell(ship?.returnedAt ?? ship?.deliveredAt),
-      money(v.fwd, 'forward freight neither billed nor computable'),
+      freightCell(ctx, r, v),
       money(v.rto, 'return leg neither billed nor computable'),
       v.cod == null ? 0 : rup(v.cod),
       fx(`pnl_packing_per_order*${v.packingFactor}`, rup(v.packing)),
@@ -1162,7 +1222,8 @@ function sheetReplacements(ctx) {
   const cols = [
     { h: 'Order #', w: 11 }, { h: 'Job #', fmt: FMT.int, w: 7 }, { h: 'State', w: 16 }, { h: 'Reason', w: 28, wrap: true },
     { h: 'Who pays', w: 11 }, { h: 'Forward AWB', w: 18 }, { h: 'Return AWB', w: 18 },
-    { h: 'Forward leg', fmt: FMT.money, w: 12, total: 'sum' }, { h: 'Return leg', fmt: FMT.money, w: 12, total: 'sum' },
+    { h: 'Forward leg (billed or quoted)', fmt: FMT.money, w: 13, total: 'sum', wrap: true },
+    { h: 'Return leg (billed or quoted)', fmt: FMT.money, w: 13, total: 'sum', wrap: true },
     { h: 'Packing', fmt: FMT.money, w: 11, total: 'sum' }, { h: 'Reimbursed', fmt: FMT.money, w: 12, total: 'sum' },
     { h: 'Cost in P&L', fmt: FMT.money, w: 13, total: 'sum' }, { h: 'Reimbursement status', w: 26, wrap: true },
     { h: 'Created', fmt: FMT.date, w: 13 },
@@ -1179,7 +1240,12 @@ function sheetReplacements(ctx) {
         : side.billed
           ? noted(rup(side.paise), 'billed by Delhivery, taken from the ledger')
           : side.quoted
-            ? inferred(rup(side.paise), 'not billed yet, the quote was used')
+            ? inferred(
+                rup(side.paise),
+                'A PREVIEW QUOTE, not a charge. It was written when /replace was asked for and ' +
+                  'no charges call has confirmed it. A return leg is quoted at the FORWARD rate, ' +
+                  'so the real reverse-pickup rate for the same pin pair will differ.',
+              )
             : miss('neither billed nor quoted');
     return [
       String(j.orderName ?? ''), j.seq ?? 1, String(j.state ?? ''), j.reason ?? '',
@@ -1192,7 +1258,10 @@ function sheetReplacements(ctx) {
       // cell says why rather than quietly reading 0.
       c.cancelled
         ? noted(0, 'The job was cancelled, so the engine does not cost it and neither does the P&L. The legs above are what it would have cost.')
-        : fx(`SUM(${C('Forward leg')}${rn}:${C('Packing')}${rn})-SUM(${C('Reimbursed')}${rn})`, rup(c.net)),
+        : fx(
+            `SUM(${C('Forward leg (billed or quoted)')}${rn}:${C('Packing')}${rn})-SUM(${C('Reimbursed')}${rn})`,
+            rup(c.net),
+          ),
       c.cancelled
         ? 'not applicable, job cancelled'
         : j.reimbursementReceived
@@ -1715,6 +1784,12 @@ function sheetDataChecks(ctx, t) {
   put(ws.getCell('A1'), 'DATA CHECKS');
   ws.getCell('A1').font = { name: 'Calibri', size: TITLE_SIZE, bold: true, color: { argb: GOLD } };
 
+  const shipByAwb = new Map(
+    (ctx.report.shipments ?? ctx.report.inputs?.shipments ?? []).map((sh) => [String(sh.awb), sh]),
+  );
+  /** Every shipment this order's waybills resolve to. Empty means Delhivery has no record. */
+  const shipmentsFor = (x) => (x.awbs ?? []).map((awb) => shipByAwb.get(String(awb))).filter(Boolean);
+
   const fn = ctx.report.funnel ?? null;
   const onRecord = fn?.onRecord ?? ctx.rows.length;
   const funnelSum = fn
@@ -1722,16 +1797,42 @@ function sheetDataChecks(ctx, t) {
     : (a.by.EXCLUDED ?? []).length + (a.by.CANCELLED ?? []).length + a.del.count + a.rto.count +
       (a.by.PENDING ?? []).length + (a.by.LOST ?? []).length;
   const rowNetRev = sumP((a.by.DELIVERED ?? []).filter(counted), (r) => r.netRevenuePaise);
-  const metaSum = ctx.metaDays.reduce((x, d) => x + (d.spendPaise ?? 0), 0);
-  const ledgerSum = ctx.ledger.reduce((x, l) => x + (l.charge.totalPaise ?? 0), 0);
+  const engineKeys = new Set((ctx.report.reconciliations ?? []).map((x) => String(x.key ?? '')));
 
-  const checks = [
-    ['On record = excluded + cancelled + delivered + RTO + pending + lost', onRecord, funnelSum, ok(onRecord === funnelSum), 'Every order lands in exactly one bucket.'],
-    ['Net revenue: statement chain against the Delivered column', m(a.del.netRev), m(rowNetRev), ok(Math.abs(a.del.netRev - rowNetRev) <= 1), 'The statement computes gross less refunds less output GST. This compares it with the engine’s own net revenue per order.'],
-    ['Meta month total = sum of the daily rows', m(metaSum), fx(`SUM(${MA.ref('Spend')})`, rup(metaSum)), ok(true), 'Both sides come from the same daily table, so this only fails if a row is edited by hand.'],
-    ['Courier total = Courier Ledger total', m(ledgerSum), fx(`SUM(${CL.ref('Total')})`, rup(ledgerSum)), ok(true), 'Includes AWBs that are not tied to a genuine order.'],
-    ['Daily net for the month = Summary net profit / loss', fx(DY.ref, rup(DY.monthNet)), fx(`Summary!${S.netCell}`, rup(a.net)), fx(`IF(ROUND(${DY.ref}-Summary!${S.netCell},2)=0,"ok","MISMATCH")`, ok(DY.monthNet === a.net)), 'The Daily sheet carries the four monthly lines no order date can hold.'],
-  ];
+  /*
+   * EVERY STATUS IS A LIVE COMPARISON OF THE TWO CELLS BESIDE IT.
+   *
+   * Two rows used to take their status from a literal `ok(true)`: they printed
+   * "ok" whatever the cells held, including after exactly the hand edit one of
+   * their own notes said the check existed to catch. A tripwire that cannot
+   * trip is worse than no tripwire, because it is read as reassurance. Those
+   * two compared a number against a sum of the same number, so they are gone
+   * rather than patched; the engine's own meta and courier reconciliations say
+   * the same thing further down and say it against independently derived
+   * figures. What is left gets `IF(ROUND(B-C,2)=0,...)` over its own cells, so
+   * editing either side flips the verdict in front of you.
+   */
+  const CHECK_ROW_1 = 4; // the table's header sits on row 3
+  const liveStatus = (expected, actual, agree, index) => {
+    const bothNumeric = typeof expected === 'number' || typeof actual === 'number';
+    if (!bothNumeric) return agree === null ? '' : ok(agree);
+    const rn = CHECK_ROW_1 + index;
+    return fx(`IF(ROUND(B${rn}-C${rn},2)=0,"ok","MISMATCH")`, ok(agree));
+  };
+  /** @type {any[][]} */
+  const checks = [];
+  // The brief names this one, so it is here whenever the engine did not send it.
+  if (!engineKeys.has('funnel')) {
+    checks.push([
+      'On record = excluded + cancelled + delivered + RTO + pending + lost',
+      onRecord, funnelSum, liveStatus(onRecord, funnelSum, onRecord === funnelSum, 0),
+      'Every order lands in exactly one bucket.',
+    ]);
+  }
+  checks.push(
+    ['Net revenue: statement chain against the Delivered column', m(a.del.netRev), m(rowNetRev), liveStatus(a.del.netRev, rowNetRev, Math.abs(a.del.netRev - rowNetRev) <= 1, checks.length), 'The statement computes gross less refunds less output GST. This compares it with the engine\u2019s own net revenue per order.'],
+    ['Daily net for the month = Summary net profit / loss', fx(DY.ref, rup(DY.monthNet)), fx(`Summary!${S.netCell}`, rup(a.net)), fx(`IF(ROUND(${DY.ref}-Summary!${S.netCell},2)=0,"ok","MISMATCH")`, ok(DY.monthNet === a.net)), 'Both sides are live references, and the Daily sheet carries the monthly lines no order date can hold.'],
+  );
   /*
    * THE TRIPWIRE. These rows are why the October run caught the workbook
    * totalling rows the engine had blocked, so they stay even when green, and
@@ -1768,7 +1869,7 @@ function sheetDataChecks(ctx, t) {
     checks.push([
       `Engine total against this workbook: ${label}`,
       show(theirs), show(mine),
-      ok(Math.abs(theirs - mine) <= 1),
+      liveStatus(theirs, mine, Math.abs(theirs - mine) <= 1, checks.length),
       'The workbook totals what it renders, and only the rows the engine counted. A mismatch means the engine and the sheets disagree, and the sheets are what you are reading.',
     ]);
   }
@@ -1789,7 +1890,12 @@ function sheetDataChecks(ctx, t) {
      */
     const isOrders = /funnel|orders|count/i.test(`${rec.key ?? ''} ${label}`);
     const show = (v) => (typeof v !== 'number' ? String(v ?? '') : isOrders ? v : m(v));
-    checks.push([label, show(exp), show(act), agree === false ? 'MISMATCH' : agree === true ? 'ok' : '', rec.note ?? '']);
+    const shown = [show(exp), show(act)];
+    checks.push([
+      label, shown[0], shown[1],
+      liveStatus(exp, act, agree === undefined ? null : agree !== false, checks.length),
+      rec.note ?? '',
+    ]);
   }
   const h = writeTable(
     ws,
@@ -1802,20 +1908,48 @@ function sheetDataChecks(ctx, t) {
   let r = h.last + 2;
   put(ws.getCell(`A${r}`), 'SOFT CHECK: DELIVERY AND PACKING PER ORDER AGAINST THE RULE OF THUMB');
   ws.getCell(`A${r}`).font = BODY_B;
-  const soft = [['prepaid', ctx.cfg.ruleOfThumbPrepaidPaise], ['cod', ctx.cfg.ruleOfThumbCodPaise]].map(([p, thumb]) => {
-    const del = (a.by.DELIVERED ?? []).filter((x) => (p === 'cod' ? x.order.paymentType === 'cod' : x.order.paymentType !== 'cod'));
-    const spend = sumP(del, (x) => (ctx.a.res(x).fwd ?? 0) + (ctx.a.res(x).cod ?? 0) + ctx.a.res(x).packing);
-    const avg = del.length ? Math.round(spend / del.length) : 0;
-    const off = thumb ? Math.abs(avg - thumb) / thumb : 0;
+  /*
+   * ONE DEFINITION, the engine's (engine.mjs, "the owner's rule of thumb").
+   *
+   * This block used to group prepaid WITH partial and read the resolved COD
+   * charge, which gave 79.87 and "within 30%", while the engine's own flag on
+   * the Summary gave 71.57 over the 12 prepaid orders alone and "off by 35%".
+   * The owner cannot be shown both answers to one question. The engine groups
+   * by exact payment type over the orders that are IN the totals and sums each
+   * row's own forward freight, COD charge and packing, so that is what this
+   * does, and the two surfaces now print the same number.
+   *
+   * Config sets no rule of thumb for a partial order, so partials are listed
+   * for information with no verdict rather than folded into prepaid.
+   */
+  const softRow = (pt, thumb) => {
+    const rs = (a.by.DELIVERED ?? []).filter(counted).filter((x) => x.order.paymentType === pt);
+    const spend = sumP(rs, (x) => (x.forwardFreightPaise ?? 0) + (x.codChargePaise ?? 0) + (x.packingPaise ?? 0));
+    const avg = rs.length ? spend / rs.length : 0;
+    const off = thumb && rs.length ? Math.abs(avg - thumb) / thumb : 0;
     return [
-      p === 'cod' ? 'COD orders' : 'Prepaid and partial orders', del.length, m(thumb), m(avg),
-      round2(off * 1e4) / 1e4,
-      del.length === 0 ? 'nothing delivered on this payment type' : off > 0.3 ? 'OFF BY MORE THAN 30%: check the courier charges and the packing input' : 'within 30% of the rule of thumb',
+      pt === 'cod' ? 'COD orders' : pt === 'prepaid' ? 'Prepaid orders' : 'Partial orders',
+      rs.length,
+      thumb ? m(thumb) : 'no rule of thumb',
+      rs.length ? m(Math.round(avg)) : '',
+      thumb && rs.length ? round2(off * 1e4) / 1e4 : '',
+      rs.length === 0
+        ? 'nothing delivered on this payment type'
+        : !thumb
+          ? 'listed for information: config sets no rule of thumb for a partial order'
+          : off > 0.3
+            ? 'OFF BY MORE THAN 30%: check the courier charges and the packing input'
+            : 'within 30% of the rule of thumb',
     ];
-  });
+  };
+  const soft = [
+    softRow('prepaid', ctx.cfg.ruleOfThumbPrepaidPaise),
+    softRow('cod', ctx.cfg.ruleOfThumbCodPaise),
+    softRow('partial', 0),
+  ];
   const sh = writeTable(
     ws,
-    [{ h: 'Payment type', w: 45 }, { h: 'Delivered orders', fmt: FMT.int, w: 16 }, { h: 'Rule of thumb', w: 16 }, { h: 'Actual average', w: 16 }, { h: 'Off by', fmt: FMT.pct, w: 11 }, { h: 'Verdict', w: 45, wrap: true }],
+    [{ h: 'Payment type', w: 45 }, { h: 'Delivered orders counted', fmt: FMT.int, w: 16 }, { h: 'Rule of thumb', w: 16 }, { h: 'Actual average', w: 16 }, { h: 'Off by', fmt: FMT.pct, w: 11 }, { h: 'Verdict', w: 45, wrap: true }],
     soft,
     { startRow: r + 1, zebra: true, filter: false, freeze: false, rowFill: (x) => (typeof x[4] === 'number' && x[4] > 0.3 ? LOSS_FILL : null) },
   );
@@ -1825,28 +1959,41 @@ function sheetDataChecks(ctx, t) {
   put(ws.getCell(`A${r}`), 'ORDERS WORTH A LOOK');
   ws.getCell(`A${r}`).font = BODY_B;
   const issues = [];
-  /** @type {Map<string, string[]>} */
-  const dupes = new Map();
+  /*
+   * No duplicate detection here any more. The key was
+   * `customerName|currentTotalPaise`, and the excluded automation tests all
+   * key as `null|0`, so eight of them were listed as duplicates of each other
+   * and a fifth of this table was noise. The engine's detector keys on the
+   * same customer on the same day, which is the right question, and its flags
+   * already appear under DATA QUALITY on the Summary.
+   */
   for (const x of ctx.rows) {
-    const key = `${x.order.customerName ?? ''}|${x.order.currentTotalPaise}`;
-    dupes.set(key, (dupes.get(key) ?? []).concat(x.order.name));
     for (const code of x.missing ?? []) issues.push([x.order.name, 'missing cost', code.replace(/_/g, ' ')]);
     if (x.outcomeInferred) issues.push([x.order.name, 'inferred outcome', x.outcomeReason ?? 'Delhivery had no record of this parcel']);
-    const shopifySaysDelivered = (x.order.fulfillments ?? []).some((f) => String(f.displayStatus).toUpperCase() === 'DELIVERED');
-    if (shopifySaysDelivered && x.outcome !== 'DELIVERED') {
-      issues.push([x.order.name, 'Shopify vs Delhivery', `Shopify says delivered, this report says ${x.outcome}`]);
-    }
-    if (!shopifySaysDelivered && x.outcome === 'DELIVERED') {
-      issues.push([x.order.name, 'Shopify vs Delhivery', 'Delhivery says delivered, Shopify never marked it']);
-    }
-    const taxed = (x.order.shopifyTaxLines ?? []).reduce((s, l) => s + (l.pricePaise ?? 0), 0);
-    if (x.outputGstPaise != null && taxed && Math.abs(taxed - x.outputGstPaise) > 100) {
-      issues.push([x.order.name, 'GST mismatch', `Shopify recorded ₹${rup(taxed)}, this report computed ₹${rup(x.outputGstPaise)}`]);
-    }
-  }
-  for (const [, names] of dupes) {
-    if (names.length < 2) continue;
-    for (const n of names) issues.push([n, 'possible duplicate', `same customer and same total as ${names.filter((x) => x !== n).join(', ')}`]);
+    /*
+     * ASK THE DOMAIN, DO NOT RE-DERIVE IT.
+     *
+     * This used to re-implement the conflict test and got #1205 backwards:
+     * it printed "Delhivery says delivered, Shopify never marked it" when
+     * Delhivery had no record of the parcel at all and Shopify HAD marked it
+     * fulfilled. Two mistakes in one line. It tested
+     * `displayStatus === 'DELIVERED'` where Shopify's value is FULFILLED, and
+     * it had no equivalent of shopifyConflict()'s first guard: with no
+     * shipment there is nothing to disagree with, so there is no conflict.
+     * Getting provenance backwards on the source this report calls
+     * authoritative is the worst line on the sheet to invent.
+     */
+    const conflict = shopifyConflict(x.order, shipmentsFor(x), x.outcome);
+    if (conflict) issues.push([x.order.name, 'Shopify vs Delhivery', conflict]);
+    /*
+     * No GST comparison here. This compared Shopify's tax lines against the
+     * row's Output GST, which backs the slab out of the FULL total including
+     * the COD fee, while the engine's own "Shopify GST x vs slab y" flag
+     * compares against the product lines alone, with the fee deliberately
+     * excluded (gst.mjs says why). Two different bases, so this row disagreed
+     * with the engine's by the GST on the fee and called it a mismatch. The
+     * engine's flag is the right comparison and is already on the row.
+     */
   }
   issues.sort((x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1]) || x[2].localeCompare(y[2]));
   writeTable(

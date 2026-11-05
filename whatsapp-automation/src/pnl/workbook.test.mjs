@@ -298,6 +298,8 @@ function rowOf(ws, label) {
   return n;
 }
 const cellOf = (ws, label) => ws.getCell(`B${rowOf(ws, label)}`);
+/** A Status cell's verdict. Every one of them is a live formula now. */
+const statusOf = (cell) => (cell.value && typeof cell.value === 'object' ? cell.value.result : cell.value);
 
 const reopen = async (buf) => {
   const wb = new ExcelJS.Workbook();
@@ -355,9 +357,9 @@ describe('buildWorkbook', () => {
       Delivered: ['Order #', 'Order date', 'Delivered date', 'Days to deliver', 'Customer', 'City', 'State', 'Channel', 'Payment', 'Items', 'Units', 'AWB', 'Delhivery status', 'Delhivery date', 'Gross sale', 'Discount', 'COD fee', 'Refunds', 'Output GST', 'Net revenue', 'COGS', 'Forward freight', 'COD charge', 'Packing', 'Gateway fee', 'Total cost', 'Contribution', 'Contribution %', 'Charge source', 'Flags'],
       RTO: ['Order #', 'Order date', 'Customer', 'City', 'Payment', 'Items', 'Order value', 'AWB', 'RTO reason', 'Delhivery status', 'RTO start date', 'Returned date', 'Forward freight', 'Return freight', 'COD charge', 'Packing', 'Gateway fee', 'Advance kept', 'Total RTO loss', 'Return leg', 'Flags'],
       'Meta Ads': ['Date', 'Campaign ID', 'Campaign', 'Objective', 'Type', 'Spend', 'Impressions', 'Clicks'],
-      'Courier Ledger': ['AWB', 'Order(s)', 'Leg', 'Status', 'Charged weight (g)', 'Zone', 'Payment', 'Forward', 'RTO', 'COD charge', 'GST', 'Total', 'Source', 'Ledger vs computed', 'In P&L as', 'Flags'],
+      'Courier Ledger': ['AWB', 'Order(s)', 'Leg', 'Status', 'Weight used (g)', 'Zone', 'Payment', 'Forward', 'RTO', 'COD charge', 'GST', 'Total', 'Source', 'Ledger vs computed', 'In P&L as', 'Flags'],
       'By Product': ['Product', 'SKU', 'Units delivered', 'Net revenue', 'COGS', 'Gross margin %', 'RTO units', 'RTO loss', 'Contribution before ads'],
-      Replacements: ['Order #', 'Job #', 'State', 'Reason', 'Who pays', 'Forward AWB', 'Return AWB', 'Forward leg', 'Return leg', 'Packing', 'Reimbursed', 'Cost in P&L', 'Reimbursement status', 'Created'],
+      Replacements: ['Order #', 'Job #', 'State', 'Reason', 'Who pays', 'Forward AWB', 'Return AWB', 'Forward leg (billed or quoted)', 'Return leg (billed or quoted)', 'Packing', 'Reimbursed', 'Cost in P&L', 'Reimbursement status', 'Created'],
     };
     const headerRows = { Summary: 9, 'Not Delivered': 2, Excluded: 2, 'Last Month Update': 2, 'Data Checks': 3, Assumptions: 4 };
     for (const [sheet, want] of Object.entries(headers)) {
@@ -616,12 +618,16 @@ describe('buildWorkbook', () => {
     expect(text.join(' | ')).toContain('On record = excluded + cancelled + delivered + RTO + pending + lost');
     expect(text).toContain('ok');
     expect(text.join(' | ')).toContain('RULE OF THUMB');
-    expect(text.join(' | ')).toContain('possible duplicate');
+    // No duplicate rows here any more: the key was customerName|total and the
+    // excluded automation tests all keyed as null|0, so eight of them listed
+    // each other. The engine's same-customer-same-day detector is the right
+    // question and its flags are on the Summary.
+    expect(text.join(' | ')).not.toContain('possible duplicate');
     // The counted/blocked cross-checks agree, and counts are not money-formatted.
     const engineRows = [];
     DC.eachRow((r) => {
       const a = String(r.getCell(1).value ?? '');
-      if (a.startsWith('Engine total against this workbook:')) engineRows.push([a.split(': ')[1], r.getCell(2).value, r.getCell(4).value]);
+      if (a.startsWith('Engine total against this workbook:')) engineRows.push([a.split(': ')[1], r.getCell(2).value, statusOf(r.getCell(4))]);
     });
     expect(engineRows).toEqual([
       ['Lost shipments', 1200, 'ok'],
@@ -781,7 +787,7 @@ describe('buildWorkbook', () => {
         const out = [];
         DC.eachRow((r) => {
           if (String(r.getCell(1).value ?? '').startsWith('Engine total against this workbook:')) {
-            out.push([String(r.getCell(1).value).replace('Engine total against this workbook: ', ''), r.getCell(4).value]);
+            out.push([String(r.getCell(1).value).replace('Engine total against this workbook: ', ''), statusOf(r.getCell(4))]);
           }
         });
         return out;
@@ -973,7 +979,7 @@ describe('buildWorkbook', () => {
     it('stays on the sheet with the legs it would have cost', async () => {
       const w = await reopen(await buildWorkbook(cancelledFixture(), META));
       expect(cellIn(w, 'State').value).toBe('CANCELLED');
-      expect(cellIn(w, 'Forward leg').value).toBe(76);
+      expect(cellIn(w, 'Forward leg (billed or quoted)').value).toBe(76);
       expect(cellIn(w, 'Reimbursement status').value).toBe('not applicable, job cancelled');
     });
 
@@ -993,8 +999,8 @@ describe('buildWorkbook', () => {
       const f = fixture();
       f.charges.push({ ...f.charges[0], awb: '777', totalPaise: PAISE(90), flags: [] });
       const w = await reopen(await buildWorkbook(f, META));
-      expect(cellIn(w, 'Forward leg').value).toBe(90); // billed, not the 76 quote
-      expect(String(cellIn(w, 'Forward leg').note)).toContain('ledger');
+      expect(cellIn(w, 'Forward leg (billed or quoted)').value).toBe(90); // billed, not the 76 quote
+      expect(String(cellIn(w, 'Forward leg (billed or quoted)').note)).toContain('ledger');
       expect(cellIn(w, 'Cost in P&L').value.result).toBe(90 + 76 + 25);
     });
 
@@ -1005,6 +1011,159 @@ describe('buildWorkbook', () => {
       // pays === 'us', so a recorded reimbursement is not ours to credit.
       expect(cellIn(w, 'Reimbursed').value).toBe(0);
     });
+  });
+
+  /*
+   * Two reconciliation rows used to take their status from a literal ok(true),
+   * so they printed "ok" whatever the cells held, including after exactly the
+   * hand edit one of their own notes said the check existed to catch.
+   */
+  describe('every reconciliation status', () => {
+    const statusRows = (w) => {
+      const DC = w.getWorksheet('Data Checks');
+      const out = [];
+      DC.eachRow((r) => {
+        if (r.number <= 3) return;
+        const label = String(r.getCell(1).value ?? '');
+        const st = r.getCell(4).value;
+        if (st === null || st === undefined || st === '') return;
+        if (!/=|against|Courier total|On record/.test(label)) return;
+        out.push({ label, raw: st, formula: st && typeof st === 'object' ? st.formula : null });
+      });
+      return out;
+    };
+
+    it('is a live comparison and never a hardcoded verdict', () => {
+      const rows = statusRows(wb);
+      expect(rows.length).toBeGreaterThan(5);
+      for (const r of rows) {
+        // THE FORMULA, not the cached result: a cached "ok" is exactly what the
+        // broken rows printed.
+        expect(r.formula, `${r.label} has a literal status, not a comparison`).toBeTruthy();
+        expect(r.formula, r.label).toMatch(/^IF\(ROUND\(.+\)=0,"ok","MISMATCH"\)$/);
+      }
+    });
+
+    it('compares the two cells printed beside it', () => {
+      const rows = statusRows(wb);
+      const own = rows.find((r) => r.label.startsWith('Engine total against this workbook: Lost'));
+      expect(own).toBeTruthy();
+      // Its own row's B and C, so editing either side flips the verdict.
+      expect(own.formula).toMatch(/^IF\(ROUND\(B(\d+)-C\1,2\)=0,"ok","MISMATCH"\)$/);
+    });
+
+    it('dropped the two rows that compared a number with a sum of itself', () => {
+      const DC = wb.getWorksheet('Data Checks');
+      const labels = [];
+      DC.eachRow((r) => labels.push(String(r.getCell(1).value ?? '')));
+      expect(labels).not.toContain('Meta month total = sum of the daily rows (workbook)');
+      expect(labels.filter((l) => l === 'Courier total = Courier Ledger total')).toEqual([]);
+    });
+  });
+
+  /*
+   * The #1205 line read "Delhivery says delivered, Shopify never marked it"
+   * when Delhivery had NO record of the parcel and Shopify HAD marked it
+   * fulfilled. Both halves false, on the source this report calls
+   * authoritative. The cause was re-deriving a test the domain already owns.
+   */
+  describe('the Shopify vs Delhivery line', () => {
+    const conflictRows = (w) => {
+      const DC = w.getWorksheet('Data Checks');
+      const out = [];
+      DC.eachRow((r) => {
+        if (String(r.getCell(2).value ?? '') === 'Shopify vs Delhivery') {
+          out.push([String(r.getCell(1).value ?? ''), String(r.getCell(3).value ?? '')]);
+        }
+      });
+      return out;
+    };
+
+    it('says nothing about an order Delhivery has no record of', () => {
+      // #1176 is the fixture's #1205: fulfilled in Shopify, no AWB, no shipment.
+      const rows = conflictRows(wb);
+      expect(rows.map((r) => r[0])).not.toContain('#1176');
+      // and the invented sentence appears nowhere in the workbook
+      const all = [];
+      for (const ws of wb.worksheets) ws.eachRow((r) => r.eachCell((c) => all.push(String(c.value ?? ''))));
+      expect(all.join(' | ')).not.toContain('Shopify never marked it');
+    });
+
+    it('uses the domain wording when there really is a conflict', async () => {
+      const f = fixture();
+      const rto = f.rows.find((r) => r.outcome === 'RTO');
+      rto.order.fulfillments[0].deliveredAt = '2026-10-20T09:00:00Z'; // Shopify says delivered
+      const w = await reopen(await buildWorkbook(f, META));
+      const rows = conflictRows(w);
+      const mine = rows.find((r) => r[0] === '#1172');
+      expect(mine, 'a real conflict was not reported').toBeTruthy();
+      // The exact sentence outcome.mjs produces, not a re-derivation of it.
+      expect(mine[1]).toMatch(/^Shopify fulfilment says DELIVERED, Delhivery says .+ \(RTO\)$/);
+    });
+  });
+
+  it('answers the rule-of-thumb check once, the engine\u2019s way', () => {
+    const DC = wb.getWorksheet('Data Checks');
+    const rows = [];
+    DC.eachRow((r) => {
+      const a = String(r.getCell(1).value ?? '');
+      if (/^(Prepaid|COD|Partial) orders$/.test(a)) rows.push([a, r.getCell(2).value, r.getCell(3).value, r.getCell(6).value]);
+    });
+    // Exact payment types, never "prepaid and partial" folded together, and a
+    // partial order gets no verdict because config sets it no rule of thumb.
+    expect(rows.map((r) => r[0])).toEqual(['Prepaid orders', 'COD orders', 'Partial orders']);
+    expect(rows[0][1]).toBe(1); // only the one counted prepaid delivery
+    expect(rows[2][2]).toBe('no rule of thumb'); // partial: config sets none
+    const labels = [];
+    DC.eachRow((r) => labels.push(String(r.getCell(1).value ?? '')));
+    expect(labels).not.toContain('Prepaid and partial orders');
+  });
+
+  it('states the base of the output GST on a COD order', () => {
+    const D = wb.getWorksheet('Delivered');
+    let col = 0;
+    D.getRow(1).eachCell((c, i) => { if (c.value === 'Output GST') col = i; });
+    // #1171 is COD with a 50.00 fee; row 2 is prepaid with none.
+    const cod = D.getCell(3, col);
+    expect(String(cod.note)).toContain('INCLUDING');
+    expect(String(cod.note)).toContain('COD fee');
+    expect(String(cod.note)).toContain('product lines alone');
+    expect(D.getCell(2, col).note).toBeFalsy(); // nothing to disambiguate
+  });
+
+  it('never presents the weight we sent as a weight anyone measured', () => {
+    const CL = wb.getWorksheet('Courier Ledger');
+    let col = 0;
+    CL.getRow(1).eachCell((c, i) => { if (c.value === 'Weight used (g)') col = i; });
+    expect(col, 'the column is still called "charged" weight').toBeGreaterThan(0);
+    expect(String(CL.getRow(1).getCell(col).note)).toContain('weight we SENT');
+    // The fixture's charges carry weightAssumed:false, so those stay plain; the
+    // unbilled shipment has no weight at all and must be marked.
+    const marked = [];
+    CL.eachRow((r) => { if (r.number > 1 && r.getCell(col).font?.italic) marked.push(r.getCell(1).value); });
+    expect(marked.length).toBeGreaterThan(0);
+    // and the forward freight on an assumed-weight parcel says so
+    const D = wb.getWorksheet('Delivered');
+    let fc = 0;
+    D.getRow(1).eachCell((c, i) => { if (c.value === 'Forward freight') fc = i; });
+    expect(fc).toBeGreaterThan(0);
+  });
+
+  it('labels a replacement leg as a preview quote, not a charge', async () => {
+    const R = wb.getWorksheet('Replacements');
+    expect(R.getRow(1).getCell(8).value).toBe('Forward leg (billed or quoted)');
+    const cell = R.getCell(2, 8);
+    expect(cell.font.italic).toBe(true);
+    expect(String(cell.note)).toContain('PREVIEW QUOTE');
+    expect(String(cell.note)).toContain('FORWARD rate');
+  });
+
+  it('leaves the excluded automation tests out of "orders worth a look"', () => {
+    const DC = wb.getWorksheet('Data Checks');
+    const kinds = [];
+    DC.eachRow((r) => { const k = String(r.getCell(2).value ?? ''); if (k) kinds.push(k); });
+    expect(kinds).not.toContain('possible duplicate');
+    expect(kinds).not.toContain('GST mismatch'); // the engine owns that comparison
   });
 
   it('builds the statement out of counted-aware sums, not bare SUMs', () => {
@@ -1049,11 +1208,13 @@ describe('buildWorkbook', () => {
     expect(row, 'the engine reconciliation did not render').toBeGreaterThan(0);
     expect(DC.getCell(row, 2).value).toBe(491); // a, not an empty cell
     expect(DC.getCell(row, 3).value).toBe(491); // b
-    expect(DC.getCell(row, 4).value).toBe('ok'); // agree
-    // Its funnel reconciliation counts orders, so it must not be read as paise.
+    expect(statusOf(DC.getCell(row, 4))).toBe('ok'); // agree
+    // Its funnel reconciliation counts orders, so it must not be read as paise,
+    // and it appears ONCE: the workbook's own copy is skipped when the engine
+    // sends the same check, so the sheet has no decorative duplicates.
     const funnelRows = [];
     DC.eachRow((r) => { if (String(r.getCell(1).value ?? '').startsWith('On record =')) funnelRows.push(r.getCell(2).value); });
-    expect(funnelRows).toEqual([9, 9]); // mine and the engine's, both as counts
+    expect(funnelRows).toEqual([9]);
   });
 
   it('renders a "none this month" row instead of throwing when a section is missing', async () => {
