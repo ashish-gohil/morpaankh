@@ -53,6 +53,25 @@ export function istDatesIn(monthStartUtc, monthEndUtc) {
   return out;
 }
 
+/**
+ * A Delhivery timestamp as a UTC instant.
+ *
+ * Delhivery's dates carry NO offset and are IST ('2026-11-01T10:30:00.000').
+ * `Date.parse` reads an offsetless stamp as LOCAL time, so on a Lambda running
+ * UTC every Delhivery date would land 5.5 hours early, which is exactly enough
+ * to move a late-evening delivery into the previous day and a 31 Oct 23:00 IST
+ * scan back inside a month that had closed. Shopify's own timestamps already
+ * carry Z and are passed through untouched.
+ * @param {string|null} stamp
+ * @returns {string|null} ISO UTC, or null
+ */
+export function istWallToUtc(stamp) {
+  if (!stamp) return null;
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(stamp);
+  const t = Date.parse(hasZone ? stamp : `${stamp}+05:30`);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
+
 /** True when the order was really created inside the IST month. */
 export function inCohort(order, monthStartUtc, monthEndUtc) {
   const t = Date.parse(order.createdAt);

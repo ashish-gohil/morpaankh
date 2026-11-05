@@ -14,8 +14,8 @@
  * orders are listed with the charges incurred on them so far, and only the
  * charges Delhivery actually billed on a cancelled parcel enter a total.
  */
-import { classifyInclusion, inCohort, istDateKey, istDatesIn } from './cohort.mjs';
-import { deriveOutcome, shopifyConflict } from './outcome.mjs';
+import { classifyInclusion, inCohort, istDateKey, istDatesIn, istWallToUtc } from './cohort.mjs';
+import { deriveOutcome, shopifyConflict, rtoIsFinal, customerDeliveredAt } from './outcome.mjs';
 import { lineGstPaise, backOutGst, nearSlabBoundary, shopifyTaxMismatch, pickSlabRatePct } from './gst.mjs';
 import { assumptionRows, RULE_OF_THUMB_TOLERANCE_PCT } from './config.mjs';
 
@@ -167,6 +167,34 @@ function missingCostTitles(order) {
 }
 
 /**
+ * The shipments this order's AWBs point at. One definition, because an order
+ * whose parcel is looked up two different ways is an order that can be costed
+ * one way and explained another.
+ * @param {NormOrder} order
+ * @param {{shipByAwb: Map<string, NormShipment>}} ctx
+ * @returns {NormShipment[]}
+ */
+function shipmentsOf(order, ctx) {
+  return order.awbs.flatMap((a) => {
+    const s = ctx.shipByAwb.get(a);
+    return s ? [s] : [];
+  });
+}
+
+/**
+ * Money the customer has paid that we have not given back.
+ *
+ * ONE definition, used by the RTO branch, the cancelled branch and the open
+ * questions, because the bug this replaces was two branches disagreeing about
+ * the same 104.95 on two orders of identical shape (#1225 and #1228).
+ * @param {NormOrder} order
+ */
+export function unrefundedAdvancePaise(order) {
+  const paid = order.paymentType === 'partial' ? order.prepaidReceivedPaise : order.netPaymentPaise;
+  return Math.max(0, paid - order.refundedPaise);
+}
+
+/**
  * The partial-payment guard, ported from finance/pnl.mjs.
  *
  * COD King records a partial payment as TWO lines for the SAME garment: a
@@ -204,6 +232,7 @@ function buildRow(order, ctx, outcome, outcomeReason, outcomeInferred, inclusion
   const flags = [...inclusionFlags];
 
   const shares = parcelShares(order, ctx);
+  const ships = shipmentsOf(order, ctx);
   /** @type {CourierCharge[]} */
   const charges = order.awbs.map((a) => ctx.chargeByAwb.get(a)).filter(Boolean);
   const chargeSource = /** @type {import('./types.mjs').ChargeSource} */ (
@@ -390,12 +419,28 @@ function buildRow(order, ctx, outcome, outcomeReason, outcomeInferred, inclusion
     row.cogsPaise = 0;
     row.rtoFreightPaise = rto;
     flags.push('RTO: COGS not expensed, the garment returns to stock');
-    const advanceGross =
-      order.paymentType === 'partial' && order.refundedPaise === 0 ? order.prepaidReceivedPaise : 0;
-    row.advanceKeptPaise = advanceGross ? advanceGross - backOutGst(advanceGross, top) : 0;
-    if (advanceGross) {
+    /*
+     * An unrefunded deposit is other income ONLY once the garment is actually
+     * back and the customer still has not been refunded. While the parcel is
+     * in reverse transit the outcome is open, so whether we keep the money is
+     * genuinely unknown and booking it would be inventing a number in the
+     * favourable direction, which is the one thing this engine must not do.
+     *
+     * The discriminator is ReturnedDate, NOT which bucket the order is in.
+     * Reading it as "RTO books it, cancelled asks about it" is what had #1225
+     * booking 99.95 of income while #1228, the same 104.95 deposit on the same
+     * partial-payment shape, was flagged as a question.
+     */
+    const advanceGross = unrefundedAdvancePaise(order);
+    const legFinal = rtoIsFinal(ships);
+    row.advanceKeptPaise = advanceGross && legFinal ? advanceGross - backOutGst(advanceGross, top) : 0;
+    if (advanceGross && legFinal) {
       flags.push(
-        `advance of ${(advanceGross / 100).toFixed(2)} kept and not refunded: booked as other income net of GST`,
+        `advance of ${(advanceGross / 100).toFixed(2)} kept and not refunded on a returned parcel: booked as other income net of GST`,
+      );
+    } else if (advanceGross) {
+      flags.push(
+        `advance of ${(advanceGross / 100).toFixed(2)} paid and not refunded: advance kept? confirm (parcel not back yet, nothing booked)`,
       );
     }
     row.complete = missing.length === 0;
@@ -436,10 +481,17 @@ function buildRow(order, ctx, outcome, outcomeReason, outcomeInferred, inclusion
     if (order.awbs.length && !charges.length) {
       flags.push('cancelled after the parcel was manifested: confirm whether Delhivery billed it');
     }
-    const advance = order.netPaymentPaise - order.refundedPaise;
+    /*
+     * A cancelled order is never income here. The outcome is closed but the
+     * refund decision is not recorded anywhere we can read, so the money is an
+     * open question, and advanceKeptPaise stays 0 so nothing reaches a total.
+     */
+    const advance = unrefundedAdvancePaise(order);
+    row.advanceKeptPaise = 0;
     if (advance > 0) {
-      row.advanceKeptPaise = advance;
-      flags.push(`advance of ${(advance / 100).toFixed(2)} paid and not refunded: advance kept? confirm`);
+      flags.push(
+        `advance of ${(advance / 100).toFixed(2)} paid and not refunded: advance kept? confirm (nothing booked)`,
+      );
     }
   } else {
     // PENDING. Nothing in the P&L; the row carries the charges so far so the
@@ -535,10 +587,7 @@ export function buildReport(inputs) {
       rows.push(excludedRow(order, inc.reason || 'excluded', ctx));
       continue;
     }
-    const ships = order.awbs.flatMap((a) => {
-      const s = shipByAwb.get(a);
-      return s ? [s] : [];
-    });
+    const ships = shipmentsOf(order, ctx);
     const { outcome, reason, inferred } = deriveOutcome(order, ships);
     const conflict = shopifyConflict(order, ships, outcome);
     if (conflict) flag('shopify_delhivery_conflict', order.name, conflict);
@@ -593,6 +642,30 @@ export function buildReport(inputs) {
       flag('blocked_from_totals', r.order.name, `${r.outcome} row blocked by: ${r.missing.join(', ')}`);
     }
   }
+
+  /*
+   * Money the customer has paid that we have not given back, on an order that
+   * never completed. It is NOT income: a question for the owner, carried as
+   * data so the workbook can put it where it will be read and answered.
+   */
+  const openQuestions = rows.flatMap((r) => {
+    if (r.outcome !== 'RTO' && r.outcome !== 'CANCELLED') return [];
+    const amountPaise = unrefundedAdvancePaise(r.order);
+    if (!amountPaise || r.advanceKeptPaise) return [];
+    return [
+      {
+        orderName: r.order.name,
+        code: 'advance_kept_unverified',
+        amountPaise,
+        outcome: r.outcome,
+        note:
+          r.outcome === 'RTO'
+            ? 'parcel not back yet, so whether this deposit is kept is still open'
+            : 'order cancelled and the deposit not refunded: kept, or owed back?',
+      },
+    ];
+  });
+  for (const q of openQuestions) flag(q.code, q.orderName, `${(q.amountPaise / 100).toFixed(2)}: ${q.note}`);
 
   // ---- replacements
   const repl = replacementTotals(inputs, ctx);
@@ -707,6 +780,8 @@ export function buildReport(inputs) {
     netProfitPaise: netProfit,
     netProfitPctOfNetRevenue: pct(netProfit, netRevenue),
     netProfitOptimistic: config.fixedMonthlyCosts.length === 0,
+    // Paid to us, not refunded, and not booked: an open question, not income.
+    advanceUnverifiedPaise: sum(openQuestions, (q) => q.amountPaise),
     countedDelivered: dOk.length,
     countedRto: rOk.length,
     blockedDelivered: delivered.length - dOk.length,
@@ -873,6 +948,8 @@ export function buildReport(inputs) {
     // "provisional" while anything could still change the numbers.
     provisional: funnel.pending > 0 || totals.blockedDelivered > 0 || totals.blockedRto > 0,
     note: 'Offline sales not recorded in Shopify are not included. Boost spend is included.',
+    settlement: settlementCut(rows, inputs, ctx, netRevenue),
+    openQuestions,
     funnel,
     rows,
     statement,
@@ -887,6 +964,92 @@ export function buildReport(inputs) {
     reconciliations,
     assumptions: assumptionRows(config),
     sourceStatus: inputs.sourceStatus,
+  };
+}
+
+/**
+ * When this order's parcel actually reached the customer, as a UTC instant.
+ *
+ * Delhivery first, and only through customerDeliveredAt, which returns null on
+ * any RTO because an RTO's DeliveryDate is the return-accepted time. Shopify's
+ * fulfilment date is the fallback and already carries Z. Null when nothing
+ * knows, which is #1205: delivery inferred from COD cash, with no AWB at all.
+ * @param {ReportRow} row
+ * @param {{shipByAwb: Map<string, NormShipment>}} ctx
+ * @returns {string|null}
+ */
+function deliveredAtUtc(row, ctx) {
+  for (const s of shipmentsOf(row.order, ctx)) {
+    const at = customerDeliveredAt(s);
+    if (at) return istWallToUtc(at);
+  }
+  return row.order.fulfillments.map((f) => f.deliveredAt).find(Boolean) ?? null;
+}
+
+/**
+ * THE DISCLOSURE AN ACCOUNTANT ASKS FOR FIRST.
+ *
+ * The cohort is orders PLACED in the month, which is the specification and is
+ * right: it is the only cut that lets a month's ad spend be compared with the
+ * orders that spend bought. But settlement does not stop when the month does.
+ * A parcel posted on 29 October is delivered in November, its revenue lands in
+ * this report, and nothing on the statement says so unless we say it here.
+ *
+ * Counts and amounts, not prose, so the workbook can place them. The money is
+ * taken from rows that are actually IN the statement, so the share always ties
+ * to the net revenue line rather than to a figure nobody can reconcile.
+ */
+function settlementCut(rows, inputs, ctx, netRevenuePaise) {
+  const end = Date.parse(inputs.monthEndUtc);
+  const delivered = rows.filter((r) => r.outcome === 'DELIVERED');
+
+  const after = delivered
+    .map((r) => ({ row: r, deliveredAt: deliveredAtUtc(r, ctx) }))
+    .filter((x) => x.deliveredAt != null && Date.parse(x.deliveredAt) >= end)
+    .map((x) => ({
+      name: x.row.order.name,
+      deliveredAt: x.deliveredAt,
+      netRevenuePaise: x.row.complete ? x.row.netRevenuePaise : null,
+      countedInStatement: x.row.complete,
+    }))
+    .sort((a, b) => String(a.deliveredAt).localeCompare(String(b.deliveredAt)));
+
+  const afterMoney = sum(after, (o) => o.netRevenuePaise);
+  const rtoOpen = rows
+    .filter((r) => r.outcome === 'RTO' && !rtoIsFinal(shipmentsOf(r.order, ctx)))
+    .map((r) => r.order.name);
+  const rtoStartedAfter = rows
+    .filter((r) => r.outcome === 'RTO')
+    .filter((r) =>
+      shipmentsOf(r.order, ctx).some((sh) => {
+        const at = istWallToUtc(sh.rtoStartedAt);
+        return at != null && Date.parse(at) >= end;
+      }),
+    )
+    .map((r) => r.order.name);
+
+  const share = pct(afterMoney, netRevenuePaise);
+  return {
+    cohortBasis: 'orders placed in the month (IST), not orders delivered in it',
+    monthEndUtc: inputs.monthEndUtc,
+    deliveredTotal: delivered.length,
+    deliveredAfterMonthEnd: after.length,
+    deliveredAfterMonthEndCounted: after.filter((o) => o.countedInStatement).length,
+    netRevenueAfterMonthEndPaise: afterMoney,
+    netRevenueAfterMonthEndPct: share,
+    orders: after,
+    rtoLegsNotFinal: rtoOpen.length,
+    rtoLegsNotFinalOrders: rtoOpen,
+    rtoStartedAfterMonthEndOrders: rtoStartedAfter,
+    note:
+      'This month is the orders PLACED in it (IST). Settlement continues afterwards: ' +
+      `${after.length} of ${delivered.length} delivered orders were delivered after the month closed` +
+      (afterMoney
+        ? `, carrying ${(afterMoney / 100).toFixed(2)} of net revenue` +
+          (share == null ? '' : ` (${share.toFixed(1)}% of the total)`)
+        : '') +
+      (rtoOpen.length ? `, and ${rtoOpen.length} RTO parcels have not reached us yet` : '') +
+      '.',
   };
 }
 

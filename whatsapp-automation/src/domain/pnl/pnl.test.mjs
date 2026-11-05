@@ -9,11 +9,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { OCT_ORDERS, OCT_SHIPMENTS, OCT_META, order, shipmentsFor } from './fixtures.mjs';
-import { monthWindow, classifyInclusion, istDateKey, inCohort } from './cohort.mjs';
-import { deriveOutcome, customerDeliveredAt, shopifyConflict } from './outcome.mjs';
+import { monthWindow, classifyInclusion, istDateKey, inCohort, istWallToUtc } from './cohort.mjs';
+import { deriveOutcome, customerDeliveredAt, shopifyConflict, rtoIsFinal } from './outcome.mjs';
 import { lineGstPaise, backOutGst, pickSlabRatePct, nearSlabBoundary } from './gst.mjs';
 import { toPnlConfig, pnlConfig, assumptionRows } from './config.mjs';
-import { buildReport, parcelLegs, splitPaise } from './engine.mjs';
+import { buildReport, parcelLegs, splitPaise, unrefundedAdvancePaise } from './engine.mjs';
 
 const WINDOW = monthWindow('2026-10');
 
@@ -436,15 +436,68 @@ describe('settled orders only reach the P&L', () => {
     expect(only.totals.cancelledShipmentChargesPaise).toBe(r.totalCostPaise);
   });
 
-  it('flags an advance kept on a cancelled order for confirmation rather than booking it', () => {
+  it('books nothing from a cancelled order and asks about the deposit instead', () => {
     const r = row('#1228');
     expect(r.outcome).toBe('CANCELLED');
-    expect(r.advanceKeptPaise).toBe(10495);
+    expect(r.advanceKeptPaise).toBe(0);
     expect(r.flags.some((f) => /advance kept\? confirm/.test(f))).toBe(true);
-    // Nothing from a cancelled order reaches the statement's income lines.
-    expect(report.totals.advanceKeptOnRtoPaise).toBe(
-      report.rows.filter((x) => x.outcome === 'RTO' && x.complete).reduce((a, x) => a + x.advanceKeptPaise, 0),
+  });
+});
+
+describe('an unrefunded deposit', () => {
+  /*
+   * #1225 and #1228 are the same 104.95 on the same partial-payment shape:
+   * PARTIALLY_PAID, nothing refunded, and an outcome that never completed. The
+   * engine used to book one as income (because it was an RTO) and ask about the
+   * other (because it was cancelled), which moved the RTO loss 99.95 in the
+   * favourable direction on an assumption nobody had verified.
+   *
+   * The discriminator is whether the GARMENT IS BACK, read off ReturnedDate,
+   * not which bucket the order landed in.
+   */
+  it('is an open question on both #1225 and #1228, and income on neither', () => {
+    for (const n of ['#1225', '#1228']) {
+      expect(order(n).financialStatus).toBe('PARTIALLY_PAID');
+      expect(unrefundedAdvancePaise(order(n))).toBe(10495);
+      expect(row(n).advanceKeptPaise).toBe(0);
+    }
+    expect(report.openQuestions.map((q) => [q.orderName, q.amountPaise])).toEqual([
+      ['#1225', 10495],
+      ['#1228', 10495],
+    ]);
+    expect(report.totals.advanceUnverifiedPaise).toBe(20990);
+    // Nothing unverified reaches the statement.
+    expect(report.totals.advanceKeptOnRtoPaise).toBe(0);
+  });
+
+  it('is not booked while the parcel is still in reverse transit', () => {
+    const s = shipmentsFor('#1225')[0];
+    expect(s.returnedAt).toBeNull();
+    expect(s.reverseInTransit).toBe(true);
+    expect(rtoIsFinal([s])).toBe(false);
+    expect(row('#1225').flags.some((f) => /parcel not back yet, nothing booked/.test(f))).toBe(true);
+  });
+
+  it('becomes other income net of GST once the parcel is back and still unrefunded', () => {
+    const awb = order('#1225').awbs[0];
+    const back = buildReport(
+      inputs({
+        shipments: OCT_SHIPMENTS.map((sh) =>
+          sh.awb === awb ? { ...sh, returnedAt: '2026-11-04T11:00:00.000', reverseInTransit: false } : sh,
+        ),
+        charges: [charge(awb, RTO_COD_CHARGE)],
+      }),
     );
+    const k = back.rows.find((x) => x.order.name === '#1225');
+    expect(rtoIsFinal([{ ...shipmentsFor('#1225')[0], returnedAt: '2026-11-04T11:00:00.000' }])).toBe(true);
+    expect(k.outcomeReason).toBe('Delhivery RTO, returned to origin');
+    expect(k.advanceKeptPaise).toBe(10495 - 500); // 5% backed out
+    expect(back.totals.advanceKeptOnRtoPaise).toBe(9995);
+    // The RTO loss line is 99.95 better than the same month with the parcel
+    // still moving, and that 99.95 is now a fact rather than a hope.
+    const open = buildReport(inputs({ charges: [charge(awb, RTO_COD_CHARGE)] }));
+    expect(open.totals.rtoLossPaise - back.totals.rtoLossPaise).toBe(9995);
+    expect(back.openQuestions.map((q) => q.orderName)).toEqual(['#1228']);
   });
 });
 
@@ -516,12 +569,12 @@ describe('an RTO order', () => {
     expect(d.contributionPaise).toBe(-(12959 + 1500));
   });
 
-  it('books an advance kept on an RTO as other income, net of GST (#1225)', () => {
+  it('does not book an advance kept while the parcel has not reached us (#1225)', () => {
     const k = row('#1225');
     expect(k.order.paymentType).toBe('partial');
     expect(k.order.prepaidReceivedPaise).toBe(10495);
     expect(k.order.refundedPaise).toBe(0);
-    expect(k.advanceKeptPaise).toBe(10495 - 500); // 5% backed out
+    expect(k.advanceKeptPaise).toBe(0);
   });
 });
 
@@ -1007,6 +1060,90 @@ describe('trust', () => {
     );
     expect(r.flags.some((f) => f.code === 'source_failed')).toBe(true);
     expect(r.sourceStatus.meta).toBe(false);
+  });
+});
+
+describe('the settlement cut', () => {
+  /*
+   * The cohort is orders PLACED in the month, which is the specification. The
+   * consequence is that a parcel posted on 29 October is delivered in November
+   * and its revenue still lands here, and that is the first thing an accountant
+   * asks about. These are the numbers that answer it, as data rather than
+   * prose, so the workbook can place them next to the statement.
+   */
+  const costed = buildReport(
+    inputs({ charges: [...new Set(OCT_ORDERS.flatMap((o) => o.awbs))].map((a) => charge(a, DELIVERED_COD_CHARGE)) }),
+  );
+
+  it('states the basis, and that it is not orders delivered in the month', () => {
+    expect(report.settlement.cohortBasis).toBe('orders placed in the month (IST), not orders delivered in it');
+    expect(report.settlement.monthEndUtc).toBe('2026-10-31T18:30:00Z');
+  });
+
+  it('counts the delivered orders that settled after the month closed', () => {
+    // Frozen at the 2026-11-03 pull: #1230 on 11-01, #1232 on 11-02, #1224 on
+    // 11-03. A later pull moves more orders into this list, which is the point.
+    expect(report.settlement.deliveredAfterMonthEnd).toBe(3);
+    expect(report.settlement.deliveredTotal).toBe(34);
+    expect(report.settlement.orders.map((o) => o.name)).toEqual(['#1230', '#1232', '#1224']);
+    expect(report.settlement.orders.every((o) => o.deliveredAt > '2026-10-31T18:30:00Z')).toBe(true);
+  });
+
+  it('carries the net revenue that settled late, tied to the statement', () => {
+    expect(costed.settlement.deliveredAfterMonthEndCounted).toBe(3);
+    const fromRows = costed.settlement.orders.reduce((a, o) => a + o.netRevenuePaise, 0);
+    expect(costed.settlement.netRevenueAfterMonthEndPaise).toBe(fromRows);
+    expect(costed.settlement.netRevenueAfterMonthEndPct).toBeCloseTo(
+      (fromRows / costed.totals.netRevenuePaise) * 100,
+      6,
+    );
+  });
+
+  it('only counts money that is actually in the statement', () => {
+    // With no charges every delivered row is blocked, so there is no late
+    // revenue to disclose and the share is null rather than a stray 0%.
+    expect(report.settlement.deliveredAfterMonthEndCounted).toBe(0);
+    expect(report.settlement.netRevenueAfterMonthEndPaise).toBe(0);
+    expect(report.settlement.netRevenueAfterMonthEndPct).toBeNull();
+  });
+
+  it('names the RTO parcels that have not reached us and the ones that turned around late', () => {
+    expect(report.settlement.rtoLegsNotFinalOrders).toEqual(['#1208', '#1209', '#1220', '#1225', '#1227']);
+    expect(report.settlement.rtoLegsNotFinal).toBe(5);
+    expect(report.settlement.rtoStartedAfterMonthEndOrders).toEqual(['#1220', '#1227']);
+  });
+
+  it('writes one sentence from those numbers, always shown', () => {
+    expect(costed.settlement.note).toMatch(/orders PLACED in it \(IST\)/);
+    expect(costed.settlement.note).toMatch(/3 of 34 delivered orders were delivered after the month closed/);
+    expect(costed.settlement.note).toMatch(/of net revenue/);
+    expect(costed.settlement.note).toMatch(/5 RTO parcels have not reached us yet/);
+  });
+});
+
+describe('istWallToUtc', () => {
+  it("reads an offsetless Delhivery stamp as IST, not as the machine's clock", () => {
+    // The trap: Date.parse on an offsetless stamp uses LOCAL time, so on a
+    // Lambda running UTC this delivery would land 5.5 hours early.
+    expect(istWallToUtc('2026-11-01T10:30:00.000')).toBe('2026-11-01T05:00:00.000Z');
+    // 31 Oct 23:00 IST is 17:30Z, still inside October, and must not be read
+    // as 23:00Z, which would push it into November.
+    expect(istWallToUtc('2026-10-31T23:00:00')).toBe('2026-10-31T17:30:00.000Z');
+  });
+
+  it('leaves a Shopify stamp alone, because it already carries Z', () => {
+    expect(istWallToUtc('2026-10-08T06:50:57Z')).toBe('2026-10-08T06:50:57.000Z');
+  });
+
+  it('is null for nothing and for nonsense', () => {
+    expect(istWallToUtc(null)).toBeNull();
+    expect(istWallToUtc('not a date')).toBeNull();
+  });
+
+  it('puts #1230 in November however the machine clock is set', () => {
+    const delivered = shipmentsFor('#1230')[0];
+    expect(delivered.deliveredAt).toBe('2026-11-01T12:32:01.002');
+    expect(istWallToUtc(delivered.deliveredAt) > '2026-10-31T18:30:00Z').toBe(true);
   });
 });
 

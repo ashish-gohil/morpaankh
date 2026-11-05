@@ -35,6 +35,24 @@ export function customerDeliveredAt(s) {
 }
 
 /**
+ * Is the return leg FINAL: has the garment actually reached us.
+ *
+ * Read off ReturnedDate and nothing else. mapCourierStatus answers
+ * RTO_INITIATED for every RTO this account has ever had, because the status
+ * string is the bare word "RTO" at every stage, so the state cannot tell a
+ * parcel in reverse transit from one back on the shelf.
+ *
+ * This is the discriminator for booking a kept advance. Both legs are charged
+ * either way, so an RTO is settled for COSTS the moment it turns around; but
+ * nothing about the MONEY is settled until the parcel is back and the customer
+ * still has not been refunded.
+ * @param {NormShipment[]} shipmentsForOrder
+ */
+export function rtoIsFinal(shipmentsForOrder) {
+  return (shipmentsForOrder || []).some((s) => isRtoShipment(s) && Boolean(s.returnedAt));
+}
+
+/**
  * @param {NormOrder} order
  * @param {NormShipment[]} shipmentsForOrder the shipments its AWBs point at
  * @returns {{outcome:Outcome, reason:string, inferred:boolean}}
@@ -50,12 +68,12 @@ export function deriveOutcome(order, shipmentsForOrder) {
      * legs are charged whether or not the garment is back on the shelf yet, so
      * an RTO still in reverse transit is just as settled for the P&L.
      */
-    const rto = ships.filter(isRtoShipment);
-    if (rto.length) {
-      const back = rto.some((s) => s.returnedAt);
+    if (ships.some(isRtoShipment)) {
+      // One predicate for the reason and for the money, so the sentence on the
+      // row and the figure in the statement can never disagree.
       return {
         outcome: 'RTO',
-        reason: back ? 'Delhivery RTO, returned to origin' : 'Delhivery RTO in progress',
+        reason: rtoIsFinal(ships) ? 'Delhivery RTO, returned to origin' : 'Delhivery RTO in progress',
         inferred: false,
       };
     }
