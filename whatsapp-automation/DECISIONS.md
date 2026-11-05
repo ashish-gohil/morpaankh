@@ -1456,3 +1456,41 @@ while the API throttles. And the cohort is orders PLACED in the month, so 4 of
 35 delivered orders settled in November carrying 17.7% of net revenue. All three
 are correct behaviour; the first two are why the report says PROVISIONAL and the
 third is why the statement now states its own cut.
+
+### The bug that only exists in production (2026-11-05)
+
+**Delhivery timestamps carry no offset and are IST. `Date.parse` reads an
+offsetless stamp as LOCAL time.** Both developer machines here are on
+Asia/Calcutta, so every local run was right and every Lambda run would have been
+wrong by 5.5 hours, in the direction that moves a date FORWARD:
+
+```
+'2026-10-31T23:00:00'  (a real scan, 31 Oct 23:00 IST)
+  parsed on an IST machine -> 2026-10-31T17:30:00Z   correct
+  parsed on a UTC Lambda   -> 2026-10-31T23:00:00Z   5.5h early
+```
+
+`monthEndUtc` for October is `2026-10-31T18:30:00Z`, so that scan would have
+tested as November and left the month that owns it. A parcel delivered late on
+the last evening of a month is not a rare case, it is the normal case for a
+month's final orders.
+
+Nothing would have surfaced it. The clients run on an IST laptop, the fakes hold
+whatever string a test wrote, and the only machine that disagrees is the one
+nobody reads the clock on. `cohort.mjs` now exports `istWallToUtc()`, which
+normalises an offsetless stamp and passes a `Z` stamp through untouched.
+
+Audited after the fix, by hand, every place a courier date meets a boundary:
+- `engine.mjs` `deliveredAtUtc` normalises the courier date and falls back to
+  Shopify's already-`Z` fulfilment date; the settlement cut and the RTO-start
+  comparison both go through the helper.
+- Meta's `date_start` is a DATE, parsed as `${date}T00:00:00+05:30`, which is
+  explicit and therefore safe.
+- `src/pnl/sources/delhivery.mjs` parses no dates at all. It passes the raw
+  strings through, which is why the normalising belongs in the domain.
+- The whole suite passes under `TZ=UTC`, which is now the way to check this.
+
+The general rule this earns: **a date from a provider that omits its offset is
+not a date until something has said which clock it was written on.** Treat the
+string as data and normalise at the domain boundary, never at the point of
+comparison.
