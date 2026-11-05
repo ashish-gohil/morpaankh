@@ -812,8 +812,24 @@ function sheetAssumptions(ctx) {
 
   put(ws.getCell('A1'), 'ASSUMPTIONS AND INPUTS');
   ws.getCell('A1').font = { name: 'Calibri', size: TITLE_SIZE, bold: true, color: { argb: GOLD } };
-  put(ws.getCell('A2'), 'The pale yellow cells are inputs. Edit one and the workbook recalculates.');
+  /*
+   * SAY WHAT AN EDIT CAN AND CANNOT REACH.
+   *
+   * "Edit one and the workbook recalculates" was true of the statement and
+   * read as true of everything. It is not: a courier charge, a COGS and an
+   * output GST are figures that came from an API or a slab at build time, and
+   * no cell can re-quote Delhivery. The Daily sheet's own packing and gateway
+   * columns are written per day and do not follow either, which is why the
+   * Daily-versus-Summary tripwire turns red after an edit and why its note
+   * says so.
+   */
+  put(ws.getCell('A2'), 'The pale yellow cells are inputs. Edit one and the statement, the Delivered and RTO rows and the net all recalculate.');
   ws.getCell('A2').font = { ...BODY, italic: true };
+  put(
+    ws.getCell('A3'),
+    'Everything below the inputs is a record of what this run used, not a control. Courier charges, COGS and output GST were read or computed when the report was built, so editing a rate here cannot re-quote them: for those, change the config and run /pnl again.',
+  );
+  ws.getCell('A3').font = { ...BODY, italic: true };
 
   const cols = [
     { h: 'Setting', w: 42, wrap: true },
@@ -1909,7 +1925,7 @@ function sheetDataChecks(ctx, t) {
   }
   checks.push(
     ['Net revenue: statement chain against the Delivered column', m(a.del.netRev), m(rowNetRev), liveStatus(a.del.netRev, rowNetRev, Math.abs(a.del.netRev - rowNetRev) <= 1, checks.length), 'The statement computes gross less refunds less output GST. This compares it with the engine\u2019s own net revenue per order.'],
-    ['Daily net for the month = Summary net profit / loss', fx(DY.ref, rup(DY.monthNet)), fx(`Summary!${S.netCell}`, rup(a.net)), fx(`IF(ROUND(${DY.ref}-Summary!${S.netCell},2)=0,"ok","MISMATCH")`, ok(DY.monthNet === a.net)), 'Both sides are live references, and the Daily sheet carries the monthly lines no order date can hold.'],
+    ['Daily net for the month = Summary net profit / loss', fx(DY.ref, rup(DY.monthNet)), fx(`Summary!${S.netCell}`, rup(a.net)), fx(`IF(ROUND(${DY.ref}-Summary!${S.netCell},2)=0,"ok","MISMATCH")`, ok(DY.monthNet === a.net)), 'Both sides are live references, and the Daily sheet carries the monthly lines no order date can hold. Editing an input on Assumptions moves the Summary but not the Daily sheet\u2019s own packing and gateway columns, so a mismatch here right after an edit is that, and not a broken report.'],
   );
   /*
    * THE TRIPWIRE. These rows are why the October run caught the workbook
