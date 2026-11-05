@@ -78,6 +78,7 @@
  */
 
 import { shopifyConflict } from '../domain/pnl/outcome.mjs';
+import { istWallToUtc } from '../domain/pnl/cohort.mjs';
 
 /** @typedef {import('../domain/pnl/types.mjs').ReportRow} ReportRow */
 
@@ -152,12 +153,24 @@ const sumP = (arr, f) => arr.reduce((a, r) => a + (f(r) ?? 0), 0);
 const nullsIn = (arr, f) => arr.filter((r) => f(r) == null).length;
 const round2 = (n) => Math.round(n * 100) / 100;
 
-/** IST calendar date of an ISO instant, as 'YYYY-MM-DD'. */
+/*
+ * EVERY DATE IN THIS FILE GOES THROUGH istWallToUtc FIRST.
+ *
+ * Delhivery's timestamps carry no offset and are IST wall time, and
+ * `Date.parse` reads an offsetless stamp as LOCAL time. Our machines are IST,
+ * so every local run has been right and would have stayed right forever; on a
+ * Lambda running UTC the same stamp lands 5.5 hours early, which is enough to
+ * file a 31 Oct 23:00 IST scan under November. Shopify's stamps carry Z and
+ * pass through untouched, so normalising at the two entry points below covers
+ * the delivered date, the RTO start and return dates, the Not Delivered status
+ * date, days-to-deliver and the Daily bucketing in one place.
+ */
+
+/** IST calendar date of a stamp, as 'YYYY-MM-DD'. */
 function istDay(iso) {
-  if (!iso) return null;
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return null;
-  return new Date(t + 330 * 60 * 1000).toISOString().slice(0, 10);
+  const norm = istWallToUtc(iso);
+  if (!norm) return null;
+  return new Date(Date.parse(norm) + 330 * 60 * 1000).toISOString().slice(0, 10);
 }
 const daysInMonth = (month) => {
   const [y, m] = month.split('-').map(Number);
@@ -169,10 +182,10 @@ function dateCell(iso) {
   return d ? new Date(d + 'T00:00:00Z') : null;
 }
 const daysBetween = (a, b) => {
-  if (!a || !b) return null;
-  const x = Date.parse(a), y = Date.parse(b);
-  if (Number.isNaN(x) || Number.isNaN(y)) return null;
-  return Math.round(((y - x) / 86400000) * 10) / 10;
+  const x = istWallToUtc(a);
+  const y = istWallToUtc(b);
+  if (!x || !y) return null;
+  return Math.round(((Date.parse(y) - Date.parse(x)) / 86400000) * 10) / 10;
 };
 
 // Cell descriptors understood by writeTable / put.
@@ -1632,8 +1645,53 @@ function sheetSummary(ctx, t) {
   });
   ws.getRow(6).height = 26;
 
-  // ---- order funnel
-  let r = s0 + spec.length + 3;
+  // ---- the settlement cut: this month is the orders PLACED in it
+  let r = s0 + spec.length + 2;
+  const st = ctx.report.settlement ?? null;
+  if (st) {
+    put(ws.getCell(`A${r}`), String(st.note ?? ''));
+    ws.getCell(`A${r}`).font = { ...BODY, italic: true };
+    ws.getCell(`A${r}`).alignment = { wrapText: true, vertical: 'top' };
+    r += 1;
+    const names = (list) => (list?.length ? list.join(', ') : null);
+    const pctCell =
+      st.netRevenueAfterMonthEndPct == null
+        ? noted('unknown', 'No charge data is loaded, so the share of net revenue cannot be worked out.')
+        : { _v: round2(Number(st.netRevenueAfterMonthEndPct) / 100 * 1e4) / 1e4, fmt: FMT.pct };
+    const srows = [
+      ['What this month counts', String(st.cohortBasis ?? '')],
+      ['Delivered orders in the cohort', { _v: st.deliveredTotal ?? 0, fmt: FMT.int }],
+      [
+        'Delivered AFTER the month closed',
+        names(st.orders?.map((o) => o.name))
+          ? noted(st.deliveredAfterMonthEnd ?? 0, `${names(st.orders.map((o) => o.name))}`)
+          : { _v: st.deliveredAfterMonthEnd ?? 0, fmt: FMT.int },
+      ],
+      ['  of those, counted in the statement', { _v: st.deliveredAfterMonthEndCounted ?? 0, fmt: FMT.int }],
+      ['Net revenue delivered after the month closed', money(st.netRevenueAfterMonthEndPaise ?? 0)],
+      ['  as a share of net revenue', pctCell],
+      [
+        'RTO legs not final at the month end',
+        names(st.rtoLegsNotFinalOrders)
+          ? noted(st.rtoLegsNotFinal ?? 0, names(st.rtoLegsNotFinalOrders))
+          : { _v: st.rtoLegsNotFinal ?? 0, fmt: FMT.int },
+      ],
+      [
+        'RTO started after the month closed',
+        names(st.rtoStartedAfterMonthEndOrders)
+          ? noted(st.rtoStartedAfterMonthEndOrders.length, names(st.rtoStartedAfterMonthEndOrders))
+          : { _v: (st.rtoStartedAfterMonthEndOrders ?? []).length, fmt: FMT.int },
+      ],
+    ];
+    const sh = writeTable(
+      ws,
+      [{ h: 'SETTLEMENT CUT', w: 48, wrap: true }, { h: 'As at the month end', w: 16 }],
+      srows,
+      { startRow: r, filter: false, freeze: false, zebra: true },
+    );
+    r = sh.last + 2;
+  }
+
   /*
    * The engine's funnel verbatim where it sent one. Recomputing "shipped" read
    * 49 against the engine's 51 in October: the engine counts an order with a
@@ -1769,6 +1827,26 @@ function normaliseFlags(ctx) {
   }
   const inferredCount = ctx.rows.filter((r) => r.outcomeInferred).length;
   if (inferredCount) out.push({ label: 'Outcome inferred, Delhivery had no record', count: inferredCount, note: 'Shown in italics on the order sheets.' });
+  /*
+   * An unrefunded deposit is no longer booked as income unless Delhivery says
+   * the garment is actually back. The money has to stay VISIBLE as an open
+   * question rather than quietly leave the report, so the total gets its own
+   * line and every order is listed under "orders worth a look".
+   */
+  const open = ctx.report.openQuestions ?? [];
+  const unverified = ctx.report.totals?.advanceUnverifiedPaise ?? open.reduce((x, q) => x + (q.amountPaise ?? 0), 0);
+  if (open.length || unverified) {
+    out.push({
+      label:
+        `${R}${rup(unverified).toLocaleString('en-IN')} of unrefunded deposits is NOT booked as income ` +
+        `and is an open question on ${open.length} order${open.length === 1 ? '' : 's'}`,
+      count: open.length,
+      note:
+        'A deposit is only income once Delhivery says the garment is back. Until then it is asked ' +
+        'about rather than claimed, so the statement is short by this much and deliberately so. ' +
+        'Every order is listed under ORDERS WORTH A LOOK on Data Checks.',
+    });
+  }
   return out;
 }
 
@@ -1994,6 +2072,13 @@ function sheetDataChecks(ctx, t) {
      * with the engine's by the GST on the fee and called it a mismatch. The
      * engine's flag is the right comparison and is already on the row.
      */
+  }
+  for (const q of ctx.report.openQuestions ?? []) {
+    issues.push([
+      String(q.orderName ?? ''),
+      'open question',
+      `${R}${rup(q.amountPaise ?? 0)} (${q.outcome ?? ''}): ${q.note ?? ''}`,
+    ]);
   }
   issues.sort((x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1]) || x[2].localeCompare(y[2]));
   writeTable(
