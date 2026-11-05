@@ -77,7 +77,13 @@ export async function onOwnerRequest(typed, deps, phone) {
   }
 
   const label = monthLabel(parsed.month);
-  const c = await lambdaClient();
+  /*
+   * `deps.invokePnl` is a seam, not a feature: the real path builds a Lambda
+   * client, and a test that had to reach AWS to prove the ack arrives before
+   * the invoke would not be worth writing. Absent, the real client is used.
+   */
+  const invoker = deps.invokePnl || null;
+  const c = invoker ? { invoker: true } : await lambdaClient();
   if (!c || !config.pnlFunctionName) {
     return reply(deps, phone, 'pnl_failed', {
       month: label,
@@ -92,18 +98,19 @@ export async function onOwnerRequest(typed, deps, phone) {
    */
   await reply(deps, phone, 'pnl_working', { month: label });
 
+  const payload = { month: parsed.month, trigger: 'whatsapp', phone, mtd: parsed.mtd };
   const sent = await soft('pnl.invoke', () =>
-    c.send(
-      new c.InvokeCommand({
-        FunctionName: config.pnlFunctionName,
-        // Event, not RequestResponse: the worker must not sit and wait, and the
-        // report answers the owner directly when it finishes.
-        InvocationType: 'Event',
-        Payload: Buffer.from(
-          JSON.stringify({ month: parsed.month, trigger: 'whatsapp', phone, mtd: parsed.mtd }),
+    invoker
+      ? invoker(payload)
+      : c.send(
+          new c.InvokeCommand({
+            FunctionName: config.pnlFunctionName,
+            // Event, not RequestResponse: the worker must not sit and wait, and
+            // the report answers the owner directly when it finishes.
+            InvocationType: 'Event',
+            Payload: Buffer.from(JSON.stringify(payload)),
+          }),
         ),
-      }),
-    ),
   );
   if (!sent) {
     return reply(deps, phone, 'pnl_failed', {
