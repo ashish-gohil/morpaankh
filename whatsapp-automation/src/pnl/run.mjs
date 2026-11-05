@@ -28,7 +28,7 @@ import { pnlConfig } from '../domain/pnl/config.mjs';
 import { monthWindow } from '../domain/pnl/cohort.mjs';
 import { buildReport } from '../domain/pnl/engine.mjs';
 import { buildWorkbook } from './workbook.mjs';
-import { putSnapshot, getSnapshot, getLatestInput } from './snapshot.mjs';
+import { putSnapshot, putReport, getSnapshot, getLatestInput } from './snapshot.mjs';
 import { fetchOrders } from './sources/shopify.mjs';
 import { fetchShipments, fetchCharges } from './sources/delhivery.mjs';
 import { fetchMetaSpend } from './sources/meta.mjs';
@@ -297,9 +297,14 @@ export async function runPnl({
     const bytes = await buildWorkbook({ ...report, inputs }, wbMeta);
     const filename = reportFilename(month, provisional);
 
-    const stored = await putSnapshot({ month, runId, inputs, totals: report.totals, now }).catch((e) => ({
-      skipped: /** @type {any} */ (e)?.message?.slice(0, 120) || 'snapshot-failed',
-    }));
+    const soften = (e) => ({ skipped: /** @type {any} */ (e)?.message?.slice(0, 120) || 'failed' });
+    /*
+     * The workbook goes up before it goes out. If delivery fails, or the owner
+     * deletes the chat, the bucket is the copy that survives, and the snapshot
+     * index row records its key either way.
+     */
+    const storedReport = await putReport({ month, runId, bytes }).catch(soften);
+    const stored = await putSnapshot({ month, runId, inputs, totals: report.totals, now }).catch(soften);
 
     let delivered = null;
     if (send) {
@@ -320,7 +325,7 @@ export async function runPnl({
       sent: Boolean(send),
     });
 
-    return { month, runId, report, bytes, filename, wbMeta, stored, delivered, incomplete, status };
+    return { month, runId, report, bytes, filename, wbMeta, stored, storedReport, delivered, incomplete, status };
   } finally {
     if (lock) await releaseMonth(month).catch(() => {});
   }

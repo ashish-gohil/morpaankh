@@ -132,3 +132,4 @@ if (r.report.flags?.length) {
 }
 console.log(`\nworkbook: ${file}`);
 console.log(`snapshot: ${r.stored?.key || r.stored?.skipped || 'not stored'}`);
+console.log(`s3 copy : ${r.storedReport?.key || r.storedReport?.skipped || 'not stored'}`);

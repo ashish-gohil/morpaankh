@@ -208,6 +208,33 @@ export function _resetS3() {
 }
 
 /*
+ * The workbook itself.
+ *
+ * The snapshot index row already records a `reportKey`, so without this the
+ * index pointed at an object that had never been uploaded: a dangling
+ * reference, which is worse than an absent one because it reads as a file that
+ * exists. The bucket is versioned, so re-running a month adds a version rather
+ * than destroying what the previous run said.
+ */
+export async function putReport({ month, runId, bytes }) {
+  if (!bucket()) return { skipped: 'no-bucket' };
+  if (!bytes?.length) return { skipped: 'empty' };
+  const c = await client();
+  if (!c) return { skipped: 's3-unavailable' };
+  const Key = keys.report(month, runId);
+  await c.send(
+    new c.PutObjectCommand({
+      Bucket: bucket(),
+      Key,
+      Body: bytes,
+      ContentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+  );
+  log.info('pnl report stored', { month, key: Key, bytes: bytes.length });
+  return { key: Key };
+}
+
+/*
  * The owner's Delhivery ledger, as sent in on WhatsApp.
  *
  * Kept as the raw bytes under inputs/delhivery/<month>/ rather than parsed and
