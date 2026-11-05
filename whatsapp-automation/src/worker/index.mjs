@@ -4,7 +4,7 @@
  * Shopify read before any side effect (in the flow handlers). Per-record
  * failures are reported so SQS redelivers only what threw.
  */
-import { log, metric } from '../log.mjs';
+import { log, maskPhone, metric } from '../log.mjs';
 import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
 import { decodePayload, verifyToken } from '../lib/ids.mjs';
@@ -130,8 +130,26 @@ async function onWaInbound(m) {
    * the bytes by media id.
    */
   const typed = (msg.text?.body || msg.document?.caption || msg.image?.caption || '').trim();
-  if (typed.startsWith('/') && isAdminPhone(phone)) {
-    return onOwnerCommand(phone, typed, msg.document || null);
+  if (typed.startsWith('/')) {
+    if (isAdminPhone(phone)) return onOwnerCommand(phone, typed, msg.document || null);
+    /*
+     * A slash command from a phone that is not an admin is still DROPPED
+     * silently, on purpose: answering would confirm to a stranger that the
+     * command exists. But it is now LOGGED, because the silence used to be
+     * total and that cost real time.
+     *
+     * On 2026-11-05 the owner ran /pnl and got nothing back. Every check of the
+     * report itself passed, and the actual cause was that the sending handset
+     * is not the number in OWNER_ALERT_PHONES: the command fell through this
+     * branch, wrote no log line of any kind, and the only evidence it had
+     * happened at all was a single WorkerHandled metric. The command name and a
+     * masked phone are enough to see it immediately and give away nothing.
+     */
+    log.warn('owner command from a phone that is not an admin, dropped', {
+      cmd: typed.split(/\s+/)[0].toLowerCase(),
+      phone: maskPhone(phone),
+    });
+    return;
   }
 
   if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
