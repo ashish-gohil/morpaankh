@@ -1494,3 +1494,59 @@ The general rule this earns: **a date from a provider that omits its offset is
 not a date until something has said which clock it was written on.** Treat the
 string as data and normalise at the domain boundary, never at the point of
 comparison.
+
+### Why the freight is lower than the invoice, and the one COD charge we invented (2026-11-05)
+
+The owner read the October report and said two things: the parcels cost more
+than Rs 120 each, and had COD handling been counted at all. Both were checked
+before anything was changed.
+
+**COD handling was already counted, and is right.** Every one of the 26
+delivered COD parcels carries a collection fee (Rs 40 up to about Rs 2,000 of
+cash, 2% above it: the month holds 40.00, 42.98, 53.16, 93.58 and 96.98), it
+is a line of its own on the statement (COD charges, Rs 1,263.23 delivered plus
+Rs 137.48 inside the RTO loss), and the nine RTO parcels correctly carry none,
+because no cash was collected. Not one delivered COD parcel was missing it.
+
+**There is still no API for the billed amount.** Seven more endpoint shapes
+tried on 2026-11-05, on both `track.delhivery.com` and `api.delhivery.com`:
+every one answers 404 with an auth0 HTML login page, or 400 from the rate
+calculator asking for `md`. Delhivery's own documentation for the Invoice /
+Shipping Charge API says its output is approximate and can differ from what is
+actually charged, and seller reports put the difference down to re-weighing and
+dimension correction. So the rate card remains the only computable source and
+the owner's billing export remains the only exact one.
+
+**The gap is the weight, and it is one-directional.** Delhivery bills the
+greater of dead weight and volumetric weight; every charges row says so with
+`divisor: 5000` and `wt_sop_type: "dead_lt"`. We send 500 g of dead weight and
+no dimensions, so the quote can only come back at or below the invoice. Four
+real October lanes, re-quoted:
+
+| Lane | zone | 500 g | 1000 g | 1500 g |
+|---|---|---|---|---|
+| 395010 to 411012, COD 150 | B | 92.88 | 135.00 | 174.13 |
+| 395010 to 583229, COD 1149 | D1 | 113.18 | 173.12 | 233.09 |
+| 395010 to 600043, prepaid | D2 | 68.94 | 131.82 | 191.79 |
+| 395010 to 783334, COD 1999 | E | 127.86 | 202.49 | 277.13 |
+
+At 500 g a prepaid parcel cannot reach Rs 120 on any lane we ship; at 1000 g
+every lane clears it. That matches the report's own soft check, which already
+flagged prepaid at Rs 71.57 against the owner's Rs 110 rule of thumb while COD
+at Rs 131.70 sat inside tolerance. So the number is not wrong arithmetic, it is
+the wrong weight, and raising it without a measurement would be inventing a
+cost. What changed instead: `assumedWeightGrams` is documented as a FLOOR in
+three places the owner reads (rules, the Assumptions sheet, the soft check's
+verdict), and the verdict now names the weight rather than sending them to look
+at the rate card. The fix is one config value, from either a Delhivery invoice
+line or the billing export upload.
+
+**One real defect, found while checking the COD question.** #1236 showed
+`Prepaid` in the Courier Ledger next to a Rs 40 COD charge. The waybill is
+manifested Pre-paid with `CODAmount: 0` while the Shopify order reads COD, and
+`fetchCharges` fell back to the order's total whenever Shopify said COD. So it
+quoted the lane as COD and booked a collection fee on a parcel where Delhivery
+will collect nothing. The fallback now needs the waybill to agree
+(`sh.orderType === 'cod'`), which leaves it doing its only real job, filling a
+COD waybill whose `CODAmount` came back empty, and stops it contradicting the
+page it prints on. #1236 is still in transit, so no delivered total moved.

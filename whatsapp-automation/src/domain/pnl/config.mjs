@@ -152,7 +152,7 @@ export function assumptionRows(config) {
       label: 'Assumed parcel weight',
       value: config.assumedWeightGrams,
       source: 'ASSUMED',
-      note: 'Delhivery never returns the weight it scanned: ChargedWeight is null on every shipment this account has had, and the charges API echoes back whatever weight you send it. Every computed charge rests on this number.',
+      note: 'A FLOOR, NOT AN ESTIMATE. Delhivery never returns the weight it scanned (ChargedWeight is null on every shipment this account has had) and the charges API echoes back whatever weight you send it, so every computed charge rests on this number. Delhivery bills the greater of dead weight and volumetric weight (its rows carry divisor 5000), and we send a dead weight with no dimensions, so a computed charge cannot come out above the invoice. Freight, and therefore profit, is optimistic on this line until this is set from a Delhivery invoice line or the billing export is uploaded.',
     },
     {
       key: 'weightAlertGrams',

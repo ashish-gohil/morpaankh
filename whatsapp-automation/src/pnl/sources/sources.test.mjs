@@ -747,6 +747,37 @@ describe('delhivery: charges', () => {
     expect(charges[0].source).toBe('manual');
     expect(charges[0].totalPaise).toBe(9000);
   });
+
+  it('bills no COD charge on a parcel Delhivery manifested prepaid, and still fills an empty COD amount', async () => {
+    // fetchCharges reads only these four fields off an order.
+    const codOrder = {
+      awbs: [String(SHIP_DELIVERED.AWB)],
+      pin: '440024',
+      paymentType: 'cod',
+      currentTotalPaise: 214900,
+    };
+
+    // #1236: Shopify says COD, the waybill says Pre-paid and carries no cash.
+    // Delhivery collects nothing and bills no collection fee, so neither do we.
+    const prepaid = fakeCharges();
+    await fetchCharges({
+      shipments: [normaliseShipment({ ...SHIP_DELIVERED, OrderType: 'Pre-paid', CODAmount: 0 })],
+      orders: [codOrder],
+      charges: prepaid.fn,
+    });
+    expect(prepaid.calls[0].paymentType).toBe('Pre-paid');
+    expect(prepaid.calls[0].codAmountInr).toBe(0);
+
+    // The fallback's real job: a COD waybill whose CODAmount came back empty.
+    const cod = fakeCharges();
+    await fetchCharges({
+      shipments: [normaliseShipment({ ...SHIP_DELIVERED, OrderType: 'COD', CODAmount: 0 })],
+      orders: [codOrder],
+      charges: cod.fn,
+    });
+    expect(cod.calls[0].paymentType).toBe('COD');
+    expect(cod.calls[0].codAmountInr).toBe(2149);
+  });
 });
 
 /* ------------------------------------------------------------------- meta */

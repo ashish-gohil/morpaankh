@@ -373,10 +373,19 @@ export async function fetchCharges({ shipments, orders = [], config = {}, charge
      * gateway: a COD King partial order reads 'partial' in Shopify (Cashfree
      * gateway, 'Standard' shipping line) while Delhivery carries the balance as
      * COD and bills charge_COD for collecting it. The waybill's own CODAmount
-     * is the amount being collected, with the order's total as the fallback for
-     * a parcel the cohort does not cover.
+     * is the amount being collected.
+     *
+     * THE WAYBILL OVERRULES SHOPIFY, AND THE FALLBACK ONLY FILLS A GAP.
+     * #1236 is a Shopify COD order that was manifested Pre-paid with
+     * CODAmount 0, so Delhivery will collect no cash and bill no collection
+     * fee. Taking the order's total there quoted it as COD and put a 40.00 COD
+     * charge on a parcel beside the word "Prepaid" in the Courier Ledger: a
+     * cost Delhivery never charged. So the order's total is read only when the
+     * waybill itself says COD, which leaves the fallback doing its real job
+     * (a COD waybill whose CODAmount came back empty) and nothing else.
      */
-    const codPaise = sh.codAmountPaise || (ord?.paymentType === 'cod' ? ord.currentTotalPaise : 0);
+    const codPaise =
+      sh.codAmountPaise || (sh.orderType === 'cod' && ord?.paymentType === 'cod' ? ord.currentTotalPaise : 0);
     const codInr = Math.round(codPaise / 100);
     const pt = codInr > 0 ? 'COD' : 'Pre-paid';
     const key = [originPin, destPin, cgm, ss, pt, codInr].join('|');

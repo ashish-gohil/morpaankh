@@ -2016,7 +2016,16 @@ function sheetDataChecks(ctx, t) {
         : !thumb
           ? 'listed for information: config sets no rule of thumb for a partial order'
           : off > 0.3
-            ? 'OFF BY MORE THAN 30%: check the courier charges and the packing input'
+            ? /*
+               * NAME THE SUSPECT. "Check the courier charges" sent the owner
+               * looking at the rate card when the gap was the weight: a
+               * computed charge is quoted at an assumed dead weight and
+               * Delhivery bills the greater of dead and volumetric, so a
+               * computed average can only ever sit BELOW the invoice.
+               */
+              ctx.meta.courierChargeBasis === 'ledger'
+              ? 'OFF BY MORE THAN 30%: these are billed actuals, so check the rule of thumb itself and the packing input'
+              : 'OFF BY MORE THAN 30% and the charges are computed, not billed. First suspect is the assumed parcel weight on Assumptions: it is a floor, so this average sits below the invoice. Upload the Delhivery billing export to replace it with actuals.'
             : 'within 30% of the rule of thumb',
     ];
   };

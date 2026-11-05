@@ -417,6 +417,18 @@ export const RULES = {
      * assumedWeightGrams is the same poly bag as RULES.replace.parcel.
      * weightAlertGrams is the line past which a parcel looks like a weight
      * dispute rather than a kurta set; the owner will set it from a weighed one.
+     *
+     * 500 IS A FLOOR, NOT A MIDPOINT, AND THE REPORT SAYS SO. Delhivery bills
+     * the greater of dead weight and volumetric weight, and every charges row
+     * it returns carries `divisor: 5000` and `wt_sop_type: "dead_lt"` to say
+     * which one it priced. We send a dead weight and no dimensions, so the
+     * quote can only ever come back at or below the invoice. Measured on four
+     * real October lanes (2026-11-05, zones B/D1/D2/E): at 500 g the parcels
+     * quote 68.94 to 127.86, at 1000 g 131.82 to 202.49. The owner reports
+     * being billed above 120 per order, which 500 g cannot produce on a
+     * prepaid parcel at all, so freight here is understated until either this
+     * number comes off a Delhivery invoice line or the billing export is
+     * uploaded. Raising it without that measurement would be inventing a cost.
      */
     assumedWeightGrams: 500,
     weightAlertGrams: 600,
