@@ -526,9 +526,28 @@ describe('buildWorkbook', () => {
     const S = wb.getWorksheet('Summary');
     expect(S.getCell('A4').value).toBe('Offline sales not recorded in Shopify are not included. Boost spend is included.');
     expect([1, 2, 3, 4, 5, 6].map((c) => S.getRow(6).getCell(c).value)).toEqual([
-      'Net profit / loss', 'Net margin %', 'Delivered orders', 'RTO rate', 'Meta spend', 'Net per delivered order',
+      // The tile carries the GST while no input credit is claimed, and says so:
+      // the Meta Ads sheet totals the spend alone.
+      'Net profit / loss', 'Net margin %', 'Delivered orders', 'RTO rate', 'Meta spend incl GST', 'Net per delivered order',
     ]);
     expect(S.getRow(7).getCell(3).value).toBe(3); // three delivered; only one complete enough to count
+  });
+
+  it('bridges Meta spend to the P&L line on the Meta Ads sheet, out of the same input', () => {
+    const MA = wb.getWorksheet('Meta Ads');
+    const row = rowOf(MA, 'TOTAL META IN THE P&L, the Summary line and the headline tile');
+    expect(row).toBeGreaterThan(0);
+    // Spend, then GST, then the total, in the per-campaign table's money column.
+    const spend = MA.getCell(`D${row - 2}`);
+    const gst = MA.getCell(`D${row - 1}`);
+    const total = MA.getCell(`D${row}`);
+    expect(gst.value.formula).toContain('pnl_meta_gst_pct');
+    expect(gst.value.formula).toContain('pnl_gst_input_credit');
+    expect(total.value.formula).toBe(`SUM(D${row - 2}:D${row - 1})`);
+    // And the cached results agree with the Summary's own Meta line.
+    const p2 = (n) => Math.round(Number(n) * 100) / 100;
+    expect(p2(spend.value.result + gst.value.result)).toBe(p2(total.value.result));
+    expect(p2(total.value.result)).toBe(p2(-cellOf(wb.getWorksheet('Summary'), 'TOTAL META').value.result));
   });
 
   it('shows a red INCOMPLETE banner only when a source failed', async () => {

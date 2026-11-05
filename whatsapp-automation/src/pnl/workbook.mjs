@@ -934,7 +934,7 @@ function sheetMetaAds(ctx) {
   put(ws.getCell(`A${start}`), 'MONTH TOTAL PER CAMPAIGN');
   ws.getCell(`A${start}`).font = BODY_B;
   const list = [...byCampaign.values()].sort((x, y) => y.spend - x.spend || x.id.localeCompare(y.id));
-  writeTable(
+  const byCampaign2 = writeTable(
     ws,
     [
       { h: 'Campaign', w: 40, wrap: true },
@@ -948,6 +948,48 @@ function sheetMetaAds(ctx) {
     list.map((c) => [c.name ?? c.id, c.id, c.type ?? 'other', rup(c.spend), c.imp, c.clicks, c.imp ? c.clicks / c.imp : 0]),
     { startRow: start + 1, zebra: true, filter: false, freeze: false, totalsLabel: 'ALL CAMPAIGNS' },
   );
+
+  /*
+   * WHY THIS SHEET AND THE SUMMARY SHOW DIFFERENT NUMBERS.
+   *
+   * Every total on this sheet is what Meta billed for the ads. The
+   * statement's Meta line is bigger, because GST on advertising is a cost we
+   * pay and no input credit is claimed, so the P&L carries it as its own
+   * line: October read 39,161.21 here and 46,210.23 there. The owner read
+   * that as the two sheets disagreeing, which is fair, because the same word
+   * "spend" sat over two different quantities and nothing on this sheet
+   * mentioned the tax.
+   *
+   * The bridge is built from the daily table's own month total and the same
+   * named input the Summary uses, so the two surfaces cannot drift apart. It
+   * reads the DAILY total rather than the per-campaign one on purpose: that
+   * is the range the Summary sums, so if the two tables ever disagreed the
+   * difference would show up here instead of hiding.
+   */
+  const spendCol = colLetter(cols.findIndex((c) => c.h === 'Spend') + 1);
+  const monthSpend = `${spendCol}${h.totals ?? h.last}`;
+  const vCol = colLetter(4); // the Spend column of the per-campaign table
+  const bridge = (byCampaign2.totals ?? byCampaign2.last) + 2;
+  put(ws.getCell(`A${bridge}`), 'FROM META SPEND TO THE P&L LINE');
+  ws.getCell(`A${bridge}`).font = BODY_B;
+  const gstRow = bridge + 2;
+  const lines = [
+    ['Meta spend as billed, the month total above', `${monthSpend}`, ctx.a.meta - ctx.a.metaGst],
+    [
+      'GST on Meta spend (none when the input credit is claimed)',
+      `IF(pnl_gst_input_credit=1,0,${monthSpend}*pnl_meta_gst_pct)`,
+      ctx.a.metaGst,
+    ],
+    ['TOTAL META IN THE P&L, the Summary line and the headline tile', `SUM(${vCol}${bridge + 1}:${vCol}${gstRow})`, ctx.a.meta],
+  ];
+  lines.forEach(([label, formula, paise], i) => {
+    const r = bridge + 1 + i;
+    put(ws.getCell(`A${r}`), label);
+    ws.getCell(`A${r}`).font = i === lines.length - 1 ? BODY_B : { ...BODY, italic: true };
+    put(ws.getCell(`${vCol}${r}`), fx(formula, rup(paise)), { fmt: FMT.money });
+    if (i === lines.length - 1) ws.getCell(`${vCol}${r}`).font = BODY_B;
+  });
+
   printSetup(ws, 1);
   return h;
 }
@@ -1645,7 +1687,11 @@ function sheetSummary(ctx, t) {
     ['Net margin %', fx(`IF(${at.netRev}=0,0,${at.net}/${at.netRev})`, a.del.netRev ? round2((a.net / a.del.netRev) * 1e4) / 1e4 : 0), FMT.pct],
     ['Delivered orders', delivered, FMT.int],
     ['RTO rate', round2(rtoRate * 1e4) / 1e4, FMT.pct],
-    ['Meta spend', fx(`-${at.metaTotal}`, rup(a.meta)), FMT.money],
+    // The tile is the P&L line, which carries the GST while no input credit is
+    // claimed. Labelling it "Meta spend" put it beside a Meta Ads sheet
+    // totalling the spend alone and made the report look like it disagreed
+    // with itself.
+    [ctx.cfg.gstInputCreditClaimed ? 'Meta spend' : 'Meta spend incl GST', fx(`-${at.metaTotal}`, rup(a.meta)), FMT.money],
     ['Net per delivered order', nCounted ? fx(`${at.net}/${countedDiv}`, rup(Math.round(a.net / nCounted))) : miss('no delivered order is complete enough to count'), FMT.money],
   ];
   kpis.forEach(([label, value, fmt], i) => {

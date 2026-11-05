@@ -391,7 +391,7 @@ export const SESSION = {
       'Net: {{net}} ({{margin}} of net revenue)',
       'Delivered {{delivered}} | RTO {{rto}} ({{rto_pct}}) | Pending {{pending}}',
       'RTO loss both ways: {{rto_loss}}',
-      'Meta: {{meta}} | per delivered order {{meta_per_order}}',
+      'Meta {{meta_basis}}: {{meta}} | per delivered order {{meta_per_order}}',
       'Courier charges: {{charge_basis}}',
     ].join('\n'),
   },

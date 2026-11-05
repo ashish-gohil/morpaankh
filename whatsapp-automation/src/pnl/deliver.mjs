@@ -50,6 +50,13 @@ export function summaryVars(report, meta) {
     pending: String(f.pending ?? 0),
     rto_loss: money(t.rtoLossPaise),
     meta: money(t.totalMetaPaise),
+    /*
+     * The Meta figure on this line is the P&L cost, which carries the 18% GST
+     * while no input credit is claimed. Ads Manager and the workbook's Meta
+     * Ads sheet both show the spend alone, so a bare "Meta:" here reads as a
+     * third, disagreeing number. One word fixes it.
+     */
+    meta_basis: t.metaGstPaise ? 'incl GST' : 'spend',
     meta_per_order: money(r.metaPerDeliveredOrderPaise),
     charge_basis: meta.courierChargeBasis,
   };
@@ -68,7 +75,7 @@ export function emailParts(report, meta) {
     `Net: ${v.net} (${v.margin} of net revenue)`,
     `Delivered ${v.delivered} | RTO ${v.rto} (${v.rto_pct}) | Pending ${v.pending}`,
     `RTO loss both ways: ${v.rto_loss}`,
-    `Meta: ${v.meta} | per delivered order ${v.meta_per_order}`,
+    `Meta ${v.meta_basis}: ${v.meta} | per delivered order ${v.meta_per_order}`,
     `Courier charges: ${v.charge_basis}`,
     '',
     'Offline sales not recorded in Shopify are not included. Boost spend is included.',
