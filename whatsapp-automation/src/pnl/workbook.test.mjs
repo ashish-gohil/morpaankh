@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
+import { execFileSync } from 'node:child_process';
 import { buildWorkbook } from './workbook.mjs';
 
 const PAISE = (rupees) => Math.round(rupees * 100);
@@ -1164,6 +1165,160 @@ describe('buildWorkbook', () => {
     DC.eachRow((r) => { const k = String(r.getCell(2).value ?? ''); if (k) kinds.push(k); });
     expect(kinds).not.toContain('possible duplicate');
     expect(kinds).not.toContain('GST mismatch'); // the engine owns that comparison
+  });
+
+  /*
+   * Delhivery's timestamps carry no offset and are IST wall time, and
+   * Date.parse reads an offsetless stamp as LOCAL. Every machine here is IST,
+   * so a same-process assertion would pass whatever the code did; the only
+   * honest test builds the same report under a different TZ. On a UTC Lambda
+   * the old code filed a 31 Oct 23:00 IST scan under November.
+   */
+  describe('Delhivery dates, which carry no offset', () => {
+    const child = (tz) => {
+      const script = `
+        import { buildWorkbook } from '${process.cwd()}/src/pnl/workbook.mjs';
+        import ExcelJS from '${process.cwd()}/node_modules/exceljs/excel.js';
+        const P = (r) => Math.round(r * 100);
+        const order = {
+          name: '#1', gid: 'g', numericId: '1', createdAt: '2026-10-02T06:30:00Z',
+          cancelledAt: null, cancelReason: null, sourceName: 'web', appName: null, tags: [],
+          customerName: 'A', city: 'Surat', state: 'GJ', pin: '395003',
+          financialStatus: 'PAID', fulfillmentStatus: 'FULFILLED', gateways: [], taxesIncluded: true,
+          paymentType: 'prepaid', channel: 'Online Store', currentTotalPaise: P(2000), totalPaise: P(2000),
+          discountsPaise: 0, refundedPaise: 0, netPaymentPaise: P(2000), outstandingPaise: 0,
+          codFeePaise: 0, prepaidReceivedPaise: P(2000), shopifyTaxLines: [], transactions: [],
+          fulfillments: [{ status: 'SUCCESS', displayStatus: 'DELIVERED', createdAt: '2026-10-03T06:00:00Z', deliveredAt: null, awb: '1', company: 'D' }],
+          awbs: ['1'], utm: null,
+          lines: [{ title: 'x', sku: 'x', quantity: 1, currentQuantity: 1, originalUnitPaise: P(2000), discountedUnitPaise: P(2000), variantGid: 'v', unitCostPaise: P(900) }],
+        };
+        const report = {
+          rows: [{ order, outcome: 'DELIVERED', outcomeReason: 'd', outcomeInferred: false, awbs: ['1'],
+            parcelShare: 1, grossSalePaise: P(2000), outputGstPaise: P(95.24), netRevenuePaise: P(1904.76),
+            cogsPaise: P(900), forwardFreightPaise: P(76), rtoFreightPaise: null, codChargePaise: 0,
+            packingPaise: P(25), gatewayFeePaise: P(47.2), advanceKeptPaise: null, totalCostPaise: null,
+            contributionPaise: null, chargeSource: 'ledger', complete: true, missing: [], assumed: [], flags: [] }],
+          // NO OFFSET, and 23:00 IST on the last day of the month.
+          shipments: [{ awb: '1', state: 'DELIVERED', rawStatus: 'Delivered', statusType: 'DL', statusCode: 'EOD',
+            statusAt: '2026-10-31 23:00:00', orderType: 'prepaid', codAmountPaise: 0, invoiceAmountPaise: P(2000),
+            destPin: '395003', originName: 'Surat', pickedUpAt: '2026-10-03 10:00:00',
+            deliveredAt: '2026-10-31 23:00:00', rtoStartedAt: null, returnedAt: null,
+            reverseInTransit: false, chargedWeightGrams: null, refs: [] }],
+          config: { packingCostPerOrderPaise: P(25) },
+        };
+        const buf = await buildWorkbook(report, { month: '2026-10' });
+        const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf);
+        const D = wb.getWorksheet('Delivered');
+        let dc = 0, days = 0;
+        D.getRow(1).eachCell((c, i) => { if (c.value === 'Delivered date') dc = i; if (c.value === 'Days to deliver') days = i; });
+        console.log(JSON.stringify({
+          delivered: D.getCell(2, dc).value?.toISOString().slice(0, 10),
+          days: D.getCell(2, days).value,
+          tz: process.env.TZ,
+        }));
+      `;
+      const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+        env: { ...process.env, TZ: tz },
+        encoding: 'utf8',
+      });
+      return JSON.parse(out.trim().split('\n').pop());
+    };
+
+    it('files a 31 Oct 23:00 IST scan under 31 October, whatever the server clock', () => {
+      const ist = child('Asia/Kolkata');
+      const utc = child('UTC');
+      const honolulu = child('Pacific/Honolulu');
+      expect(ist.delivered).toBe('2026-10-31');
+      // This is the assertion that fails on the old code: UTC moved it to the 31st
+      // from the 1st... or rather, read 23:00 as UTC and filed it a day early.
+      expect(utc.delivered, 'a UTC server files the scan on a different day').toBe(ist.delivered);
+      expect(honolulu.delivered, 'the rendered date must not depend on the server clock').toBe(ist.delivered);
+      expect(utc.days).toBe(ist.days);
+      expect(honolulu.days).toBe(ist.days);
+    });
+  });
+
+  /*
+   * The month is the orders PLACED in it, and settlement does not stop when the
+   * month does. The engine works out the cut; this renders it next to the
+   * statement, like the offline-sales note.
+   */
+  describe('the settlement cut', () => {
+    const settlement = {
+      cohortBasis: 'orders placed in the month (IST), not orders delivered in it',
+      monthEndUtc: '2026-10-31T18:30:00.000Z',
+      deliveredTotal: 3,
+      deliveredAfterMonthEnd: 1,
+      deliveredAfterMonthEndCounted: 1,
+      netRevenueAfterMonthEndPaise: PAISE(1904.76),
+      netRevenueAfterMonthEndPct: 7.2,
+      orders: [{ name: '#1170', deliveredAt: '2026-11-02T09:00:00Z', netRevenuePaise: PAISE(1904.76), countedInStatement: true }],
+      rtoLegsNotFinal: 2,
+      rtoLegsNotFinalOrders: ['#1208', '#1209'],
+      rtoStartedAfterMonthEndOrders: ['#1219'],
+      note: 'This month is the orders PLACED in it (IST). Settlement continues afterwards.',
+    };
+
+    it('renders the engine’s note and numbers next to the statement', async () => {
+      const w = await reopen(await buildWorkbook({ ...fixture(), settlement }, META));
+      const S = w.getWorksheet('Summary');
+      const head = rowOf(S, 'SETTLEMENT CUT');
+      // Directly below the statement, above the funnel.
+      expect(head).toBeGreaterThan(rowOf(S, 'NET PROFIT / LOSS'));
+      expect(head).toBeLessThan(rowOf(S, 'ORDER FUNNEL'));
+      expect(String(S.getCell(`A${head - 1}`).value)).toContain('orders PLACED in it');
+      expect(cellOf(S, 'Delivered orders in the cohort').value).toBe(3);
+      expect(cellOf(S, 'Delivered AFTER the month closed').value).toBe(1);
+      expect(cellOf(S, 'Net revenue delivered after the month closed').value).toBe(1904.76);
+      expect(cellOf(S, '  as a share of net revenue').value).toBeCloseTo(0.072, 6);
+      // The order names are on the cell, not lost.
+      expect(String(cellOf(S, 'Delivered AFTER the month closed').note)).toContain('#1170');
+      expect(String(cellOf(S, 'RTO legs not final at the month end').note)).toContain('#1209');
+      expect(String(cellOf(S, 'RTO started after the month closed').note)).toContain('#1219');
+    });
+
+    it('says unknown, not zero, when the share cannot be worked out', async () => {
+      const w = await reopen(await buildWorkbook({ ...fixture(), settlement: { ...settlement, netRevenueAfterMonthEndPct: null } }, META));
+      const cell = cellOf(w.getWorksheet('Summary'), '  as a share of net revenue');
+      expect(cell.value).toBe('unknown');
+      expect(String(cell.note)).toContain('No charge data is loaded');
+    });
+
+    it('is absent, not empty, when the engine sends none', () => {
+      const S = wb.getWorksheet('Summary');
+      const labels = [];
+      S.eachRow((r) => labels.push(String(r.getCell(1).value ?? '')));
+      expect(labels).not.toContain('SETTLEMENT CUT');
+      expect(labels).toContain('ORDER FUNNEL'); // and the rest of the sheet is intact
+    });
+  });
+
+  /*
+   * An unrefunded deposit is no longer income unless Delhivery says the garment
+   * is back. The money must stay visible as a question, not quietly leave.
+   */
+  it('shows the deposits it is asking about rather than claiming', async () => {
+    const openQuestions = [
+      { orderName: '#1225', code: 'advance_kept_unverified', amountPaise: PAISE(99.95), outcome: 'RTO', note: 'parcel not back yet, so whether this deposit is kept is still open' },
+      { orderName: '#1228', code: 'advance_kept_unverified', amountPaise: PAISE(130), outcome: 'CANCELLED', note: 'order cancelled and the deposit not refunded: kept, or owed back?' },
+    ];
+    const f = { ...fixture(), openQuestions };
+    f.totals = { ...f.totals, advanceUnverifiedPaise: PAISE(229.95) };
+    const w = await reopen(await buildWorkbook(f, META));
+    const S = w.getWorksheet('Summary');
+    const text = [];
+    S.eachRow((r) => r.eachCell((c) => text.push(String(c.value ?? ''))));
+    const line = text.find((t) => t.includes('NOT booked as income'));
+    expect(line, 'the Summary says nothing about the money it is not claiming').toBeTruthy();
+    expect(line).toContain('229.95');
+    expect(line).toContain('2 orders');
+    // and every order is listed where a reader can act on it
+    const DC = w.getWorksheet('Data Checks');
+    const rows = [];
+    DC.eachRow((r) => { if (String(r.getCell(2).value ?? '') === 'open question') rows.push([String(r.getCell(1).value), String(r.getCell(3).value)]); });
+    expect(rows.map((x) => x[0])).toEqual(['#1225', '#1228']);
+    expect(rows[0][1]).toContain('99.95');
+    expect(rows[0][1]).toContain('not back yet');
   });
 
   it('builds the statement out of counted-aware sums, not bare SUMs', () => {

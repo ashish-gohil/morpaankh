@@ -1838,7 +1838,7 @@ function normaliseFlags(ctx) {
   if (open.length || unverified) {
     out.push({
       label:
-        `${R}${rup(unverified).toLocaleString('en-IN')} of unrefunded deposits is NOT booked as income ` +
+        `₹${rup(unverified).toLocaleString('en-IN')} of unrefunded deposits is NOT booked as income ` +
         `and is an open question on ${open.length} order${open.length === 1 ? '' : 's'}`,
       count: open.length,
       note:
@@ -2077,7 +2077,7 @@ function sheetDataChecks(ctx, t) {
     issues.push([
       String(q.orderName ?? ''),
       'open question',
-      `${R}${rup(q.amountPaise ?? 0)} (${q.outcome ?? ''}): ${q.note ?? ''}`,
+      `₹${rup(q.amountPaise ?? 0)} (${q.outcome ?? ''}): ${q.note ?? ''}`,
     ]);
   }
   issues.sort((x, y) => x[0].localeCompare(y[0]) || x[1].localeCompare(y[1]) || x[2].localeCompare(y[2]));
