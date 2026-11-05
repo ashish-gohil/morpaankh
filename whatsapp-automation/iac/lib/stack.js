@@ -430,9 +430,23 @@ class WaAutomationStack extends cdk.Stack {
      */
     const emailFrom = String(props.emailFrom || '');
     const emailIdentity = emailFrom.split('@')[1] || 'morpaankh.in';
-    const sesGrant = () =>
+    /*
+     * `raw` adds ses:SendRawEmail, and it is NOT optional for an attachment.
+     *
+     * SESv2 has ONE SendEmail API, but IAM authorises it against two different
+     * actions depending on the content shape: Content.Simple needs
+     * ses:SendEmail, Content.Raw needs ses:SendRawEmail. The P&L workbook can
+     * only travel as Raw, because Simple has no way to carry a file.
+     *
+     * Found in production, not in review: the first real report built fine,
+     * uploaded fine, and then both email sends failed with "not authorized to
+     * perform 'ses:SendRawEmail'". Nothing in the Lambda, the MIME or the
+     * bucket was wrong. The worker keeps SendEmail alone because every message
+     * it sends is Simple, and there is no reason to let it send raw mail.
+     */
+    const sesGrant = ({ raw = false } = {}) =>
       new iam.PolicyStatement({
-        actions: ['ses:SendEmail'],
+        actions: raw ? ['ses:SendEmail', 'ses:SendRawEmail'] : ['ses:SendEmail'],
         resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${emailIdentity}`],
         ...(emailFrom ? { conditions: { StringEquals: { 'ses:FromAddress': emailFrom } } } : {}),
       });
@@ -440,7 +454,7 @@ class WaAutomationStack extends cdk.Stack {
     // The report emails the workbook, always, and it is a different function
     // from the worker, so it needs the same narrow grant of its own. Scoped the
     // same way deliberately: read the long comment above before widening it.
-    pnlFn.addToRolePolicy(sesGrant());
+    pnlFn.addToRolePolicy(sesGrant({ raw: true }));
 
     /*
      * The report reads and writes its bucket. The worker only writes, and only
