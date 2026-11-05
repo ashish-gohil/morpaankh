@@ -136,18 +136,32 @@ export async function deliver({ report, meta, bytes, filename, clients, phones, 
     );
     const msg = renderSession('pnl_summary', summaryVars(report, meta));
     const txt = await soft('pnl.summary', () => clients.whatsapp.sendText({ to: phone, body: msg.body }));
+    /*
+     * ACCEPTED, not delivered. Meta returns a message id the moment it takes
+     * the request and then fails it asynchronously through a status webhook, so
+     * nothing known here can promise it arrived.
+     *
+     * This mattered immediately: the first real run logged `whatsapp: 1` while
+     * all four sends were failing with 131047 (more than 24 hours since the
+     * recipient last replied), and the owner would have read that line as
+     * proof the document had landed. The truthful word is the one that matches
+     * what we can actually observe.
+     */
     out.whatsapp.push({
-      ok: Boolean(doc && !doc.skipped),
-      document: doc?.skipped || (doc ? 'sent' : 'failed'),
-      summary: txt?.skipped || (txt ? 'sent' : 'failed'),
+      accepted: Boolean(doc && !doc.skipped),
+      document: doc?.skipped || (doc ? 'accepted' : 'refused'),
+      summary: txt?.skipped || (txt ? 'accepted' : 'refused'),
     });
   }
 
   metric('PnlDelivered', 1, { month: meta.month });
   log.info('pnl delivered', {
     month: meta.month,
-    email: out.email.filter((e) => e.ok).length,
-    whatsapp: out.whatsapp.filter((w) => w.ok).length,
+    // Email is the only channel that is known to have succeeded at this point.
+    emailSent: out.email.filter((e) => e.ok).length,
+    // Taken by Meta. A 131047 can still fail it minutes later, and the status
+    // webhook is where that shows up, not here.
+    whatsappAccepted: out.whatsapp.filter((w) => w.accepted).length,
     incomplete: Boolean(meta.incomplete),
   });
   return out;
