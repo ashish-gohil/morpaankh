@@ -22,7 +22,9 @@
  */
 import { normalizeVerifiedPhone, VERIFIED_KEY } from '../lib/phone.mjs';
 import { putCapture } from '../store/cartCapture.mjs';
+import { alertOncePerDay } from '../store/cartRecovery.mjs';
 import { table } from '../store/table.mjs';
+import { istParts } from '../lib/time.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 
 const DEFAULT_ORIGINS = ['https://www.morpaankh.in', 'https://morpaankh.in'];
@@ -41,14 +43,54 @@ function allowedOrigins() {
 const RATE_MAX = 20;
 const RATE_WINDOW_S = 600;
 
-async function withinRate(ip) {
-  if (!ip) return true;
-  const bucket = Math.floor(Date.now() / 1000 / RATE_WINDOW_S);
-  const expiresAt = (bucket + 2) * RATE_WINDOW_S;
-  for (let slot = 0; slot < RATE_MAX; slot++) {
-    if (await table.putNew({ PK: `RATE#cartcap#${ip}#${bucket}`, SK: `SLOT#${slot}`, expiresAt })) return true;
+/*
+ * Three caps, all counted the same way: claim numbered slots under one key
+ * until one is free. No counter to read, no increment to race, and the TTL
+ * does the forgetting. A conditional put that fails IS the count.
+ */
+async function claimSlot(pk, max, expiresAt) {
+  for (let slot = 0; slot < max; slot++) {
+    if (await table.putNew({ PK: pk, SK: `SLOT#${slot}`, expiresAt })) return true;
   }
   return false;
+}
+
+const withinRate = async (ip) => {
+  if (!ip) return true;
+  const bucket = Math.floor(Date.now() / 1000 / RATE_WINDOW_S);
+  return claimSlot(`RATE#cartcap#${ip}#${bucket}`, RATE_MAX, (bucket + 2) * RATE_WINDOW_S);
+};
+
+/*
+ * THE IP LIMIT ABOVE IS NOT A LIMIT ON WHO CAN BE MESSAGED, and that is the
+ * hole these two close. One caller rotating addresses, or one address posting
+ * a different stranger's number each time, stays under 20-per-IP-per-10-min
+ * forever. So the number itself is capped, and the endpoint as a whole is
+ * capped, because a real storefront serving 1 to 2 orders a day never needs
+ * either headroom.
+ *
+ * 3 per phone per IST day: a shopper who genuinely abandons, comes back and
+ * abandons again is inside it, and putCapture refreshes one row rather than
+ * adding rows, so the cap costs an honest shopper nothing.
+ */
+const PHONE_MAX_PER_DAY = 3;
+const GLOBAL_MAX_PER_HOUR = 60;
+
+const istDayKey = (now) => {
+  const p = istParts(now);
+  return `${p.y}-${String(p.mon + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+};
+
+async function withinPhoneCap(phone, now) {
+  const day = istDayKey(now);
+  // Two days, so the row outlives the IST day it counts; never a business deadline.
+  const expiresAt = Math.floor(now.getTime() / 1000) + 2 * 86400;
+  return claimSlot(`RATE#cartcap#ph#${phone}#${day}`, PHONE_MAX_PER_DAY, expiresAt);
+}
+
+async function withinGlobalCap(now) {
+  const bucket = Math.floor(now.getTime() / 1000 / 3600);
+  return claimSlot(`RATE#cartcap#all#${bucket}`, GLOBAL_MAX_PER_HOUR, (bucket + 2) * 3600);
 }
 
 /**
@@ -190,8 +232,30 @@ export const handler = async (event) => {
   const ip = event?.requestContext?.http?.sourceIp || '';
   if (!(await withinRate(ip))) return reject(429, 'rate_limited');
 
+  /*
+   * A cap being hit is the one signal that separates a busy day from an abuse
+   * attempt, so it is raised as an ERROR once a day rather than a warning.
+   * wa-cart-capture is in the error reporter's groups, so that error is the
+   * owner's alert: there is no send path in an ingest function, and adding one
+   * to reach a once-a-day line is not worth a WhatsApp client in here.
+   */
+  const now = new Date();
+  const flood = async (reason) => {
+    if (await alertOncePerDay(`cart-capture-flood:${reason}`, now)) {
+      log.error('cart capture flood', { reason, phone: maskPhone(phone), ip });
+    }
+    return reject(429, reason);
+  };
+  if (!(await withinGlobalCap(now))) return flood('global_capped');
+  if (!(await withinPhoneCap(phone, now))) return flood('phone_capped');
+
   try {
-    const id = await putCapture({ token, phone, items, attrs: cleanAttrs(body.attrs) });
+    /*
+     * `source` is the whole point of F1: this row was typed by a browser, so
+     * it is a HINT about who to message and never proof. onFirst refuses to
+     * message a storefront row that Shopify cannot vouch for.
+     */
+    const id = await putCapture({ token, phone, items, attrs: cleanAttrs(body.attrs), source: 'storefront', now });
     log.info('cart captured', { id, lines: items.length, phone: maskPhone(phone) });
     metric('CartCaptured', 1);
     return json(200, { ok: true }, cors);

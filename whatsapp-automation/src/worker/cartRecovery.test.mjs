@@ -12,6 +12,7 @@ import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import { setOptOut, setUndeliverable, touchInbound, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
 import { getRec, getPhoneLock, lockPhone, getCartLinkMap, getParked } from '../store/cartRecovery.mjs';
+import { putCapture } from '../store/cartCapture.mjs';
 import * as R from './cartRecovery.run.mjs';
 
 const NOW = fromISTWall(2026, 9, 12, 12, 0); // 12:00 IST, inside 09:30-22:30
@@ -1095,5 +1096,82 @@ describe('a cart send Meta refuses because the number is in an experiment (13047
 
     await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 130472 }] }, afterTheCode);
     expect(await getParked(PHONE)).toBe(null);
+  });
+});
+
+/*
+ * F1. The public endpoint is unsigned, so the number on a storefront row is a
+ * claim. Before this gate, a spoofed Origin and a stranger's number got that
+ * stranger a MARKETING template and a private single-use code twenty minutes
+ * later, and the row was indistinguishable from an OTP-verified one.
+ */
+describe('a captured cart Shopify will not vouch for', () => {
+  const VARIANT = 'gid://shopify/ProductVariant/54758494110068';
+
+  async function captured({ verifiedBy = null, customer = null } = {}) {
+    const clients = makeFakeClients();
+    clients.shopify.seedVariant({
+      id: VARIANT,
+      price: '1599.00',
+      availableForSale: true,
+      title: 'M',
+      product: { title: 'Khili Dhoop' },
+      selectedOptions: [{ name: 'Size', value: 'M' }],
+      image: { url: 'https://cdn.shopify.com/s/files/1/x/a.jpg?v=1', width: 1200, height: 1500 },
+    });
+    if (customer) clients.shopify.seedCustomerByPhone(PHONE, customer);
+    const id = await putCapture({
+      token: 'Z2NwLWFzaWEtc291dGgx',
+      phone: PHONE,
+      items: [{ id: VARIANT, qty: 1 }],
+      ...(verifiedBy ? { source: 'checkout-webhook', verifiedBy } : {}),
+      now: new Date(NOW.getTime() - 25 * 60000),
+    });
+    return { id, clients, deps: { clients, now: NOW } };
+  }
+
+  // COD King touches the customer record at OTP. Measured on 13 live captures
+  // 2026-11-06: 11 within minutes, several within seconds.
+  const justVerified = { id: 'gid://shopify/Customer/777', firstName: 'Bharti', createdAt: new Date(NOW.getTime() - 26 * 60000).toISOString(), updatedAt: new Date(NOW.getTime() - 24 * 60000).toISOString() };
+
+  it('sends nothing and mints nothing when no customer carries that number', async () => {
+    const { id, clients, deps } = await captured();
+    await R.onFirst(id, deps);
+    expect((await getRec(id)).outcome).toBe('unverified-capture');
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    expect(discounts(clients.shopify)).toHaveLength(0);
+    // And the phone is left free for the real owner of that number.
+    expect(await getPhoneLock(PHONE)).toBeFalsy();
+  });
+
+  it('sends nothing when the only customer with that number was last touched days ago', async () => {
+    const stale = { ...justVerified, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-10-05T00:00:00Z' };
+    const { id, clients, deps } = await captured({ customer: stale });
+    await R.onFirst(id, deps);
+    expect((await getRec(id)).outcome).toBe('unverified-capture');
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  it('sends for a real OTP-then-leave cart, where COD King just touched the customer', async () => {
+    const { id, clients, deps } = await captured({ customer: justVerified });
+    const out = await R.onFirst(id, deps);
+    expect(out.sent).toBe(true);
+    expect(templates(clients.whatsapp)).toContain('cart_recovery_v1');
+    expect(discounts(clients.shopify)).toHaveLength(1);
+  });
+
+  it('never asks Shopify to vouch for a row the checkout webhook signed', async () => {
+    // No customer seeded at all: the HMAC on the webhook payload is the proof.
+    const { id, clients, deps } = await captured({ verifiedBy: 'checkout-webhook' });
+    const out = await R.onFirst(id, deps);
+    expect(out.sent).toBe(true);
+    expect((await getRec(id)).outcome).toBeUndefined();
+  });
+
+  it('leaves a real abandoned checkout alone: it never came from a browser', async () => {
+    const { clients, deps } = setup();
+    const out = await R.onFirst(CHECKOUT_ID, deps);
+    expect(out.sent).toBe(true);
+    expect(clients.shopify.calls.some((c) => c.op === 'getCustomerByPhone')).toBe(false);
   });
 });

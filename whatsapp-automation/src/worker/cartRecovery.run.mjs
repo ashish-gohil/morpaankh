@@ -174,6 +174,44 @@ async function readCheckout(deps, checkoutId) {
   return capturedToCheckout(row, variants, customer);
 }
 
+/*
+ * Will Shopify vouch for this number? The gate between a hint and a recipient.
+ *
+ * `POST /cart-capture` is public and unsigned, because a browser cannot hold a
+ * secret. Until this existed, the row it wrote was treated as COD King
+ * OTP-verified, so anyone who could spoof an Origin header could name a
+ * stranger's number and have Flow R send that stranger a MARKETING template
+ * and a private single-use discount code twenty minutes later.
+ *
+ * COD King creates or touches the Shopify customer record at OTP, which is a
+ * fact the attacker does not control. Measured against the 13 captured carts
+ * live in the table on 2026-11-06: 11 had a customer created or updated within
+ * minutes of the capture, several within seconds, one with `updatedAt` equal to
+ * `capturedAt` to the second. So a real OTP-then-leave shopper passes this and
+ * a typed-in stranger does not.
+ *
+ * 48 hours, not 20 minutes: the sweep can be a day behind after a pause, and
+ * the window only has to be short enough that a number nobody has verified
+ * recently cannot be messaged.
+ *
+ * THE RESIDUAL IS NAMED RATHER THAN HIDDEN. A caller who happens to pick a
+ * number that passed OTP, or signed up on the popup, in the last 48 hours still
+ * gets through. That is why the endpoint also caps 3 per phone per IST day and
+ * 60 per hour: guessing is no longer free, and a flood is an owner alert.
+ *
+ * NOT wrapped in soft(). A Shopify failure here must not be recorded as a
+ * verdict: the throw sends the message back to the queue to be retried, where
+ * swallowing it would file a real shopper as unverified forever.
+ */
+const VOUCH_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+async function shopifyVouchesFor(deps, phone, now) {
+  const c = await deps.clients.shopify.getCustomerByPhone(phone);
+  if (!c) return false;
+  const touched = Math.max(Date.parse(c.updatedAt || '') || 0, Date.parse(c.createdAt || '') || 0);
+  return touched > 0 && now.getTime() - touched <= VOUCH_WINDOW_MS;
+}
+
 /**
  * Send one cart message by whichever channel can actually reach them.
  *
@@ -228,6 +266,23 @@ export async function onFirst(checkoutId, deps) {
   const phone = n.verifiedPhone;
   if (await isOptedOut(phone)) return setOutcome(checkoutId, 'opted-out');
   if (await isUndeliverable(phone)) return setOutcome(checkoutId, 'undeliverable');
+
+  /*
+   * A STOREFRONT CAPTURE IS A HINT, NOT PROOF. See shopifyVouchesFor above.
+   *
+   * Checked after the two local reads so a number we would refuse anyway costs
+   * no Shopify call, and before the lock, the code and the send, so an
+   * unverified row mints nothing and messages nobody. Rows the checkout webhook
+   * wrote carry Shopify's own HMAC and skip this entirely.
+   */
+  if (isCapturedId(checkoutId)) {
+    const row = await getCapture(checkoutId);
+    if (row?.verifiedBy !== 'checkout-webhook' && !(await shopifyVouchesFor(deps, phone, now))) {
+      log.warn('cart: capture nobody vouches for, not sending', { checkoutId, phone: maskPhone(phone) });
+      metric('CartUnverifiedCapture', 1);
+      return setOutcome(checkoutId, 'unverified-capture');
+    }
+  }
 
   /*
    * Flow R's OWN cooldown first, because it is the stricter rule and the more
@@ -814,7 +869,13 @@ export async function onCheckoutSeen(payload, deps) {
     Object.fromEntries((payload?.note_attributes || []).map((a) => [a?.name, a?.value])),
   );
 
-  const id = await putCapture({ token, phone, items, attrs, now });
+  /*
+   * `verifiedBy` is the whole difference between this source and the public
+   * endpoint. This payload arrived with Shopify's HMAC on it, so the number in
+   * its note attributes is proof rather than a claim, and onFirst is allowed to
+   * message it without asking Shopify to vouch for the phone a second time.
+   */
+  const id = await putCapture({ token, phone, items, attrs, source: 'checkout-webhook', verifiedBy: 'checkout-webhook', now });
   log.info('checkout captured', { id, lines: items.length, phone: maskPhone(phone) });
   metric('CheckoutCaptured', 1);
   return { captured: id };

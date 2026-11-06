@@ -40,11 +40,36 @@ const ttl = (now = new Date()) => Math.floor(now.getTime() / 1000) + TTL_DAYS * 
  * a shopper still adding things keeps resetting the clock and is messaged
  * twenty minutes after they actually stop rather than mid-browse.
  *
+ * `verifiedBy` IS NEVER DOWNGRADED, AND NEITHER IS THE PHONE IT VOUCHES FOR.
+ *
+ * Two sources write this row. The checkout webhook is signed by Shopify, so
+ * the number on it is proof. The public endpoint is a browser typing into an
+ * unsigned POST, so the number on it is a hint. Both land on the same primary
+ * key, which is the point: one bag, one row, whichever source saw it first.
+ *
+ * That shared key is also the attack. Without this merge, a caller who knows
+ * or guesses a cart token that Shopify already vouched for could post the same
+ * token with a stranger's number and inherit the verification, which is worse
+ * than an unverified row because `onFirst` would then send without asking
+ * Shopify anything. So a storefront write to a verified row refreshes the bag
+ * and the clock and is refused the two fields that decide who gets messaged.
+ *
  * @param {{token: string, phone: string, items: {id: string, qty: number}[],
- *          attrs?: Record<string,string>, now?: Date}} args
+ *          attrs?: Record<string,string>, source?: string,
+ *          verifiedBy?: string, now?: Date}} args
  */
-export async function putCapture({ token, phone, items, attrs = {}, now = new Date() }) {
+export async function putCapture({
+  token,
+  phone,
+  items,
+  attrs = {},
+  source = 'storefront',
+  verifiedBy = null,
+  now = new Date(),
+}) {
   const id = captureIdFor(token);
+  const prior = verifiedBy ? null : await table.get(pk(token), SK);
+  const keep = prior?.verifiedBy ? { verifiedBy: prior.verifiedBy, phone: prior.phone } : {};
   await table.put({
     PK: pk(token),
     SK,
@@ -53,8 +78,11 @@ export async function putCapture({ token, phone, items, attrs = {}, now = new Da
     phone,
     items,
     attrs,
+    source,
+    ...(verifiedBy ? { verifiedBy } : {}),
     capturedAt: now.toISOString(),
     expiresAt: ttl(now),
+    ...keep,
   });
   return id;
 }

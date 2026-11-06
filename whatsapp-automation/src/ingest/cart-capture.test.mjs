@@ -1,7 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../store/cartCapture.mjs', () => ({ putCapture: vi.fn() }));
-vi.mock('../store/table.mjs', () => ({ table: { putNew: vi.fn(async () => true) } }));
+/*
+ * putNew has to REFUSE A SECOND WRITE to the same key, not just record the
+ * call: every cap in this endpoint is counted by claiming numbered slots until
+ * one is free, so a mock that always says yes makes all three uncountable.
+ */
+const h = vi.hoisted(() => ({ claimed: new Set() }));
+vi.mock('../store/table.mjs', () => ({
+  table: {
+    putNew: vi.fn(async (item) => {
+      const k = `${item.PK} ${item.SK}`;
+      if (h.claimed.has(k)) return false;
+      h.claimed.add(k);
+      return true;
+    }),
+  },
+}));
 vi.mock('../log.mjs', () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   metric: vi.fn(),
@@ -25,9 +40,11 @@ const post = (body, { origin = ORIGIN, method = 'POST', raw } = {}) =>
 const GOOD = { phone: '919876543210', token: 'abcdefgh12345678', items: [{ id: '54759640039796', qty: 2 }] };
 
 beforeEach(() => {
+  h.claimed.clear();
   vi.mocked(putCapture).mockReset().mockResolvedValue('cap_abcdefgh12345678');
   vi.mocked(log.warn).mockReset();
   vi.mocked(log.info).mockReset();
+  vi.mocked(log.error).mockReset();
   vi.mocked(metric).mockReset();
 });
 
@@ -107,5 +124,42 @@ describe('every refusal is visible in the logs', () => {
   it('keeps refusing a foreign origin without a CORS header', async () => {
     const res = await post(GOOD, { origin: 'https://evil.example' });
     expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
+  });
+});
+
+describe('a storefront capture is marked as one, and capped', () => {
+  it('stamps source storefront, so onFirst knows nobody has vouched for the number', async () => {
+    await post(GOOD);
+    expect(vi.mocked(putCapture).mock.calls[0][0]).toMatchObject({ source: 'storefront' });
+  });
+
+  it('caps one number at 3 a day, because the IP limit never limited who can be messaged', async () => {
+    for (let i = 0; i < 3; i++) expect((await post(GOOD)).statusCode).toBe(200);
+    const res = await post(GOOD);
+    expect(res.statusCode).toBe(429);
+    expect(JSON.parse(res.body).error).toBe('phone_capped');
+    // The fourth post stored nothing: three saves, not four.
+    expect(vi.mocked(putCapture)).toHaveBeenCalledTimes(3);
+  });
+
+  it('caps the endpoint at 60 an hour whatever number or address is posting', async () => {
+    // 60 different numbers, so neither the per-phone nor the per-IP cap is what trips.
+    for (let i = 0; i < 60; i++) {
+      const r = await post({ ...GOOD, phone: `9198765${String(i).padStart(5, '0')}` });
+      expect(r.statusCode).toBe(200);
+    }
+    const res = await post({ ...GOOD, phone: '919000000001' });
+    expect(res.statusCode).toBe(429);
+    expect(JSON.parse(res.body).error).toBe('global_capped');
+  });
+
+  it('raises a flood as an error once a day, never as one line per refused post', async () => {
+    for (let i = 0; i < 3; i++) await post(GOOD);
+    await post(GOOD);
+    await post(GOOD);
+    const floods = vi.mocked(log.error).mock.calls.filter((c) => c[0] === 'cart capture flood');
+    expect(floods.length).toBe(1);
+    // And never the number itself.
+    expect(JSON.stringify(floods[0][1])).not.toContain('9876543210');
   });
 });

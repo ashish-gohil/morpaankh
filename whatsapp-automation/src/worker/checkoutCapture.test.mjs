@@ -93,3 +93,18 @@ describe('a checkout becomes the same captured cart the sweep already reads', ()
     expect(putCapture).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * F1. This payload arrived with Shopify's HMAC on it, so the number in its
+ * note attributes is proof and onFirst is allowed to act on it without a
+ * second lookup. The public endpoint gets no such stamp.
+ */
+describe('the webhook is the one source that can vouch for a number', () => {
+  it('stamps verifiedBy, so onFirst skips the Shopify vouch', async () => {
+    await onCheckoutSeen(CHECKOUT, {});
+    expect(vi.mocked(putCapture).mock.calls[0][0]).toMatchObject({
+      source: 'checkout-webhook',
+      verifiedBy: 'checkout-webhook',
+    });
+  });
+});

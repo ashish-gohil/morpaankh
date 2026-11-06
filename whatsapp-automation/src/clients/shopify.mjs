@@ -1100,7 +1100,7 @@ async function getCustomerByPhone(phone) {
   if (!phone) return null;
   const data = await graphql(
     `query C($p: String!){
-       customerByIdentifier(identifier: { phoneNumber: $p }){ id firstName lastName }
+       customerByIdentifier(identifier: { phoneNumber: $p }){ id firstName lastName createdAt updatedAt }
      }`,
     { p: phone },
     { idempotent: true },
