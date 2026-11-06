@@ -829,6 +829,45 @@ export async function onPaymentPaid(orderId, entity, deps) {
     }
 
     const amt = computeAmounts(n, RULES);
+
+    /*
+     * DOES WHAT THEY PAID STILL MATCH WHAT THE ORDER NEEDS?
+     *
+     * The conversion used a freshly computed amount and then called
+     * orderMarkAsPaid, without ever comparing either to what Razorpay actually
+     * collected. The link is created once and the order can be edited
+     * afterwards: a line added, a size swapped for a dearer one, a discount
+     * removed. Underpaid, Shopify was marked fully paid for money nobody paid,
+     * and the shortfall was invisible. Overpaid, nobody noticed the customer
+     * was owed a refund.
+     *
+     * Not converted and NOT refunded either: a mismatch is a question, and
+     * which way it should go is the owner's call. The customer is told their
+     * money arrived and is being checked, which is true, rather than being left
+     * with a payment and silence.
+     */
+    if (paidPaise != null && paidPaise !== amt.newTotalPaise) {
+      await soft('tagsAdd:payment-mismatch', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-payment-mismatch']), { orderId });
+      await ownerAlert(
+        deps,
+        n.name,
+        `payment of ${formatINR(paidPaise)} received but the order now needs ${formatINR(amt.newTotalPaise)}. ` +
+          'Nothing was converted and nothing was refunded. Decide this one by hand',
+      );
+      await soft('paymentCheckingMsg', () =>
+        sess(deps, n.verifiedPhone, 'payment_received_checking', {
+          customer_name: n.firstName,
+          order_number: n.name,
+          amount_paid: formatINR(paidPaise),
+        }),
+        { orderId },
+      );
+      log.error('flowA payment: amount paid does not match the order total', {
+        orderId, paidPaise, needPaise: amt.newTotalPaise,
+      });
+      return { mismatch: true };
+    }
+
     if (n.delhiveryAwb) {
       const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
       const courierState = mapCourierStatus(t);

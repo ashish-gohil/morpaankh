@@ -87,6 +87,20 @@ export const SESSION = {
       'We will send you the tracking link the moment it leaves us.',
   },
   /*
+   * Their money arrived and it does not match what the order now needs.
+   *
+   * The order was edited after the link was made, so converting would mark
+   * Shopify paid for an amount nobody paid, and refunding would reverse a
+   * payment they meant to make. Which way it goes is the owner's decision, and
+   * the customer should not be left holding a receipt and silence meanwhile.
+   */
+  payment_received_checking: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you, we have received {{amount_paid}} for order {{order_number}}. ' +
+      'Our team is checking it against your order and will confirm here shortly.',
+  },
+  /*
    * They asked to pay online and we could not make a link.
    *
    * keep_cod_ack used to go here, and "Done, your order stays on cash on

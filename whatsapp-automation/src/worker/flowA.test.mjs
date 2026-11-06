@@ -284,7 +284,9 @@ describe('Flow A prepaid conversion tagging', () => {
     await A.onCodTimer('12345', deps);
     await A.onConfirm('12345', deps);
     await expect(
-      A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 114900 }, deps),
+      // The real prepaid total, so this reaches the conversion and fails THERE
+      // rather than being stopped by F21's amount check first.
+      A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 }, deps),
     ).rejects.toThrow();
 
     // the order is still unpaid COD: marking it prepaid would risk shipping it
@@ -429,7 +431,7 @@ describe('Flow A never refunds on a read failure', () => {
   it('throws so SQS retries instead of sending the money back', async () => {
     const { clients, deps } = setup();
     clients.shopify.getOrder = async () => null;
-    await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps)).rejects.toThrow(/could not be read/);
+    await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps)).rejects.toThrow(/could not be read/);
     expect(clients.razorpay.refunds).toHaveLength(0);
   });
 });
@@ -504,13 +506,13 @@ describe('Flow A: money moves at most once, whatever fails afterwards', () => {
 
     // three redeliveries, all failing after the refund has already happened
     for (let i = 0; i < 3; i += 1) {
-      await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps)).rejects.toThrow();
+      await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps)).rejects.toThrow();
     }
     expect(clients.razorpay.refunds).toHaveLength(1);
 
     // WhatsApp recovers: the customer is told, and still no second refund
     clients.whatsapp.sendTemplate = real;
-    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps);
     expect(clients.razorpay.refunds).toHaveLength(1);
     expect(names(clients.whatsapp).filter((n) => n.startsWith('prepaid_refund'))).toHaveLength(1);
   });
@@ -521,11 +523,11 @@ describe('Flow A: money moves at most once, whatever fails afterwards', () => {
     clients.whatsapp.sendText = async () => { throw new Error('meta down'); };
     await A.onConfirm('12345', deps); // opens the 24h window so the notify is a session message
 
-    await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps)).rejects.toThrow();
+    await expect(A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps)).rejects.toThrow();
     expect(clients.shopify.calls.filter((c) => c.op === 'convertToPrepaid')).toHaveLength(1);
 
     clients.whatsapp.sendText = real;
-    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps);
     // converted once, and the customer heard about it exactly once
     expect(clients.shopify.calls.filter((c) => c.op === 'convertToPrepaid')).toHaveLength(1);
     expect(clients.whatsapp.sent.filter((s) => /has come through/.test(s.body || ''))).toHaveLength(1);
@@ -534,7 +536,7 @@ describe('Flow A: money moves at most once, whatever fails afterwards', () => {
   it('keeps the order correct when only the audit trail fails', async () => {
     const { clients, deps } = setup();
     clients.shopify.metafieldsSet = async () => { throw new Error('metafield write failed'); };
-    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps);
     expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(true);
     expect(clients.razorpay.refunds).toHaveLength(0);
     expect(names(clients.whatsapp).some((n) => n.startsWith('prepaid_confirmed'))).toBe(true);
@@ -580,7 +582,7 @@ describe('Flow A: an unverified courier API must not strand a real payment', () 
     const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } });
     clients.courier.editToPrepaid = async () => { throw new Error('unexpected field pt'); };
 
-    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps);
 
     // the customer is served: order converted, money kept, message sent
     expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(true);
@@ -596,7 +598,7 @@ describe('Flow A: an unverified courier API must not strand a real payment', () 
     const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } });
     let calls = 0;
     clients.courier.editToPrepaid = async () => { calls += 1; throw new Error('nope'); };
-    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 134900 }, deps);
     await A.onFulfillmentCreate('12345', deps); // the AWB webhook arrives again
     expect(calls).toBeGreaterThan(1);
   });
@@ -1411,5 +1413,60 @@ describe('Flow A records why a confirmation was not sent', () => {
     // Nothing on flowA at all: not a skip, not a send.
     expect(st.flowA?.codSkip).toBeUndefined();
     expect(st.flowA?.codConfirmAt).toBeUndefined();
+  });
+});
+
+/*
+ * F21. The conversion used a freshly computed amount and then called
+ * orderMarkAsPaid, without comparing either to what Razorpay actually
+ * collected. The link is made once and the order can be edited afterwards, so
+ * Shopify could be marked fully paid for money nobody paid.
+ */
+describe('Flow A reconciles what was paid against what the order needs', () => {
+  const NEED = 134900; // 1499.00 less the 150 saving, which absorbs the 50 COD fee
+
+  beforeEach(async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    await ensureState('12345', {});
+    await patchState('12345', { class: 'COD', verifiedPhone: '+919812345678', name: '#1234' });
+  });
+
+  it('converts when the money matches', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: NEED }, deps);
+    expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(true);
+  });
+
+  it('converts nothing and refunds nothing when they underpaid', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: NEED - 20000 }, deps);
+    expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(false);
+    // Not a refund either: which way this goes is the owner's decision.
+    expect(clients.razorpay.refunds).toHaveLength(0);
+    expect(tagsAdded(clients.shopify)).toContain('wa-payment-mismatch');
+  });
+
+  it('catches an overpayment too, which nobody used to notice', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: NEED + 5000 }, deps);
+    expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(false);
+    expect(tagsAdded(clients.shopify)).toContain('wa-payment-mismatch');
+  });
+
+  it('names both numbers to the owner', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: NEED - 20000 }, deps);
+    const alert = clients.whatsapp.sent.find((s) => s.name && s.name.startsWith('ops_alert'));
+    expect(JSON.stringify(alert.components)).toContain('1,149');
+    expect(JSON.stringify(alert.components)).toContain('1,349');
+  });
+
+  it('tells the customer their money arrived and is being checked', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: NEED - 20000 }, deps);
+    const said = clients.whatsapp.sent.filter((s) => s.to === '+919812345678').map((s) => s.body || '').join(' ');
+    expect(said).toContain('checking it against your order');
+    // and never that it is confirmed
+    expect(said).not.toContain('is paid');
   });
 });
