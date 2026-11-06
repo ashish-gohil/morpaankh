@@ -473,6 +473,58 @@ describe('every gate, and the outcome it records', () => {
     expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('already-ordered');
   });
 
+  /*
+   * F18. The order-id and OTP-attribute tests above are the only two shapes
+   * hasOrdered used to match, and an order has NEITHER when it came through
+   * Cashfree straight from the cart, or from a recovery link, or was typed into
+   * the admin: no OTP attribute, and COD King files a second customer record so
+   * the id does not match either. Those people bought something and were sent
+   * "Rs 200 welcome" the next morning.
+   */
+  it('an order carrying their number only in the shipping address', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/558',
+      name: '#558',
+      createdAt: '2026-10-23T09:00:00Z',
+      customer: null,
+      customAttributes: [],
+      shippingAddress: { phone: '+919637361371', zip: '395007' },
+    });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('already-ordered');
+    expect(discounts(clients.shopify)).toHaveLength(0);
+  });
+
+  it('an order under COD King s SECOND customer record, matched on the email', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/559',
+      name: '#559',
+      createdAt: '2026-10-23T09:00:00Z',
+      // A different customer id for the same human, which is what broke this.
+      customer: { id: 'gid://shopify/Customer/999999', email: EMAIL },
+      customAttributes: [],
+    });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect((await getSubRec(CUSTOMER_ID)).outcome).toBe('already-ordered');
+  });
+
+  it('still offers to somebody whose order is genuinely a different person', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.seed({
+      id: 'gid://shopify/Order/560',
+      name: '#560',
+      createdAt: '2026-10-23T09:00:00Z',
+      customer: { id: 'gid://shopify/Customer/888888', email: 'someone.else@example.com' },
+      customAttributes: [],
+      shippingAddress: { phone: '+919800000000', zip: '395007' },
+    });
+    await W.onFirst(CUSTOMER_ID, deps);
+    expect((await getSubRec(CUSTOMER_ID)).outcome).toBeUndefined();
+    expect(discounts(clients.shopify)).toHaveLength(1);
+  });
+
   it('an order found by their exact email, which is the guest-checkout case', async () => {
     const { clients, deps } = setup({ flowW: { ordersByEmail: { [EMAIL]: [{ id: 'gid://shopify/Order/557', name: '#557' }] } } });
     await W.onFirst(CUSTOMER_ID, deps);

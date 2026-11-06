@@ -25,7 +25,7 @@ import {
   subscriberCode, subscriberVars, topPicks, landingUrl, escapeHtml, minimumPaise, shopifyMinimumInr,
   onSubscriberAllowlist,
 } from '../domain/subscriberOffer.mjs';
-import { formatExpiresAt } from '../domain/cart.mjs';
+import { formatExpiresAt, shopperKeys, sameShopper, phoneKey, emailKey, idTail } from '../domain/cart.mjs';
 import { heroImageUrl } from '../domain/order.mjs';
 import { verifiedPhoneFromCustomAttributes, verifiedPhoneFromNoteAttributes, normalizeVerifiedPhone } from '../lib/phone.mjs';
 import { formatINR, toPaise } from '../lib/money.mjs';
@@ -112,14 +112,28 @@ async function hasOrdered(deps, n) {
     const byEmail = await deps.clients.shopify.ordersByEmail(n.email);
     if (byEmail.length) return true;
   }
+  /*
+   * THREE WAYS TO MATCH, NOT TWO, AND THE THIRD IS WHERE THEY WERE LOST.
+   *
+   * This read only the order's customer id and its COD King OTP attribute. An
+   * order has neither when it came through Cashfree straight from the cart, or
+   * from a recovery link, or was typed into the admin: no OTP attribute at all,
+   * and COD King files its own second customer record so the id does not match
+   * either. Those people bought something and were sent "Rs 200 welcome" the
+   * next morning.
+   *
+   * sameShopper reads the number off every field an order can carry it in,
+   * including both address blocks, and compares on normalised keys. It is the
+   * same function Flow R uses to decide whether an order came back from a cart
+   * message, so the two cannot drift into disagreeing about who somebody is.
+   */
+  const keys = {
+    phones: [phoneKey(n.phone)].filter(Boolean),
+    emails: [emailKey(n.email)].filter(Boolean),
+    customerId: idTail(n.gid) || null,
+  };
   const since = await deps.clients.shopify.ordersCreatedSince(n.createdAt);
-  return since.some((o) => {
-    if (n.gid && o.customer?.id === n.gid) return true;
-    if (!n.phone) return false;
-    // The library function, not a local copy: it already reads {key,value} and
-    // keeps the mobile-prefix check a hand-rolled version drops.
-    return verifiedPhoneFromCustomAttributes(o.customAttributes) === n.phone;
-  });
+  return since.some((o) => sameShopper(shopperKeys(o), keys));
 }
 
 /**
