@@ -36,6 +36,21 @@ function flowCOff(where, orderId) {
   return true;
 }
 
+/**
+ * We cannot do what they asked, so a person will. Never a confirmation.
+ *
+ * Both NDR actions need a Delhivery waybill, and both used to send their
+ * "Done" message whether or not there was one: ndr_reattempt_ok and
+ * ndr_address_saved went out on orders where nothing had been booked and
+ * nobody had been told. The customer then waits for a delivery that was never
+ * rescheduled.
+ */
+async function ndrHandoff(deps, n, orderId, what) {
+  await soft('ndrHandoffMsg', () => sess(deps, n.verifiedPhone, 'ndr_handoff', {}), { orderId });
+  await ownerAlert(deps, n.name, `customer asked for ${what} after a failed delivery and there is no Delhivery waybill on this order. Nothing was booked, call them`);
+  log.warn('flowC ndr: no waybill, handed to a person', { orderId, what });
+}
+
 // ---- NDR --------------------------------------------------------------------
 /**
  * A delivery attempt failed.
@@ -111,6 +126,17 @@ export async function onNdrReattempt(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, now);
+  /*
+   * NO WAYBILL MEANS NOTHING WAS BOOKED, SO NOTHING IS CONFIRMED.
+   *
+   * The AWB check used to be inline, `if (n.delhiveryAwb) await ndrAction(...)`,
+   * and ndr_reattempt_ok went out either way. So an order with no Delhivery
+   * waybill told the customer their delivery had been rescheduled when nothing
+   * had been asked of anybody, and the owner was not told either. A promise we
+   * have not made is the one thing this service must never send.
+   */
+  if (!n.delhiveryAwb) return ndrHandoff(deps, n, orderId, 'a new delivery attempt');
+
   try {
     /*
      * ONCE PER DAY, not once per tap. Now that an order can be prompted on
@@ -119,12 +145,10 @@ export async function onNdrReattempt(orderId, deps) {
      * day rather than by order, because tomorrow's prompt deserves its own
      * booking.
      */
-    if (n.delhiveryAwb) {
-      await runOnce(orderId, `ndr-reattempt:${istDayKey(now)}`, async () => {
-        await deps.clients.courier.ndrAction(n.delhiveryAwb, 'RE-ATTEMPT');
-        return { booked: true };
-      });
-    }
+    await runOnce(orderId, `ndr-reattempt:${istDayKey(now)}`, async () => {
+      await deps.clients.courier.ndrAction(n.delhiveryAwb, 'RE-ATTEMPT');
+      return { booked: true };
+    });
     await sess(deps, n.verifiedPhone, 'ndr_reattempt_ok', {});
     await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-reattempt']);
   } catch (e) {
@@ -158,6 +182,12 @@ export async function onAddressText(orderId, text, deps) {
   await touchInbound(n.verifiedPhone, nowOf(deps));
   const res = classifyAddressReply(text, n.zip);
   if (res.status === 'same') {
+    // Same rule as the re-attempt: with no waybill there is nothing to edit, so
+    // "we have saved your address" would be describing work nobody did.
+    if (!n.delhiveryAwb) {
+      await clearAwaiting(n.verifiedPhone);
+      return ndrHandoff(deps, n, orderId, 'an address correction');
+    }
     try {
       /*
        * `add` is the field Delhivery documents, and the pincode is not a field
@@ -167,12 +197,10 @@ export async function onAddressText(orderId, text, deps) {
        * changed, so there is no new pincode to send.
        */
       // Once per day, for the same reason as the re-attempt above.
-      if (n.delhiveryAwb) {
-        await runOnce(orderId, `ndr-address:${istDayKey(nowOf(deps))}`, async () => {
-          await deps.clients.courier.ndrAction(n.delhiveryAwb, 'EDIT_DETAILS', { add: text });
-          return { edited: true };
-        });
-      }
+      await runOnce(orderId, `ndr-address:${istDayKey(nowOf(deps))}`, async () => {
+        await deps.clients.courier.ndrAction(n.delhiveryAwb, 'EDIT_DETAILS', { add: text });
+        return { edited: true };
+      });
       await sess(deps, n.verifiedPhone, 'ndr_address_saved', {});
       await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-address']);
     } catch (e) {

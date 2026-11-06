@@ -395,3 +395,43 @@ describe('Flow C counts an RTO when it happens', () => {
     expect((await getState('12345')).flowC.rtoAt).toBeTruthy();
   });
 });
+
+/*
+ * F16. Both NDR actions need a Delhivery waybill, and both sent their "Done"
+ * message whether or not there was one. So an order shipped by someone else, or
+ * fulfilled before its tracking number arrived, told the customer their
+ * delivery had been rescheduled or their address saved when nothing had been
+ * asked of anybody and the owner was not told either.
+ */
+describe('Flow C never confirms an NDR action it could not take', () => {
+  const noAwb = () => order({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [] }] });
+  const bodies = (wa) => wa.sent.filter((s) => s.type === 'text' || s.type === 'buttons').map((s) => s.body).join(' | ');
+  const alerts = (wa) => wa.sent.filter((s) => s.name && s.name.startsWith('ops_alert'));
+
+  beforeEach(() => { config.ownerAlertPhones = ['+919999999999']; });
+
+  it('hands a re-attempt request to a person instead of confirming it', async () => {
+    const { clients, deps } = setup(noAwb());
+    await C.onNdrReattempt('12345', deps);
+    expect(clients.courier.calls.filter((c) => c.op === 'ndrAction')).toHaveLength(0);
+    expect(bodies(clients.whatsapp)).not.toContain('rescheduled');
+    expect(alerts(clients.whatsapp)).toHaveLength(1);
+    expect(JSON.stringify(alerts(clients.whatsapp)[0].components)).toContain('no Delhivery waybill');
+  });
+
+  it('hands an address correction to a person instead of saying it was saved', async () => {
+    const { clients, deps } = setup(noAwb());
+    await C.onAddressText('12345', 'Flat 4, Ring Road, Surat 302001', deps);
+    expect(clients.courier.calls.filter((c) => c.op === 'ndrAction')).toHaveLength(0);
+    expect(alerts(clients.whatsapp)).toHaveLength(1);
+    // and the question is closed, so their next message is not read as an address
+    expect(await getAwaiting(PHONE)).toBeFalsy();
+  });
+
+  it('still books and confirms when there is a waybill', async () => {
+    const { clients, deps } = setup();
+    await C.onNdrReattempt('12345', deps);
+    expect(clients.courier.calls.filter((c) => c.op === 'ndrAction')).toHaveLength(1);
+    expect(alerts(clients.whatsapp)).toHaveLength(0);
+  });
+});
