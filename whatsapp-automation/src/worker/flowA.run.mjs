@@ -288,23 +288,96 @@ async function deferConfirm(orderId, st, now, err) {
   await armTimer(orderId, 'cod', addHours(now, CONFIRM_DEFER_HOURS), now);
 }
 
+/**
+ * What state is this order in, as far as a button tap is concerned?
+ *
+ * WHATSAPP BUTTONS DO NOT EXPIRE. The confirmation we sent three minutes after
+ * the order sits in the customer's chat for as long as the chat does, and they
+ * tap it whenever they scroll back. Before this existed, every tap acted as if
+ * the order were still the one we had messaged about:
+ *
+ *   - "Keep cash on delivery" after paying online replied "stays on cash on
+ *     delivery" and overwrote flowA.step `converted`, erasing the record of a
+ *     real payment.
+ *   - "Confirm" on a cancelled order added wa-confirmed, created a Razorpay
+ *     link and offered to take money for an order that no longer exists.
+ *
+ * Four answers, cancelled first because a cancelled order can also be paid and
+ * shipped and the customer only needs to hear the one that ends the matter.
+ *
+ * `paid` reads three things because each can be true on its own: our own
+ * conversion stamp, the tag Shopify carries, and the money actually received,
+ * which covers a payment taken outside this flow.
+ */
+function tapState(n, st) {
+  if (n?.cancelledAt || st?.flowA?.step === 'stopped') return 'cancelled';
+  if (
+    st?.flowA?.convertedAt ||
+    hasTag(n?.tags, 'PREPAID-CONVERTED') ||
+    (n?.receivedPaise || 0) >= (n?.currentTotalPaise || 0)
+  ) {
+    return 'paid';
+  }
+  if (n?.fulfillments?.length || n?.delhiveryAwb) return 'shipped';
+  return 'open';
+}
+
+/**
+ * The tap gate: tapState, corrected by the waybill, with one courier read.
+ *
+ * tapState calls anything with a fulfillment `shipped`, and that is too blunt
+ * on its own. A MANIFESTED parcel is already fulfilled in Shopify and is still
+ * perfectly editable at Delhivery, so refusing those would close the prepaid
+ * switch a day early and turn a working offer into "it has already left us".
+ * The waybill is the authority on whether it has actually gone.
+ *
+ * `payable` is returned alongside rather than asked again, because asking twice
+ * is a second tracking call on every tap.
+ *
+ * @returns {Promise<{state:'cancelled'|'paid'|'shipped'|'open', payable:boolean}>}
+ */
+async function tapGate(deps, n, st) {
+  const state = tapState(n, st);
+  if (state === 'cancelled' || state === 'paid') return { state, payable: false };
+  const ok = await payable(deps, n);
+  return { state: ok ? 'open' : 'shipped', payable: ok };
+}
+
+/*
+ * The reply for a tap that arrived too late, and nothing else.
+ *
+ * No tag, no link, no flowA.step write. That last one is the point: `converted`
+ * and `stopped` are terminal records of something irreversible, and the whole
+ * defect was a stale button overwriting them.
+ */
+const closedReply = (deps, n, key) =>
+  sess(deps, n.verifiedPhone, key, {
+    customer_name: n.firstName,
+    order_number: n.name,
+    awb: n.delhiveryAwb || '',
+  });
+
 // ---- taps -------------------------------------------------------------------
 export async function onConfirm(orderId, deps) {
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, now);
+  const { state } = await tapGate(deps, n, await getState(orderId));
+  if (state !== 'open') {
+    // Nothing is tagged, linked or written. A stale button must not be able to
+    // confirm an order that is cancelled, or re-open one that is paid.
+    const key = { cancelled: 'order_closed', paid: 'already_paid', shipped: 'already_shipped' }[state];
+    return closedReply(deps, n, key);
+  }
   await cancelTimer({ flow: 'A', orderId, step: 'reminder' });
   await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-confirmed']);
   await patchFlowA(orderId, { step: 'confirmed' });
-  /*
-   * Confirming is still worth doing on a parcel that has left, so this
-   * acknowledges and simply does not offer. Offering would create a link on an
-   * order whose payment we would have to refund, or convert.
-   */
+  // `open` already means the waybill is still ours to change, so the offer
+  // needs no second courier read here.
   const amt = computeAmounts(n, RULES);
-  const link = (await payable(deps, n)) ? await ensurePaymentLink(deps, n, amt, now) : null;
+  const link = await ensurePaymentLink(deps, n, amt, now);
   if (link) {
     await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now, link), { url: link.url });
   } else {
@@ -317,6 +390,10 @@ export async function onPayOnline(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, now);
+  const { state } = await tapGate(deps, n, await getState(orderId));
+  if (state === 'cancelled' || state === 'paid') {
+    return closedReply(deps, n, state === 'cancelled' ? 'order_closed' : 'already_paid');
+  }
   await cancelTimer({ flow: 'A', orderId, step: 'reminder' });
   // The fallback timer is deliberately LEFT RUNNING. Asking for a payment link
   // is not paying: this tap used to cancel the only remaining nudge, so someone
@@ -327,7 +404,7 @@ export async function onPayOnline(orderId, deps) {
    * one answer that does not work here: it reads as the tap having failed.
    * pay_at_door says what happened and what to have ready.
    */
-  if (!(await payable(deps, n))) {
+  if (state === 'shipped') {
     return sess(deps, n.verifiedPhone, 'pay_at_door', {
       customer_name: n.firstName,
       order_number: n.name,
@@ -345,6 +422,16 @@ export async function onKeepCod(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, now);
+  /*
+   * THE WORST OF THE THREE. This used to reply "stays on cash on delivery" to
+   * a customer who had already paid online, and overwrite flowA.step
+   * `converted` on the way, erasing the record of a real payment.
+   */
+  const { state } = await tapGate(deps, n, await getState(orderId));
+  if (state !== 'open') {
+    const key = { cancelled: 'order_closed', paid: 'already_paid', shipped: 'already_shipped' }[state];
+    return closedReply(deps, n, key);
+  }
   await cancelTimer({ flow: 'A', orderId, step: 'reminder' });
   await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-confirmed']);
@@ -356,12 +443,17 @@ export async function onCancel(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, nowOf(deps));
+  const st = (await getState(orderId)) || {};
+  // Only `cancelled` is refused. A paid or shipped customer may still ASK to
+  // cancel, and the paths below already handle both: the refund review handoff
+  // and cancel_too_late. Refusing those would take away the one route they
+  // have to a human.
+  if (tapState(n, st) === 'cancelled') return closedReply(deps, n, 'order_closed');
   // Offer the change first when the order can still take one. Cancelling used
   // to be the only self-service option, so a customer who wanted a different
   // size had to cancel and reorder: that is how #1187 became #1188, 36 minutes
   // apart. When the order is past changing (AWB printed, money taken, already
   // changed once, flag off) this is byte for byte the old behaviour.
-  const st = (await getState(orderId)) || {};
   if (await variantChange.changeOffered(n, st, n.verifiedPhone)) {
     return sess(deps, n.verifiedPhone, 'change_or_cancel', { order_number: n.name }, { orderId: n.numericId });
   }
@@ -372,6 +464,9 @@ export async function onCancelNo(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n) return;
   await touchInbound(n.verifiedPhone, nowOf(deps));
+  // "No, keep it" on an order that is already cancelled cannot keep anything,
+  // and replying "we have kept it" would be untrue.
+  if (tapState(n, await getState(orderId)) === 'cancelled') return closedReply(deps, n, 'order_closed');
   await sess(deps, n.verifiedPhone, 'cancel_kept', { order_number: n.name });
 }
 

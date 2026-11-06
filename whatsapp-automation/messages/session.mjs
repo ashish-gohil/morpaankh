@@ -87,6 +87,32 @@ export const SESSION = {
       'We will send you the tracking link the moment it leaves us.',
   },
   /*
+   * THE THREE REPLIES FOR A BUTTON THAT OUTLIVED ITS ORDER.
+   *
+   * WhatsApp buttons never expire. The confirmation sent three minutes after
+   * the order sits in the chat for as long as the chat does, and a customer
+   * scrolling back taps it days later. Each of these says what is true now and
+   * asks for nothing, because the order has already moved past the question.
+   */
+  order_closed: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you for writing to us. Order {{order_number}} is cancelled, ' +
+      'so there is nothing to confirm or pay. Please reply here if that is not right.',
+  },
+  already_paid: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you. Order {{order_number}} is already paid online, ' +
+      'so there is nothing to pay at delivery.',
+  },
+  already_shipped: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you. Order {{order_number}} has already left us with Delhivery. ' +
+      'Tracking number: {{awb}}.',
+  },
+  /*
    * They tapped "Pay online" on a parcel Delhivery has already collected.
    *
    * Saying "it stays on cash on delivery" there reads as the tap having

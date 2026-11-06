@@ -8,6 +8,7 @@ import { getState, ensureState, patchState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import { RULES } from '../../messages/rules.mjs';
+import { SESSION } from '../../messages/session.mjs';
 import * as A from './flowA.run.mjs';
 
 // Read at import, before any afterEach can force it false, so the test below
@@ -1005,13 +1006,13 @@ describe('Flow A never offers online payment on a parcel the courier already has
     expect(clients.razorpay.links ?? []).toHaveLength(0);
   });
 
-  it('Confirm still acknowledges, it just stops offering', async () => {
+  // F4's state gate reaches a dispatched order before this one does, and says
+  // so plainly rather than acknowledging a confirmation that is now moot.
+  it('Confirm says the parcel has left, and mints nothing', async () => {
     const { clients, deps } = setup(picked(), inTransit);
     await A.onConfirm('12345', deps);
-    expect(bodies(clients.whatsapp).join(' ')).toContain('stays on cash on delivery');
+    expect(bodies(clients.whatsapp).join(' ')).toContain('already left us with Delhivery');
     expect(clients.razorpay.links ?? []).toHaveLength(0);
-    // Confirming is still worth recording: the tap was real.
-    expect(tagsAdded(clients.shopify)).toContain('wa-confirmed');
   });
 
   it('still offers while the parcel is manifested and ours to change', async () => {
@@ -1025,5 +1026,126 @@ describe('Flow A never offers online payment on a parcel the courier already has
     await A.onPayOnline('12345', deps);
     expect(clients.razorpay.links.length).toBeGreaterThan(0);
     expect(clients.courier.calls.some((c) => c.op === 'track')).toBe(false);
+  });
+});
+
+/*
+ * F4. THE FLOW A TAP MATRIX.
+ *
+ * WhatsApp buttons never expire, so every one of these cells is reachable by
+ * an ordinary customer scrolling back through their chat. Before the state
+ * gate, "Keep cash on delivery" after paying online replied "stays on cash on
+ * delivery" and overwrote flowA.step `converted`, and "Confirm" on a cancelled
+ * order added wa-confirmed and minted a Razorpay link.
+ *
+ * One test per cell, driven off the table, so a new tap or a new state cannot
+ * be added without a row here.
+ */
+describe('Flow A taps by order state', () => {
+  // The longest literal run in a message, which is enough to tell any two of
+  // them apart and does not go stale when a placeholder is renamed.
+  const fragment = (key) =>
+    SESSION[key].body
+      .split(/\{\{[^}]+\}\}/)
+      .map((x) => x.trim())
+      .sort((a, b) => b.length - a.length)[0];
+
+  const withAwb = (over = {}) =>
+    codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }], ...over });
+
+  const STATES = {
+    'COD, no AWB': { order: () => codOrder(), courier: {} },
+    'COD, AWB not picked up': { order: withAwb, courier: { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } } },
+    'COD, picked up': { order: withAwb, courier: { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } } },
+    'paid online': {
+      order: () => codOrder({ displayFinancialStatus: 'PAID', netPaymentSet: { shopMoney: { amount: '1499.00' } } }),
+      courier: {},
+    },
+    cancelled: { order: () => codOrder({ cancelledAt: '2026-09-21T06:00:00Z' }), courier: {} },
+  };
+
+  /* Expected session message per cell. */
+  const MATRIX = {
+    'COD, no AWB': {
+      onConfirm: 'confirmed_with_offer',
+      onPayOnline: 'pay_online_offer',
+      onKeepCod: 'keep_cod_ack',
+      onCancel: 'cancel_check',
+      onCancelYes: 'cancel_done',
+    },
+    'COD, AWB not picked up': {
+      onConfirm: 'confirmed_with_offer',
+      onPayOnline: 'pay_online_offer',
+      onKeepCod: 'keep_cod_ack',
+      onCancel: 'cancel_check',
+      onCancelYes: 'cancel_done',
+    },
+    'COD, picked up': {
+      onConfirm: 'already_shipped',
+      onPayOnline: 'pay_at_door',
+      onKeepCod: 'already_shipped',
+      onCancel: 'cancel_check',
+      onCancelYes: 'cancel_too_late',
+    },
+    'paid online': {
+      onConfirm: 'already_paid',
+      onPayOnline: 'already_paid',
+      onKeepCod: 'already_paid',
+      onCancel: 'cancel_check',
+      onCancelYes: 'cancel_refund_review',
+    },
+    cancelled: {
+      onConfirm: 'order_closed',
+      onPayOnline: 'order_closed',
+      onKeepCod: 'order_closed',
+      onCancel: 'order_closed',
+      onCancelYes: 'cancel_done',
+    },
+  };
+
+  for (const [stateName, { order, courier }] of Object.entries(STATES)) {
+    for (const [tap, expected] of Object.entries(MATRIX[stateName])) {
+      it(`${stateName}: ${tap} answers ${expected}`, async () => {
+        RULES.prepaidOfferEnabled = true;
+        // Off, so "Change or cancel" is deterministic: with it on, row 1 would
+        // offer the size list instead, which is the matrix's own caveat.
+        config.variantChangeEnabled = false;
+        config.ownerAlertPhones = ['+919999999999'];
+        await ensureState('12345', {});
+        await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+        const { clients, deps } = setup(order(), courier);
+
+        await A[tap]('12345', deps);
+
+        // Every session shape, because the offers go as cta_url and the rest
+        // as text or buttons.
+        const said = clients.whatsapp.sent.map((s) => s.body || '').join(' | ');
+        expect(said).toContain(fragment(expected));
+      });
+    }
+  }
+
+  /*
+   * The two writes the stale buttons used to make. Separate from the table
+   * because they are about what did NOT happen, which is the actual defect.
+   */
+  it('never overwrites the converted step, however late Keep COD is tapped', async () => {
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'converted', convertedAt: '2026-09-21T06:00:00Z' } });
+    const { clients, deps } = setup(codOrder({ displayFinancialStatus: 'PAID', netPaymentSet: { shopMoney: { amount: '1499.00' } } }));
+    await A.onKeepCod('12345', deps);
+    expect((await getState('12345')).flowA.step).toBe('converted');
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-confirmed');
+  });
+
+  it('never confirms, tags or bills a cancelled order', async () => {
+    RULES.prepaidOfferEnabled = true;
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+    const { clients, deps } = setup(codOrder({ cancelledAt: '2026-09-21T06:00:00Z' }));
+    await A.onConfirm('12345', deps);
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-confirmed');
+    expect(clients.razorpay.links ?? []).toHaveLength(0);
+    expect((await getState('12345')).flowA.step).toBe('confirm_sent');
   });
 });
