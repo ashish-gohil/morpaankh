@@ -13,6 +13,7 @@ import { setAwaiting, getAwaiting, markMarketing, canSendMarketing } from '../st
 import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
 import { getRec, ensureRec, patchRec, parkForWindow, getParked } from '../store/cartRecovery.mjs';
+import { setAwbMap } from '../store/maps.mjs';
 
 const OWNER = '+919812345678';
 const STRANGER = '+919800000000';
@@ -542,5 +543,27 @@ describe('a marketing offer Meta refused is not a customer who heard nothing', (
     await routes.wa_status(failed('wamid.CONF', 131026));
     expect(await getSide('12345', 'send-failed:cod_confirm')).toMatchObject({ alerted: true });
     expect(await getParkedOffer(OWNER)).toBeNull();
+  });
+});
+
+/*
+ * F17, the worker half. A parcel Delhivery has lost needs a claim raised and a
+ * reshipment decided, and LOST reached no branch at all: no alert, no tag, and
+ * the AWB dropped out of tracking because LOST is terminal.
+ */
+describe('a parcel the courier has lost', () => {
+  beforeEach(async () => {
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: OWNER, name: '#1234' });
+    await setAwbMap('AWB9', '12345');
+    config.ownerAlertPhones = ['+919999999999'];
+  });
+
+  const lost = () => routes.delhivery({ kind: 'delhivery', awb: 'AWB9', status: 'Lost', statusType: 'UD' });
+
+  it('tells the owner once and tags the order', async () => {
+    await lost();
+    await lost(); // a redelivery must not alert twice
+    expect(await getSide('12345', 'courier-lost')).toMatchObject({ alerted: true });
   });
 });

@@ -12,7 +12,21 @@ import { enqueue } from '../queue.mjs';
 import { log } from '../log.mjs';
 
 const TERMINAL = ['DELIVERED', 'RTO_INITIATED', 'RTO_DELIVERED', 'LOST', 'CANCELLED'];
-const ACTIONABLE = ['DELIVERED', 'NDR', 'RTO_INITIATED'];
+/*
+ * The states worth waking the worker for.
+ *
+ * RTO_DELIVERED and LOST were missing, and TERMINAL is the reason that mattered:
+ * an AWB is dropped from the sparse index the moment it turns terminal, so
+ * whichever state we observe FIRST is the only one we will ever see. A return
+ * that completed inside a polling gap was therefore seen once, as
+ * RTO_DELIVERED, found no branch here, and was dropped from tracking without
+ * ever reaching Flow C: no count, no reason asked, nothing.
+ *
+ * LOST was worse, because it was silent in both directions. A parcel Delhivery
+ * has lost needs a claim raised and a reshipment decided, and nothing anywhere
+ * said it had happened.
+ */
+const ACTIONABLE = ['DELIVERED', 'NDR', 'RTO_INITIATED', 'RTO_DELIVERED', 'LOST'];
 
 export async function trackActiveShipments(clients = realClients) {
   const active = await table.scanGsi1(); // AWB# MAP items: { PK, orderId, activeShipment }

@@ -631,6 +631,25 @@ async function onDelhivery(m) {
    * seeing both legs still asks once.
    */
   if (state === 'RTO_INITIATED' || state === 'RTO_DELIVERED') return flowC.onRto(orderId, deps());
+  /*
+   * LOST was silent in both directions. Delhivery has lost the parcel, which
+   * needs a claim raised and a reshipment decided, and nothing anywhere said it
+   * had happened: no alert, no tag, and the AWB dropped out of tracking because
+   * LOST is terminal. The customer is NOT messaged from here, because what
+   * happens next is the owner's decision, not a template.
+   */
+  if (state === 'LOST') {
+    const d = deps();
+    const st = await getState(orderId);
+    return soft('courierLost', () =>
+      runOnce(orderId, 'courier-lost', async () => {
+        await d.clients.shopify.tagsAdd(`gid://shopify/Order/${orderId}`, ['wa-courier-lost']);
+        await ownerAlert(d, st?.name || orderId, 'lost in transit: raise a Delhivery claim and reship');
+        return { alerted: true };
+      }),
+      { orderId, awb: m.awb },
+    );
+  }
 }
 
 // ---- Razorpay ---------------------------------------------------------------

@@ -207,3 +207,48 @@ describe('trackActiveShipments', () => {
     expect(await table.scanGsi1()).toHaveLength(0); // and it is out of the GSI again
   });
 });
+
+/*
+ * F17. An AWB is dropped from the sparse index the moment it turns terminal, so
+ * whichever state the poller observes FIRST is the only one we will ever see.
+ * RTO_DELIVERED and LOST were not in ACTIONABLE, so a return that completed
+ * inside a polling gap was seen once, enqueued nowhere, and dropped from
+ * tracking: no RTO count, no reason asked. LOST was silent in both directions.
+ */
+describe('terminal states the poller used to swallow', () => {
+  beforeEach(() => {
+    _resetMemory();
+    _drainQueue();
+  });
+
+  const statusOf = (status, statusType) => ({ courier: { statuses: { AWB1: { status, statusType } } } });
+
+  it('enqueues a return that completed between two polls', async () => {
+    await setAwbMap('AWB1', '777');
+    // A return that reaches the seller is reported as a delivery with an RTO
+    // status string, which is why the mapper checks RTO before delivered.
+    const clients = makeFakeClients(statusOf('RTO Delivered', 'DL'));
+    await trackActiveShipments(clients);
+    expect((await getState('777')).courierStatus).toBe('RTO_DELIVERED');
+    const q = _drainQueue();
+    expect(q).toHaveLength(1);
+    expect(q[0].message).toMatchObject({ kind: 'delhivery', awb: 'AWB1' });
+  });
+
+  it('enqueues a lost parcel, which used to vanish entirely', async () => {
+    await setAwbMap('AWB1', '777');
+    const clients = makeFakeClients(statusOf('Lost', 'UD'));
+    await trackActiveShipments(clients);
+    expect((await getState('777')).courierStatus).toBe('LOST');
+    expect(_drainQueue()).toHaveLength(1);
+  });
+
+  it('still says nothing about an ordinary in-transit scan', async () => {
+    await setAwbMap('AWB1', '777');
+    const clients = makeFakeClients(statusOf('In Transit', 'UD'));
+    await trackActiveShipments(clients);
+    expect(_drainQueue()).toHaveLength(0);
+    // and it stays in the index, because it is not terminal
+    expect(await table.scanGsi1()).toHaveLength(1);
+  });
+});
