@@ -1308,3 +1308,67 @@ describe('Flow A delivers a refused offer when the window opens', () => {
     expect(clients.whatsapp.sent).toHaveLength(0);
   });
 });
+
+/*
+ * F14. ensurePaymentLink was a bare runOnce(orderId, 'paylink'), so once the
+ * Razorpay link passed its expire_by every "Pay online" tap handed back the
+ * same dead link, forever, and nothing in the flow noticed. And two session
+ * messages linked to the raw Razorpay shortUrl, which bypasses every guard in
+ * /p/{token} for exactly the customers most likely to need them.
+ */
+describe('Flow A gives out a live link, behind our own URL', () => {
+  const hour = 3600 * 1000;
+
+  beforeEach(async () => {
+    RULES.prepaidOfferEnabled = true;
+    config.publicBaseUrl = 'https://wa.example.com';
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+  });
+
+  it('reuses the open link while it is still good', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPayOnline('12345', deps);
+    await A.onPayOnline('12345', deps);
+    expect(clients.razorpay.links).toHaveLength(1);
+  });
+
+  it('makes a new one once the old one is nearly dead, and cancels the old', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPayOnline('12345', deps);
+    const first = clients.razorpay.links[0];
+
+    // A day later: the first link is past expire_by.
+    const later = new Date(NOW.getTime() + 25 * hour);
+    await A.onPayOnline('12345', { ...deps, now: later });
+
+    expect(clients.razorpay.links).toHaveLength(2);
+    const second = clients.razorpay.links[1];
+    expect(second.id).not.toBe(first.id);
+    // And the customer is quoted the live one.
+    const bodies = clients.whatsapp.sent.map((s) => `${s.body || ''} ${s.url || ''}`).join(' ');
+    expect(bodies).not.toContain(first.shortUrl || 'NEVER');
+  });
+
+  it('stops renewing rather than minting a link a day for a stale button', async () => {
+    const { clients, deps } = setup(codOrder());
+    for (let i = 0; i <= 5; i++) {
+      await A.onPayOnline('12345', { ...deps, now: new Date(NOW.getTime() + i * 25 * hour) });
+    }
+    // Three links, ever, and then it says so instead of handing out a fourth.
+    expect(clients.razorpay.links).toHaveLength(3);
+    expect(clients.whatsapp.sent.map((s) => s.body || '').join(' ')).toContain('not available for order');
+  });
+
+  it('never hands the customer a raw Razorpay URL', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPayOnline('12345', deps);
+    await A.onConfirm('12345', deps);
+    const urls = clients.whatsapp.sent.map((s) => s.url).filter(Boolean);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const u of urls) {
+      expect(u).toMatch(/^https:\/\/wa\.example\.com\/p\/[A-Za-z0-9_-]+$/);
+      expect(u).not.toContain('razorpay');
+    }
+  });
+});

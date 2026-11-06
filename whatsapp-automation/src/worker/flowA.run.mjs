@@ -86,6 +86,29 @@ async function payable(deps, n) {
   return !!t && isCourierEditable(mapCourierStatus(t));
 }
 
+/*
+ * How many payment links one order may ever be given.
+ *
+ * A Razorpay link expires at expire_by (payLinkMaxHours), and
+ * ensurePaymentLink was a bare runOnce(orderId, 'paylink'), so after that every
+ * single "Pay online" tap handed back the same dead link, forever. The customer
+ * taps, Razorpay tells them it has expired, and nothing in the flow notices.
+ *
+ * Three, not unlimited: each one is a real Razorpay object, and a customer
+ * tapping a stale button once a day for a week should not mint seven. Past the
+ * cap there is no link at all and onPayOnline says online payment is
+ * unavailable, which is true, and is better than a link that cannot be paid.
+ *
+ * Sequence 0 is the slot orders created before this change already hold, so a
+ * live legacy link is still reused; the first NEW link is sequence 1.
+ */
+const PAYLINK_MAX_LINKS = 3;
+/* Renew when it has less than this left: a link that dies mid-checkout is the
+ * same failure as one that was already dead. */
+const PAYLINK_RENEW_MARGIN_MS = 15 * 60 * 1000;
+
+const paylinkAction = (seq) => (seq ? `paylink:${seq}` : 'paylink');
+
 /** Create (or reuse) the payment link + pay token. Null when no offer is valid. */
 async function ensurePaymentLink(deps, n, amt, now) {
   if (!amt.feeMatches) {
@@ -103,23 +126,58 @@ async function ensurePaymentLink(deps, n, amt, now) {
     );
     return null;
   }
-  return runOnce(n.numericId, 'paylink', async () => {
-    const referenceId = `${n.name.replace('#', '')}-P1`.slice(0, 40);
+  const orderId = n.numericId;
+  const st = await getState(orderId);
+  const seq = st?.flowA?.paylinkSeq || 0;
+  const open = await getSide(orderId, paylinkAction(seq));
+  const leftMs = open?.expiresAt ? open.expiresAt * 1000 - now.getTime() : 0;
+  if (open && leftMs > PAYLINK_RENEW_MARGIN_MS) return open;
+
+  /*
+   * The open link is dead or nearly dead. Every caller has already established
+   * that this order is still payable (tapGate, or payable() in onFallback), so
+   * this does not ask the courier again.
+   */
+  if (seq >= PAYLINK_MAX_LINKS) {
+    log.warn('flowA: payment link allowance exhausted, offering nothing', { orderId, seq });
+    return null;
+  }
+  const next = seq + 1;
+  // Soft: Razorpay refuses to cancel a link that is already expired or paid,
+  // and both are normal here. Tidying up is never worth failing the renewal.
+  if (open?.linkId) await soft('cancelStaleLink', () => deps.clients.razorpay.cancelLink(open.linkId), { orderId });
+
+  const link = await runOnce(orderId, paylinkAction(next), async () => {
+    const referenceId = `${n.name.replace('#', '')}-P${next}`.slice(0, 40);
     const expireBy = Math.floor(addHours(now, RULES.payLinkMaxHours).getTime() / 1000);
-    const link = await deps.clients.razorpay.createLink({
+    const created = await deps.clients.razorpay.createLink({
       amountPaise: amt.newTotalPaise,
       referenceId,
       description: `Prepaid payment for ${n.name}`,
       contact: n.verifiedPhone,
-      notes: { shopify_order_id: n.numericId, order_name: n.name, flow: 'A' },
+      notes: { shopify_order_id: orderId, order_name: n.name, flow: 'A' },
       expireBy,
     });
-    await setPaylinkMap(link.id, n.numericId);
+    await setPaylinkMap(created.id, orderId);
     const token = randomToken();
-    await setPayTokenMap(token, { orderId: n.numericId, url: link.shortUrl, expiresAt: expireBy });
-    return { linkId: link.id, url: link.shortUrl, token, newTotalPaise: amt.newTotalPaise, expiresAt: expireBy };
+    await setPayTokenMap(token, { orderId, url: created.shortUrl, expiresAt: expireBy });
+    return { linkId: created.id, url: created.shortUrl, token, newTotalPaise: amt.newTotalPaise, expiresAt: expireBy };
   });
+  // Written AFTER the link exists, so a failed create leaves the sequence where
+  // it was and the next tap retries the same slot rather than burning one.
+  await patchFlowA(orderId, { paylinkSeq: next });
+  return link;
 }
+
+/**
+ * The URL a customer is ever given: always ours, never Razorpay's.
+ *
+ * `/p/{token}` is where the paid, closed and expired guards live. Two session
+ * messages, confirmed_with_offer and pay_online_offer, linked straight to the
+ * raw Razorpay shortUrl, so every one of those guards was bypassed for exactly
+ * the customers most likely to need them: the ones tapping an old message.
+ */
+const payUrl = (link) => `${config.publicBaseUrl}/p/${link.token}`;
 
 // ---- triggers ---------------------------------------------------------------
 export async function onOrderCreate(orderId, deps) {
@@ -426,7 +484,7 @@ export async function onConfirm(orderId, deps) {
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (link) {
-    await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now, link), { url: link.url });
+    await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now, link), { url: payUrl(link) });
   } else {
     await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
   }
@@ -460,7 +518,7 @@ export async function onPayOnline(orderId, deps) {
   }
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
-  if (link) return sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
+  if (link) return sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, link), { url: payUrl(link) });
   /*
    * They asked to pay online and we cannot make a link. keep_cod_ack used to go
    * here, and "Done, your order stays on cash on delivery" is the wrong answer
@@ -1155,7 +1213,7 @@ export async function onWindowOpen(phone, deps) {
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (!link) return drop('no-link');
 
-  await sess(deps, phone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
+  await sess(deps, phone, 'pay_online_offer', offerVars(n, amt, now, link), { url: payUrl(link) });
   await patchFlowA(orderId, { offerDeliveredInWindowAt: now.toISOString() });
   await clearParkedOffer(phone);
   log.info('flowA: parked offer delivered inside the window', { orderId });
