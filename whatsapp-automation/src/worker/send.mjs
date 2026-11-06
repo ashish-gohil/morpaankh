@@ -66,6 +66,30 @@ const WINDOW_DELIVERABLE = new Set([131049, 130472]);
  */
 export const isWindowDeliverable = (code) => WINDOW_DELIVERABLE.has(Number(code));
 
+/**
+ * The same order intake as getNorm, entered by ORDER NAME.
+ *
+ * The owner's tools look an order up by the number they typed, so they called
+ * getOrderByName and normalizeOrder directly and never reached the 2 Nov
+ * recipient resolver below. Orders without COD King's OTP attribute therefore
+ * answered "no OTP verified WhatsApp number" to /size-change, and /replace
+ * booked both parcels and told nobody, on orders where Flows A, B and C were
+ * messaging the customer perfectly well.
+ *
+ * The extra read only happens for an order with no OTP number, which is the
+ * same lazy arrangement getNorm itself documents.
+ */
+export async function getNormByName(deps, orderName) {
+  const o = await deps.clients.shopify.getOrderByName(orderName);
+  if (!o) return null;
+  const n = normalizeOrder(o);
+  if (n.verifiedPhone) {
+    n.phoneSource = 'otp';
+    return n;
+  }
+  return (await getNorm(deps, n.numericId)) || n;
+}
+
 /*
  * THE ONE ORDER INTAKE. Every order flow reads its order through here, so this
  * is where the recipient is resolved and nowhere else.

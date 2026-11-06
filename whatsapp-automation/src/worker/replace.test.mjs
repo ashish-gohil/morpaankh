@@ -977,3 +977,42 @@ describe('a preview nobody tapped leaves the open list', () => {
     expect((await store.listOpen(10, muchLater)).map((r) => r.state)).toEqual(['FAILED']);
   });
 });
+
+/*
+ * F19. Every /replace entry point read the order with getOrderByName and
+ * normalizeOrder, so none of them reached the recipient resolver the flows use.
+ * On an order with no OTP attribute, from a recovery link, a Cashfree cart
+ * checkout or the admin, /replace booked BOTH parcels and told the customer
+ * nothing at all, while Flows A, B and C were messaging that same person.
+ */
+describe('/replace on an order COD King never touched', () => {
+  const confirm = async (deps) => {
+    await run(deps);
+    return tap(deps, `rpok:1:${(await req()).nonce}`);
+  };
+
+  const shippingOnly = { customAttributes: [], shippingAddress: { phone: CUSTOMER, zip: '395007', city: 'Surat' } };
+
+  it('notifies the customer through their shipping number', async () => {
+    const { clients, deps } = await setup({ over: shippingOnly });
+    await confirm(deps);
+    expect(to(clients, CUSTOMER).length).toBeGreaterThan(0);
+    expect((await req()).notified?.skipped).toBeUndefined();
+    // and both parcels still went, which was never the broken part
+    expect(bookings(clients)).toEqual(['createReverse', 'createForward']);
+  });
+
+  it('records WHICH field the number came from', async () => {
+    const { deps } = await setup({ over: shippingOnly });
+    await confirm(deps);
+    const r = await req();
+    expect(r.phoneSource).toBeTruthy();
+    expect(r.phoneSource).not.toBe('otp');
+  });
+
+  it('records otp when that is where it came from', async () => {
+    const { deps } = await setup();
+    await confirm(deps);
+    expect((await req()).phoneSource).toBe('otp');
+  });
+});

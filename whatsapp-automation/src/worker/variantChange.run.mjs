@@ -23,7 +23,7 @@ import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
 import { normalizeOrder } from '../domain/order.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log } from '../log.mjs';
-import { sess, getNorm, ownerAlert } from './send.mjs';
+import { sess, getNorm, getNormByName, ownerAlert } from './send.mjs';
 import { touchInbound, windowOpen } from '../store/phoneProfile.mjs';
 import {
   orderChangeable,
@@ -343,11 +343,12 @@ export async function onOwnerRequest(orderName, deps, ownerPhone) {
   if (!asked) return reply('Send it with the order number, like /size-change 1214');
   if (!config.variantChangeEnabled) return reply('The size and colour change flow is switched off right now.');
 
-  const o = await deps.clients.shopify.getOrderByName(asked);
-  if (!o) return reply(`No order #${asked.replace(/^#/, '')} here. Check the number and send it again.`);
-  const n = normalizeOrder(o);
+  // getNormByName, not getOrderByName: it runs the same recipient resolver the
+  // flows use, so an order without COD King's OTP attribute is still reachable.
+  const n = await getNormByName(deps, asked);
+  if (!n) return reply(`No order #${asked.replace(/^#/, '')} here. Check the number and send it again.`);
   if (!n.verifiedPhone) {
-    return reply(`Order ${n.name} has no OTP verified WhatsApp number on it, so there is no one we can message.`);
+    return reply(`Order ${n.name} has no reachable WhatsApp number on it, so there is no one we can message.`);
   }
 
   const st = (await getState(n.numericId)) || {};

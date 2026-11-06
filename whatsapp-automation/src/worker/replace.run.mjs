@@ -39,7 +39,6 @@ import { RULES } from '../../messages/rules.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 import { soft, withRetry, maybeSent } from '../lib/resilience.mjs';
 import { formatIST } from '../lib/time.mjs';
-import { normalizeOrder } from '../domain/order.mjs';
 import { classify } from '../domain/classify.mjs';
 // "Noor, size M" / "Bandhan, Brown, size XL". The same words the self-service
 // size change already puts in front of a customer, so the two features do not
@@ -47,7 +46,7 @@ import { classify } from '../domain/classify.mjs';
 import { describeVariant } from '../domain/variantChange.mjs';
 import { getState, runOnce } from '../store/orderState.mjs';
 import { windowOpen, isOptedOut, isUndeliverable } from '../store/phoneProfile.mjs';
-import { sess, tpl, isTemplateUnusable } from './send.mjs';
+import { sess, tpl, isTemplateUnusable, getNormByName } from './send.mjs';
 import * as store from '../store/replace.mjs';
 import { parseReplaceCommand, resolveLine, resolveTarget, validate } from '../domain/replace.mjs';
 
@@ -164,9 +163,14 @@ const HELP = [
  * is minutes old has already been wrong once.
  */
 async function load(orderName, deps) {
-  const o = await deps.clients.shopify.getOrderByName(bare(orderName));
-  if (!o) return { missing: true };
-  const n = normalizeOrder(o);
+  /*
+   * getNormByName, not getOrderByName: it runs the same recipient resolver
+   * Flows A, B and C use. This read ONE field for the customer's number, so a
+   * recovery-link or admin order had no recipient here and /replace booked
+   * both parcels and told the customer nothing at all.
+   */
+  const n = await getNormByName(deps, bare(orderName));
+  if (!n) return { missing: true };
   const st = (await getState(n.numericId)) || {};
   const shipping = await deps.clients.shopify.getShippingDetails(n.numericId);
   return { n, st, shipping };
@@ -560,6 +564,14 @@ async function startRequest(raw, parsed, deps, adminPhone) {
         // re-read protected customer data to finish or undo a booking.
         customer: returnSpec.customer,
         verifiedPhone: n.verifiedPhone || null,
+        /*
+         * WHICH field the recipient came from: 'otp', or shipping, billing or
+         * the customer record through the resolver. An owner asking "whose
+         * number did we message about this replacement" gets an answer rather
+         * than a guess, and it is the one field that says this request was
+         * booked for an order COD King never touched.
+         */
+        phoneSource: n.phoneSource || null,
         customerName: n.firstName,
         items: { return: returnSpec.items, forward: forwardSpec.items },
         parcel: returnSpec.parcel,
@@ -951,9 +963,8 @@ function notifyLine(notified) {
 export async function onStatus(orderName, deps, adminPhone) {
   const reply = replier(deps, adminPhone);
   if (!orderName) return reply('Send it with the order number, like /replace status 1234');
-  const o = await deps.clients.shopify.getOrderByName(bare(orderName));
-  if (!o) return reply(`No order #${bare(orderName)} here.`);
-  const n = normalizeOrder(o);
+  const n = await getNormByName(deps, bare(orderName));
+  if (!n) return reply(`No order #${bare(orderName)} here.`);
   const req = await store.latestRequest(n.numericId);
   if (!req) return reply(`No replacement has ever been raised on ${n.name}.`);
 
@@ -995,9 +1006,8 @@ export async function onStatus(orderName, deps, adminPhone) {
 export async function onCancel(orderName, deps, adminPhone) {
   const reply = replier(deps, adminPhone);
   if (!orderName) return reply('Send it with the order number, like /replace cancel 1234');
-  const o = await deps.clients.shopify.getOrderByName(bare(orderName));
-  if (!o) return reply(`No order #${bare(orderName)} here.`);
-  const n = normalizeOrder(o);
+  const n = await getNormByName(deps, bare(orderName));
+  if (!n) return reply(`No order #${bare(orderName)} here.`);
   const req = await store.latestRequest(n.numericId);
   if (!req) return reply(`No replacement has ever been raised on ${n.name}.`);
   /*
@@ -1049,9 +1059,8 @@ export async function onCancel(orderName, deps, adminPhone) {
 export async function onRetry(orderName, deps, adminPhone) {
   const reply = replier(deps, adminPhone);
   if (!orderName) return reply('Send it with the order number, like /replace retry 1234');
-  const o = await deps.clients.shopify.getOrderByName(bare(orderName));
-  if (!o) return reply(`No order #${bare(orderName)} here.`);
-  const n = normalizeOrder(o);
+  const n = await getNormByName(deps, bare(orderName));
+  if (!n) return reply(`No order #${bare(orderName)} here.`);
   const req = await store.latestRequest(n.numericId);
   if (!req) return reply(`No replacement has ever been raised on ${n.name}.`);
   if (store.TERMINAL.has(req.state)) {

@@ -539,3 +539,34 @@ describe('the owner can start the flow by typing, not only by the customer tappi
     expect(bodies(clients)).toMatch(/switched off/);
   });
 });
+
+/*
+ * F19. /size-change looked the order up with getOrderByName and normalizeOrder,
+ * so it never reached the recipient resolver the flows use. An order without
+ * COD King's OTP attribute, from a recovery link, a Cashfree cart checkout or
+ * the admin, answered "no OTP verified WhatsApp number on it" while Flows A, B
+ * and C were messaging that same customer perfectly well.
+ */
+describe('/size-change on an order COD King never touched', () => {
+  const OWNER = '+917048000000';
+  beforeEach(() => { config.ownerAlertPhones = [OWNER]; });
+
+  const noOtp = () =>
+    codOrder({ customAttributes: [], shippingAddress: { phone: '+919812345678', zip: '395007', city: 'Surat' } });
+
+  it('reaches the customer through their shipping number', async () => {
+    const { clients, deps } = await setup(noOtp());
+    await touchInbound(PHONE, new Date('2026-10-02T06:00:00Z'));
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    const list = sent(clients).find((m) => m.type === 'list');
+    expect(list?.to).toBe(PHONE);
+    expect(bodies(clients)).not.toMatch(/no reachable WhatsApp number|no OTP verified/);
+  });
+
+  it('and says "reachable", not "OTP verified", when there really is no number', async () => {
+    const { clients, deps } = await setup(codOrder({ customAttributes: [], shippingAddress: null, customer: { firstName: 'Aarav' } }));
+    await VC.onOwnerRequest('1234', deps, OWNER);
+    expect(bodies(clients)).toMatch(/no reachable WhatsApp number/);
+    expect(sent(clients).some((m) => m.type === 'list')).toBe(false);
+  });
+});
