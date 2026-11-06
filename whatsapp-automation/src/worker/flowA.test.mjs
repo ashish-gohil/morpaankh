@@ -1197,3 +1197,63 @@ describe('Flow A sends nothing pre-dispatch once the parcel has gone', () => {
     expect(names(clients.whatsapp).some((x) => x.startsWith('cod_confirm'))).toBe(true);
   });
 });
+
+/*
+ * F6. The other half: a COD order with no COD King attributes now gets a
+ * working "Pay online", and a genuinely mismatched order alerts the owner once
+ * rather than once per tap.
+ */
+describe('Flow A serves a COD order COD King never touched', () => {
+  // No _codkAmountType or _codkAmountValue: a recovery-link, admin or plain
+  // storefront COD order, which is how #1232 and #1239 arrived.
+  const noCodk = () => codOrder({ attrs: [{ key: '_otpVerifiedPhoneNumber', value: '919812345678' }] });
+
+  beforeEach(async () => {
+    RULES.prepaidOfferEnabled = true;
+    config.ownerAlertPhones = ['+919999999999'];
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+  });
+
+  it('makes a real payment link instead of answering "it stays on cash on delivery"', async () => {
+    const { clients, deps } = setup(noCodk());
+    await A.onPayOnline('12345', deps);
+    expect(clients.razorpay.links.length).toBeGreaterThan(0);
+    expect(clients.whatsapp.sent.map((s) => s.body || '').join(' ')).not.toContain('stays on cash on delivery');
+  });
+
+  it('and no longer alerts the owner about a mismatch that was never claimed', async () => {
+    const { clients, deps } = setup(noCodk());
+    await A.onPayOnline('12345', deps);
+    expect(clients.whatsapp.sent.filter((s) => s.name && s.name.startsWith('ops_alert'))).toHaveLength(0);
+  });
+
+  it('alerts once per order, not once per tap, when the figures really do disagree', async () => {
+    const mismatched = () =>
+      codOrder({
+        attrs: [
+          { key: '_otpVerifiedPhoneNumber', value: '919812345678' },
+          { key: '_codkAmountType', value: 'cod' },
+          { key: '_codkAmountValue', value: '99.0' }, // the line says 50
+        ],
+      });
+    const { clients, deps } = setup(mismatched());
+    await A.onPayOnline('12345', deps);
+    await A.onPayOnline('12345', deps);
+    await A.onConfirm('12345', deps);
+    expect(clients.whatsapp.sent.filter((s) => s.name && s.name.startsWith('ops_alert'))).toHaveLength(1);
+  });
+
+  it('tells them online payment is unavailable rather than pretending they chose COD', async () => {
+    const mismatched = () =>
+      codOrder({
+        attrs: [
+          { key: '_otpVerifiedPhoneNumber', value: '919812345678' },
+          { key: '_codkAmountValue', value: '99.0' },
+        ],
+      });
+    const { clients, deps } = setup(mismatched());
+    await A.onPayOnline('12345', deps);
+    expect(clients.whatsapp.sent.map((s) => s.body || '').join(' ')).toContain('not available for order');
+  });
+});

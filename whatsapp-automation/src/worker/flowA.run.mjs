@@ -86,7 +86,18 @@ async function payable(deps, n) {
 /** Create (or reuse) the payment link + pay token. Null when no offer is valid. */
 async function ensurePaymentLink(deps, n, amt, now) {
   if (!amt.feeMatches) {
-    await ownerAlert(deps, n.name, 'COD fee does not match codk value, no prepaid offer made');
+    /*
+     * ONCE PER ORDER, not once per tap. This fires from onConfirm, onPayOnline
+     * and the 12h fallback, so a customer prodding the buttons on a genuinely
+     * mismatched order sent the owner the same line three or four times.
+     */
+    await soft('alertFeeMismatch', () =>
+      runOnce(n.numericId, 'alert-fee-mismatch', async () => {
+        await ownerAlert(deps, n.name, 'COD fee does not match codk value, no prepaid offer made');
+        return { alerted: true };
+      }),
+      { orderId: n.numericId },
+    );
     return null;
   }
   return runOnce(n.numericId, 'paylink', async () => {
@@ -446,8 +457,17 @@ export async function onPayOnline(orderId, deps) {
   }
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
-  if (link) await sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
-  else await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
+  if (link) return sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
+  /*
+   * They asked to pay online and we cannot make a link. keep_cod_ack used to go
+   * here, and "Done, your order stays on cash on delivery" is the wrong answer
+   * to a request: it reads as though the tap chose the opposite of what they
+   * tapped. Say the option is unavailable and leave the door open.
+   */
+  return sess(deps, n.verifiedPhone, 'pay_online_unavailable', {
+    customer_name: n.firstName,
+    order_number: n.name,
+  });
 }
 
 export async function onKeepCod(orderId, deps) {

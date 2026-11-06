@@ -87,6 +87,19 @@ export const SESSION = {
       'We will send you the tracking link the moment it leaves us.',
   },
   /*
+   * They asked to pay online and we could not make a link.
+   *
+   * keep_cod_ack used to go here, and "Done, your order stays on cash on
+   * delivery" is the wrong answer to a request: it reads as though the tap
+   * chose the opposite of what they tapped.
+   */
+  pay_online_unavailable: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you. Online payment is not available for order {{order_number}} ' +
+      'right now, so it stays cash on delivery. Please reply here if you need help.',
+  },
+  /*
    * THE THREE REPLIES FOR A BUTTON THAT OUTLIVED ITS ORDER.
    *
    * WhatsApp buttons never expire. The confirmation sent three minutes after

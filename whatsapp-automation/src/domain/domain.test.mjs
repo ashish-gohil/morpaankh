@@ -325,3 +325,41 @@ describe('prepaid saving tiers', () => {
     expect(a.newTotalPaise).toBe(205000 - 15000);
   });
 });
+
+/*
+ * F6. feeMatches answered false whenever COD King had recorded nothing, which
+ * reads "the fee does not match" when the truth is "nobody claimed a second
+ * figure". It hit every COD order that did not come through COD King's popup:
+ * recovery-link orders, admin orders, plain storefront checkouts. #1232 and
+ * #1239 are live examples, and they got a price-free confirmation and a "Pay
+ * online" button that answered "it stays on cash on delivery".
+ */
+describe('computeAmounts when COD King recorded no fee', () => {
+  const order = (over = {}) => ({
+    currentTotalPaise: 149900,
+    codFeePaise: 5000,
+    codkAmountValue: null,
+    ...over,
+  });
+
+  it('reads the COD shipping line as the fee, and says where it came from', () => {
+    const a = computeAmounts(order(), RULES);
+    expect(a.feeMatches).toBe(true);
+    expect(a.feeSource).toBe('shipping-line');
+    expect(a.codFeePaise).toBe(5000);
+  });
+
+  it('treats a COD order with no shipping line at all as a zero fee', () => {
+    const a = computeAmounts(order({ codFeePaise: 0 }), RULES);
+    expect(a.feeMatches).toBe(true);
+    expect(a.codFeePaise).toBe(0);
+  });
+
+  it('still compares, and still refuses, when COD King did record a figure', () => {
+    const agree = computeAmounts(order({ codkAmountValue: '50.0' }), RULES);
+    expect(agree.feeMatches).toBe(true);
+    expect(agree.feeSource).toBe('codk');
+    const disagree = computeAmounts(order({ codkAmountValue: '99.0' }), RULES);
+    expect(disagree.feeMatches).toBe(false);
+  });
+});
