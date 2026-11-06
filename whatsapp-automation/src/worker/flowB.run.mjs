@@ -63,10 +63,27 @@ function reviewSkipReason(n, st) {
  */
 const reviewSlot = (from, days, now) => nextDailySlot(from, RULES.reviewAskAtIST, { minDays: days, now });
 
+/**
+ * The signed token that proves an nfm_reply belongs to this order.
+ *
+ * NO FALLBACK KEY. It used to sign with the literal 'dev-flow-key' when the
+ * secret was missing, and worker/index.mjs VERIFIED with the same literal, so a
+ * deploy with an unset key produced a token anybody who had read this file
+ * could forge, and the service accepted it. A guessable key on a token whose
+ * only job is to prove identity is worse than no token at all.
+ *
+ * Returns null instead. onReviewTimer then sends the review as a LINK, which
+ * carries no token and asks for nothing it cannot verify, and the owner is
+ * told. Both are better than a signature that means nothing.
+ */
 async function flowToken(orderId, now) {
   const s = await getSecrets();
+  if (!s.flowTokenKey) {
+    log.error('flowB: FLOW_TOKEN_KEY is not set, cannot sign a review flow token', { orderId });
+    return null;
+  }
   const exp = Math.floor(addDays(now, 14).getTime() / 1000);
-  return signToken({ orderId, exp }, s.flowTokenKey || 'dev-flow-key');
+  return signToken({ orderId, exp }, s.flowTokenKey);
 }
 
 /*
@@ -238,7 +255,24 @@ export async function onReviewTimer(orderId, deps) {
     // onUntrackedFulfillment. `now` is the last resort, not the fallback.
     delivered_date: formatISTDate(new Date(st?.flowB?.deliveredAt || st?.flowB?.assumedDeliveredAt || now)),
   };
-  const res = viaLink
+  /*
+   * No signing key means no Flow. The ask still goes out, as a LINK, which
+   * carries no token and asks for nothing it cannot verify. Silence would cost
+   * the review; a 'dev-flow-key' signature would cost the guarantee that an
+   * answer came from the customer it claims to.
+   */
+  const token = viaLink ? null : await flowToken(n.numericId, now);
+  const asLink = viaLink || !token;
+  if (!viaLink && !token) {
+    await soft('flowKeyAlert', () =>
+      runOnce(orderId, 'flow-key-missing', async () => {
+        await ownerAlert(deps, n.name, 'FLOW_TOKEN_KEY is not set, so review asks are going out as a form link. Set the secret and redeploy');
+        return { alerted: true };
+      }),
+      { orderId },
+    );
+  }
+  const res = asLink
     ? await tpl(deps, n.verifiedPhone, 'delivered_review_link', vars, {
         orderId: n.numericId,
         // The URL button suffix. Prefilling the order number is what makes a
@@ -248,7 +282,7 @@ export async function onReviewTimer(orderId, deps) {
       })
     : await tpl(deps, n.verifiedPhone, 'delivered_review', vars, {
         orderId: n.numericId,
-        flowToken: await flowToken(n.numericId, now),
+        flowToken: token,
         flowActionData: flowData(n, true),
       });
   if (res?.skipped) return;
@@ -260,7 +294,8 @@ export async function onReviewTimer(orderId, deps) {
   // A reminder is only safe when we can tell whether they already answered.
   // In link mode nothing comes back, so `reviewed` is never set and every
   // single customer would be reminded, including the ones who filled it in.
-  if (viaLink) return;
+  // asLink, not viaLink: a missing signing key puts us in link mode too.
+  if (asLink) return;
   // One ask, not two. See RULES.reviewReminderEnabled.
   if (!RULES.reviewReminderEnabled) return;
   await soft('scheduleTimer:review_reminder', () =>
@@ -280,6 +315,9 @@ export async function onReviewReminder(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (reviewSkipReason(n, st) || !n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) return;
   const token = await flowToken(n.numericId, now);
+  // The reminder has no link twin, and a reminder nobody can answer verifiably
+  // is not worth sending. The ask above already told the owner why.
+  if (!token) return log.warn('flowB reminder: no signing key, not sending', { orderId });
   const res = await tpl(deps, n.verifiedPhone, 'review_reminder', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, false) });
   if (res?.skipped) return;
   await patchFlowB(orderId, { reminderSentAt: now.toISOString() });

@@ -503,3 +503,50 @@ describe('a review ask must not arrive before the parcel does', () => {
     expect(clients.courier.calls.filter((c) => c.op === 'track')).toHaveLength(0);
   });
 });
+
+/*
+ * F24. Both sides signed and verified with the literal 'dev-flow-key' when the
+ * secret was unset, so a deploy with no key produced a token anybody who had
+ * read the file could forge, and the service accepted it, on the one message
+ * that writes a public product review.
+ */
+describe('a review flow with no signing key', () => {
+  beforeEach(() => {
+    RULES.reviewAskEnabled = true;
+    delete process.env.FLOW_TOKEN_KEY;
+    _resetSecrets();
+  });
+  afterEach(() => { process.env.FLOW_TOKEN_KEY = 'test-flow-key'; _resetSecrets(); });
+
+  it('still asks, as a form link, rather than signing with a guessable key', async () => {
+    config.reviewVia = 'flow';
+    config.ownerAlertPhones = ['+919999999999'];
+    const { clients, deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+
+    const names = clients.whatsapp.sent.filter((s) => s.type === 'template').map((s) => s.name);
+    expect(names.some((n) => n.startsWith('delivered_review_link'))).toBe(true);
+    expect(names.some((n) => n === 'delivered_review_v1')).toBe(false);
+  });
+
+  it('tells the owner, once, what to fix', async () => {
+    config.reviewVia = 'flow';
+    config.ownerAlertPhones = ['+919999999999'];
+    const { clients, deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+    const alerts = clients.whatsapp.sent.filter((s) => s.name && s.name.startsWith('ops_alert'));
+    expect(alerts).toHaveLength(1);
+    expect(JSON.stringify(alerts[0].components)).toContain('FLOW_TOKEN_KEY');
+  });
+
+  it('arms no reminder, because a link answer never comes back', async () => {
+    RULES.reviewReminderEnabled = true;
+    config.reviewVia = 'flow';
+    const { deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+    expect(_peekTimers().map((t) => t.name)).not.toContain('B-12345-review_reminder');
+  });
+});

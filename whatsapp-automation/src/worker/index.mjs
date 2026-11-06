@@ -203,7 +203,16 @@ async function onWaInbound(m) {
       return;
     }
     const s = await getSecrets();
-    const claims = data.flow_token ? verifyToken(data.flow_token, s.flowTokenKey || 'dev-flow-key') : null;
+    /*
+     * NO FALLBACK KEY, and this is the half that mattered.
+     *
+     * Both sides used the literal 'dev-flow-key' when the secret was unset, so
+     * a deploy with no key accepted a token anybody who had read this file
+     * could forge, on the one message that writes a public product review. An
+     * unset key now rejects every nfm_reply instead.
+     */
+    if (!s.flowTokenKey) return log.error('nfm_reply: FLOW_TOKEN_KEY is not set, refusing every submission');
+    const claims = data.flow_token ? verifyToken(data.flow_token, s.flowTokenKey) : null;
     if (!claims) return log.warn('nfm_reply: bad or expired flow token');
     const st = await getState(claims.orderId);
     if (st?.verifiedPhone && st.verifiedPhone !== phone) return log.warn('nfm_reply: phone mismatch, ignoring');
