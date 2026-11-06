@@ -3,12 +3,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
-import { patchFlowB } from '../store/orderState.mjs';
+import { patchFlowB, getState } from '../store/orderState.mjs';
 import { _resetSecrets } from '../secrets.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import * as B from './flowB.run.mjs';
+import * as A from './flowA.run.mjs';
 import { _flowData } from './flowB.run.mjs';
 
 // Read at import, before any afterEach can force it false, so the test below
@@ -428,4 +429,77 @@ it('sends nothing at all once the ask is switched off', async () => {
   expect(_peekTimers()).toEqual([]);
   await B.onReviewTimer('12345', deps);
   expect(clients.whatsapp.sent).toEqual([]);
+});
+
+/*
+ * F8. A fulfillment created before its tracking number arms an ASSUMED review
+ * ask at +5 days. The waybill then turns up on a later fulfillments/update and
+ * nothing cancelled that timer, so a parcel still in transit on day 6 was told
+ * "your order reached you on <today>" - a delivery we could not see and a date
+ * we invented.
+ */
+describe('a review ask must not arrive before the parcel does', () => {
+  const noTracking = () =>
+    order({ fulfillments: [{ status: 'SUCCESS', displayStatus: 'FULFILLED', createdAt: '2026-09-18T06:00:00Z', trackingInfo: [] }] });
+
+  it('arms an assumed ask when there is no waybill to track', async () => {
+    const { deps } = setup(noTracking());
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    expect(_peekTimers().map((t) => t.name)).toContain('B-12345-review_ask');
+    const st = await getState('12345');
+    expect(st.flowB.assumedDelivery).toBe(true);
+    // The date the schedule was built from, so the message and the timer agree.
+    expect(st.flowB.assumedDeliveredAt).toBeTruthy();
+  });
+
+  it('quotes the assumed date, never the day it happens to send', async () => {
+    const { clients, deps } = setup(noTracking());
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+    const sent = clients.whatsapp.sent.find((s) => s.type === 'template');
+    // 18 Sept + untrackedDeliveryAssumeDays, not NOW.
+    expect(JSON.stringify(sent.components)).toContain('23 Sep');
+  });
+
+  it('cancels the guess the moment a waybill appears', async () => {
+    const { deps } = setup(noTracking());
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    // The same fulfillment, now carrying its tracking number.
+    const { deps: deps2 } = setup(order());
+    await A.onFulfillmentCreate('12345', deps2);
+    expect(_peekTimers().map((t) => t.name)).not.toContain('B-12345-review_ask');
+    const st = await getState('12345');
+    expect(st.flowB.assumedDelivery).toBe(false);
+    expect(st.flowB.scheduled).toBe(false);
+  });
+
+  it('refuses to ask on an assumed date while the courier still has it', async () => {
+    const { deps } = setup(noTracking());
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    // A timer already in EventBridge, and the order now has a waybill in transit.
+    const clients = makeFakeClients({ courier: { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } } });
+    clients.shopify.seed(order());
+    await B.onReviewTimer('12345', { clients, now: NOW });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    expect((await getState('12345')).flowB.reviewAsked).toBeUndefined();
+  });
+
+  it('asks once the courier really has delivered it', async () => {
+    const { deps } = setup(noTracking());
+    await B.onUntrackedFulfillment('12345', '2026-09-18T06:00:00Z', deps);
+    const clients = makeFakeClients({ courier: { statuses: { AWB1: { status: 'Delivered', statusType: 'DL' } } } });
+    clients.shopify.seed(order());
+    await B.onReviewTimer('12345', { clients, now: NOW });
+    expect(clients.whatsapp.sent.some((s) => s.type === 'template')).toBe(true);
+  });
+
+  it('leaves a real delivery event alone: no second opinion needed', async () => {
+    // No seeded courier status at all. A tracking call here would answer
+    // UNKNOWN and silently cost a review ask that is genuinely due.
+    const { clients, deps } = setup();
+    await B.onDelivered('12345', '2026-09-20T05:00:00Z', deps);
+    await B.onReviewTimer('12345', deps);
+    expect(clients.whatsapp.sent.some((s) => s.type === 'template')).toBe(true);
+    expect(clients.courier.calls.filter((c) => c.op === 'track')).toHaveLength(0);
+  });
 });

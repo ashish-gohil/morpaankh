@@ -7,6 +7,7 @@
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { hasRtoTag } from '../domain/order.mjs';
+import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
 import { validateReview, moderationStatus } from '../domain/review.mjs';
 import { reviewFormSuffix } from '../../messages/templates.mjs';
@@ -145,9 +146,22 @@ export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
   const st = await getState(orderId);
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed || st?.flowB?.scheduled) return;
 
-  const at = reviewSlot(addDays(new Date(fulfilledAt || now), RULES.untrackedDeliveryAssumeDays), RULES.reviewAskAfterDeliveryDays, now);
+  const assumedAt = addDays(new Date(fulfilledAt || now), RULES.untrackedDeliveryAssumeDays);
+  const at = reviewSlot(assumedAt, RULES.reviewAskAfterDeliveryDays, now);
   await scheduleTimer({ flow: 'B', orderId, step: 'review_ask', at, now });
-  await patchFlowB(orderId, { scheduled: true, assumedDelivery: true });
+  /*
+   * assumedDeliveredAt is stored SEPARATELY from deliveredAt on purpose.
+   *
+   * delivered_date used to fall back to `now`, so the message said "your order
+   * reached you on <the day we happened to send this>", which is a date we
+   * invented and that the customer can see is wrong. The assumed date is a
+   * guess, but it is the guess the schedule was built from, so at least the
+   * message and the timer agree.
+   *
+   * It is not written to deliveredAt because onDelivered reads that field to
+   * decide whether a real delivery should override this schedule.
+   */
+  await patchFlowB(orderId, { scheduled: true, assumedDelivery: true, assumedDeliveredAt: assumedAt.toISOString() });
 }
 
 // ---- timer: send the review ask --------------------------------------------
@@ -163,6 +177,39 @@ export async function onReviewTimer(orderId, deps) {
     log.info('flowB review: not sent', { orderId, reason: n.verifiedPhone ? 'opted-out' : 'no-phone-anywhere' });
     return;
   }
+
+  /*
+   * AN ASSUMED DELIVERY DATE IS A GUESS, AND A WAYBILL BEATS A GUESS.
+   *
+   * A fulfillment created before its tracking number has nothing to track, so
+   * an ASSUMED ask is armed at +5 days. When the waybill turns up on a later
+   * fulfillments/update there is a real delivery signal coming, but the assumed
+   * timer was never cancelled, so a parcel still in transit on day 6 was told
+   * "your order reached you on <today>".
+   *
+   * onFulfillmentCreate cancels that timer now. This is the second gate, for a
+   * timer already sitting in EventBridge, and it is deliberately narrow:
+   *
+   *   - Only when the schedule was ASSUMED. A schedule built from a real
+   *     delivery event, Shopify's or Delhivery's, needs no second opinion, and
+   *     making it ask would mean a transient empty tracking response silently
+   *     costs a review ask that is already due.
+   *   - Only when there is an AWB to ask about, which is what makes the guess
+   *     stale in the first place.
+   *   - The stored status is believed when it already says DELIVERED, so the
+   *     poller's work is not repeated.
+   *
+   * UNKNOWN refuses, because the whole problem here is claiming a delivery we
+   * cannot see.
+   */
+  if (n.delhiveryAwb && st?.flowB?.assumedDelivery && st?.courierStatus !== 'DELIVERED') {
+    const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
+    const state = t ? mapCourierStatus(t) : 'UNKNOWN';
+    if (state !== 'DELIVERED') {
+      log.info('flowB review: assumed date, but the courier has not delivered it, not asking', { orderId, state });
+      return;
+    }
+  }
   if (!(await canAskReview(n.verifiedPhone, now, RULES.reviewAskCapDays))) return;
 
   // Two ways to ask, same message. 'flow' opens the native WhatsApp Flow, which
@@ -173,7 +220,9 @@ export async function onReviewTimer(orderId, deps) {
   const vars = {
     customer_name: n.firstName,
     order_number: n.name,
-    delivered_date: formatISTDate(new Date(st?.flowB?.deliveredAt || now)),
+    // Never `now` as the first choice: see assumedDeliveredAt in
+    // onUntrackedFulfillment. `now` is the last resort, not the fallback.
+    delivered_date: formatISTDate(new Date(st?.flowB?.deliveredAt || st?.flowB?.assumedDeliveredAt || now)),
   };
   const res = viaLink
     ? await tpl(deps, n.verifiedPhone, 'delivered_review_link', vars, {

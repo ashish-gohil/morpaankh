@@ -21,7 +21,7 @@ import {
   ensureState,
   getState,
   patchState,
-  patchFlowA,
+  patchFlowA, patchFlowB,
   runOnce,
   getSide,
 } from '../store/orderState.mjs';
@@ -917,6 +917,25 @@ export async function onFulfillmentCreate(orderId, deps) {
   }
   await setAwbMap(n.delhiveryAwb, n.numericId);
   const st = await getState(orderId);
+  /*
+   * THE WAYBILL ARRIVED LATE, SO THE GUESS IS OFF.
+   *
+   * A fulfillment created before its tracking number has no waybill to track,
+   * so Flow B arms an ASSUMED review ask at +5 days. The AWB then turns up on a
+   * later fulfillments/update, and until now nothing cancelled that timer: a
+   * parcel still in transit on day 6 was told "your order reached you on
+   * <today>". Delhivery is tracking it now, so Delhivery's own DELIVERED is the
+   * only thing that should ask.
+   *
+   * Soft, for the reason the whole rest of this handler is: a review ask is
+   * never worth failing a fulfillment record over.
+   */
+  if (st?.flowB?.assumedDelivery && !st?.flowB?.reviewAsked) {
+    await soft('flowB:cancelAssumedAsk', async () => {
+      await cancelTimer({ flow: 'B', orderId, step: 'review_ask' });
+      await patchFlowB(orderId, { scheduled: false, assumedDelivery: false });
+    }, { orderId });
+  }
   if (st?.flowA?.pendingCourierPrepaid) {
     // Same reasoning as the payment path: failing the record here would park
     // the fulfillment in the DLQ and lose the dispatch message too, while the
