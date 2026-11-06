@@ -9,7 +9,7 @@ import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, recordMessage, getSide, updateMessageStatus, getState } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
 import { setUndeliverable, isUndeliverable, setOptOut, getParkedOffer } from '../store/phoneProfile.mjs';
-import { setAwaiting, getAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
+import { setAwaiting, getAwaiting, listAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
 import { getRec, ensureRec, patchRec, parkForWindow, getParked } from '../store/cartRecovery.mjs';
@@ -565,5 +565,38 @@ describe('a parcel the courier has lost', () => {
     await lost();
     await lost(); // a redelivery must not alert twice
     expect(await getSide('12345', 'courier-lost')).toMatchObject({ alerted: true });
+  });
+});
+
+/*
+ * F26, the router half. With two questions open there is no safe reading of a
+ * free-text reply, so a person takes it rather than the service acting on the
+ * wrong order.
+ */
+describe('a reply that could belong to either of two orders', () => {
+  const text = (from, body) => routes.wa_inbound({ kind: 'wa_inbound', from, msg: { text: { body } } });
+  const soon = () => new Date(Date.now() + 3600 * 1000).toISOString();
+
+  beforeEach(async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    await ensureState('111', {});
+    await patchState('111', { verifiedPhone: OWNER, name: '#111' });
+    await ensureState('222', {});
+    await patchState('222', { verifiedPhone: OWNER, name: '#222' });
+  });
+
+  it('acts on neither order and closes both questions', async () => {
+    await setAwaiting(OWNER, { type: 'address', orderId: '111', until: soon() });
+    await setAwaiting(OWNER, { type: 'rto_other', orderId: '222', until: soon() });
+
+    // Resolving rather than throwing IS the assertion: with one question open
+    // this reaches Flow C and the real Shopify client rejects.
+    await expect(text(OWNER, '395007 Surat')).resolves.toBeUndefined();
+    expect(await listAwaiting(OWNER)).toEqual([]);
+  });
+
+  it('still routes the reply when only one question is open', async () => {
+    await setAwaiting(OWNER, { type: 'address', orderId: '111', until: soon() });
+    await expect(text(OWNER, '395007 Surat')).rejects.toThrow();
   });
 });

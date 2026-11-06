@@ -13,7 +13,10 @@ import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { getState, runOnce, updateMessageStatus, patchFlowA, getSide } from '../store/orderState.mjs';
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
-import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing, getAwaiting, parkOffer } from '../store/phoneProfile.mjs';
+import {
+  isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing,
+  getAwaiting, listAwaiting, clearAwaiting, parkOffer,
+} from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
 import { ownerAlert, isWindowDeliverable } from './send.mjs';
@@ -268,9 +271,35 @@ async function onWaInbound(m) {
 
   // No payload: if the phone is in an "awaiting" state, this text is the answer
   // (NDR address / RTO other reason). Otherwise a human handles it.
-  const awaiting = await getAwaiting(phone);
   const rawText = msg.text?.body;
-  if (awaiting && rawText) {
+  if (!rawText) return;
+
+  /*
+   * TWO OPEN QUESTIONS MEAN WE DO NOT GUESS.
+   *
+   * The awaiting slot used to be one per phone, so a customer with two orders
+   * in trouble lost one question silently and their reply was read as the
+   * answer to whichever survived. On the address path that is an address
+   * pushed to the courier against the wrong waybill.
+   *
+   * Keyed by order now, and with more than one open there is no safe reading of
+   * a free-text reply. Rather than ask the customer to disambiguate, which
+   * needs a list, a routed payload and a parser for the answer, both questions
+   * are closed and a person takes it: at one or two orders a day the owner
+   * phoning is faster than the machinery, and it cannot act on the wrong order.
+   */
+  const open = await listAwaiting(phone);
+  if (open.length > 1) {
+    const orders = open.map((a) => a.orderId).join(', ');
+    await soft('awaitingAmbiguous', () => sendSessionTo(phone, 'ndr_handoff', {}), {});
+    await soft('awaitingAmbiguousAlert', () =>
+      ownerAlert(deps(), orders, 'this customer has two open questions at once, so their reply could not be matched to an order. Call them'), {});
+    await clearAwaiting(phone);
+    return log.warn('awaiting: two questions open at once, handed to a person', { orders });
+  }
+
+  const awaiting = open[0];
+  if (awaiting) {
     if (awaiting.type === 'address') return flowC.onAddressText(awaiting.orderId, rawText, deps());
     if (awaiting.type === 'rto_other') return flowC.onRtoOtherText(awaiting.orderId, rawText, deps());
   }

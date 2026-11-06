@@ -3,6 +3,7 @@ import { _resetMemory, table } from './table.mjs';
 import {
   setOptOut, isOptedOut, markMarketing, touchInbound,
   setUndeliverable, clearUndeliverable, isUndeliverable, markRto, getProfile,
+  setAwaiting, getAwaiting, listAwaiting, clearAwaiting,
 } from './phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 
@@ -64,5 +65,55 @@ describe('undeliverable is a window, not a life sentence', () => {
   it('a flag with no timestamp still blocks (rows written before the expiry existed)', async () => {
     await table.put({ PK: `PHONE#${P}`, SK: 'PROFILE', phone: P, undeliverable: true });
     expect(await isUndeliverable(P)).toBe(true);
+  });
+});
+
+/*
+ * F26. `awaiting` was ONE slot per phone, so a customer with two orders in
+ * trouble lost a question silently: the NDR address question for order X was
+ * overwritten by the RTO "why" question for order Y, and their next message was
+ * read as the answer to whichever survived. On the address path that means an
+ * address pushed to the courier against the wrong waybill.
+ */
+describe('two open questions on one phone', () => {
+  const P = '+919812345678';
+  const soon = () => new Date(Date.now() + 3600 * 1000).toISOString();
+
+  it('keeps both, rather than one overwriting the other', async () => {
+    await setAwaiting(P, { type: 'address', orderId: '111', until: soon() });
+    await setAwaiting(P, { type: 'rto_other', orderId: '222', until: soon() });
+    const open = await listAwaiting(P);
+    expect(open.map((a) => a.orderId).sort()).toEqual(['111', '222']);
+  });
+
+  it('answers "which one" with null, so no reply can be misapplied', async () => {
+    await setAwaiting(P, { type: 'address', orderId: '111', until: soon() });
+    await setAwaiting(P, { type: 'rto_other', orderId: '222', until: soon() });
+    expect(await getAwaiting(P)).toBe(null);
+  });
+
+  it('routes normally again once one is closed', async () => {
+    await setAwaiting(P, { type: 'address', orderId: '111', until: soon() });
+    await setAwaiting(P, { type: 'rto_other', orderId: '222', until: soon() });
+    await clearAwaiting(P, '222');
+    expect(await getAwaiting(P)).toMatchObject({ type: 'address', orderId: '111' });
+  });
+
+  it('still expires an unanswered question', async () => {
+    await setAwaiting(P, { type: 'address', orderId: '111', until: new Date(Date.now() - 1000).toISOString() });
+    expect(await listAwaiting(P)).toEqual([]);
+    expect(await getAwaiting(P)).toBe(null);
+  });
+
+  it('still reads a question opened before this change, with no order key', async () => {
+    await setAwaiting(P, { type: 'address', until: soon() });
+    expect(await getAwaiting(P)).toMatchObject({ type: 'address' });
+  });
+
+  it('clears everything when no order is named', async () => {
+    await setAwaiting(P, { type: 'address', orderId: '111', until: soon() });
+    await setAwaiting(P, { type: 'rto_other', orderId: '222', until: soon() });
+    await clearAwaiting(P);
+    expect(await listAwaiting(P)).toEqual([]);
   });
 });

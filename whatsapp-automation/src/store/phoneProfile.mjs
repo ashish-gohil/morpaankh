@@ -68,10 +68,39 @@ export async function windowOpen(phone, now = new Date(), safetyMinutes = 10) {
 }
 
 // awaiting free-text (address / other reason)
-export const setAwaiting = (phone, awaiting) => patch(phone, { awaiting });
-export const clearAwaiting = (phone) => patch(phone, { awaiting: null });
 /**
- * The open question this phone still owes an answer to, or null.
+ * Open a question against ONE ORDER, without closing the others.
+ *
+ * `awaiting` was a single slot, so a customer with two orders in trouble lost
+ * one of the two questions silently: the NDR address question for order X was
+ * overwritten by the RTO "why" question for order Y, and their next message
+ * was then read as the answer to whichever question happened to survive. On
+ * the address path that means an address pushed to the courier against the
+ * wrong waybill.
+ *
+ * Keyed by order id now. The legacy single `awaiting` field is still READ by
+ * getAwaiting, so questions open at deploy time are not dropped.
+ */
+export async function setAwaiting(phone, awaiting) {
+  const orderId = String(awaiting?.orderId || '');
+  if (!orderId) return patch(phone, { awaiting });
+  const cur = (await getProfile(phone)).awaitingBy || {};
+  return patch(phone, { awaitingBy: { ...cur, [orderId]: { ...awaiting, orderId } }, awaiting: null });
+}
+
+/**
+ * Close one order's question, or all of them when no order is named.
+ */
+export async function clearAwaiting(phone, orderId) {
+  if (!orderId) return patch(phone, { awaiting: null, awaitingBy: {} });
+  const cur = (await getProfile(phone)).awaitingBy || {};
+  const next = { ...cur };
+  delete next[String(orderId)];
+  return patch(phone, { awaitingBy: next, awaiting: null });
+}
+
+/**
+ * Every question this phone still owes an answer to.
  *
  * `until` was written by every setAwaiting caller and read by NONE, so an
  * unanswered question stayed open forever: a customer asked for their address
@@ -80,11 +109,23 @@ export const clearAwaiting = (phone) => patch(phone, { awaiting: null });
  * pushed to the courier as an address edit). Expiring it here means every
  * caller gets it, which is the only place that is true.
  */
+export async function listAwaiting(phone, now = new Date()) {
+  const p = await getProfile(phone);
+  const all = Object.values(p.awaitingBy || {});
+  // The pre-deploy single slot, so a question open at deploy time still works.
+  if (p.awaiting) all.push(p.awaiting);
+  return all.filter((a) => a && (!a.until || new Date(a.until).getTime() > now.getTime()));
+}
+
+/**
+ * The ONE open question, or null when there are none or more than one.
+ *
+ * Null for "more than one" on purpose: with two open, no reading of a free-text
+ * reply is safe, and the router asks rather than guesses.
+ */
 export async function getAwaiting(phone, now = new Date()) {
-  const a = (await getProfile(phone)).awaiting;
-  if (!a) return null;
-  if (a.until && new Date(a.until).getTime() <= now.getTime()) return null;
-  return a;
+  const live = await listAwaiting(phone, now);
+  return live.length === 1 ? live[0] : null;
 }
 
 // human takeover (coexistence echoes)
