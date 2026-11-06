@@ -111,9 +111,24 @@ export function mapCourierStatus(t = {}) {
   return 'UNKNOWN';
 }
 
-/** Editable window for COD->prepaid + cancel (before pickup / dispatch). */
+/**
+ * Can the waybill still be changed from COD to prepaid?
+ *
+ * MANIFESTED ONLY, which is narrower than it used to be, and the narrowing is
+ * the fix. IN_TRANSIT and PENDING were in this list, and Delhivery refuses an
+ * /api/p/edit after pickup: it answers HTTP 200 with an XML refusal, which the
+ * edit path reads as a failure and then converts the order in Shopify anyway.
+ * The result was an order marked prepaid with a waybill still marked COD, so
+ * the courier collects the money a second time on delivery. A customer who
+ * pays twice is a worse outcome than a customer who is told the switch came
+ * too late.
+ *
+ * It is the same predicate as isBeforePickup today, and says so rather than
+ * repeating the literal: when an in-transit editToPrepaid is proven against a
+ * live waybill, this is the one line that widens.
+ */
 export function isCourierEditable(state) {
-  return ['MANIFESTED', 'IN_TRANSIT', 'PENDING'].includes(state);
+  return isBeforePickup(state);
 }
 export function isBeforePickup(state) {
   return state === 'MANIFESTED';

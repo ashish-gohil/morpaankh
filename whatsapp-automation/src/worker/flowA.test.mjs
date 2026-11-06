@@ -4,7 +4,7 @@ import { _resetMemory, table } from '../store/table.mjs';
 import { getWamidMap } from '../store/maps.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
 import { setOptOut, setUndeliverable } from '../store/phoneProfile.mjs';
-import { getState } from '../store/orderState.mjs';
+import { getState, ensureState, patchState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import { RULES } from '../../messages/rules.mjs';
@@ -186,12 +186,27 @@ describe('Flow A payment edge cases', () => {
     expect(clients.whatsapp.sent.some((s) => s.name === 'prepaid_refund_v2' || /on its way back/.test(s.body || ''))).toBe(true);
   });
 
-  it('editable courier (manifested/in transit) -> edits to prepaid then converts', async () => {
+  it('a waybill still in our hands (manifested) -> edits to prepaid then converts', async () => {
     const order = codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }] });
-    const { clients, deps } = setup(order, { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    const { clients, deps } = setup(order, { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } });
     await A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 }, deps);
     expect(clients.courier.calls.some((c) => c.op === 'editToPrepaid')).toBe(true);
     expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(true);
+  });
+
+  /*
+   * F3. IN_TRANSIT and PENDING used to count as editable, and Delhivery
+   * refuses /api/p/edit after pickup. The edit failed, the order was converted
+   * anyway, and the waybill stayed COD, so the courier collected the money a
+   * second time at the door. A refund is the only honest ending here.
+   */
+  it('a parcel already picked up -> refunds, and never claims the waybill was changed', async () => {
+    const order = codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }] });
+    const { clients, deps } = setup(order, { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    await A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 }, deps);
+    expect(clients.courier.calls.some((c) => c.op === 'editToPrepaid')).toBe(false);
+    expect(clients.shopify.calls.some((c) => c.op === 'convertToPrepaid')).toBe(false);
+    expect(clients.razorpay.refunds).toHaveLength(1);
   });
 });
 
@@ -561,7 +576,7 @@ describe('Flow A: an unverified courier API must not strand a real payment', () 
 
   it('converts, tells the customer and raises an urgent alert when the courier edit fails', async () => {
     config.ownerAlertPhones = ['+919999999999'];
-    const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } });
     clients.courier.editToPrepaid = async () => { throw new Error('unexpected field pt'); };
 
     await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
@@ -577,7 +592,7 @@ describe('Flow A: an unverified courier API must not strand a real payment', () 
   });
 
   it('retries the courier edit on a later attempt rather than recording the failure', async () => {
-    const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    const { clients, deps } = setup(withAwb(), { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } });
     let calls = 0;
     clients.courier.editToPrepaid = async () => { calls += 1; throw new Error('nope'); };
     await A.onPaymentPaid('12345', { payment_id: 'pay_1', amount_paid: 139900 }, deps);
@@ -953,5 +968,62 @@ describe('Flow A: a reminder or an offer that fails can be traced back', () => {
     await A.onFallback('12345', deps);
     const keys = (await msgRows()).map((r) => r.key).sort();
     expect(keys).toEqual(['cod_confirm', 'cod_reminder', 'prepaid_offer']);
+  });
+});
+
+/*
+ * F3. One rule, asked in three places: offer and convert only while the
+ * waybill is still in our hands. onFallback used to skip only OFD, DELIVERED
+ * and RTO, so it offered a discount on a parcel that was merely PICKED_UP, and
+ * the two taps made links with no courier check at all.
+ */
+describe('Flow A never offers online payment on a parcel the courier already has', () => {
+  const picked = () =>
+    codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }] });
+  const inTransit = { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } };
+  const manifested = { statuses: { AWB1: { status: 'Manifested', statusType: 'UD' } } };
+  const bodies = (wa) => wa.sent.filter((s) => s.type === 'text').map((s) => s.body);
+
+  beforeEach(async () => {
+    RULES.prepaidOfferEnabled = true;
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+  });
+
+  it('the 12h offer goes nowhere, and mints no link', async () => {
+    const { clients, deps } = setup(picked(), inTransit);
+    await A.onFallback('12345', deps);
+    expect(names(clients.whatsapp)).not.toContain('prepaid_offer_v1');
+    expect(clients.razorpay.links ?? []).toHaveLength(0);
+  });
+
+  it('Pay online answers with what to have ready, rather than reading as a failed tap', async () => {
+    const { clients, deps } = setup(picked(), inTransit);
+    await A.onPayOnline('12345', deps);
+    expect(bodies(clients.whatsapp).join(' ')).toContain('no longer switch to online payment');
+    expect(bodies(clients.whatsapp).join(' ')).toContain('1,499');
+    expect(clients.razorpay.links ?? []).toHaveLength(0);
+  });
+
+  it('Confirm still acknowledges, it just stops offering', async () => {
+    const { clients, deps } = setup(picked(), inTransit);
+    await A.onConfirm('12345', deps);
+    expect(bodies(clients.whatsapp).join(' ')).toContain('stays on cash on delivery');
+    expect(clients.razorpay.links ?? []).toHaveLength(0);
+    // Confirming is still worth recording: the tap was real.
+    expect(tagsAdded(clients.shopify)).toContain('wa-confirmed');
+  });
+
+  it('still offers while the parcel is manifested and ours to change', async () => {
+    const { clients, deps } = setup(picked(), manifested);
+    await A.onPayOnline('12345', deps);
+    expect(clients.razorpay.links.length).toBeGreaterThan(0);
+  });
+
+  it('and an order with no waybill at all is untouched by any of this', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onPayOnline('12345', deps);
+    expect(clients.razorpay.links.length).toBeGreaterThan(0);
+    expect(clients.courier.calls.some((c) => c.op === 'track')).toBe(false);
   });
 });

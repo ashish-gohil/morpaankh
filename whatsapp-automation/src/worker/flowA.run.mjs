@@ -58,6 +58,31 @@ async function cancelLinkIfAny(deps, orderId) {
   return soft('cancelPaymentLink', () => deps.clients.razorpay.cancelLink(s.linkId), { orderId, linkId: s.linkId });
 }
 
+/**
+ * Is this order still one we may offer online payment on, and convert?
+ *
+ * ONE RULE, ASKED IN THREE PLACES. Before this existed, onFallback skipped only
+ * OFD, DELIVERED and RTO, so it offered a discount on a parcel that was already
+ * PICKED_UP or IN_TRANSIT, and onPayOnline and onConfirm created links with no
+ * courier check at all. Both endings were bad. Either the payment arrives and
+ * onPaymentPaid refunds it, so the customer was charged and reversed for
+ * nothing, or the waybill is past editing and the order is converted in Shopify
+ * while Delhivery still has it as COD, and the courier collects the money a
+ * second time at the door.
+ *
+ * No AWB means nothing has been handed over yet, so there is nothing to refuse.
+ *
+ * An unreadable status is NOT payable. mapCourierStatus answers UNKNOWN both
+ * for a status string Delhivery has not shown us and for a tracking call that
+ * came back empty, and the cost of being wrong here is one-sided: refusing an
+ * offer costs a nudge, allowing one costs a double charge.
+ */
+async function payable(deps, n) {
+  if (!n?.delhiveryAwb) return true;
+  const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
+  return !!t && isCourierEditable(mapCourierStatus(t));
+}
+
 /** Create (or reuse) the payment link + pay token. Null when no offer is valid. */
 async function ensurePaymentLink(deps, n, amt, now) {
   if (!amt.feeMatches) {
@@ -273,8 +298,13 @@ export async function onConfirm(orderId, deps) {
   await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-confirmed']);
   await patchFlowA(orderId, { step: 'confirmed' });
+  /*
+   * Confirming is still worth doing on a parcel that has left, so this
+   * acknowledges and simply does not offer. Offering would create a link on an
+   * order whose payment we would have to refund, or convert.
+   */
   const amt = computeAmounts(n, RULES);
-  const link = await ensurePaymentLink(deps, n, amt, now);
+  const link = (await payable(deps, n)) ? await ensurePaymentLink(deps, n, amt, now) : null;
   if (link) {
     await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now, link), { url: link.url });
   } else {
@@ -292,6 +322,18 @@ export async function onPayOnline(orderId, deps) {
   // is not paying: this tap used to cancel the only remaining nudge, so someone
   // who opened the link and got distracted was never contacted again and the
   // order quietly stayed COD. A successful payment cancels every timer anyway.
+  /*
+   * They ASKED to pay online, so a silent "it stays cash on delivery" is the
+   * one answer that does not work here: it reads as the tap having failed.
+   * pay_at_door says what happened and what to have ready.
+   */
+  if (!(await payable(deps, n))) {
+    return sess(deps, n.verifiedPhone, 'pay_at_door', {
+      customer_name: n.firstName,
+      order_number: n.name,
+      cod_total: formatINR(n.currentTotalPaise),
+    });
+  }
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (link) await sess(deps, n.verifiedPhone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
@@ -439,10 +481,12 @@ export async function onFallback(orderId, deps) {
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
   if (await isOptedOut(n.verifiedPhone)) return;
-  if (n.delhiveryAwb) {
-    const [t] = await deps.clients.courier.track([n.delhiveryAwb]);
-    if (['OUT_FOR_DELIVERY', 'DELIVERED', 'RTO_INITIATED', 'RTO_DELIVERED'].includes(mapCourierStatus(t))) return;
-  }
+  /*
+   * This used to skip only OUT_FOR_DELIVERY, DELIVERED and RTO, so a parcel
+   * that was merely PICKED_UP or IN_TRANSIT still got a discount offer it
+   * could not honour. One predicate now, shared with the two taps.
+   */
+  if (!(await payable(deps, n))) return;
   if (!(await canSendMarketing(n.verifiedPhone, now, RULES.marketingCapDays))) return;
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);

@@ -86,6 +86,20 @@ export const SESSION = {
       'Done, {{customer_name}}. Order {{order_number}} stays on cash on delivery. ' +
       'We will send you the tracking link the moment it leaves us.',
   },
+  /*
+   * They tapped "Pay online" on a parcel Delhivery has already collected.
+   *
+   * Saying "it stays on cash on delivery" there reads as the tap having
+   * failed, and saying nothing is worse. Delhivery refuses an edit after
+   * pickup, so the switch genuinely cannot happen, and the useful thing to
+   * give them is the amount to have ready.
+   */
+  pay_at_door: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you. Order {{order_number}} is already on its way, ' +
+      'so it can no longer switch to online payment. Please keep {{cod_total}} ready at delivery.',
+  },
   cancel_check: {
     type: 'buttons',
     body: 'Just to be sure before we stop the packing: should we cancel order {{order_number}}?',
