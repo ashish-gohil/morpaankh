@@ -24,7 +24,7 @@ import { normalizeVerifiedPhone, VERIFIED_KEY } from '../lib/phone.mjs';
 import { putCapture } from '../store/cartCapture.mjs';
 import { alertOncePerDay } from '../store/cartRecovery.mjs';
 import { table } from '../store/table.mjs';
-import { istParts } from '../lib/time.mjs';
+import { istDayKey } from '../lib/time.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 
 const DEFAULT_ORIGINS = ['https://www.morpaankh.in', 'https://morpaankh.in'];
@@ -75,11 +75,6 @@ const withinRate = async (ip) => {
  */
 const PHONE_MAX_PER_DAY = 3;
 const GLOBAL_MAX_PER_HOUR = 60;
-
-const istDayKey = (now) => {
-  const p = istParts(now);
-  return `${p.y}-${String(p.mon + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
-};
 
 async function withinPhoneCap(phone, now) {
   const day = istDayKey(now);

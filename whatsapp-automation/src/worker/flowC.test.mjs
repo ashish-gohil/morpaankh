@@ -262,3 +262,75 @@ describe('Flow C: Delhivery refuses the action after accepting the request', () 
     expect(tagsAdded(clients.shopify)).not.toContain('wa-ndr-address');
   });
 });
+
+/*
+ * F9. THE FLOW C DELIVERY-FAILURE SEQUENCE.
+ *
+ * The guard was `if (st.flowC.ndrAskedAt) return`, which is per ORDER.
+ * Delhivery attempts up to three times, so attempts 2 and 3 got nothing and
+ * the parcel went to RTO with the customer never asked again.
+ */
+describe('Flow C delivery failures, one prompt per attempt', () => {
+  const ndrNames = (wa) => wa.sent.filter((s) => s.type === 'template' && s.name.startsWith('ndr_action')).length;
+  const attemptDates = (wa) =>
+    wa.sent.filter((s) => s.type === 'template' && s.name.startsWith('ndr_action')).map((s) => JSON.stringify(s.components));
+  const day = (d) => new Date(d).toISOString();
+
+  it('prompts on attempt 1, attempt 2 and attempt 3', async () => {
+    const { clients, deps } = setup();
+    await C.onNdr('12345', deps, { attemptAt: day('2026-10-21T06:00:00Z') });
+    await C.onNdr('12345', { ...deps, now: fromISTWall(2026, 9, 22, 12, 0) }, { attemptAt: day('2026-10-22T06:00:00Z') });
+    await C.onNdr('12345', { ...deps, now: fromISTWall(2026, 9, 23, 12, 0) }, { attemptAt: day('2026-10-23T06:00:00Z') });
+    expect(ndrNames(clients.whatsapp)).toBe(3);
+  });
+
+  it('gives one prompt when the poller and Shopify both report the same attempt', async () => {
+    const { clients, deps } = setup();
+    const attemptAt = day('2026-10-21T06:00:00Z');
+    await C.onNdr('12345', deps, { attemptAt });
+    // The same failure, seen an hour later through the other source.
+    await C.onNdr('12345', { ...deps, now: fromISTWall(2026, 9, 21, 13, 0) }, { attemptAt });
+    expect(ndrNames(clients.whatsapp)).toBe(1);
+  });
+
+  it('stops at the cap and tells the owner to call instead', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    const { clients, deps } = setup();
+    for (const d of [21, 22, 23, 24]) {
+      await C.onNdr('12345', { ...deps, now: fromISTWall(2026, 9, d, 12, 0) }, { attemptAt: day(`2026-10-${d}T06:00:00Z`) });
+    }
+    expect(ndrNames(clients.whatsapp)).toBe(3);
+    const alerts = clients.whatsapp.sent.filter((s) => s.name && s.name.startsWith('ops_alert'));
+    expect(alerts).toHaveLength(1);
+    expect(JSON.stringify(alerts[0].components)).toContain('repeated failed delivery');
+  });
+
+  it('quotes the day the delivery was attempted, not the day we got round to asking', async () => {
+    // Attempted at 19:30 IST, outside nothing, but prompted the next morning.
+    const { clients, deps } = setup();
+    await C.onNdr('12345', { ...deps, now: fromISTWall(2026, 9, 22, 9, 0) }, { attemptAt: day('2026-10-21T14:00:00Z') });
+    expect(attemptDates(clients.whatsapp)[0]).toContain('21 Oct');
+  });
+
+  it('carries the attempt date through an out-of-window deferral', async () => {
+    // 23:00 IST is outside the 08:00-21:00 NDR window, so this defers.
+    const { clients, deps } = setup();
+    await C.onNdr('12345', { ...deps, now: fromISTWall(2026, 9, 21, 23, 0) }, { attemptAt: day('2026-10-21T14:00:00Z') });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    const timer = _peekTimers().find((t) => t.name === 'C-12345-ndr');
+    expect(timer.message.attemptAt).toBe(day('2026-10-21T14:00:00Z'));
+  });
+
+  it('tags the order on the first prompt, so the digest can count failures', async () => {
+    const { clients, deps } = setup();
+    await C.onNdr('12345', deps, { attemptAt: day('2026-10-21T06:00:00Z') });
+    expect(clients.shopify.calls.filter((c) => c.op === 'tagsAdd').flatMap((c) => c.tags)).toContain('wa-ndr');
+  });
+
+  it('books one re-attempt however many times they tap', async () => {
+    const { clients, deps } = setup();
+    await C.onNdrReattempt('12345', deps);
+    await C.onNdrReattempt('12345', deps);
+    expect(clients.courier.calls.filter((c) => c.op === 'ndrAction')).toHaveLength(1);
+  });
+});

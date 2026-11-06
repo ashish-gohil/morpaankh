@@ -88,7 +88,14 @@ async function onShopify(m) {
   }
   if (topic === 'fulfillment_events/create') {
     if (payload?.status === 'delivered') return flowB.onDelivered(orderId, payload.happened_at || payload.created_at || null, deps());
-    if (payload?.status === 'attempted_delivery' || payload?.status === 'failure') return flowC.onNdr(orderId, deps());
+    /*
+     * The ATTEMPT's own time, not now. Two sources report the same failed
+     * attempt, this one and the Delhivery poller, and both have to agree on
+     * which day it was or the customer gets two prompts for one attempt.
+     */
+    if (payload?.status === 'attempted_delivery' || payload?.status === 'failure') {
+      return flowC.onNdr(orderId, deps(), { attemptAt: payload.happened_at || payload.created_at || null });
+    }
   }
 }
 
@@ -608,7 +615,7 @@ async function onDelhivery(m) {
     statusCode: m.statusCode ?? m.shipment?.Status?.StatusCode,
   });
   if (state === 'DELIVERED') return flowB.onDelivered(orderId, m.at || null, deps());
-  if (state === 'NDR') return flowC.onNdr(orderId, deps());
+  if (state === 'NDR') return flowC.onNdr(orderId, deps(), { attemptAt: m.at || null });
   /*
    * RTO_DELIVERED routes here too. It is the same event one leg later, and the
    * poller drops an AWB from the GSI as soon as it turns terminal, so whichever
@@ -655,7 +662,7 @@ async function onTimer(m) {
     return log.info('timer: unknown B step', { step: m.step });
   }
   if (m.flow === 'C') {
-    if (m.step === 'ndr') return flowC.onNdr(m.orderId, d);
+    if (m.step === 'ndr') return flowC.onNdr(m.orderId, d, { attemptAt: m.attemptAt || null });
     if (m.step === 'rto_reason') return flowC.onRtoTimer(m.orderId, d);
     return log.info('timer: unknown C step', { step: m.step });
   }

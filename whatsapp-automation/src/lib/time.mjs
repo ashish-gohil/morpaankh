@@ -110,6 +110,19 @@ export function formatIST(date) {
   return `${p.day} ${MONTHS[p.mon]}, ${h12}:${mm} ${ampm}`;
 }
 
+/**
+ * "2026-11-06": the IST calendar day, as a key.
+ *
+ * Not a display format and not derived from toISOString(), which is UTC and so
+ * files everything after 18:30 IST under the previous day. Used wherever
+ * something must happen once per IST day: the cart capture caps, Flow C's one
+ * prompt per failed delivery attempt.
+ */
+export function istDayKey(date) {
+  const p = istParts(date);
+  return `${p.y}-${String(p.mon + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+}
+
 /** "20 Sep" in IST (date only). */
 export function formatISTDate(date) {
   const p = istParts(date);

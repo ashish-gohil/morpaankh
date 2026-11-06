@@ -8,7 +8,7 @@ import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { RTO_REASONS, COD_BLOCK_REASONS } from '../../messages/labels.mjs';
 import { classifyAddressReply } from '../domain/ndr.mjs';
-import { addHours, addDays, nextWindowTime, withinWindow } from '../lib/time.mjs';
+import { addHours, addDays, nextWindowTime, withinWindow, istDayKey } from '../lib/time.mjs';
 import { getState, patchFlowC, runOnce } from '../store/orderState.mjs';
 import { isOptedOut, touchInbound, setAwaiting, clearAwaiting, markRto } from '../store/phoneProfile.mjs';
 import { scheduleTimer } from '../timers/schedule.mjs';
@@ -37,9 +37,29 @@ function flowCOff(where, orderId) {
 }
 
 // ---- NDR --------------------------------------------------------------------
-export async function onNdr(orderId, deps) {
+/**
+ * A delivery attempt failed.
+ *
+ * ONE PROMPT PER FAILED ATTEMPT, NOT ONE PER ORDER.
+ *
+ * The guard here was `if (st.flowC.ndrAskedAt) return`, which is per ORDER.
+ * Delhivery attempts up to three times, so attempts 2 and 3 got nothing at all
+ * and the parcel went to RTO while the customer was never asked again. Keyed on
+ * the IST day of the attempt now, which also makes it idempotent across the two
+ * sources that report the same failure: the Delhivery poller and Shopify's
+ * fulfillment_events both arrive for one attempt and must produce one prompt.
+ *
+ * `attemptAt` is the ATTEMPT's own time, passed in by the caller, and not
+ * `now`. When the prompt is deferred past the send window overnight, `now` is
+ * the following morning, so attempt_date told the customer their delivery was
+ * attempted on a day it was not. It rides along in the deferred timer so the
+ * date survives the wait.
+ */
+export async function onNdr(orderId, deps, { attemptAt } = {}) {
   if (flowCOff('onNdr', orderId)) return;
   const now = nowOf(deps);
+  const at = attemptAt ? new Date(attemptAt) : now;
+  const day = istDayKey(at);
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) {
     log.info('flowC ndr: not sent', { orderId, reason: !n ? 'order-unreadable' : n.cancelledAt ? 'cancelled' : 'no-phone-anywhere' });
@@ -49,23 +69,62 @@ export async function onNdr(orderId, deps) {
   // customer who had sent STOP still received NDR and RTO templates. Opt-out is
   // a hard guardrail, not a per-flow preference.
   if (await isOptedOut(n.verifiedPhone)) return;
-  // Send only inside the NDR window; otherwise defer to the next window start.
-  if (!withinWindow(now, RULES.ndrSendWindow)) {
-    return scheduleTimer({ flow: 'C', orderId, step: 'ndr', at: nextWindowTime(now, RULES.ndrSendWindow), now });
+
+  const st0 = await getState(orderId);
+  const asked = st0?.flowC?.ndrAsked || {};
+  if (asked[day]) return; // this attempt has already been prompted
+  /*
+   * Past the cap, the customer is not the person to ask any more. Three failed
+   * attempts is Delhivery's own limit and a fourth means something a prompt
+   * cannot fix, so the owner gets one line and nobody gets a fourth template.
+   */
+  if (Object.keys(asked).length >= RULES.ndrMaxPrompts) {
+    await soft('ndrCapAlert', () =>
+      runOnce(orderId, 'ndr-cap', async () => {
+        await ownerAlert(deps, n.name, 'repeated failed delivery, call the customer');
+        return { alerted: true };
+      }),
+      { orderId },
+    );
+    return log.warn('flowC ndr: past the prompt cap, owner told instead', { orderId, prompts: Object.keys(asked).length });
   }
-  const st = await getState(orderId);
-  if (st?.flowC?.ndrAskedAt) return; // a retry after the send succeeded
-  const res = await tpl(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(now) }, { orderId: n.numericId });
+
+  // Send only inside the NDR window; otherwise defer to the next window start,
+  // carrying the attempt time so attempt_date is still the attempt's own day.
+  if (!withinWindow(now, RULES.ndrSendWindow)) {
+    return scheduleTimer({
+      flow: 'C', orderId, step: 'ndr', at: nextWindowTime(now, RULES.ndrSendWindow), now,
+      extra: { attemptAt: at.toISOString() },
+    });
+  }
+  const res = await tpl(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(at) }, { orderId: n.numericId });
   if (res?.skipped) return;
-  await patchFlowC(orderId, { ndrAskedAt: now.toISOString() });
+  await patchFlowC(orderId, { ndrAsked: { ...asked, [day]: now.toISOString() }, ndrAskedAt: now.toISOString() });
+  // One tag, on the first prompt: it is what the daily digest counts, and
+  // counting replies instead meant the digest reported zero NDR for days when
+  // three parcels had failed.
+  await soft('tagsAdd:wa-ndr', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr']), { orderId });
 }
 
 export async function onNdrReattempt(orderId, deps) {
+  const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
   if (!n) return;
-  await touchInbound(n.verifiedPhone, nowOf(deps));
+  await touchInbound(n.verifiedPhone, now);
   try {
-    if (n.delhiveryAwb) await deps.clients.courier.ndrAction(n.delhiveryAwb, 'RE-ATTEMPT');
+    /*
+     * ONCE PER DAY, not once per tap. Now that an order can be prompted on
+     * three separate days, a customer who taps "Deliver tomorrow" twice would
+     * otherwise book two re-attempts with Delhivery for the same day. Keyed by
+     * day rather than by order, because tomorrow's prompt deserves its own
+     * booking.
+     */
+    if (n.delhiveryAwb) {
+      await runOnce(orderId, `ndr-reattempt:${istDayKey(now)}`, async () => {
+        await deps.clients.courier.ndrAction(n.delhiveryAwb, 'RE-ATTEMPT');
+        return { booked: true };
+      });
+    }
     await sess(deps, n.verifiedPhone, 'ndr_reattempt_ok', {});
     await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-reattempt']);
   } catch (e) {
@@ -107,7 +166,13 @@ export async function onAddressText(orderId, text, deps) {
        * lost: classifyAddressReply only returns 'same' when the pincode has not
        * changed, so there is no new pincode to send.
        */
-      if (n.delhiveryAwb) await deps.clients.courier.ndrAction(n.delhiveryAwb, 'EDIT_DETAILS', { add: text });
+      // Once per day, for the same reason as the re-attempt above.
+      if (n.delhiveryAwb) {
+        await runOnce(orderId, `ndr-address:${istDayKey(nowOf(deps))}`, async () => {
+          await deps.clients.courier.ndrAction(n.delhiveryAwb, 'EDIT_DETAILS', { add: text });
+          return { edited: true };
+        });
+      }
       await sess(deps, n.verifiedPhone, 'ndr_address_saved', {});
       await deps.clients.shopify.tagsAdd(n.gid, ['wa-ndr-address']);
     } catch (e) {

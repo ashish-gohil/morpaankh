@@ -113,6 +113,16 @@ export const RULES = {
   quietHours: { start: '21:30', end: '09:30' }, // deferred sends go at 09:30
   reviewSendWindow: { start: '11:00', end: '20:00' },
   ndrSendWindow: { start: '08:00', end: '21:00' },
+  /*
+   * How many failed-delivery prompts one order may get, counted per IST day of
+   * the ATTEMPT.
+   *
+   * Three, because that is Delhivery's own attempt limit. The guard used to be
+   * one per ORDER, so attempts 2 and 3 got nothing and the parcel went to RTO
+   * with the customer never asked again. A fourth failure is not something a
+   * template can fix, so past this the owner is told to call instead.
+   */
+  ndrMaxPrompts: 3,
 
   // caps
   marketingCapDays: 7,
