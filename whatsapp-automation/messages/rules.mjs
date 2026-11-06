@@ -455,10 +455,29 @@ export const RULES = {
     /*
      * The founder's own orders and the service's test orders. These are real
      * rows in Shopify and would otherwise read as sales.
+     *
+     * EXCLUDE BY IDENTITY, NEVER BY SURNAME.
+     *
+     * This carried excludeSurnames: ['Gohil', 'Gohel'], which dropped EVERY
+     * customer with that surname from the report. Gohil is one of the most
+     * common surnames in Surat, which is this store's own city, so the rule
+     * quietly deleted real customers' revenue AND their costs from every total.
+     * A paying customer who shares the founder's surname is a customer.
+     *
+     * A surname match now keeps the order and raises a flag on Data Checks
+     * instead, with the fix named: tag it `family` in Shopify.
+     *
+     * excludeCustomerIds holds Shopify customer gids or their numeric tails.
+     *
+     * THERE IS NO excludePhones, DELIBERATELY. Matching a phone would mean
+     * carrying one through the P&L pipeline, and the Shopify adapter has a test
+     * asserting its output contains no phone, email or street address at all.
+     * Two levers already do the job without one: this list, and the `family`
+     * tag below, which needs no config edit and no deploy.
      */
     excludeCustomers: ['Ashish Gohil'],
-    excludeSurnames: ['Gohil', 'Gohel'],
-    excludeTags: ['replace-payload-test', 'test'],
+    excludeCustomerIds: [],
+    excludeTags: ['replace-payload-test', 'test', 'family'],
     // awb -> rupees, for a parcel sent by some other courier.
     manualCourierCostInr: {},
     // campaign id -> 'sales' | 'boost' | 'other', when the name and objective

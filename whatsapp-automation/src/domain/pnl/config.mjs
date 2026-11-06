@@ -57,7 +57,7 @@ export function toPnlConfig(pnl = RULES.pnl) {
       amountPaise: rupeesToPaise(f.amountInr),
     })),
     excludeCustomers: [...pnl.excludeCustomers],
-    excludeSurnames: [...pnl.excludeSurnames],
+    excludeCustomerIds: [...pnl.excludeCustomerIds],
     excludeTags: [...pnl.excludeTags],
     manualCourierCostPaise: Object.fromEntries(
       Object.entries(pnl.manualCourierCostInr).map(([awb, inr]) => [awb, rupeesToPaise(inr)]),
@@ -185,11 +185,11 @@ export function assumptionRows(config) {
       note: "The founder's own orders. Real rows in Shopify that would otherwise read as sales.",
     },
     {
-      key: 'excludeSurnames',
-      label: 'Excluded surnames',
-      value: config.excludeSurnames.join(', ') || 'none',
+      key: 'excludeCustomerIds',
+      label: 'Excluded customer ids',
+      value: config.excludeCustomerIds.join(', ') || 'none',
       source: 'CONFIG',
-      note: 'Matched as a whole word in the display name. A name that merely contains one is kept and flagged.',
+      note: 'Shopify customer ids. This replaced an excluded-SURNAME list, which dropped every real customer named Gohil or Gohel, a common surname in Surat, out of every total.',
     },
     {
       key: 'excludeTags',

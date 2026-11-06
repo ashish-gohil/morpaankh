@@ -79,6 +79,15 @@ export function inCohort(order, monthStartUtc, monthEndUtc) {
 }
 
 const words = (name) => String(name).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/*
+ * Surnames worth a second look, and NOTHING MORE THAN A LOOK.
+ *
+ * Deliberately not configurable, and deliberately not an exclusion: these only
+ * raise a flag on Data Checks. The previous version of this list was wired to
+ * `excluded` and dropped every customer who shared the founder's surname.
+ */
+const FAMILY_SURNAMES = ['gohil', 'gohel'];
 const eq = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 
 /**
@@ -116,14 +125,30 @@ export function classifyInclusion(order, config) {
     return { included: false, reason: `excluded customer: ${name}`, flags };
   }
 
+  /*
+   * IDENTITY, NOT SURNAME.
+   *
+   * This used to carry excludeSurnames: ['Gohil', 'Gohel'] and drop every
+   * order whose display name contained one as a word. Gohil is one of the most
+   * common surnames in Surat, which is this store's own city, so the rule
+   * silently deleted real customers' revenue AND their costs from every total
+   * on the report, and the only trace was a line on the excluded sheet.
+   *
+   * A paying customer who happens to share the founder's surname is a
+   * customer. So the surname now FLAGS and keeps, with the fix named on the
+   * flag, and the exclusions that actually remove money are an explicit id or
+   * an explicit number.
+   */
+  const idTail = (v) => String(v || '').split('/').pop();
+  const orderId = idTail(order.customerId);
+  if (orderId && (config.excludeCustomerIds || []).some((c) => idTail(c) === orderId)) {
+    return { included: false, reason: `excluded customer id: ${orderId}`, flags };
+  }
+
   const nameWords = words(name);
-  for (const surname of config.excludeSurnames || []) {
-    if (nameWords.includes(String(surname).toLowerCase())) {
-      return { included: false, reason: `excluded surname: ${surname}`, flags };
-    }
-    // Contains it but not as a word ("Gohilwala"): ambiguous, so keep and flag.
-    if (name.toLowerCase().includes(String(surname).toLowerCase())) {
-      flags.push(`possible family name (${surname})`);
+  for (const surname of FAMILY_SURNAMES) {
+    if (nameWords.includes(surname) || name.toLowerCase().includes(surname)) {
+      flags.push(`possible family order (${surname}): tag it \`family\` in Shopify to exclude it`);
     }
   }
 

@@ -151,16 +151,38 @@ describe('classifyInclusion', () => {
     expect(classifyInclusion(order('#1222'), pnlConfig).included).toBe(false);
   });
 
-  it('drops an order whose surname is excluded, as a whole word', () => {
+  /*
+   * F13. This test used to assert the opposite: that 'Riya Gohel' was DROPPED.
+   * Gohil and Gohel are among the most common surnames in Surat, which is this
+   * store's own city, so that rule silently deleted real customers' revenue
+   * and their costs from every total on the report.
+   */
+  it('keeps a paying customer who shares the founder s surname, and flags it', () => {
     const base = order('#1171');
-    expect(classifyInclusion({ ...base, customerName: 'Riya Gohel' }, pnlConfig).reason).toBe(
-      'excluded surname: Gohel',
-    );
-    // Contains it but is not it: kept, and flagged rather than decided silently.
-    const amb = classifyInclusion({ ...base, customerName: 'Riya Gohilwala' }, pnlConfig);
-    expect(amb.included).toBe(true);
-    expect(amb.flags).toContain('possible family name (Gohil)');
+    for (const customerName of ['Riya Gohel', 'Riya Gohil', 'Riya Gohilwala']) {
+      const res = classifyInclusion({ ...base, customerName }, pnlConfig);
+      expect(res.included).toBe(true);
+      expect(res.reason).toBe(null);
+      // The flag names the fix, because only the owner knows which is family.
+      expect(res.flags.join(' ')).toContain('tag it `family` in Shopify');
+    }
   });
+
+  it('excludes a family order once it carries the family tag', () => {
+    const o = { ...order('#1171'), customerName: 'Riya Gohil', tags: ['family'] };
+    expect(classifyInclusion(o, pnlConfig).reason).toBe('excluded tag: family');
+  });
+
+  it('excludes by customer id, however the id is written', () => {
+    const o = { ...order('#1171'), customerName: 'Someone Else', customerId: 'gid://shopify/Customer/777' };
+    expect(classifyInclusion(o, pnlConfig).included).toBe(true);
+    const cfg = { ...pnlConfig, excludeCustomerIds: ['777'] };
+    expect(classifyInclusion(o, cfg).reason).toBe('excluded customer id: 777');
+    const cfgGid = { ...pnlConfig, excludeCustomerIds: ['gid://shopify/Customer/777'] };
+    expect(classifyInclusion(o, cfgGid).included).toBe(false);
+  });
+
+
 
   it("matches excludeTags exactly, so 'test' does not catch 'wa-throwaway-variant-test'", () => {
     const o = { ...order('#1171'), tags: ['wa-throwaway-variant-test'] };

@@ -16,9 +16,16 @@
  *
  * NO PHONE, NO EMAIL, NO STREET ADDRESS leaves this file. The report is a
  * spreadsheet the owner mails to an accountant, and city/state/pin is all the
- * freight maths needs. `customer { displayName }` is asked for because
- * excludeCustomers/excludeSurnames are names, and it is the only personal
- * field in the document.
+ * freight maths needs. The `customer` block is the only personal data in the
+ * document: the display name, because excludeCustomers is a name and the
+ * workbook shows it, and the id, solely so classifyInclusion can match
+ * excludeCustomerIds. That replaced an excluded-SURNAME rule which dropped
+ * every real customer named Gohil or Gohel.
+ *
+ * NO PHONE AND NO EMAIL, which is not an oversight: an owner who wants to
+ * exclude a family order by phone has two better levers that keep a number out
+ * of this pipeline entirely, the customer id and the `family` tag. There is a
+ * test below asserting this output matches no /phone|email|address1|street/.
  *
  * A failure throws. The engine owns SourceStatus and records the failure there;
  * an adapter that swallowed its own outage would hand back an empty month that
@@ -37,7 +44,7 @@ import { log } from '../../log.mjs';
  */
 export const PNL_ORDER_FIELDS = `
   id name createdAt cancelledAt cancelReason sourceName app { name } tags
-  customer { displayName }
+  customer { id displayName }
   shippingAddress { city provinceCode zip }
   displayFinancialStatus displayFulfillmentStatus paymentGatewayNames taxesIncluded
   currentTotalPriceSet { shopMoney { amount currencyCode } }
@@ -170,6 +177,8 @@ export function normaliseOrder(o) {
     appName: app,
     tags: o.tags || [],
     customerName: o.customer?.displayName || null,
+    // Exclusion matching only; see the note at the top of this file.
+    customerId: o.customer?.id || null,
     city: o.shippingAddress?.city || null,
     state: o.shippingAddress?.provinceCode || null,
     pin: o.shippingAddress?.zip ? String(o.shippingAddress.zip) : null,

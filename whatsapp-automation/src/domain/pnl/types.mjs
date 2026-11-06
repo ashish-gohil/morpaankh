@@ -60,7 +60,8 @@
  * @property {string} sourceName
  * @property {string|null} appName
  * @property {string[]} tags
- * @property {string|null} customerName  display name; no phone, no email, no street
+ * @property {string|null} customerName  display name; the only one of these three the workbook shows
+ * @property {string|null} [customerId]   exclusion matching only, never written to the workbook
  * @property {string|null} city
  * @property {string|null} state         provinceCode
  * @property {string|null} pin
@@ -219,7 +220,7 @@
  * @property {number} ledgerVarianceAlertPaise
  * @property {{label:string, amountPaise:number}[]} fixedMonthlyCosts
  * @property {string[]} excludeCustomers
- * @property {string[]} excludeSurnames
+ * @property {string[]} excludeCustomerIds
  * @property {string[]} excludeTags
  * @property {Record<string, number>} manualCourierCostPaise   awb -> paise
  * @property {Record<string, 'sales'|'boost'|'other'>} campaignTypeOverrides
