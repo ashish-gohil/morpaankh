@@ -152,19 +152,35 @@ async function onWaInbound(m) {
     return;
   }
 
-  if (await isOptedOut(phone)) return; // opted out: only direct replies to their action, none here
-
   /*
+   * OPT-OUT STOPS WHAT WE START. IT DOES NOT STOP WHAT THEY DO.
+   *
+   * This return used to sit here, above everything, so a customer who had ever
+   * sent STOP vanished from their own conversation: they tapped "Yes, cancel"
+   * and nothing happened, no cancel, no reply, no log, and the order shipped.
+   * Same for a review form submission and for the text answering our own NDR
+   * address question. STOP is a marketing instruction, and reading it as "we
+   * will also ignore you" is how an opt-out turns into a delivered parcel
+   * nobody wanted.
+   *
+   * So it now guards exactly the two hooks that START something: the parked
+   * cart recovery and the parked welcome offer, both of which are marketing
+   * this inbound message would otherwise unlock. Taps, nfm_reply and awaiting
+   * replies below run for an opted-out phone, and every business-initiated
+   * send keeps the opt-out check it already had.
+   *
    * Their message just opened a 24 hour service window, and that window is the
    * only thing that lifts Meta's per-user MARKETING cap for us. If a cart
    * recovery was refused with 131049 and parked against this phone, it can go
    * now, free-form and uncapped. soft() because this is opportunistic: it must
    * never cost them the reply they actually wrote in for.
    */
-  await soft('cartOnWindowOpen', () => cartRecovery.onWindowOpen(phone, deps()), {});
-  // Flow W parks on 131049 as well, against the same phone row's sibling sort
-  // key, so an inbound message has to offer both flows their chance at it.
-  await soft('subscriberOnWindowOpen', () => subscriberOffer.onWindowOpen(phone, deps()), {});
+  if (!(await isOptedOut(phone))) {
+    await soft('cartOnWindowOpen', () => cartRecovery.onWindowOpen(phone, deps()), {});
+    // Flow W parks on 131049 as well, against the same phone row's sibling sort
+    // key, so an inbound message has to offer both flows their chance at it.
+    await soft('subscriberOnWindowOpen', () => subscriberOffer.onWindowOpen(phone, deps()), {});
+  }
 
   // WhatsApp Flow completion (review form): the signed flow_token carries the order.
   const nfm = msg.interactive?.nfm_reply;

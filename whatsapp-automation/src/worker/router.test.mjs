@@ -8,11 +8,11 @@ import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, recordMessage, getSide, updateMessageStatus } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
-import { setUndeliverable, isUndeliverable } from '../store/phoneProfile.mjs';
+import { setUndeliverable, isUndeliverable, setOptOut } from '../store/phoneProfile.mjs';
 import { setAwaiting, getAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
-import { getRec, ensureRec, patchRec } from '../store/cartRecovery.mjs';
+import { getRec, ensureRec, patchRec, parkForWindow, getParked } from '../store/cartRecovery.mjs';
 
 const OWNER = '+919812345678';
 const STRANGER = '+919800000000';
@@ -450,3 +450,50 @@ async function metricsOf(fn) {
   }
   return names;
 }
+
+/*
+ * F2. The opt-out return used to sit above the taps, so a customer who had
+ * ever sent STOP vanished from their own conversation: they tapped "Yes,
+ * cancel", nothing happened, nothing was logged, and the order shipped.
+ */
+describe('STOP stops what we start, not what the customer does', () => {
+  const tap = (from, payload) => routes.wa_inbound({ kind: 'wa_inbound', from, msg: { button: { payload } } });
+  const text = (from, body) => routes.wa_inbound({ kind: 'wa_inbound', from, msg: { text: { body } } });
+
+  beforeEach(async () => {
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: OWNER, name: '#1234' });
+    await setOptOut(OWNER, true);
+  });
+
+  /*
+   * Reaching the flow IS the assertion: past the router it reads the order
+   * through the real Shopify client and rejects. Before this fix the same tap
+   * resolved silently, which is the shape of the defect, not of a pass.
+   */
+  it('acts on their cancel tap', async () => {
+    await expect(tap(OWNER, 'v1|A|12345|cancel_yes')).rejects.toThrow();
+  });
+
+  it('acts on their Flow C tap', async () => {
+    await expect(tap(OWNER, 'v1|C|12345|ndr_reattempt')).rejects.toThrow();
+  });
+
+  it('reads the text answering our own NDR address question', async () => {
+    await setAwaiting(OWNER, { type: 'address', orderId: '12345' });
+    await expect(text(OWNER, '395007 Surat')).rejects.toThrow();
+  });
+
+  it('still refuses to unlock the marketing we parked against that number', async () => {
+    await parkForWindow(OWNER, '66743166239092', new Date(Date.now() + 86400000));
+    // An inbound text from an opted-out phone must not reach onWindowOpen at
+    // all: untouched, not released with an outcome.
+    await text(OWNER, 'hello');
+    expect(await getParked(OWNER)).toMatchObject({ checkoutId: '66743166239092' });
+  });
+
+  it('and the opt-out itself still answers', async () => {
+    await setOptOut(OWNER, false);
+    await expect(text(OWNER, 'STOP')).resolves.toBeDefined();
+  });
+});
