@@ -52,6 +52,20 @@ const RETRY_SPACING_MINUTES = 55;
 // requeueing and we hammer Shopify and the queue forever for an order that can
 // never be confirmed, which is a worse failure than the one we are repairing.
 const MAX_TRIES = 3;
+/*
+ * How old an order may be and still be re-armed.
+ *
+ * LOOKBACK_HOURS is 36 and reads orders by UPDATED time, which is not the same
+ * question. Every tag this service writes updates the order, so a two-week-old
+ * parcel that was merely scanned yesterday came back in this list, and with no
+ * age limit the sweep re-armed it: a shipped order was sent cod_confirm, "ready
+ * to be packed", a fortnight late. Pausing Flow A for a day and switching it
+ * back on did the same thing to every order in between.
+ *
+ * A confirmation that arrives a day after the order is worth almost nothing
+ * anyway, which is the same reasoning that puts this sweep on an hourly timer.
+ */
+const MAX_AGE_HOURS = 24;
 
 async function alert(text, orderName = 'reconcile') {
   const deps = { clients: realClients };
@@ -92,10 +106,22 @@ export async function sweepUnconfirmed(now = new Date()) {
     if (!Number.isFinite(ageMin) || ageMin < GRACE_MINUTES) continue;
     out.checked += 1;
 
+    if (ageMin > MAX_AGE_HOURS * 60) continue; // see MAX_AGE_HOURS
+
     const st = await getState(orderId);
     if (st?.flowA?.codConfirmAt) continue; // told
     if (st?.flowA?.codSkip) continue; // looked at it and decided not to; see codSkip in flowA.run
-    if (st?.stoppedAt || st?.cancelledAt) continue; // nothing to tell them
+    /*
+     * This read `st.stoppedAt`, and NOTHING HAS EVER WRITTEN THAT FIELD. onStop
+     * records a stop as flowA.step === 'stopped', so the check matched nothing:
+     * a cancelled order stayed in the sweep until MAX_TRIES ran out and then
+     * raised a stuck alert about an order that was correctly never messaged.
+     *
+     * st.cancelledAt is not written on the state row yet either. It is left in
+     * because F23 starts writing it on a WhatsApp cancel, at which point this
+     * line covers that case too without a second edit.
+     */
+    if (st?.flowA?.step === 'stopped' || st?.cancelledAt) continue; // nothing to tell them
 
     const tries = st?.flowA?.sweepTries || 0;
     const lastTry = st?.flowA?.sweptAt ? new Date(st.flowA.sweptAt).getTime() : 0;

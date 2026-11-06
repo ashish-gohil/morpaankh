@@ -73,10 +73,16 @@ describe('orders nobody messaged', () => {
     expect(out.requeued).toEqual([]);
   });
 
+  /*
+   * This test used to write `stoppedAt` on the state row, which is a field
+   * NOTHING IN PRODUCTION HAS EVER WRITTEN, so it proved the check worked
+   * against data that only the test created. onStop records a stop as
+   * flowA.step, and that is what the sweep reads now.
+   */
   it('leaves a stopped or cancelled order alone', async () => {
     orders = [order('666', hoursAgo(5)), order('667', hoursAgo(5))];
     await ensureState('666', {});
-    await patchState('666', { stoppedAt: hoursAgo(4) });
+    await patchFlowA('666', { step: 'stopped' });
     await ensureState('667', {});
     await patchState('667', { cancelledAt: hoursAgo(4) });
     expect((await sweepUnconfirmed(NOW)).requeued).toEqual([]);
@@ -271,5 +277,41 @@ describe('delivered orders nobody asked for a review', () => {
     config.flows.B.enabled = false;
     await delivered('905', hoursAgo(10));
     expect(await sweepUnreviewed(NOW)).toMatchObject({ skipped: 'flow-b-off' });
+  });
+});
+
+/*
+ * F5. The sweep reads orders by UPDATED time over a 36 hour lookback, and every
+ * tag this service writes updates the order. So a two-week-old parcel that was
+ * merely scanned yesterday came back in the list, and with no age limit the
+ * sweep re-armed it and sent cod_confirm, "ready to be packed", a fortnight
+ * late. Pausing Flow A for a day and switching it back on did the same to every
+ * order in between.
+ */
+describe('the sweep repairs fresh orders only', () => {
+  it('re-arms an order from this morning', async () => {
+    orders = [order('901', hoursAgo(5))];
+    expect((await sweepUnconfirmed(NOW)).requeued).toEqual(['901']);
+  });
+
+  it('leaves an order from two days ago alone, however recently it was touched', async () => {
+    // Inside LOOKBACK_HOURS by update time, far outside it by order age: this
+    // is exactly the shape a tag write produces.
+    orders = [order('902', hoursAgo(48))];
+    const out = await sweepUnconfirmed(NOW);
+    expect(out.requeued).toEqual([]);
+    expect(_peekQueue()).toEqual([]);
+  });
+
+  it('draws the line at 24 hours', async () => {
+    orders = [order('903', hoursAgo(23)), order('904', hoursAgo(25))];
+    expect((await sweepUnconfirmed(NOW)).requeued).toEqual(['903']);
+  });
+
+  it('raises no stuck alert for an old order, because it never enters the sweep', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    orders = [order('905', hoursAgo(72))];
+    const out = await sweepUnconfirmed(NOW);
+    expect(out.stuck).toEqual([]);
   });
 });

@@ -130,6 +130,22 @@ async function codSkip(orderId, reason) {
   await patchFlowA(orderId, { codSkip: reason });
 }
 
+/**
+ * Has it already been dispatched? Records the answer and says so.
+ *
+ * Shared by the reminder and the high-risk hold, which both ask the same
+ * question of the same order and both used to send regardless. Recorded rather
+ * than returned silently, for the same reason codSkip exists: "we did not send"
+ * and "we looked and decided not to" are different facts, and only one of them
+ * means something is wrong.
+ */
+async function dispatchSkip(orderId, n, step) {
+  if (!n?.fulfillments?.length && !n?.delhiveryAwb) return false;
+  await patchFlowA(orderId, { reminderSkip: `${step}:already-dispatched` });
+  log.info('flowA: already dispatched, pre-dispatch nudge not sent', { orderId, step });
+  return true;
+}
+
 export async function onCodTimer(orderId, deps) {
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
@@ -141,6 +157,23 @@ export async function onCodTimer(orderId, deps) {
   await patchState(orderId, { class: cls, riskTag: n.riskTag, verifiedPhone: n.verifiedPhone, phoneSource: n.phoneSource || null, firstName: n.firstName, name: n.name });
 
   if (st.flowA?.codConfirmAt) return; // already sent (stale timer)
+
+  /*
+   * IT HAS ALREADY SHIPPED, SO THERE IS NOTHING TO CONFIRM.
+   *
+   * cod_confirm says the order is "ready to be packed" and offers a button to
+   * send it for packing. On a parcel Delhivery already has, every word of that
+   * is false, and order_shipped has covered it. This is reachable two ways: a
+   * timer that fired late, and the reconcile sweep re-arming an old order.
+   *
+   * codSkip rather than a bare return, so the sweep records that we looked at
+   * it and decided, and stops re-arming it three times and alerting.
+   */
+  if (n.fulfillments?.length) {
+    await codSkip(orderId, 'already-fulfilled');
+    log.info('flowA cod: already dispatched, nothing to confirm', { orderId });
+    return;
+  }
 
   /*
    * UNKNOWN NO LONGER MEANS SILENCE.
@@ -553,6 +586,13 @@ export async function onReminder(orderId, deps) {
   if (st.flowA?.reminderSentAt) return; // a retry after the send succeeded
   const n = await getNorm(deps, orderId);
   if (!n || n.cancelledAt || !n.verifiedPhone) return;
+  /*
+   * cod_reminder says "we are still holding your order" and asks for one tap
+   * to send it for packing. Six hours is long enough for the order to have
+   * been packed and handed over, and this had no dispatch check at all, so a
+   * customer whose parcel was already in transit was asked to release it.
+   */
+  if (await dispatchSkip(orderId, n, 'reminder')) return;
   if (await isOptedOut(n.verifiedPhone)) return;
   const amt = computeAmounts(n, RULES);
   const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
@@ -603,6 +643,10 @@ export async function onHighRisk(orderId, deps) {
   if (!st || st.flowA?.step !== 'confirm_sent') return; // a tap happened
   const n = await getNorm(deps, orderId);
   if (n?.riskTag !== 'HIGH') return;
+  // "HIGH RTO risk and unconfirmed after 24h" is a hold instruction, and a
+  // parcel already with the courier cannot be held. The tag would ask the
+  // owner to stop something that has gone.
+  if (await dispatchSkip(orderId, n, 'highrisk')) return;
   await runOnce(orderId, 'highrisk-hold', async () => {
     await deps.clients.shopify.tagsAdd(n.gid, ['wa-hold-unconfirmed']);
     await ownerAlert(deps, n.name, 'HIGH RTO risk and unconfirmed after 24h');

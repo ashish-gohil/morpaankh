@@ -1149,3 +1149,51 @@ describe('Flow A taps by order state', () => {
     expect((await getState('12345')).flowA.step).toBe('confirm_sent');
   });
 });
+
+/*
+ * F5. Nothing pre-dispatch goes out after dispatch.
+ *
+ * cod_confirm says the order is "ready to be packed", cod_reminder says "we are
+ * still holding your order", and the high-risk path asks the owner to hold it.
+ * None of the three checked whether the parcel had already gone, so all three
+ * were reachable on a shipment in transit: once from a timer that fired late,
+ * and once from the reconcile sweep re-arming an old order.
+ */
+describe('Flow A sends nothing pre-dispatch once the parcel has gone', () => {
+  const shipped = (over = {}) =>
+    codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }], ...over });
+
+  it('the +3min confirmation is skipped, and recorded as looked-at', async () => {
+    const { clients, deps } = setup(shipped());
+    await A.onCodTimer('12345', deps);
+    expect(names(clients.whatsapp).some((x) => x.startsWith('cod_confirm'))).toBe(false);
+    // codSkip, not a bare return: otherwise the sweep re-arms it three times
+    // and then alerts the owner about an order that is perfectly fine.
+    expect((await getState('12345')).flowA.codSkip).toBe('already-fulfilled');
+  });
+
+  it('the 6h reminder never asks them to release a parcel in transit', async () => {
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+    const { clients, deps } = setup(shipped());
+    await A.onReminder('12345', deps);
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    expect((await getState('12345')).flowA.reminderSkip).toBe('reminder:already-dispatched');
+  });
+
+  it('the 24h hold check never asks the owner to hold something already gone', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: '+919812345678', name: '#1234', flowA: { step: 'confirm_sent' } });
+    const { clients, deps } = setup(shipped({ tags: ['HIGH RTO Risk'] }));
+    await A.onHighRisk('12345', deps);
+    expect(tagsAdded(clients.shopify)).not.toContain('wa-hold-unconfirmed');
+    expect((await getState('12345')).flowA.reminderSkip).toBe('highrisk:already-dispatched');
+  });
+
+  it('still confirms an order that has not shipped', async () => {
+    const { clients, deps } = setup(codOrder());
+    await A.onCodTimer('12345', deps);
+    expect(names(clients.whatsapp).some((x) => x.startsWith('cod_confirm'))).toBe(true);
+  });
+});
