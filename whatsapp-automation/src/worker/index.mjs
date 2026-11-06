@@ -11,9 +11,9 @@ import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
 import { mapCourierStatus } from '../domain/courier-status.mjs';
 import { getSecrets } from '../secrets.mjs';
-import { getState, runOnce, updateMessageStatus } from '../store/orderState.mjs';
+import { getState, runOnce, updateMessageStatus, patchFlowA, getSide } from '../store/orderState.mjs';
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
-import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing, getAwaiting } from '../store/phoneProfile.mjs';
+import { isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing, getAwaiting, parkOffer } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
 import { ownerAlert, isWindowDeliverable } from './send.mjs';
@@ -180,6 +180,10 @@ async function onWaInbound(m) {
     // Flow W parks on 131049 as well, against the same phone row's sibling sort
     // key, so an inbound message has to offer both flows their chance at it.
     await soft('subscriberOnWindowOpen', () => subscriberOffer.onWindowOpen(phone, deps()), {});
+    // And Flow A, which parks a prepaid_offer Meta refused. It was the one flow
+    // that threw a refused marketing send away and then reported the customer
+    // as never having been told.
+    await soft('flowAOnWindowOpen', () => flowA.onWindowOpen(phone, deps()), {});
   }
 
   // WhatsApp Flow completion (review form): the signed flow_token carries the order.
@@ -518,6 +522,44 @@ async function onWaStatus(m) {
   const d = deps();
   const stateRow = await getState(map.orderId);
   const orderName = stateRow?.name || map.orderId;
+
+  /*
+   * A REFUSED MARKETING OFFER IS NOT A CUSTOMER WHO WAS NOT TOLD.
+   *
+   * Everything below treats any failure on an order wamid the same way: tag the
+   * order wa-undeliverable and tell the owner "This customer has not been told.
+   * Contact them." For the OPTIONAL prepaid_offer that is simply untrue. The
+   * cod_confirm reached them; it was the discount that bounced, and Meta
+   * refuses roughly a third of this store's marketing sends with 131049 or
+   * 130472. #1251 and #1249 carry wa-cod-sent AND wa-undeliverable with no
+   * confirm tap, which is this shape.
+   *
+   * So it is recorded on the order and PARKED against the phone, the way Flows
+   * R and W already park theirs, and delivered free-form the moment the
+   * customer writes in. Nothing is hidden: offerFailed keeps the code.
+   *
+   * A UTILITY key with an unhandled code is untouched by this and still tags
+   * and alerts, which is the case that matters: cod_confirm failing 131026 IS
+   * a customer who heard nothing.
+   */
+  if (map.key === 'prepaid_offer' || isWindowDeliverable(code)) {
+    await soft('flowAOfferFailed', () => patchFlowA(map.orderId, { offerFailed: code || 'unknown' }), {
+      orderId: map.orderId,
+    });
+    const ph = st.recipient_id ? `+${st.recipient_id}` : stateRow?.verifiedPhone;
+    if (map.key === 'prepaid_offer' && ph) {
+      const link = await getSide(map.orderId, 'paylink');
+      await soft('parkOffer', () => parkOffer(ph, map.orderId, link?.expiresAt ? link.expiresAt * 1000 : null), {
+        orderId: map.orderId,
+      });
+    }
+    log.warn('wa status: marketing offer refused, parked for the next window', {
+      orderId: map.orderId,
+      key: map.key,
+      code,
+    });
+    return;
+  }
 
   // The order carries a tag saying we messaged this customer (wa-cod-sent,
   // wa-order-confirmed). That tag is written when Meta ACCEPTS the send, and

@@ -172,3 +172,39 @@ export async function markRto(phone) {
   }
   throw new Error('markRto: unreachable');
 }
+
+/*
+ * PHONE#<e164> / OFFERWAIT — a prepaid offer Meta refused, waiting for a window.
+ *
+ * Flows R and W both park a refused MARKETING send against the phone and
+ * deliver it free-form when the customer next writes in. Flow A was the one
+ * that did not: a prepaid_offer refused with 131049 or 130472 was simply gone,
+ * and the order was tagged wa-undeliverable and reported to the owner as a
+ * customer who had not been told, which was false. They had been told. The
+ * cod_confirm reached them; it was the optional discount that bounced.
+ *
+ * Its own sort key rather than a field on PROFILE, because patch() merges and
+ * two orders for one phone can be in flight at once; and keyed by phone rather
+ * than by order because the thing we are waiting for is the PHONE's window.
+ *
+ * `until` is the payment link's own expiry, so the park dies with the offer it
+ * is holding. expiresAt is a separate 7 day floor purely so the row cannot
+ * outlive its usefulness in the table: never derived from the business
+ * deadline, which is what `until` is for.
+ */
+const OFFERWAIT = 'OFFERWAIT';
+
+export async function parkOffer(phone, orderId, until, now = new Date()) {
+  await table.put({
+    PK: pk(phone),
+    SK: OFFERWAIT,
+    phone,
+    orderId: String(orderId),
+    until: until ? new Date(until).toISOString() : null,
+    parkedAt: now.toISOString(),
+    expiresAt: Math.floor(now.getTime() / 1000) + 7 * 86400,
+  });
+}
+
+export const getParkedOffer = (phone) => table.get(pk(phone), OFFERWAIT);
+export const clearParkedOffer = (phone) => table.del(pk(phone), OFFERWAIT);

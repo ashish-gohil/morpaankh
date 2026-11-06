@@ -6,9 +6,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
-import { ensureState, patchState, recordMessage, getSide, updateMessageStatus } from '../store/orderState.mjs';
+import { ensureState, patchState, recordMessage, getSide, updateMessageStatus, getState } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
-import { setUndeliverable, isUndeliverable, setOptOut } from '../store/phoneProfile.mjs';
+import { setUndeliverable, isUndeliverable, setOptOut, getParkedOffer } from '../store/phoneProfile.mjs';
 import { setAwaiting, getAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
@@ -495,5 +495,52 @@ describe('STOP stops what we start, not what the customer does', () => {
   it('and the opt-out itself still answers', async () => {
     await setOptOut(OWNER, false);
     await expect(text(OWNER, 'STOP')).resolves.toBeDefined();
+  });
+});
+
+/*
+ * F7. Every failure on an order wamid was treated the same: tag the order
+ * wa-undeliverable and tell the owner "This customer has not been told."
+ * For the OPTIONAL prepaid_offer that is untrue. The cod_confirm reached them;
+ * it was the discount that bounced, and Meta refuses roughly a third of this
+ * store's marketing sends. #1251 and #1249 carry wa-cod-sent AND
+ * wa-undeliverable with no confirm tap, which is exactly this shape.
+ */
+describe('a marketing offer Meta refused is not a customer who heard nothing', () => {
+  beforeEach(async () => {
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: OWNER, name: '#1234' });
+  });
+
+  const failed = (wamid, code) => ({
+    kind: 'wa_status',
+    status: { id: wamid, status: 'failed', recipient_id: '919812345678', errors: [{ code, title: 'refused' }] },
+  });
+
+  it('records the refusal, parks it, and raises no false alarm', async () => {
+    await recordMessage('12345', 'wamid.OFFER', { key: 'prepaid_offer', template: 'prepaid_offer_v1' });
+    await routes.wa_status(failed('wamid.OFFER', 131049));
+
+    expect((await getState('12345')).flowA.offerFailed).toBe(131049);
+    expect(await getParkedOffer(OWNER)).toMatchObject({ orderId: '12345' });
+    // The two things that used to happen and were both wrong.
+    expect(await getSide('12345', 'send-failed:prepaid_offer')).toBeNull();
+  });
+
+  it('parks a held-out number the same way', async () => {
+    await recordMessage('12345', 'wamid.OFFER', { key: 'prepaid_offer', template: 'prepaid_offer_v1' });
+    await routes.wa_status(failed('wamid.OFFER', 130472));
+    expect(await getParkedOffer(OWNER)).toMatchObject({ orderId: '12345' });
+  });
+
+  /*
+   * The case that must NOT change. cod_confirm failing 131026 is a customer who
+   * genuinely heard nothing, and that is the alert worth acting on.
+   */
+  it('still tags and alerts when the CONFIRMATION is the message that failed', async () => {
+    await recordMessage('12345', 'wamid.CONF', { key: 'cod_confirm', template: 'cod_confirm_v3' });
+    await routes.wa_status(failed('wamid.CONF', 131026));
+    expect(await getSide('12345', 'send-failed:cod_confirm')).toMatchObject({ alerted: true });
+    expect(await getParkedOffer(OWNER)).toBeNull();
   });
 });

@@ -25,7 +25,10 @@ import {
   runOnce,
   getSide,
 } from '../store/orderState.mjs';
-import { isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing } from '../store/phoneProfile.mjs';
+import {
+  isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing,
+  getParkedOffer, clearParkedOffer,
+} from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
@@ -1089,4 +1092,53 @@ async function sendRefundMessage(deps, n, orderId, paidPaise, now) {
   } else {
     await tpl(deps, n.verifiedPhone, 'prepaid_refund', vars, { orderId: n.numericId });
   }
+}
+
+/**
+ * This phone just wrote to us, so a 24 hour service window is now open.
+ *
+ * The third of three such hooks, next to Flow R's and Flow W's, and for the
+ * same reason: a prepaid_offer Meta refused with 131049 or 130472 can go now as
+ * a free-form message, which carries no category and so no per-user marketing
+ * cap. The customer opening the window is the only thing that clears that cap
+ * for us, which is why this hangs off their inbound message rather than off a
+ * timer. A timer would collect the same refusal again.
+ *
+ * Everything is re-asked, because this runs minutes to hours after the refusal:
+ * the order may have been paid, cancelled or dispatched since, and the link may
+ * have expired. Each of those clears the park rather than leaving it to rot.
+ */
+export async function onWindowOpen(phone, deps) {
+  const now = nowOf(deps);
+  const parked = await getParkedOffer(phone);
+  if (!parked?.orderId) return;
+  const orderId = parked.orderId;
+
+  const drop = async (reason) => {
+    await clearParkedOffer(phone);
+    log.info('flowA: parked offer released', { orderId, reason });
+    return { dropped: reason };
+  };
+
+  if (!RULES.prepaidOfferEnabled) return drop('offer-off');
+  if (parked.until && new Date(parked.until).getTime() <= now.getTime()) return drop('link-expired');
+  if (await isOptedOut(phone)) return drop('opted-out');
+
+  const n = await getNorm(deps, orderId);
+  if (!n || n.verifiedPhone !== phone) return drop('not-this-phone');
+
+  const st = await getState(orderId);
+  const { state } = await tapGate(deps, n, st);
+  // Paid, cancelled or past pickup: the offer has nothing left to offer.
+  if (state !== 'open') return drop(`state:${state}`);
+
+  const amt = computeAmounts(n, RULES);
+  const link = await ensurePaymentLink(deps, n, amt, now);
+  if (!link) return drop('no-link');
+
+  await sess(deps, phone, 'pay_online_offer', offerVars(n, amt, now, link), { url: link.url });
+  await patchFlowA(orderId, { offerDeliveredInWindowAt: now.toISOString() });
+  await clearParkedOffer(phone);
+  log.info('flowA: parked offer delivered inside the window', { orderId });
+  return { sent: true };
 }

@@ -3,7 +3,7 @@ import { config } from '../config.mjs';
 import { _resetMemory, table } from '../store/table.mjs';
 import { getWamidMap } from '../store/maps.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
-import { setOptOut, setUndeliverable } from '../store/phoneProfile.mjs';
+import { setOptOut, setUndeliverable, parkOffer, getParkedOffer, clearParkedOffer } from '../store/phoneProfile.mjs';
 import { getState, ensureState, patchState } from '../store/orderState.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
@@ -1255,5 +1255,56 @@ describe('Flow A serves a COD order COD King never touched', () => {
     const { clients, deps } = setup(mismatched());
     await A.onPayOnline('12345', deps);
     expect(clients.whatsapp.sent.map((s) => s.body || '').join(' ')).toContain('not available for order');
+  });
+});
+
+/*
+ * F7, the other half. A parked offer is delivered free-form the moment the
+ * customer writes in, which is the only thing that clears Meta's per-user
+ * marketing cap for us. Everything is re-asked, because this runs minutes to
+ * hours after the refusal.
+ */
+describe('Flow A delivers a refused offer when the window opens', () => {
+  const PHONE = '+919812345678';
+  const hour = 3600 * 1000;
+
+  beforeEach(async () => {
+    RULES.prepaidOfferEnabled = true;
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: PHONE, name: '#1234', flowA: { step: 'confirm_sent' } });
+    await parkOffer(PHONE, '12345', NOW.getTime() + 12 * hour, NOW);
+  });
+
+  it('sends the offer as a session message and clears the park', async () => {
+    const { clients, deps } = setup(codOrder());
+    const out = await A.onWindowOpen(PHONE, deps);
+    expect(out).toMatchObject({ sent: true });
+    // Free-form, so it carries no category and no marketing cap applies.
+    expect(names(clients.whatsapp)).not.toContain('prepaid_offer_v1');
+    expect(clients.whatsapp.sent.map((s) => s.body || '').join(' ')).toContain('Your link for order');
+    expect(await getParkedOffer(PHONE)).toBeNull();
+  });
+
+  it('drops it rather than offering a discount on a parcel already picked up', async () => {
+    const shipped = codOrder({ fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'AWB1', company: 'Delhivery' }] }] });
+    const { clients, deps } = setup(shipped, { statuses: { AWB1: { status: 'In Transit', statusType: 'UD' } } });
+    const out = await A.onWindowOpen(PHONE, deps);
+    expect(out).toMatchObject({ dropped: 'state:shipped' });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    expect(await getParkedOffer(PHONE)).toBeNull();
+  });
+
+  it('drops it once the link it was holding has expired', async () => {
+    await parkOffer(PHONE, '12345', NOW.getTime() - hour, NOW);
+    const { clients, deps } = setup(codOrder());
+    expect(await A.onWindowOpen(PHONE, deps)).toMatchObject({ dropped: 'link-expired' });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  it('does nothing at all for a phone with nothing parked', async () => {
+    await clearParkedOffer(PHONE);
+    const { clients, deps } = setup(codOrder());
+    expect(await A.onWindowOpen(PHONE, deps)).toBeUndefined();
+    expect(clients.whatsapp.sent).toHaveLength(0);
   });
 });
