@@ -7,6 +7,8 @@ import { getAwaiting, setOptOut } from '../store/phoneProfile.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import * as C from './flowC.run.mjs';
+import { COD_BLOCK_REASONS } from '../../messages/labels.mjs';
+import { getState } from '../store/orderState.mjs';
 
 const NOW = fromISTWall(2026, 9, 21, 12, 0); // inside the 08:00-21:00 NDR window
 const PHONE = '+919812345678';
@@ -332,5 +334,64 @@ describe('Flow C delivery failures, one prompt per attempt', () => {
     await C.onNdrReattempt('12345', deps);
     await C.onNdrReattempt('12345', deps);
     expect(clients.courier.calls.filter((c) => c.op === 'ndrAction')).toHaveLength(1);
+  });
+});
+
+/*
+ * F10. markRto lived in onRtoReason, the BUTTON TAP, which got the count wrong
+ * in both directions: a customer who ignored the question was never counted, so
+ * a repeat silent RTO never reached the cod-block it exists for, and a double
+ * tap counted twice, so one RTO produced rto-count-2 and blocked a first
+ * offence.
+ */
+describe('Flow C counts an RTO when it happens', () => {
+  const custTags = (sh) =>
+    sh.calls.filter((c) => c.op === 'tagsAdd' && c.orderGid === 'gid://shopify/Customer/9').flatMap((c) => c.tags);
+
+  it('counts a silent RTO, where the customer never answers', async () => {
+    const { clients, deps } = setup();
+    await C.onRto('12345', deps);
+    expect(custTags(clients.shopify)).toContain('rto-count-1');
+    expect(custTags(clients.shopify)).not.toContain('cod-block');
+  });
+
+  it('counts one return once, however many times the event is redelivered', async () => {
+    const { clients, deps } = setup();
+    await C.onRto('12345', deps);
+    await C.onRto('12345', deps);
+    expect(custTags(clients.shopify).filter((t) => t.startsWith('rto-count-'))).toEqual(['rto-count-1']);
+  });
+
+  it('blocks COD on the second silent RTO, which is the case the block is for', async () => {
+    const first = setup();
+    await C.onRto('12345', first.deps);
+    // A different parcel, same shopper.
+    const second = setup(order({ id: 'gid://shopify/Order/99999', name: '#1299' }));
+    await C.onRto('99999', second.deps);
+    expect(custTags(second.clients.shopify)).toContain('rto-count-2');
+    expect(custTags(second.clients.shopify)).toContain('cod-block');
+  });
+
+  it('does not count again when they tap a reason, and tapping twice changes nothing', async () => {
+    const { clients, deps } = setup();
+    await C.onRto('12345', deps);
+    await C.onRtoReason('12345', 'not_needed', deps);
+    await C.onRtoReason('12345', 'not_needed', deps);
+    expect(custTags(clients.shopify).filter((t) => t.startsWith('rto-count-'))).toEqual(['rto-count-1']);
+    // and they are thanked both times, because they tapped both times
+    expect(clients.whatsapp.sent.filter((s) => (s.body || '').length > 0).length).toBeGreaterThan(1);
+  });
+
+  it('still blocks COD for a reason that warrants it, on a first offence', async () => {
+    const { clients, deps } = setup();
+    await C.onRto('12345', deps);
+    await C.onRtoReason('12345', COD_BLOCK_REASONS[0], deps);
+    expect(custTags(clients.shopify)).toContain('cod-block');
+  });
+
+  it('records when the return happened, which the digest needs', async () => {
+    const { deps } = setup();
+    await C.onRto('12345', deps);
+    expect((await getState('12345')).flowC.rtoAt).toBeTruthy();
   });
 });

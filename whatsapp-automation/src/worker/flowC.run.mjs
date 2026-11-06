@@ -207,9 +207,36 @@ export async function onRto(orderId, deps) {
     await deps.clients.shopify.tagsAdd(n.gid, ['RTO']);
     return { tagged: true };
   });
+
+  /*
+   * COUNT THE RTO WHEN IT HAPPENS, NOT WHEN THEY ANSWER A QUESTION ABOUT IT.
+   *
+   * markRto used to live in onRtoReason, the BUTTON TAP, which got the count
+   * wrong in both directions. A customer who ignored the reason question was
+   * never counted, so a repeat silent RTO never reached the cod-block, which is
+   * the one customer the block exists for. And a double tap counted twice, so a
+   * single RTO produced rto-count-2 and a cod-block on a first offence.
+   *
+   * runOnce per order, so a redelivered RTO event cannot count the same return
+   * again, and keyed on the ORDER rather than the phone because the same phone
+   * genuinely can return two different parcels.
+   */
+  await soft('rtoCount', () =>
+    runOnce(orderId, 'rto-count', async () => {
+      const count = await markRto(n.verifiedPhone);
+      if (n.customerGid && count != null) {
+        const tags = [`rto-count-${count}`];
+        if (count >= RULES.rtoCodBlockCount) tags.push('cod-block');
+        await deps.clients.shopify.tagsAdd(n.customerGid, tags);
+      }
+      return { count };
+    }),
+    { orderId },
+  );
+
   await flowA.onStop(orderId, deps); // stop Flow A, cancel links + timers
   await scheduleTimer({ flow: 'C', orderId, step: 'rto_reason', at: nextWindowTime(now, RULES.reviewSendWindow), now });
-  await patchFlowC(orderId, { rto: true });
+  await patchFlowC(orderId, { rto: true, rtoAt: now.toISOString() });
 }
 
 export async function onRtoTimer(orderId, deps) {
@@ -242,12 +269,21 @@ export async function onRtoReason(orderId, reasonId, deps) {
   );
   await soft('tagsAdd:rto-reason', () => deps.clients.shopify.tagsAdd(n.gid, [`rto-reason-${reason.slug}`]), { orderId });
 
-  const count = await soft('markRto', () => markRto(n.verifiedPhone), { orderId });
-  if (n.customerGid && count != null) {
-    const tags = [`rto-count-${count}`];
-    if (count >= RULES.rtoCodBlockCount || COD_BLOCK_REASONS.includes(reason.id)) tags.push('cod-block');
-    await soft('tagsAdd:cod-block', () => deps.clients.shopify.tagsAdd(n.customerGid, tags), { orderId });
-  }
+  /*
+   * The count is NOT here any more; onRto owns it. This tap only adds what the
+   * answer itself tells us, which is whether the reason is one we block COD
+   * for. Everything is runOnce so a second tap re-sends the thanks and changes
+   * nothing else.
+   */
+  await soft('rtoReasonBlock', () =>
+    runOnce(orderId, 'rto-reason', async () => {
+      if (n.customerGid && COD_BLOCK_REASONS.includes(reason.id)) {
+        await deps.clients.shopify.tagsAdd(n.customerGid, ['cod-block']);
+      }
+      return { reason: reason.id };
+    }),
+    { orderId },
+  );
 
   if (reason.id === 'other') {
     await sess(deps, n.verifiedPhone, 'rto_other_ask', {});
