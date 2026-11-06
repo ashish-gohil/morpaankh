@@ -57,8 +57,9 @@ const SHIPPED_STATUSES = new Set([
  * REPLACEMENTS, and since change-of-mind returns are not accepted, the buyer has
  * kept and paid for the item. So the free-text note is NOT used to decide the
  * outcome. Only two things matter: a genuine failed delivery (fulfillment
- * displayStatus ATTEMPTED_DELIVERY) is a real loss (RTO), and money actually
- * collected (net > 0 on a DELIVERED order) is what counts as paid.
+ * explicit RTO tag) is a real loss, and money actually collected (net > 0 on a
+ * DELIVERED order) is what counts as paid. A failed delivery ATTEMPT is neither:
+ * Delhivery tries three times.
  */
 
 function normaliseTags(tags) {
@@ -93,6 +94,19 @@ export function classifyOrder(order, opts = {}) {
     .map((f) => (f && f.displayStatus ? String(f.displayStatus).toUpperCase() : ''))
     .filter(Boolean);
 
+  /*
+   * A FAILED ATTEMPT IS NOT A RETURN, AND THIS COST REAL TARGETING.
+   *
+   * ATTEMPTED_DELIVERY used to map straight to RTO. Delhivery attempts up to
+   * three times, so the ordinary case is: attempt 1 fails, the customer is
+   * asked, and attempt 2 delivers. That order spent a day in the "MP -
+   * Cancelled or RTO" exclusion audience and then flapped back out of it on
+   * delivery, which teaches Meta that a paying customer looks like a loss.
+   *
+   * It is IN_TRANSIT, which is what it is: dispatched, outcome still open.
+   * RTO is now only the exact 'RTO' tag, which Flow C writes when the return
+   * genuinely starts, or Shiprocket's own 'RTO initiated'.
+   */
   const attempted = statuses.includes('ATTEMPTED_DELIVERY');
   const delivered = statuses.includes('DELIVERED');
   const shipped = statuses.some((s) => SHIPPED_STATUSES.has(s));
@@ -118,11 +132,13 @@ export function classifyOrder(order, opts = {}) {
     currency,
   });
 
-  // 1) Genuine return-to-origin = a real loss (RTO): a courier failed-delivery
-  //    status, or an explicit RTO tag (merchant "RTO", or Shiprocket's). The
-  //    free-text "return" NOTE is deliberately NOT used (see policy note above):
-  //    those are paid customer replacements, not losses.
-  if (attempted || rtoTagged) return out(STATES.RTO);
+  // 1) Genuine return-to-origin = a real loss (RTO): an explicit RTO tag only,
+  //    the merchant's exact "RTO" (which Flow C writes when the return starts)
+  //    or Shiprocket's "RTO initiated". A failed ATTEMPT is not one of these:
+  //    see the note above. The free-text "return" NOTE is deliberately not used
+  //    either (see the policy note at the top): those are paid customer
+  //    replacements, not losses.
+  if (rtoTagged) return out(STATES.RTO);
 
   // 2) Delivered AND money actually collected. A replacement/return note does
   //    not demote this: if the cash was collected, it counts as paid.
@@ -133,8 +149,10 @@ export function classifyOrder(order, opts = {}) {
 
   // 4) Dispatched, outcome still open. This also holds a delivered scan whose
   //    COD payment has not reconciled yet (net == 0); a later orders/updated
-  //    with net > 0 flips it to DELIVERED_PAID.
-  if (shipped || delivered) return out(STATES.IN_TRANSIT);
+  //    with net > 0 flips it to DELIVERED_PAID. And it holds a FAILED ATTEMPT,
+  //    which is the whole point of the change above: Delhivery tries three
+  //    times, so attempt 1 failing says nothing yet.
+  if (shipped || delivered || attempted) return out(STATES.IN_TRANSIT);
 
   // 5) Placed, nothing has happened yet.
   return out(STATES.PLACED);

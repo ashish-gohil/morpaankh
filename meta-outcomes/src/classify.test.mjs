@@ -42,9 +42,34 @@ describe('classifyOrder', () => {
     expect(r.state).toBe(STATES.IN_TRANSIT);
   });
 
-  it('classifies ATTEMPTED_DELIVERY as RTO', () => {
+  /*
+   * F25. This asserted RTO, which is what the mapping did and what cost real
+   * targeting. Delhivery attempts up to three times, so the ordinary case is
+   * attempt 1 failing and attempt 2 delivering: that order spent a day in the
+   * "MP - Cancelled or RTO" exclusion audience and then flapped back out of it
+   * on delivery, teaching Meta that a paying customer looks like a loss.
+   */
+  it('classifies a failed delivery ATTEMPT as still in transit, not as a return', () => {
     const r = classifyOrder({ id: 5008, note: '', fulfillments: [{ displayStatus: 'ATTEMPTED_DELIVERY' }] });
+    expect(r.state).toBe(STATES.IN_TRANSIT);
+  });
+
+  it('calls it a return once the RTO tag is actually applied', () => {
+    const r = classifyOrder({
+      id: 5008,
+      tags: ['RTO'],
+      fulfillments: [{ displayStatus: 'ATTEMPTED_DELIVERY' }],
+    });
     expect(r.state).toBe(STATES.RTO);
+  });
+
+  it('and a second attempt that delivers is paid, with no RTO in between', () => {
+    const r = classifyOrder({
+      id: 5008,
+      netPayment: 1499,
+      fulfillments: [{ displayStatus: 'ATTEMPTED_DELIVERY' }, { displayStatus: 'DELIVERED' }],
+    });
+    expect(r.state).toBe(STATES.DELIVERED_PAID);
   });
 
   it('treats an exact "RTO" tag (merchant-applied) as a genuine loss', () => {
