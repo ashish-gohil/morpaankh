@@ -584,6 +584,11 @@ async function onWaStatus(m) {
     () => d.clients.shopify.tagsAdd(`gid://shopify/Order/${map.orderId}`, ['wa-undeliverable']),
     { orderId: map.orderId },
   );
+  // Stamped as well as tagged, so the digest counts the customers who were not
+  // reached YESTERDAY rather than every order that still carries the tag.
+  await soft('stampUndeliverable', () => patchFlowA(map.orderId, { undeliverableAt: new Date().toISOString() }), {
+    orderId: map.orderId,
+  });
   // Once per order per message kind: a template that failed for an account-wide
   // reason fails for every order at once, and the owner needs one line each, not
   // one per retry.

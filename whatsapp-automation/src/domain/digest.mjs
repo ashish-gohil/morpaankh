@@ -106,13 +106,72 @@ function subscriberOffersLine(s) {
 }
 
 /**
+ * Yesterday's EVENTS, counted off the timestamps this service writes.
+ *
+ * THE DIGEST USED TO COUNT TAGS ON ORDERS SHOPIFY REPORTED AS UPDATED.
+ *
+ * Every tag this service writes updates the order, and so does every courier
+ * scan, so an order confirmed a fortnight ago and merely touched yesterday was
+ * counted as yesterday's confirmation. The numbers grew with the age of the
+ * catalogue rather than with the day's work, and the same order was counted
+ * again every time anything happened to it.
+ *
+ * NDR is the clearest case. It was counted off `wa-ndr`, and nothing wrote that
+ * tag when a prompt was SENT: it was only written when the customer replied. So
+ * the digest reported zero failed deliveries on days when three parcels had
+ * failed, which is what let Flow C go unnoticed for the whole life of the
+ * service. F9 writes the tag on the prompt; this counts the prompts themselves,
+ * one per attempt day, which is the number the owner actually wants.
+ *
+ * Pure: the caller does the scan and the IST window.
+ *
+ * @param {any[]} states  STATE rows
+ * @param {{fromISO: string, toISO: string}} window  [from, to), IST day bounds as UTC ISO
+ */
+export function countEvents(states, { fromISO, toISO }) {
+  const inWin = (v) => typeof v === 'string' && v >= fromISO && v < toISO;
+  const c = {
+    cod: 0, confirmed: 0, converted: 0, cancelled: 0, holds: 0,
+    delivered: 0, reviewed: 0, ndr: 0, rto: 0, noPhone: 0, undelivered: 0,
+  };
+  for (const st of states || []) {
+    // A missing row must not take the whole digest down with it: this is the
+    // one place in the service that reads every STATE row at once, so one odd
+    // item would cost the owner the entire day's summary.
+    if (!st) continue;
+    const a = st.flowA || {};
+    const b = st.flowB || {};
+    const f = st.flowC || {};
+    // "COD asked" is the COD chase specifically; a PREPAID order's plain
+    // thank-you is not a question and was never meant to be in this count.
+    if (inWin(a.codConfirmAt) && (st.class || 'COD') === 'COD') c.cod += 1;
+    if (inWin(a.confirmedAt)) c.confirmed += 1;
+    if (inWin(a.convertedAt)) c.converted += 1;
+    if (inWin(a.cancelledAt)) c.cancelled += 1;
+    if (inWin(a.heldAt)) c.holds += 1;
+    if (inWin(a.undeliverableAt)) c.undelivered += 1;
+    if (inWin(a.codSkipAt) && a.codSkip === 'no-phone-anywhere') c.noPhone += 1;
+    // The review ASK is the delivery signal the owner reads: it only goes out
+    // on an order the courier confirmed and that is eligible to be asked.
+    if (inWin(b.askedAt)) c.delivered += 1;
+    if (inWin(b.reviewedAt)) c.reviewed += 1;
+    if (inWin(f.rtoAt)) c.rto += 1;
+    // One per ATTEMPT DAY, not one per order: an order can fail delivery three
+    // times and each failure is a thing that happened that day.
+    for (const at of Object.values(f.ndrAsked || {})) if (inWin(at)) c.ndr += 1;
+  }
+  return c;
+}
+
+/**
  * @param {{tags:string[]}[]} orders  orders updated in the window
  * @param {{cartsMessaged?: number,
  *           replacements?: {orderName?: string, state?: string, nextAction?: string}[],
  *           templateProblems?: {name?: string, status?: string}[],
  *           subscribers?: {sent?: number, whatsapp?: number, email?: number, parked?: number,
  *                          converted?: number, revenuePaise?: number,
- *                          skips?: {reason: string, count: number}[]}}} [extra]
+ *                          skips?: {reason: string, count: number}[]},
+ *           events?: Record<string, number>}} [extra]
  *   Counts that cannot be derived from a tag. "carts messaged" is one of them:
  *   an abandoned checkout has no order to tag, so it is counted off the Flow R
  *   records instead. "recovered" IS a tag, so it still comes from Shopify.
@@ -132,6 +191,14 @@ export function summarizeDigest(orders, extra = {}) {
   for (const o of orders) {
     for (const [k, tag] of RULES_TAGS) if (tag === null ? hasRtoTag(o.tags) : hasTag(o.tags, tag)) counts[k] += 1;
   }
+  /*
+   * The tag counts above are kept for ONE number, cartsRecovered, which is the
+   * only one with no event stamp anywhere: an order that came back from a cart
+   * message is identified by its tag and nothing else. Everything else is
+   * overwritten by countEvents, which counts what happened yesterday instead of
+   * what is tagged today. See countEvents for why that mattered.
+   */
+  if (extra.events) Object.assign(counts, extra.events);
   const line =
     `${counts.cod} COD asked, ${counts.confirmed} confirmed, ${counts.converted} prepaid, ` +
     `${counts.cancelled} cancelled, ${counts.holds} held, ${counts.delivered} delivered, ` +

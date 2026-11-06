@@ -6,9 +6,10 @@
 import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
 import { tpl } from '../worker/send.mjs';
-import { summarizeDigest } from '../domain/digest.mjs';
+import { summarizeDigest, countEvents } from '../domain/digest.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE } from '../../messages/templates.mjs';
 import { soft } from '../lib/resilience.mjs';
+import { table } from '../store/table.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
 import { allSubRecs } from '../store/subscriberOffer.mjs';
 import { listOpen } from '../store/replace.mjs';
@@ -127,7 +128,21 @@ export const handler = async () => {
     skips: Object.entries(skipCounts).map(([reason, count]) => ({ reason, count })),
   };
 
-  const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems, subscribers });
+  /*
+   * Yesterday's EVENTS, from the timestamps this service writes, rather than
+   * yesterday's TAGS on orders Shopify reported as updated. Every tag write
+   * updates the order, so the old counts included anything merely touched in
+   * the window, however old. See countEvents.
+   *
+   * One scan a day, which is what scanStates is for; nothing on a hot path
+   * reads it.
+   */
+  const events = countEvents(await table.scanStates(), {
+    fromISO: yStart.toISOString(),
+    toISO: todayStart.toISOString(),
+  });
+
+  const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems, subscribers, events });
 
   const deps = { clients: realClients };
   for (const phone of config.ownerAlertPhones) {

@@ -198,8 +198,10 @@ export async function onOrderCreate(orderId, deps) {
  * each, and then raised a stuck alert about a condition the owner had already
  * been told about by name. One field separates the two.
  */
-async function codSkip(orderId, reason) {
-  await patchFlowA(orderId, { codSkip: reason });
+async function codSkip(orderId, reason, now = new Date()) {
+  // codSkipAt as well as the reason, so the digest can count the ones that
+  // happened YESTERDAY rather than every order that still carries the tag.
+  await patchFlowA(orderId, { codSkip: reason, codSkipAt: now.toISOString() });
 }
 
 /**
@@ -508,7 +510,10 @@ export async function onConfirm(orderId, deps) {
   await cancelTimer({ flow: 'A', orderId, step: 'reminder' });
   await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-confirmed']);
-  await patchFlowA(orderId, { step: 'confirmed' });
+  // confirmedAt, not just the tag: the daily digest counted wa-confirmed on
+  // every order Shopify reported as updated, whenever that tag was added, so
+  // an old order touched yesterday was counted as yesterday's confirmation.
+  await patchFlowA(orderId, { step: 'confirmed', confirmedAt: now.toISOString() });
   // `open` already means the waybill is still ours to change, so the offer
   // needs no second courier read here.
   const amt = computeAmounts(n, RULES);
@@ -579,7 +584,7 @@ export async function onKeepCod(orderId, deps) {
   await cancelTimer({ flow: 'A', orderId, step: 'reminder' });
   await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-confirmed']);
-  await patchFlowA(orderId, { step: 'kept_cod' });
+  await patchFlowA(orderId, { step: 'kept_cod', confirmedAt: now.toISOString() });
   await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
 }
 
@@ -664,6 +669,9 @@ export async function onCancelYes(orderId, deps) {
       return { cancelled: true };
     });
     await soft('tagsAdd:wa-cancelled', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cancelled']), { orderId });
+    // The digest counts cancellations by WHEN they happened; the sweep reads
+    // this field too (see MAX_AGE_HOURS in reconcile).
+    await soft('stampCancelled', () => patchFlowA(orderId, { cancelledAt: nowOf(deps).toISOString() }), { orderId });
     await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
     await cancelLinkIfAny(deps, orderId);
     await sess(deps, n.verifiedPhone, 'cancel_done', { order_number: n.name });
@@ -679,6 +687,7 @@ export async function onCancelYes(orderId, deps) {
       return { cancelled: true };
     });
     await soft('tagsAdd:wa-cancelled', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cancelled']), { orderId });
+    await soft('stampCancelled', () => patchFlowA(orderId, { cancelledAt: nowOf(deps).toISOString() }), { orderId });
     await soft('cancelAllTimers', () => cancelAllTimers(orderId), { orderId });
     await cancelLinkIfAny(deps, orderId);
     await sess(deps, n.verifiedPhone, 'cancel_done', { order_number: n.name });
@@ -761,6 +770,9 @@ export async function onHighRisk(orderId, deps) {
   await runOnce(orderId, 'highrisk-hold', async () => {
     await deps.clients.shopify.tagsAdd(n.gid, ['wa-hold-unconfirmed']);
     await ownerAlert(deps, n.name, 'HIGH RTO risk and unconfirmed after 24h');
+    // Stamped for the digest, which counts yesterday's EVENTS rather than
+    // every order that happens to carry the tag.
+    await patchFlowA(orderId, { heldAt: nowOf(deps).toISOString() });
     return { held: true };
   });
 }

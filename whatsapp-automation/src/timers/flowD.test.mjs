@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { summarizeDigest } from '../domain/digest.mjs';
+import { summarizeDigest, countEvents } from '../domain/digest.mjs';
+import { fromISTWall } from '../lib/time.mjs';
 import { sanitizeParam } from '../../messages/templates.mjs';
 
 /** The longest of the real NEXT_ACTION strings in timers/digest.mjs. */
@@ -250,5 +251,86 @@ describe('terminal states the poller used to swallow', () => {
     expect(_drainQueue()).toHaveLength(0);
     // and it stays in the index, because it is not terminal
     expect(await table.scanGsi1()).toHaveLength(1);
+  });
+});
+
+/*
+ * F23. The digest counted TAGS on orders Shopify reported as updated. Every tag
+ * this service writes updates the order, and so does every courier scan, so an
+ * order confirmed a fortnight ago and merely touched yesterday was counted as
+ * yesterday's confirmation, again, every time anything happened to it.
+ */
+describe('countEvents counts yesterday, and only yesterday', () => {
+  // The IST day boundaries the digest uses: 00:00 IST is 18:30 UTC the day before.
+  const Y_START = fromISTWall(2026, 10, 5, 0, 0).toISOString();
+  const T_START = fromISTWall(2026, 10, 6, 0, 0).toISOString();
+  const win = { fromISO: Y_START, toISO: T_START };
+  const yesterday = fromISTWall(2026, 10, 5, 14, 0).toISOString();
+  const lastWeek = fromISTWall(2026, 9, 28, 14, 0).toISOString();
+  const today = fromISTWall(2026, 10, 6, 9, 0).toISOString();
+
+  it('counts a confirmation from yesterday', () => {
+    const c = countEvents([{ class: 'COD', flowA: { codConfirmAt: yesterday, confirmedAt: yesterday } }], win);
+    expect(c.cod).toBe(1);
+    expect(c.confirmed).toBe(1);
+  });
+
+  it('ignores the same order a week later, however often it is touched', () => {
+    const c = countEvents([{ class: 'COD', flowA: { codConfirmAt: lastWeek, confirmedAt: lastWeek } }], win);
+    expect(c.cod).toBe(0);
+    expect(c.confirmed).toBe(0);
+  });
+
+  it('ignores today, because the digest is about yesterday', () => {
+    expect(countEvents([{ class: 'COD', flowA: { codConfirmAt: today } }], win).cod).toBe(0);
+  });
+
+  it('counts each failed delivery attempt, not each order', () => {
+    const c = countEvents(
+      [{ flowC: { ndrAsked: { '2026-11-05': yesterday, '2026-11-04': lastWeek, '2026-11-06': today } } }],
+      win,
+    );
+    expect(c.ndr).toBe(1);
+  });
+
+  it('counts three attempts on three days as three', () => {
+    const second = fromISTWall(2026, 10, 5, 18, 0).toISOString();
+    const third = fromISTWall(2026, 10, 5, 20, 0).toISOString();
+    const c = countEvents([{ flowC: { ndrAsked: { a: yesterday, b: second, c: third } } }], win);
+    expect(c.ndr).toBe(3);
+  });
+
+  it('counts an RTO when the return happened, not when the customer replied', () => {
+    expect(countEvents([{ flowC: { rtoAt: yesterday } }], win).rto).toBe(1);
+    expect(countEvents([{ flowC: { rtoAt: lastWeek, rtoReason: 'not_needed' } }], win).rto).toBe(0);
+  });
+
+  it('counts a review ask as the delivery, and the review separately', () => {
+    const c = countEvents([{ flowB: { askedAt: yesterday, reviewedAt: yesterday } }], win);
+    expect(c.delivered).toBe(1);
+    expect(c.reviewed).toBe(1);
+  });
+
+  it('counts the holds, the no-phone skips and the customers not reached', () => {
+    const c = countEvents(
+      [
+        { flowA: { heldAt: yesterday } },
+        { flowA: { codSkip: 'no-phone-anywhere', codSkipAt: yesterday } },
+        { flowA: { codSkip: 'opted-out', codSkipAt: yesterday } },
+        { flowA: { undeliverableAt: yesterday } },
+      ],
+      win,
+    );
+    expect(c.holds).toBe(1);
+    expect(c.noPhone).toBe(1); // the opted-out skip is a different thing
+    expect(c.undelivered).toBe(1);
+  });
+
+  it('leaves a PREPAID order out of "COD asked", which was never a question', () => {
+    expect(countEvents([{ class: 'PREPAID', flowA: { codConfirmAt: yesterday } }], win).cod).toBe(0);
+  });
+
+  it('survives a state row with no flow objects at all', () => {
+    expect(countEvents([{}, { flowA: null }, null], win).cod).toBe(0);
   });
 });
