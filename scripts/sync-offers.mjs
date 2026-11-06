@@ -35,7 +35,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const STORE = 'yaaijv-6p.myshopify.com';
@@ -58,7 +58,9 @@ query {
       codeDiscount {
         __typename
         ... on DiscountCodeBasic {
+          title
           status
+          usageLimit
           appliesOncePerCustomer
           codes(first: 1) { nodes { code } }
           customerGets {
@@ -156,12 +158,62 @@ async function fetchDiscounts() {
   return (parsed?.data?.codeDiscountNodes?.nodes || []).map((n) => n.codeDiscount);
 }
 
+/*
+ * Titles the WhatsApp service gives the single-use codes it mints. Kept as
+ * string prefixes rather than imported, because this script runs in the theme
+ * repo and that service lives in another one; they are asserted in the test
+ * beside this file so a rename there shows up here as a failure.
+ */
+const PRIVATE_TITLE_PREFIXES = ['Cart recovery #', 'Subscriber offer #', 'Review thanks'];
+
 /* ---- map a discount to the offer model ---------------------------------- */
-function toOffer(d) {
+export function toOffer(d) {
   if (d.__typename !== 'DiscountCodeBasic') return null; // skip free-shipping / BxGy
   if (d.status !== 'ACTIVE') return null;
   const code = d.codes?.nodes?.[0]?.code;
   if (!code) return null;
+
+  /*
+   * NEVER PUT A PRIVATE CODE IN THE CART PANEL.
+   *
+   * This took every ACTIVE DiscountCodeBasic with no filter at all. Cart
+   * recovery, welcome offers and review thanks are all basic codes with a
+   * minimum subtotal, so they fit the panel model perfectly and the next run of
+   * this script would have written one into an Offer slot on every cart page,
+   * where the cart's auto-apply hands the biggest general code to whoever is
+   * shopping. One customer's single-use code, offered to strangers, and burnt
+   * before its owner could use it.
+   *
+   * The slots are still clean today (BUY2, BUY3, WELCOME150), which is luck:
+   * the script has not been run since those codes started being minted.
+   *
+   * Three independent tests, because any one of them can be absent on a code
+   * that is still private:
+   *   usageLimit            a single-use code
+   *   appliesOncePerCustomer a per-person code
+   *   title                  what the service names its own
+   * Plus the buyer context, which is the same rule publicCodeDiscounts uses in
+   * the service: a code aimed at named customers or a segment is not public.
+   */
+  if (d.usageLimit != null) return null;
+  if (d.appliesOncePerCustomer) return null;
+  const title = String(d.title || '');
+  if (PRIVATE_TITLE_PREFIXES.some((p) => title.startsWith(p))) return null;
+  /*
+   * The buyer context, read through customerSelection and NOT through
+   * `context`.
+   *
+   * `context` is what the WhatsApp service uses and what Shopify now
+   * documents: customerSelection is deprecated in its favour, confirmed
+   * against the live Admin API on 2026-11-06. But this script pins 2025-01,
+   * where `context` does not exist, and GraphQL fails a document that names a
+   * field the schema does not have. Asking for it here would not degrade
+   * gracefully, it would break every run of this script.
+   *
+   * So: customerSelection while the pin is 2025-01. Raise SHOPIFY_API_VERSION
+   * past the deprecation and this is the line to swap.
+   */
+  if (d.customerSelection?.__typename && d.customerSelection.__typename !== 'DiscountCustomerAll') return null;
 
   const v = d.customerGets?.value;
   let kind, value;
@@ -181,6 +233,7 @@ function toOffer(d) {
     minQty,
     minSubtotal,
     customerAll: d.customerSelection?.__typename === 'DiscountCustomerAll',
+    title,
   };
 }
 
@@ -324,4 +377,10 @@ async function main() {
   console.log('\nDone. The cart Offers panel now matches your live Discounts.');
 }
 
-main().catch((e) => { console.error(e.message || e); process.exit(1); });
+/*
+ * ONLY WHEN RUN DIRECTLY. main() reads the Admin API and then PUSHES the live
+ * theme, so an unguarded call meant merely importing this file to test toOffer
+ * would publish to the storefront.
+ */
+const runDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (runDirectly) main().catch((e) => { console.error(e.message || e); process.exit(1); });
