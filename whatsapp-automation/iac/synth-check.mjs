@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+/*
+ * synth-check.mjs — assertions about the SYNTHESIZED template.
+ *
+ * The stack has no unit tests, and the two things checked here are both the
+ * silent kind: a function with no subscription filter reports nothing when it
+ * fails, and an alarm math expression over ten metrics is rejected by
+ * CloudWatch at deploy time rather than here.
+ *
+ *   cd iac && npx cdk synth > cdk.out/synth.yaml && node synth-check.mjs
+ *
+ * Reads cdk.out/WaAutomation.template.json, which `cdk synth` always writes.
+ */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const tpl = JSON.parse(readFileSync(join(here, 'cdk.out', 'WaAutomation.template.json'), 'utf8'));
+const resources = Object.entries(tpl.Resources || {});
+
+let failures = 0;
+const check = (name, fn) => {
+  try { fn(); console.log(`ok    ${name}`); }
+  catch (e) { failures += 1; console.error(`FAIL  ${name}\n      ${e.message}`); }
+};
+
+/*
+ * LogGroupName is a literal for an IMPORTED group and a { Ref } for one this
+ * stack creates, so both shapes have to be resolved. A check that only read
+ * the literal reported zero filters for wa-pnl-report, which has two.
+ */
+const groupNameOf = (prop) => {
+  if (typeof prop === 'string') return prop;
+  const ref = prop?.Ref;
+  if (!ref) return '';
+  const target = tpl.Resources?.[ref];
+  return typeof target?.Properties?.LogGroupName === 'string' ? target.Properties.LogGroupName : '';
+};
+
+const filtersFor = (group) =>
+  resources.filter(([, r]) =>
+    r.Type === 'AWS::Logs::SubscriptionFilter' && groupNameOf(r.Properties?.LogGroupName).endsWith(group));
+
+/*
+ * Every function whose failures are CAUGHT and answered with an HTTP status
+ * raises no Lambda error, so the log filter is the only thing that reports it.
+ * wa-cart-capture is Flow R's primary source and had neither.
+ */
+for (const fn of ['wa-cart-capture', 'wa-subscribe', 'wa-worker', 'wa-pnl-report']) {
+  check(`${fn} has both log subscription filters`, () => {
+    assert.equal(filtersFor(fn).length, 2, `${filtersFor(fn).length} filters, expected 2`);
+  });
+}
+
+/* CloudWatch refuses an alarm math expression over ten metrics. */
+check('no alarm expression exceeds ten metrics', () => {
+  for (const [id, r] of resources) {
+    if (r.Type !== 'AWS::CloudWatch::Alarm') continue;
+    for (const m of r.Properties?.Metrics || []) {
+      if (!m.Expression) continue;
+      const n = (m.Expression.match(/\be\d+\b/g) || []).length;
+      assert.ok(n <= 10, `${id} uses ${n} metrics`);
+    }
+  }
+});
+
+/* The alarm that covers the public HTTP endpoints must actually cover them. */
+check('the intake alarm counts five functions', () => {
+  const intake = resources.find(([id]) => /intake/i.test(id) && tpl.Resources[id].Type === 'AWS::CloudWatch::Alarm');
+  assert.ok(intake, 'no intake alarm found');
+  const expr = (intake[1].Properties.Metrics || []).find((m) => m.Expression)?.Expression || '';
+  assert.equal((expr.match(/\be\d+\b/g) || []).length, 5, `expression was "${expr}"`);
+});
+
+console.log(failures ? `\n${failures} failed` : '\nall passed');
+process.exit(failures ? 1 : 0);

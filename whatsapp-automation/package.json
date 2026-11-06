@@ -13,7 +13,8 @@
     "typecheck": "tsc -p jsconfig.json",
     "pnl:layer": "bash scripts/build-pnl-layer.sh",
     "dryrun:render": "node scripts/dryrun-render.mjs",
-    "pnl": "node scripts/pnl.mjs"
+    "pnl": "node scripts/pnl.mjs",
+    "synth:check": "cd iac && npx cdk synth > /dev/null && node synth-check.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1150.0",

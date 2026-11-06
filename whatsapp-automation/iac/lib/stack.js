@@ -606,6 +606,21 @@ class WaAutomationStack extends cdk.Stack {
       'wa-poll-delhivery',
       'wa-reconcile',
       'wa-digest',
+      /*
+       * Flow R's PRIMARY source, and it was in neither this list nor any alarm.
+       *
+       * A storefront capture failure is CAUGHT and answered as a 502, exactly
+       * like wa-subscribe, so it raises no Lambda error and tripped nothing.
+       * A broken deploy here silently kills most of the cart recovery the flow
+       * exists for, and the only evidence would be carts quietly not being
+       * messaged. It is also where the flood alerts from the new per-phone and
+       * per-hour caps land, so without this line those alerts reach nobody.
+       *
+       * IMPORTED, not created. This function has run, so its log group already
+       * exists and `new logs.LogGroup` with that name fails the deploy with
+       * AlreadyExists.
+       */
+      'wa-cart-capture',
     ];
     const reportedGroups = [
       ...reported.map((name) => [name, logs.LogGroup.fromLogGroupName(this, `Lg${name}`, `/aws/lambda/${name}`)]),
@@ -686,7 +701,11 @@ class WaAutomationStack extends cdk.Stack {
     // CloudWatch's 10-metric ceiling, and this is the truer grouping anyway,
     // since it is a public HTTP endpoint a customer taps rather than a
     // queue-driven step.
-    const intakeFns = [onboardingFn, subscribeFn, cartRedirectFn, wRedirectFn];
+    // cart-capture joins intakeFns for the same two reasons as the others:
+    // pipelineFns is at 9 of CloudWatch's 10-metric ceiling, and this is a
+    // public HTTP endpoint a shopper's browser posts to, not a queue step.
+    // Five of the ten slots used.
+    const intakeFns = [onboardingFn, subscribeFn, cartRedirectFn, wRedirectFn, cartCaptureFn];
     const sumErrors = (fns) =>
       new cw.MathExpression({
         expression: fns.map((_, i) => `e${i}`).join(' + '),
