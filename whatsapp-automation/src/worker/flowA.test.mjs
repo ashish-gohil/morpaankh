@@ -1372,3 +1372,44 @@ describe('Flow A gives out a live link, behind our own URL', () => {
     }
   });
 });
+
+/*
+ * F15. The reconcile sweep re-arms any order with no codConfirmAt and no
+ * codSkip, three times, and then tells the owner it "got NO WhatsApp
+ * confirmation after 3 automatic retries". An opted-out customer and a number
+ * that is not on WhatsApp both returned without recording anything, so both
+ * produced that alert about a condition nothing can change.
+ */
+describe('Flow A records why a confirmation was not sent', () => {
+  it('marks an opted-out customer, so the sweep stops chasing it', async () => {
+    await setOptOut('+919812345678', true);
+    const { clients, deps } = setup(codOrder());
+    await A.onCodTimer('12345', deps);
+    expect((await getState('12345')).flowA.codSkip).toBe('opted-out');
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  it('marks a number that cannot take WhatsApp, and tells the owner once', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    await setUndeliverable('+919812345678');
+    const { clients, deps } = setup(codOrder());
+    await A.onCodTimer('12345', deps);
+    await A.onCodTimer('12345', deps); // a redelivery must not alert twice
+    expect((await getState('12345')).flowA.codSkip).toBe('undeliverable');
+    const alerts = clients.whatsapp.sent.filter((s) => s.name && s.name.startsWith('ops_alert'));
+    expect(alerts).toHaveLength(1);
+    expect(JSON.stringify(alerts[0].components)).toContain('call the customer');
+  });
+
+  it('leaves a dry-run order completely unmarked, so it is messaged when the gate lifts', async () => {
+    // The allowlist and DRY_RUN gates live in the real WhatsApp client, so the
+    // skip is injected at the same place that client returns it from.
+    const { clients, deps } = setup(codOrder());
+    clients.whatsapp.sendTemplate = async () => ({ skipped: 'dry_run' });
+    await A.onCodTimer('12345', deps);
+    const st = await getState('12345');
+    // Nothing on flowA at all: not a skip, not a send.
+    expect(st.flowA?.codSkip).toBeUndefined();
+    expect(st.flowA?.codConfirmAt).toBeUndefined();
+  });
+});

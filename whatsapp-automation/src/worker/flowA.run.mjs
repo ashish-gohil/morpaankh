@@ -218,6 +218,37 @@ async function dispatchSkip(orderId, n, step) {
   return true;
 }
 
+/**
+ * The confirmation did not go out. Record whether that is a FACT or a GATE.
+ *
+ * The reconcile sweep re-arms any order with no codConfirmAt and no codSkip,
+ * three times, and then alerts the owner that it "got NO WhatsApp confirmation
+ * after 3 automatic retries". An opted-out customer and a number that is not on
+ * WhatsApp both returned here without recording anything, so both produced that
+ * alert about a condition nothing can change, three sweeps later, with no
+ * mention of the actual cause.
+ *
+ * dry_run and not_allowlisted are the opposite case and stay UNMARKED on
+ * purpose: those are a staged rollout, not a fact about the order, and marking
+ * them would mean the order is never messaged once the gate lifts.
+ */
+async function sendSkipped(deps, orderId, n, skip) {
+  if (skip === 'undeliverable') {
+    await codSkip(orderId, 'undeliverable');
+    // The one skip worth telling the owner about: there is a real order here
+    // and the only way to reach this customer is the telephone.
+    await soft('undeliverableAlert', () =>
+      runOnce(orderId, 'alert-undeliverable', async () => {
+        await ownerAlert(deps, n.name, 'this number cannot receive WhatsApp, call the customer');
+        return { alerted: true };
+      }),
+      { orderId },
+    );
+    return log.warn('flowA cod: number cannot receive WhatsApp, owner told', { orderId });
+  }
+  log.info('flowA cod: send skipped, order left unmarked', { orderId, skip });
+}
+
 export async function onCodTimer(orderId, deps) {
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
@@ -281,7 +312,12 @@ export async function onCodTimer(orderId, deps) {
     await runOnce(orderId, 'tag-no-phone', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-no-verified-phone']));
     return;
   }
-  if (await isOptedOut(n.verifiedPhone)) return;
+  if (await isOptedOut(n.verifiedPhone)) {
+    // Recorded, or the sweep re-arms this three times and then alerts the owner
+    // about an order that was correctly left alone.
+    await codSkip(orderId, 'opted-out');
+    return log.info('flowA cod: opted out, nothing sent', { orderId });
+  }
   if (!config.flows.A.enabled) {
     log.info('flowA cod: flow disabled, not sending', { orderId });
     return;
@@ -305,10 +341,7 @@ export async function onCodTimer(orderId, deps) {
       if (!isTemplateUnusable(e)) throw e;
       return deferConfirm(orderId, st, now, e);
     }
-    if (res?.skipped) {
-      log.info('flowA confirm: send skipped, order left unmarked', { orderId, skip: res.skipped });
-      return;
-    }
+    if (res?.skipped) return sendSkipped(deps, orderId, n, res.skipped);
     // The message is now on the customer's phone. Record that FIRST, because
     // codConfirmAt is the only thing stopping a retry from sending a second
     // copy, and then let nothing after it throw.
@@ -335,10 +368,7 @@ export async function onCodTimer(orderId, deps) {
   // wa-cod-sent and sets codConfirmAt, and they are then treated as already
   // confirmed and never messaged once the allowlist comes off. Nothing
   // downstream starts either, since the reminder chain is scheduled below.
-  if (res?.skipped) {
-    log.info('flowA cod: send skipped, order left unmarked', { orderId, skip: res.skipped });
-    return;
-  }
+  if (res?.skipped) return sendSkipped(deps, orderId, n, res.skipped);
   // Same rule: mark the send before anything else can fail. Everything below is
   // bookkeeping the customer never sees, and a throw here used to redeliver the
   // whole record and message them a second time.
