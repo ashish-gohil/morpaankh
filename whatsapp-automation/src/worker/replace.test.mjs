@@ -13,13 +13,15 @@
  *   4. THE CUSTOMER IS NEVER MESSAGED SILENTLY OR WRONGLY: once both legs
  *      exist, never before, and never without telling the admin what happened.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { _resetMemory, table } from '../store/table.mjs';
 import { getWamidMap } from '../store/maps.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
-import { ensureState, patchState, patchFlowB, getSide } from '../store/orderState.mjs';
+import { ensureState, patchState, patchFlowB, getSide, getState } from '../store/orderState.mjs';
+import { _peekTimers } from '../timers/schedule.mjs';
+import * as B from './flowB.run.mjs';
 import { getAwbMap } from '../store/maps.mjs';
 import { table } from '../store/table.mjs';
 import { touchInbound, setOptOut } from '../store/phoneProfile.mjs';
@@ -1014,5 +1016,53 @@ describe('/replace on an order COD King never touched', () => {
     const { deps } = await setup();
     await confirm(deps);
     expect((await req()).phoneSource).toBe('otp');
+  });
+});
+
+/*
+ * F20. Flow B schedules "we would love to know how it fits" for the day after
+ * delivery, and nothing told it a replacement had been raised. So a customer
+ * whose size was wrong, whose garment is being collected and whose replacement
+ * is still in the post was asked how the first one fitted.
+ */
+describe('a confirmed replacement holds the review ask', () => {
+  // The ask is off by default, and this suite never turns Flow B on: these
+  // tests are about the ask being HELD, so it has to be armable first.
+  beforeEach(() => {
+    RULES.reviewAskEnabled = true;
+    config.flows.B = { enabled: true, startAt: '2020-01-01T00:00:00Z' };
+  });
+  afterEach(() => { RULES.reviewAskEnabled = false; });
+
+  const confirm = async (deps) => {
+    await run(deps);
+    return tap(deps, `rpok:1:${(await req()).nonce}`);
+  };
+
+  it('cancels a review ask that was already scheduled', async () => {
+    const { deps } = await setup();
+    await B.onDelivered(ORDER, '2026-10-20T06:00:00Z', deps);
+    expect(_peekTimers().map((t) => t.name)).toContain(`B-${ORDER}-review_ask`);
+
+    await confirm(deps);
+
+    expect(_peekTimers().map((t) => t.name)).not.toContain(`B-${ORDER}-review_ask`);
+    expect((await getState(ORDER)).flowB.skip).toBe('replacement');
+  });
+
+  it('and a timer already in EventBridge still sends nothing', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps);
+    const before = sent(clients).length;
+    await B.onReviewTimer(ORDER, deps);
+    expect(sent(clients)).toHaveLength(before);
+    expect((await getState(ORDER)).flowB.reviewAsked).toBeUndefined();
+  });
+
+  it('and a later delivery event does not schedule a new one either', async () => {
+    const { deps } = await setup();
+    await confirm(deps);
+    await B.onDelivered(ORDER, '2026-10-22T06:00:00Z', deps);
+    expect(_peekTimers().map((t) => t.name)).not.toContain(`B-${ORDER}-review_ask`);
   });
 });

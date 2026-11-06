@@ -44,7 +44,8 @@ import { classify } from '../domain/classify.mjs';
 // size change already puts in front of a customer, so the two features do not
 // describe the same garment two different ways.
 import { describeVariant } from '../domain/variantChange.mjs';
-import { getState, runOnce } from '../store/orderState.mjs';
+import { getState, runOnce, patchFlowB } from '../store/orderState.mjs';
+import { cancelTimer } from '../timers/schedule.mjs';
 import { windowOpen, isOptedOut, isUndeliverable } from '../store/phoneProfile.mjs';
 import { sess, tpl, isTemplateUnusable, getNormByName } from './send.mjs';
 import * as store from '../store/replace.mjs';
@@ -724,6 +725,22 @@ export async function execute(orderId, seqIn, deps, adminPhone, { holdsLock = fa
   try {
     if (req.state === 'AWAITING_CONFIRMATION') {
       req = await store.patchRequest(orderId, seq, { state: 'CONFIRMED', confirmedAt: now.toISOString() });
+      /*
+       * HOLD THE REVIEW ASK.
+       *
+       * Flow B schedules "we would love to know how it fits" for the day after
+       * delivery, and nothing told it a replacement had been raised. So a
+       * customer whose size was wrong, whose garment is being collected and
+       * whose replacement is still in the post was asked how the first one
+       * fitted. Nothing on the Shopify order says a replacement is in progress,
+       * which is why this has to be written rather than derived.
+       *
+       * Soft: a replacement booking is never worth failing over a review ask.
+       */
+      await soft('flowB:holdReviewAsk', async () => {
+        await cancelTimer({ flow: 'B', orderId: String(orderId), step: 'review_ask' });
+        await patchFlowB(String(orderId), { skip: 'replacement', scheduled: false });
+      }, { orderId, seq });
     }
 
     const { returnSpec, forwardSpec } = specsFromRequest(req);

@@ -26,7 +26,21 @@ import { soft } from '../lib/resilience.mjs';
 const nowOf = (deps) => deps.now || new Date();
 
 /** Order-level reasons to never ask for a review. */
-function reviewSkipReason(n) {
+/**
+ * @param {*} n the normalised order
+ * @param {*} [st] the state row, when the caller has one
+ */
+function reviewSkipReason(n, st) {
+  /*
+   * A reason recorded on the order, which the order itself cannot show.
+   *
+   * /replace sets flowB.skip when a replacement is confirmed: the customer's
+   * size was wrong, their garment is being collected and another is on its
+   * way, and "we would love to know how it fits" is the wrong thing to say in
+   * the middle of that. Nothing on the Shopify order says a replacement is in
+   * progress, so this is the only place the flow can learn it.
+   */
+  if (st?.flowB?.skip) return `skip:${st.flowB.skip}`;
   // The kill switch was checked in onDelivered only, so timers armed while the
   // flow was on kept firing after it was turned off: switching Flow B off did
   // not actually stop it. Flow A checks `enabled` at every send for exactly
@@ -100,13 +114,13 @@ export async function onDelivered(orderId, deliveredAt, deps) {
   if (!RULES.reviewAskEnabled) return log.warn('flowB: review ask is switched off, not scheduling', { orderId });
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
-  const skip = reviewSkipReason(n);
+  const st = await getState(orderId);
+  const skip = reviewSkipReason(n, st);
   if (skip) return log.info('flowB: skip review ask', { orderId, skip });
   if (!n.verifiedPhone) {
     log.info('flowB: no recipient on this order, nothing sent', { orderId, reason: 'no-phone-anywhere' });
     return;
   }
-  const st = await getState(orderId);
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed) return;
   // A real delivery OVERRIDES an assumed one. The assumed date is a guess five
   // days after dispatch; a confirmed delivery is usually earlier and always
@@ -137,13 +151,13 @@ export async function onUntrackedFulfillment(orderId, fulfilledAt, deps) {
   if (!RULES.reviewAskEnabled) return log.warn('flowB: review ask is switched off, not scheduling', { orderId });
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
-  const skip = reviewSkipReason(n);
+  const st = await getState(orderId);
+  const skip = reviewSkipReason(n, st);
   if (skip) return log.info('flowB: skip untracked review schedule', { orderId, skip });
   if (!n.verifiedPhone) {
     log.info('flowB: no recipient on this order, nothing sent', { orderId, reason: 'no-phone-anywhere' });
     return;
   }
-  const st = await getState(orderId);
   if (st?.flowB?.reviewAsked || st?.flowB?.reviewed || st?.flowB?.scheduled) return;
 
   const assumedAt = addDays(new Date(fulfilledAt || now), RULES.untrackedDeliveryAssumeDays);
@@ -172,7 +186,7 @@ export async function onReviewTimer(orderId, deps) {
   const st = await getState(orderId);
   if (st?.flowB?.reviewed || st?.flowB?.reviewAsked) return;
   const n = await getNorm(deps, orderId);
-  if (reviewSkipReason(n)) return;
+  if (reviewSkipReason(n, st)) return;
   if (!n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) {
     log.info('flowB review: not sent', { orderId, reason: n.verifiedPhone ? 'opted-out' : 'no-phone-anywhere' });
     return;
@@ -264,7 +278,7 @@ export async function onReviewReminder(orderId, deps) {
   if (!st?.flowB?.reviewAsked || st?.flowB?.reviewed) return;
   if (st?.flowB?.reminderSentAt) return; // a retry after the send succeeded
   const n = await getNorm(deps, orderId);
-  if (reviewSkipReason(n) || !n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) return;
+  if (reviewSkipReason(n, st) || !n.verifiedPhone || (await isOptedOut(n.verifiedPhone))) return;
   const token = await flowToken(n.numericId, now);
   const res = await tpl(deps, n.verifiedPhone, 'review_reminder', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, false) });
   if (res?.skipped) return;
