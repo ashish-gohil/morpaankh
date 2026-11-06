@@ -779,7 +779,24 @@ export async function onTap(checkoutId, action, phone, deps) {
  * 30-day cooldown against a message nobody ever saw would silence that
  * customer for a month for free.
  */
-export async function onCartStatus(cartId, st, now = new Date()) {
+/**
+ * A delivery outcome for a cart message.
+ *
+ * `key` SAYS WHICH MESSAGE IT WAS, AND IT HAS TO.
+ *
+ * Without it this handler could only see "a cart message failed", and it
+ * treated every one of them as message 1: it released the 30-day phone lock
+ * and parked the cart for the next service window. When the message that
+ * actually failed was `cart_final`, the 22 hour reminder, the next inbound
+ * message therefore delivered MESSAGE 1 all over again, complete with "your
+ * bag is still waiting" and a fresh private code, to someone who had already
+ * had both. And the lock that stops a second sequence for 30 days was gone.
+ *
+ * A reminder that fails is recorded and nothing else. The sequence it belongs
+ * to was opened by a message that did arrive, so there is nothing to recover
+ * and nothing to give back.
+ */
+export async function onCartStatus(cartId, st, now = new Date(), key = 'cart_recovery') {
   const status = st?.status;
   const rec = await getRec(cartId);
   if (!rec) return;
@@ -788,6 +805,19 @@ export async function onCartStatus(cartId, st, now = new Date()) {
     fields.deliveryFailed = true;
     fields.deliveryError = st?.errors?.[0]?.code || null;
   }
+
+  if (status === 'failed' && key === 'cart_final') {
+    await patchRec(cartId, {
+      lastStatus: status,
+      lastStatusAt: fields.lastStatusAt,
+      finalDeliveryFailed: true,
+      finalDeliveryError: fields.deliveryError,
+    });
+    log.warn('cart: the reminder failed, recorded and nothing resent', { cartId, code: fields.deliveryError });
+    metric('CartFinalDeliveryFailed', 1);
+    return;
+  }
+
   await patchRec(cartId, fields);
   if (status === 'failed' && rec.phone) {
     log.warn('cart: message 1 was accepted and then failed, releasing the phone lock', { cartId });

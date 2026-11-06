@@ -500,7 +500,12 @@ async function onWaStatus(m) {
    * to tag.
    */
   if (map?.cartId) {
-    await soft('cartStatus', () => cartRecovery.onCartStatus(map.cartId, st), { wamid: st.id });
+    /*
+     * map.key is what tells the flow WHICH cart message this outcome belongs
+     * to. Without it a failed reminder was handled as a failed message 1, so
+     * the next inbound sent message 1 again and the 30-day lock was released.
+     */
+    await soft('cartStatus', () => cartRecovery.onCartStatus(map.cartId, st, new Date(), map.key), { wamid: st.id });
     return;
   }
   /*

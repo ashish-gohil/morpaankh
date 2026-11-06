@@ -1175,3 +1175,52 @@ describe('a captured cart Shopify will not vouch for', () => {
     expect(clients.shopify.calls.some((c) => c.op === 'getCustomerByPhone')).toBe(false);
   });
 });
+
+/*
+ * F11. onCartStatus could not tell which cart message had failed, so it treated
+ * every failure as message 1: it released the 30-day phone lock and parked the
+ * cart. When the message that actually failed was the 22 hour reminder, the next
+ * inbound delivered MESSAGE 1 all over again, "your bag is still waiting" plus a
+ * fresh private code, to somebody who had already had both.
+ */
+describe('a reminder that fails is not a sequence to start over', () => {
+  it('keeps the phone lock and parks nothing', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const lock = await getPhoneLock(PHONE);
+    expect(lock).toBeTruthy();
+
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW, 'cart_final');
+
+    expect(await getPhoneLock(PHONE)).toMatchObject({ checkoutId: CHECKOUT_ID });
+    expect(await getParked(PHONE)).toBeFalsy();
+  });
+
+  it('records the reminder failure under its own fields, not message 1 s', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW, 'cart_final');
+    const rec = await getRec(CHECKOUT_ID);
+    expect(rec).toMatchObject({ finalDeliveryFailed: true, finalDeliveryError: 131049 });
+    // deliveryFailed is message 1's field and message 1 arrived.
+    expect(rec.deliveryFailed).toBeUndefined();
+  });
+
+  it('so the next inbound message sends nothing', async () => {
+    const { clients, deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    const before = clients.whatsapp.sent.length;
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW, 'cart_final');
+    await R.onWindowOpen(PHONE, deps);
+    expect(clients.whatsapp.sent).toHaveLength(before);
+    expect(discounts(clients.shopify)).toHaveLength(1); // the one message 1 minted
+  });
+
+  it('and message 1 failing still behaves exactly as it did', async () => {
+    const { deps } = setup();
+    await R.onFirst(CHECKOUT_ID, deps);
+    await R.onCartStatus(CHECKOUT_ID, { status: 'failed', errors: [{ code: 131049 }] }, NOW, 'cart_recovery');
+    expect(await getPhoneLock(PHONE)).toBe(null);
+    expect(await getRec(CHECKOUT_ID)).toMatchObject({ deliveryFailed: true, deliveryError: 131049 });
+  });
+});
