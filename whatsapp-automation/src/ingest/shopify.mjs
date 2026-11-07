@@ -18,8 +18,9 @@
  */
 import { makeIngest } from './base.mjs';
 import { verifyShopify } from '../lib/signature.mjs';
+import { shopifyActionable } from '../domain/actionable.mjs';
 import { config } from '../config.mjs';
-import { log } from '../log.mjs';
+import { log, metric } from '../log.mjs';
 
 function orderIdFor(topic, body) {
   if (topic.startsWith('orders/')) return body.id;
@@ -33,6 +34,26 @@ export const shopifyIngest = {
   checkRequest: (h) => !config.shopDomain || h['x-shopify-shop-domain'] === config.shopDomain,
   toItems(h, body) {
     const topic = String(h['x-shopify-topic'] || '');
+
+    /*
+     * DECIDED HERE, WITH THE WORKER'S OWN PREDICATE.
+     *
+     * orders/updated fires on every tag write, including the ones this service
+     * makes itself, and the worker acts on exactly one case. Every other one
+     * used to cost a dedupe write, an SQS message, a worker run, a WAMID read
+     * and a MSG# write to reach `return`. Same for a courier scan the flows
+     * ignore and a checkout with no OTP attribute.
+     *
+     * shopifyActionable is imported rather than rewritten: two copies of this
+     * question is how the ingest comes to drop an event the worker would have
+     * acted on.
+     */
+    if (!shopifyActionable(topic, body)) {
+      // One metric, dimensioned by provider only: a dimension per topic would
+      // open a CloudWatch series per topic per hour (see O11).
+      metric('IngestSkipped', 1, { provider: 'shopify' });
+      return [];
+    }
 
     if (topic.startsWith('checkouts/')) {
       /*

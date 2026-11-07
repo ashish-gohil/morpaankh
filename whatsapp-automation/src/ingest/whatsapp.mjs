@@ -9,6 +9,8 @@
 import { makeIngest, resp } from './base.mjs';
 import { verifyWhatsApp, safeEqual } from '../lib/signature.mjs';
 import { decodePayload } from '../lib/ids.mjs';
+import { waStatusActionable } from '../domain/actionable.mjs';
+import { metric } from '../log.mjs';
 
 function challenge(event, secrets) {
   const q = event.queryStringParameters || {};
@@ -58,6 +60,16 @@ export const whatsappIngest = {
           });
         }
         for (const st of v.statuses || []) {
+          /*
+           * `sent` and `read` are read by NOTHING: no code anywhere branches on
+           * either, and they were roughly half of this function's 4,343 runs in
+           * 30 days. Each one cost a dedupe write, an SQS message, a worker run
+           * and a WAMID read to reach a `return`.
+           */
+          if (!waStatusActionable(st?.status)) {
+            metric('IngestSkipped', 1, { provider: 'whatsapp' });
+            continue;
+          }
           items.push({
             message: { kind: 'wa_status', status: st },
             groupId: `phone:+${st.recipient_id}`,

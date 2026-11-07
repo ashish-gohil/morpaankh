@@ -192,3 +192,64 @@ describe('the Delhivery push shares the order s queue group', () => {
     expect(items).toEqual([]);
   });
 });
+
+/*
+ * O1. The ingest decides, with the worker's own predicates, so an event that
+ * reaches a `return` never costs a dedupe write, an SQS message, a worker run,
+ * a WAMID read and a MSG# write on the way there.
+ *
+ * Measured over the 30 days to 2026-11-06: wa-ingest-shopify ran 1,531 times
+ * and wa-ingest-whatsapp 4,343, against 6,296 worker runs.
+ */
+describe('only events the worker acts on reach the queue', () => {
+  const topicEvent = (topic, bodyObj) => shopifyEvent(bodyObj, { topic, webhookId: `wh-${topic}-${Math.random()}` });
+
+  it('answers 200 and enqueues nothing for an orders/updated with no COD-Cancelled tag', async () => {
+    const res = await shopifyHandler(topicEvent('orders/updated', { id: 12345, tags: 'wa-cod-sent, LOW RTO Risk' }));
+    expect(res.statusCode).toBe(200);
+    expect(_drainQueue()).toHaveLength(0);
+  });
+
+  it('still enqueues the orders/updated that matters', async () => {
+    await shopifyHandler(topicEvent('orders/updated', { id: 12345, tags: 'COD-Cancelled' }));
+    expect(_drainQueue()).toHaveLength(1);
+  });
+
+  it('enqueues nothing for a courier scan no flow reads', async () => {
+    const res = await shopifyHandler(topicEvent('fulfillment_events/create', { order_id: 12345, status: 'in_transit' }));
+    expect(res.statusCode).toBe(200);
+    expect(_drainQueue()).toHaveLength(0);
+  });
+
+  it('still enqueues a delivery and a failed attempt', async () => {
+    await shopifyHandler(topicEvent('fulfillment_events/create', { order_id: 12345, status: 'delivered' }));
+    await shopifyHandler(topicEvent('fulfillment_events/create', { order_id: 12345, status: 'attempted_delivery' }));
+    expect(_drainQueue()).toHaveLength(2);
+  });
+
+  it('enqueues nothing for a checkout without the OTP attribute', async () => {
+    const res = await shopifyHandler(topicEvent('checkouts/update', { token: 'tok123456789', note_attributes: [] }));
+    expect(res.statusCode).toBe(200);
+    expect(_drainQueue()).toHaveLength(0);
+  });
+
+  it('still enqueues the checkout that passed OTP', async () => {
+    await shopifyHandler(topicEvent('checkouts/update', {
+      cart_token: 'Z2NwLWFzaWEtc291dGgx',
+      note_attributes: [{ name: '_otpVerifiedPhoneNumber', value: '919812345678' }],
+    }));
+    const q = _drainQueue();
+    expect(q).toHaveLength(1);
+    expect(q[0].message.kind).toBe('checkout');
+  });
+
+  it('drops WhatsApp sent and read statuses, which nothing reads', () => {
+    const statusBody = (status) => ({
+      entry: [{ changes: [{ field: 'messages', value: { statuses: [{ id: 'wamid.X', status }] } }] }],
+    });
+    expect(whatsappIngest.toItems({}, statusBody('sent'))).toEqual([]);
+    expect(whatsappIngest.toItems({}, statusBody('read'))).toEqual([]);
+    expect(whatsappIngest.toItems({}, statusBody('delivered'))).toHaveLength(1);
+    expect(whatsappIngest.toItems({}, statusBody('failed'))).toHaveLength(1);
+  });
+});
