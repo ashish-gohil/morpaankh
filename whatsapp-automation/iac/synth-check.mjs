@@ -74,5 +74,34 @@ check('the intake alarm counts five functions', () => {
   assert.equal((expr.match(/\be\d+\b/g) || []).length, 5, `expression was "${expr}"`);
 });
 
+/*
+ * O5. Lambda creates a function's log group on first invocation with retention
+ * NEVER EXPIRES, and thirteen of the sixteen groups here were only IMPORTED,
+ * which sets nothing on them. CloudWatch storage is already half this
+ * account's bill, so a function shipping without a retention policy is a
+ * silent cost.
+ */
+check('every function has a log retention policy', () => {
+  const functions = resources
+    .filter(([, r]) => r.Type === 'AWS::Lambda::Function')
+    .map(([, r]) => r.Properties?.FunctionName)
+    .filter((n) => typeof n === 'string' && n.startsWith('wa-'));
+  assert.ok(functions.length >= 16, `only found ${functions.length} wa- functions`);
+
+  // Either a LogRetention custom resource names the group, or the stack
+  // declares the group itself with a RetentionInDays.
+  const retained = new Set();
+  for (const [, r] of resources) {
+    if (r.Type === 'Custom::LogRetention' && typeof r.Properties?.LogGroupName === 'string') {
+      retained.add(r.Properties.LogGroupName);
+    }
+    if (r.Type === 'AWS::Logs::LogGroup' && r.Properties?.RetentionInDays) {
+      retained.add(r.Properties.LogGroupName);
+    }
+  }
+  const missing = functions.filter((n) => !retained.has(`/aws/lambda/${n}`));
+  assert.deepEqual(missing, [], `no retention policy for: ${missing.join(', ')}`);
+});
+
 console.log(failures ? `\n${failures} failed` : '\nall passed');
 process.exit(failures ? 1 : 0);

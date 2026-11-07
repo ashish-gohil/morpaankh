@@ -260,8 +260,8 @@ class WaAutomationStack extends cdk.Stack {
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
     };
 
-    const makeFn = (name, handler, opts = {}) =>
-      new lambda.Function(this, name, {
+    const makeFn = (name, handler, opts = {}) => {
+      const fn = new lambda.Function(this, name, {
         functionName: `wa-${name}`,
         runtime: lambda.Runtime.NODEJS_24_X,
         code: CODE,
@@ -273,6 +273,32 @@ class WaAutomationStack extends cdk.Stack {
         ...(opts.logGroup ? { logGroup: opts.logGroup } : {}),
         ...(opts.layers ? { layers: opts.layers } : {}),
       });
+      /*
+       * RETENTION, SET HERE SO IT CANNOT BE FORGOTTEN.
+       *
+       * Lambda creates a function's log group itself, on first invocation, with
+       * retention NEVER EXPIRES. Three groups are declared in this file and
+       * carry 90 days; the other thirteen were imported with
+       * fromLogGroupName, which only references a group and sets nothing on it,
+       * so they kept logs forever. CloudWatch storage is already half this
+       * account's bill.
+       *
+       * LogRetention rather than `new logs.LogGroup`: these groups already
+       * exist, and declaring one with a name that exists fails the deploy with
+       * AlreadyExists. The custom resource calls PutRetentionPolicy instead,
+       * which is idempotent and works whether the group is there yet or not.
+       *
+       * Skipped for a function that brought its own group, because that group
+       * is declared above with its retention already on it.
+       */
+      if (!opts.logGroup) {
+        new logs.LogRetention(this, `Ret${name}`, {
+          logGroupName: `/aws/lambda/wa-${name}`,
+          retention: logs.RetentionDays.THREE_MONTHS,
+        });
+      }
+      return fn;
+    };
 
     // ingest (verify + dedupe + 200 fast): need table (dedupe) + queue (send) + secret
     const ingest = {
