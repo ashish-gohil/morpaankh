@@ -509,3 +509,14 @@
   .tapi-sub__sub { margin-bottom: var(--space-sm); }
   .tapi-sub__tick { width: 40px; height: 40px; margin-bottom: var(--space-xs); }
 }
+
+/*
+ * N7. The Turnstile widget, when a site key is configured. Rendered above the
+ * actions, full width, with the same rhythm as a field so it does not read as
+ * an advert dropped into the form. data-size="flexible" means Cloudflare sizes
+ * it to this box rather than to a fixed 300px.
+ */
+.tapi-sub__turnstile {
+  margin: 0 0 var(--space-12, 12px);
+  min-height: 65px;
+}

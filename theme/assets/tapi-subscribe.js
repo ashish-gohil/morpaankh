@@ -256,6 +256,18 @@
           /* Honeypot. Named innocuously and left out of the tab order. */
           '<input class="tapi-sub__hp" name="hp" type="text" tabindex="-1" autocomplete="off" ' +
             'aria-hidden="true" value="">' +
+          /*
+           * N7. Cloudflare Turnstile, and ONLY when a site key is configured.
+           *
+           * Nothing is rendered and nothing is loaded without one, so the
+           * default storefront is byte for byte what it was. The service does
+           * not require a token until its own secret is set, which is what
+           * lets the two halves ship in either order.
+           */
+          (cfg.turnstileSiteKey
+            ? '<div class="tapi-sub__turnstile cf-turnstile" data-sitekey="' + esc(cfg.turnstileSiteKey) + '"' +
+              ' data-callback="tapiTurnstileOk" data-theme="light" data-size="flexible"></div>'
+            : '') +
           '<div class="tapi-sub__actions">' +
             '<p class="tapi-sub__err tapi-sub__formerr" data-sub-formerr role="alert"></p>' +
             '<button type="submit" class="tapi-sub__submit" data-sub-submit>' + esc(cfg.buttonText) + '</button>' +
@@ -451,6 +463,15 @@
         phone: dial().code + phoneEl.value.replace(/\D/g, ''),
         hp: hpEl.value,
       };
+      /*
+       * Turnstile writes its token into a hidden input it injects itself. Read
+       * at SUBMIT time rather than cached, because the widget refreshes its
+       * token and a stale one is refused by Cloudflare.
+       */
+      if (cfg.turnstileSiteKey) {
+        var tokEl = form.querySelector('[name="cf-turnstile-response"]');
+        payload.turnstileToken = tokEl ? tokEl.value : '';
+      }
 
       fetch(cfg.endpoint, {
         method: 'POST',
@@ -519,7 +540,24 @@
   /** Pull the stylesheet in only when the popup is about to need it. Nothing
    *  about this component should cost a request while the visitor is still
    *  loading the page they actually came for. */
-  function ensureStyles(href) {
+  /*
+ * N7. Cloudflare's widget script, once per page, async, and never blocking.
+ *
+ * `render=explicit` is deliberately NOT used: the markup carries
+ * data-sitekey, so Cloudflare renders it itself as soon as it loads, which
+ * means no ordering problem between this script and the dialog being built.
+ */
+function ensureTurnstile() {
+  if (document.querySelector('script[data-tapi-turnstile]')) return;
+  var sc = document.createElement('script');
+  sc.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+  sc.async = true;
+  sc.defer = true;
+  sc.setAttribute('data-tapi-turnstile', '1');
+  document.head.appendChild(sc);
+}
+
+function ensureStyles(href) {
     if (!href || document.querySelector('link[data-tapi-sub-css]')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -545,6 +583,12 @@
     function attempt() {
       if (otherOverlayOpen()) return retry();
       ensureStyles(cfg.cssUrl);
+      /*
+       * Loaded only when a site key is set, and only when the popup is about
+       * to be shown, so a storefront with no bot check pays nothing for this
+       * and neither does a page the popup never opens on.
+       */
+      if (cfg.turnstileSiteKey) ensureTurnstile();
       if (!instance) instance = mount(cfg);
       if (!stylesReady(instance.root)) return retry();
       instance.open();

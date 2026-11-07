@@ -33,11 +33,21 @@
     the script instead, which pulls it in at the moment it is needed. A
     <noscript> copy would be dead weight for the same reason: without JS there
     is no dialog for it to style.
+    N7, turnstileSiteKey: Cloudflare Turnstile's SITE key, which is public by
+    design. The secret half lives in the service's Secrets Manager and never
+    comes near the storefront.
+
+    BLANK IS THE DEFAULT AND MEANS NO WIDGET: nothing is rendered and
+    Cloudflare's script is never loaded. The service does not require a token
+    until its own secret is set, and a token nobody checks is simply ignored,
+    so the two halves can be deployed in either order with no window in which
+    real signups are refused.
   {%- endcomment -%}
   <script type="application/json" id="tapi-subscribe-config">
     {
       "enabled": true,
       "endpoint": {{ s.endpoint | json }},
+      "turnstileSiteKey": {{ s.turnstile_site_key | json }},
       "cssUrl": {{ 'tapi-subscribe.css' | asset_url | json }},
       "delayMs": {{ delay_ms | json }},
       "resnoozeDays": {{ s.resnooze_days | json }},
@@ -190,6 +200,12 @@
     {
       "type": "header",
       "content": "Advanced"
+    },
+    {
+      "type": "text",
+      "id": "turnstile_site_key",
+      "label": "Cloudflare Turnstile site key",
+      "info": "Optional. Leave blank for no bot check. Paste the SITE key from Cloudflare; the secret key goes in the service, not here."
     },
     {
       "type": "text",
