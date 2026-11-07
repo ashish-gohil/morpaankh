@@ -34,7 +34,17 @@ const NEVER_SENT_CODES = new Set([
 ]);
 const UNKNOWN_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'UND_ERR_SOCKET', 'UND_ERR_HEADERS_TIMEOUT']);
 
-const codeOf = (err) => err?.cause?.code || err?.code || '';
+/*
+ * AbortSignal.timeout rejects with a DOMException named 'TimeoutError' that
+ * carries no `code` at all, so it fell through every classification here and
+ * was treated as a permanent fault. It belongs in the MAYBE-SENT class: the
+ * request left this process and we do not know whether the other end acted on
+ * it, which is exactly the uncertainty `idempotent` exists to resolve.
+ */
+const codeOf = (err) => {
+  if (err?.name === 'TimeoutError' || err?.cause?.name === 'TimeoutError') return 'ETIMEDOUT';
+  return err?.cause?.code || err?.code || '';
+};
 
 /** True when the request provably never reached the provider. */
 export function neverSent(err) {

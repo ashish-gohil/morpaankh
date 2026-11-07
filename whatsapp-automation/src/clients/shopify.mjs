@@ -7,6 +7,7 @@
  * flows share: graphql(), getOrder(), tagsAdd(), and webhook subscription sync.
  */
 import { config } from '../config.mjs';
+import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
@@ -27,6 +28,9 @@ async function graphql(query, variables = {}, { idempotent = false } = {}) {
     'shopify.graphql',
     async () => {
       const res = await fetch(endpoint, {
+        // Bounded, or a hung Shopify holds the worker to its 60 s limit and the
+        // SQS message blocks its order's group for 6 minutes. See lib/timeout.
+        ...deadline(TIMEOUT_MS.shopify),
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': s.shopifyAdminToken },
         body: JSON.stringify({ query, variables }),

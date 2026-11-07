@@ -8,6 +8,7 @@
  * are '' so callers stay in DRY_RUN rather than crash.
  */
 import { config } from './config.mjs';
+import { awsTimeouts } from './lib/timeout.mjs';
 
 const CACHE_MS = 5 * 60 * 1000;
 let cache = null;
@@ -53,7 +54,7 @@ let sm = null;
 async function fromAws() {
   if (!sm) {
     const c = await import('@aws-sdk/client-secrets-manager');
-    sm = { client: new c.SecretsManagerClient({ region: config.region }), GetSecretValueCommand: c.GetSecretValueCommand };
+    sm = { client: new c.SecretsManagerClient({ region: config.region, ...awsTimeouts() }), GetSecretValueCommand: c.GetSecretValueCommand };
   }
   const r = await sm.client.send(new sm.GetSecretValueCommand({ SecretId: config.secretsId }));
   const json = JSON.parse(r.SecretString || '{}');
@@ -78,7 +79,7 @@ export async function getSecrets() {
 export async function writeSecrets(patch) {
   if (config.secretsBackend !== 'aws') throw new Error('writeSecrets requires SECRETS_BACKEND=aws');
   const c = await import('@aws-sdk/client-secrets-manager');
-  const client = new c.SecretsManagerClient({ region: config.region });
+  const client = new c.SecretsManagerClient({ region: config.region, ...awsTimeouts() });
   let current = {};
   try {
     const r = await client.send(new c.GetSecretValueCommand({ SecretId: config.secretsId }));

@@ -18,6 +18,7 @@
  *   downloadMedia(mediaId) -> { bytes, mime, filename }
  */
 import { config } from '../config.mjs';
+import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log, maskPhone, metric } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
@@ -56,6 +57,7 @@ async function post(to, payload) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.waAccessToken}` },
       body: JSON.stringify({ messaging_product: 'whatsapp', to: to.replace(/^\+/, ''), ...payload }),
+      ...deadline(TIMEOUT_MS.whatsapp),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -106,7 +108,10 @@ export const whatsapp = {
     // Paged, because a WABA past 200 templates would otherwise report the tail
     // of the registry as missing and cry wolf every morning.
     while (url) {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${s.waAccessToken}` } });
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${s.waAccessToken}` },
+        ...deadline(TIMEOUT_MS.whatsapp),
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(`listTemplates ${res.status}: ${JSON.stringify(json).slice(0, 200)}`);
       for (const t of json.data || []) out[t.name] = t.status;
@@ -228,6 +233,9 @@ export const whatsapp = {
           method: 'POST',
           headers: { Authorization: `Bearer ${s.waAccessToken}` },
           body: form,
+          // An upload carries a whole image, so it gets the write deadline
+          // rather than the 10 s one a text message gets.
+          ...deadline(TIMEOUT_MS.metaGraph),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.id) {
@@ -257,12 +265,18 @@ export const whatsapp = {
     const s = await getSecrets();
     const meta = await fetch(`https://graph.facebook.com/${config.graphVersion}/${mediaId}`, {
       headers: { Authorization: `Bearer ${s.waAccessToken}` },
+      ...deadline(TIMEOUT_MS.whatsapp),
     });
     const info = await meta.json().catch(() => ({}));
     if (!meta.ok || !info.url) {
       throw new Error(`wa media lookup failed: ${info.error?.message || meta.status}`);
     }
-    const file = await fetch(info.url, { headers: { Authorization: `Bearer ${s.waAccessToken}` } });
+    // The ledger CSV the owner attaches to /pnl-ledger comes through here, so
+    // this one is a download rather than an API call.
+    const file = await fetch(info.url, {
+      headers: { Authorization: `Bearer ${s.waAccessToken}` },
+      ...deadline(TIMEOUT_MS.metaGraph),
+    });
     if (!file.ok) throw new Error(`wa media download failed: ${file.status}`);
     return {
       bytes: Buffer.from(await file.arrayBuffer()),

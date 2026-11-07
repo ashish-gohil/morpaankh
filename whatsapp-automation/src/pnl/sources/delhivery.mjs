@@ -27,6 +27,7 @@
  * Failures throw. The engine owns SourceStatus and records them there.
  */
 import { getSecrets } from '../../secrets.mjs';
+import { deadline, TIMEOUT_MS } from '../../lib/timeout.mjs';
 import { log } from '../../log.mjs';
 import { withRetry } from '../../lib/resilience.mjs';
 import { toPaise, rupeesToPaise } from '../../lib/money.mjs';
@@ -62,7 +63,10 @@ export async function trackRaw(awbs) {
   return withRetry(
     'pnl.delhivery.track',
     async () => {
-      const res = await fetch(url, { headers: { Authorization: `Token ${s.delhiveryToken}` } });
+      const res = await fetch(url, {
+        headers: { Authorization: `Token ${s.delhiveryToken}` },
+        ...deadline(TIMEOUT_MS.delhiveryTrack),
+      });
       const text = await res.text();
       if (!res.ok) {
         const e = /** @type {any} */ (new Error(`pnl delhivery track HTTP ${res.status}: ${text.slice(0, 200)}`));

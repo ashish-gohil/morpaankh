@@ -18,6 +18,7 @@
  * send email", not "that address is bad".
  */
 import { config } from '../config.mjs';
+import { awsTimeouts } from '../lib/timeout.mjs';
 import { randomToken } from '../lib/ids.mjs';
 import { log, metric } from '../log.mjs';
 import { headerSafe } from '../../messages/email.mjs';
@@ -36,7 +37,7 @@ async function client() {
   try {
     const mod = await import('@aws-sdk/client-sesv2');
     ses = {
-      send: (cmd) => new mod.SESv2Client({ region: config.region }).send(cmd),
+      send: (cmd) => new mod.SESv2Client({ region: config.region, ...awsTimeouts() }).send(cmd),
       SendEmailCommand: mod.SendEmailCommand,
     };
   } catch (e) {

@@ -25,6 +25,7 @@
  * ignored, so calling this with { orders, config, clients } is harmless.
  */
 import { getSecrets } from '../../secrets.mjs';
+import { deadline, TIMEOUT_MS } from '../../lib/timeout.mjs';
 import { log } from '../../log.mjs';
 import { withRetry } from '../../lib/resilience.mjs';
 import { RULES } from '../../../messages/rules.mjs';
@@ -39,7 +40,10 @@ async function rzpGet(path, auth, label) {
   return withRetry(
     label,
     async () => {
-      const res = await fetch(`${BASE}${path}`, { headers: { Authorization: auth } });
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { Authorization: auth },
+        ...deadline(TIMEOUT_MS.shopify),
+      });
       const text = await res.text();
       let json;
       try {

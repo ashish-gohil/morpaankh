@@ -15,6 +15,7 @@
  * wires the flow and stays inert until ONBOARDING_ENABLED plus those values.
  */
 import { config } from '../config.mjs';
+import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 import { getSecrets, writeSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
 
@@ -53,22 +54,36 @@ function page() {
 async function exchange(code) {
   const s = await getSecrets();
   // 1) code -> access token
+  /*
+  * Four Graph calls in one request, on a Lambda with the default 30 s. Without
+  * a deadline on each, one slow step could burn the whole budget and leave the
+  * onboarding half done: a token written with no WABA id behind it.
+  */
   const tokenRes = await fetch(
     `${GRAPH()}/oauth/access_token?client_id=${FB_APP_ID()}&client_secret=${s.waAppSecret}&code=${encodeURIComponent(code)}`,
+    deadline(TIMEOUT_MS.whatsapp),
   );
   const tokenJson = await tokenRes.json();
   if (!tokenRes.ok || !tokenJson.access_token) throw new Error(`token exchange failed: ${JSON.stringify(tokenJson).slice(0, 200)}`);
   const accessToken = tokenJson.access_token;
 
   // 2) discover the WABA + phone number id shared by the signup
-  const debug = await (await fetch(`${GRAPH()}/debug_token?input_token=${accessToken}&access_token=${accessToken}`)).json();
+  const debug = await (
+    await fetch(`${GRAPH()}/debug_token?input_token=${accessToken}&access_token=${accessToken}`, deadline(TIMEOUT_MS.whatsapp))
+  ).json();
   const wabaId = debug?.data?.granular_scopes?.find?.((g) => g.scope === 'whatsapp_business_management')?.target_ids?.[0] || '';
   let phoneNumberId = '';
   if (wabaId) {
-    const phones = await (await fetch(`${GRAPH()}/${wabaId}/phone_numbers?access_token=${accessToken}`)).json();
+    const phones = await (
+      await fetch(`${GRAPH()}/${wabaId}/phone_numbers?access_token=${accessToken}`, deadline(TIMEOUT_MS.whatsapp))
+    ).json();
     phoneNumberId = phones?.data?.[0]?.id || '';
     // 3) subscribe the app to this WABA's webhooks (coexistence: no phone registration)
-    await fetch(`${GRAPH()}/${wabaId}/subscribed_apps`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
+    await fetch(`${GRAPH()}/${wabaId}/subscribed_apps`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      ...deadline(TIMEOUT_MS.whatsapp),
+    });
   }
 
   await writeSecrets({ waAccessToken: accessToken, waWabaId: wabaId, waPhoneNumberId: phoneNumberId });

@@ -19,6 +19,7 @@
  * taps Confirm is the entire value of the preview.
  */
 import { config } from '../../config.mjs';
+import { deadline, TIMEOUT_MS } from '../../lib/timeout.mjs';
 import { getSecrets } from '../../secrets.mjs';
 import { log, metric, maskPhone } from '../../log.mjs';
 import { withRetry } from '../../lib/resilience.mjs';
@@ -67,7 +68,8 @@ async function call(method, path, { body, form, idempotent = false } = {}) {
     payload = JSON.stringify(body);
   }
   return withRetry(`delhivery.${path}`, async () => {
-    const res = await fetch(`${BASE()}${path}`, { method, headers, body: payload });
+    // Booking a parcel is never retried, so it gets the longer deadline.
+    const res = await fetch(`${BASE()}${path}`, { method, headers, body: payload, ...deadline(TIMEOUT_MS.delhiveryWrite) });
     const text = await res.text();
     let json;
     try {

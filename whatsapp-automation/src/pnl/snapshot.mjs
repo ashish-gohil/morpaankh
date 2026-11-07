@@ -35,6 +35,7 @@
  * digest reads every SK=REC row as a cart, and Flow W scans SUB.
  */
 import { config } from '../config.mjs';
+import { awsTimeouts } from '../lib/timeout.mjs';
 import { table } from '../store/table.mjs';
 import { log } from '../log.mjs';
 import { RULES } from '../../messages/rules.mjs';
@@ -64,7 +65,7 @@ async function client() {
   if (s3 || s3Broken) return s3;
   try {
     const mod = await import('@aws-sdk/client-s3');
-    const c = new mod.S3Client({ region: config.region });
+    const c = new mod.S3Client({ region: config.region, ...awsTimeouts() });
     s3 = {
       send: (cmd) => c.send(cmd),
       PutObjectCommand: mod.PutObjectCommand,

@@ -27,6 +27,7 @@
  * the business did not make, so this throws and the engine records it.
  */
 import { getSecrets } from '../../secrets.mjs';
+import { deadline, TIMEOUT_MS } from '../../lib/timeout.mjs';
 import { log } from '../../log.mjs';
 import { withRetry } from '../../lib/resilience.mjs';
 import { toPaise } from '../../lib/money.mjs';
@@ -78,7 +79,7 @@ async function getJson(url, label) {
   return withRetry(
     label,
     async () => {
-      const res = await fetch(url);
+      const res = await fetch(url, deadline(TIMEOUT_MS.metaGraph));
       const text = await res.text();
       let json;
       try {

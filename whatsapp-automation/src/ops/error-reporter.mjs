@@ -23,6 +23,7 @@
  * version and guarantees somebody actually finds out.
  */
 import { gunzipSync } from 'node:zlib';
+import { awsTimeouts } from '../lib/timeout.mjs';
 import { config } from '../config.mjs';
 import { table } from '../store/table.mjs';
 import { realClients } from '../clients/index.mjs';
@@ -37,7 +38,7 @@ let snsClient = null;
 async function sns() {
   if (snsClient) return snsClient;
   const c = await import('@aws-sdk/client-sns');
-  snsClient = { client: new c.SNSClient({ region: config.region }), PublishCommand: c.PublishCommand };
+  snsClient = { client: new c.SNSClient({ region: config.region, ...awsTimeouts() }), PublishCommand: c.PublishCommand };
   return snsClient;
 }
 

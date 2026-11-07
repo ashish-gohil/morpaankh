@@ -38,6 +38,7 @@
  * so this never calls Delhivery for real until both verified and enabled.
  */
 import { config } from '../config.mjs';
+import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log, metric } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
@@ -52,11 +53,18 @@ async function authHeaders() {
 
 async function req(method, path, body, { idempotent = false } = {}) {
   const headers = await authHeaders();
+  /*
+   * A read is retried, so its deadline has to leave room for three attempts
+   * inside the worker's 60 s; a write is not retried, so it can wait longer
+   * for a slow answer. `idempotent` already carries exactly that distinction.
+   */
+  const ms = idempotent ? TIMEOUT_MS.delhiveryTrack : TIMEOUT_MS.delhiveryWrite;
   return withRetry(`delhivery.${path}`, async () => {
     const res = await fetch(`${BASE()}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      ...deadline(ms),
     });
     const text = await res.text();
     let json = null; // null means the body was not JSON

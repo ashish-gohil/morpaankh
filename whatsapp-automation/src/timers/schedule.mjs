@@ -8,6 +8,7 @@
  *            MessageGroupId. Deterministic names so a timer can be replaced/deleted.
  */
 import { config } from '../config.mjs';
+import { awsTimeouts } from '../lib/timeout.mjs';
 import { timerName } from '../lib/ids.mjs';
 import { istParts } from '../lib/time.mjs';
 import { log } from '../log.mjs';
@@ -46,7 +47,7 @@ async function aws() {
   if (sched) return sched;
   const c = await import('@aws-sdk/client-scheduler');
   sched = {
-    client: new c.SchedulerClient({ region: config.region }),
+    client: new c.SchedulerClient({ region: config.region, ...awsTimeouts() }),
     CreateScheduleCommand: c.CreateScheduleCommand,
     DeleteScheduleCommand: c.DeleteScheduleCommand,
   };

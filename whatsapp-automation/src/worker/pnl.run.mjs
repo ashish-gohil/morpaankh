@@ -11,6 +11,7 @@
  * attached and put it in the bucket, which fits comfortably in the worker.
  */
 import { config } from '../config.mjs';
+import { awsTimeouts } from '../lib/timeout.mjs';
 import { log, metric } from '../log.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { toPaise, formatINR } from '../lib/money.mjs';
@@ -28,7 +29,7 @@ async function lambdaClient() {
   if (lambdaMod || lambdaBroken) return lambdaMod;
   try {
     const mod = await import('@aws-sdk/client-lambda');
-    const c = new mod.LambdaClient({ region: config.region });
+    const c = new mod.LambdaClient({ region: config.region, ...awsTimeouts() });
     lambdaMod = { send: (cmd) => c.send(cmd), InvokeCommand: mod.InvokeCommand };
   } catch (e) {
     lambdaBroken = true;

@@ -10,6 +10,7 @@
  * duplicate within its 5-minute window as a second line of defence.
  */
 import { config } from './config.mjs';
+import { awsTimeouts } from './lib/timeout.mjs';
 
 const isAws = () => config.queueBackend === 'aws';
 const sent = []; // memory backend buffer
@@ -18,7 +19,7 @@ let sqs = null;
 async function aws() {
   if (sqs) return sqs;
   const c = await import('@aws-sdk/client-sqs');
-  sqs = { client: new c.SQSClient({ region: config.region }), SendMessageCommand: c.SendMessageCommand };
+  sqs = { client: new c.SQSClient({ region: config.region, ...awsTimeouts({ ingest: true }) }), SendMessageCommand: c.SendMessageCommand };
   return sqs;
 }
 

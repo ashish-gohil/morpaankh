@@ -8,6 +8,7 @@
  *   refund(paymentId, amountPaise) -> { id }
  */
 import { config } from '../config.mjs';
+import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 import { getSecrets } from '../secrets.mjs';
 import { log } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
@@ -26,6 +27,7 @@ async function call(method, path, body) {
   const auth = await authHeader();
   return withRetry(`razorpay.${path.split('/')[1] || path}`, async () => {
     const res = await fetch(`${BASE}${path}`, {
+      ...deadline(TIMEOUT_MS.razorpay),
       method,
       headers: { 'Content-Type': 'application/json', Authorization: auth },
       body: body ? JSON.stringify(body) : undefined,
