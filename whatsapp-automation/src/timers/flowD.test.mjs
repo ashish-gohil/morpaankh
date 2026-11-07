@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { summarizeDigest, countEvents } from '../domain/digest.mjs';
+import { summarizeDigest, countEvents, waSpendLine } from '../domain/digest.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 import { sanitizeParam } from '../../messages/templates.mjs';
 
@@ -332,5 +332,66 @@ describe('countEvents counts yesterday, and only yesterday', () => {
 
   it('survives a state row with no flow objects at all', () => {
     expect(countEvents([{}, { flowA: null }, null], win).cod).toBe(0);
+  });
+});
+
+/*
+ * N9. Nothing said what this service spends on WhatsApp. The owner could read
+ * it in WhatsApp Manager, a screen they do not otherwise use, so the largest
+ * variable cost in the automation was invisible beside freight and COGS.
+ *
+ * Marketing is roughly seven times utility, which is why O8 and O9 exist and
+ * why a template silently recategorised to MARKETING is worth an urgent alert.
+ */
+describe('what WhatsApp cost this month', () => {
+  const rates = { marketing: 0.86, utility: 0.115, service: 0.115 };
+
+  it('counts by category and prices the billable ones', () => {
+    const line = waSpendLine({ 'marketing#billable': 30, 'utility#billable': 100 }, rates);
+    expect(line).toContain('30 marketing');
+    expect(line).toContain('100 utility');
+    // 30 x 0.86 + 100 x 0.115 = 25.80 + 11.50 = 37.30
+    expect(line).toContain('37.30');
+  });
+
+  it('charges nothing for a message Meta did not bill', () => {
+    const line = waSpendLine({ 'utility#free': 500 }, rates);
+    expect(line).toContain('500 utility');
+    expect(line).not.toMatch(/about ₹|about Rs/);
+  });
+
+  it('names how close the free service allowance is', () => {
+    expect(waSpendLine({ SERVICE: 910 }, rates)).toContain('910 of 1,000 free');
+  });
+
+  /*
+   * The share of sends Meta turns away is the number that explains why a flow
+   * "is not working": roughly a third of this store's marketing sends.
+   */
+  it('counts what Meta refused, which is not billed but matters more', () => {
+    const line = waSpendLine({ 'marketing#billable': 10, 'REFUSED#131049': 7, 'REFUSED#130472': 2 }, rates);
+    expect(line).toContain('refused by Meta: 9');
+  });
+
+  it('adds nothing at all in a month with nothing counted', () => {
+    expect(waSpendLine({}, rates)).toBe('');
+  });
+
+  /*
+   * Meta's field shape is not something this code has seen live, so an
+   * unrecognised category must land somewhere visible rather than throw.
+   */
+  it('shows an unknown category rather than hiding it', () => {
+    expect(waSpendLine({ 'unknown#billable': 3 }, rates)).toContain('3 unknown');
+  });
+
+  it('does not accumulate floating-point error over a few hundred messages', () => {
+    /*
+     * 200 x 0.115 is exactly 23. Rounding the RATE to whole paise first takes
+     * 11.5 to 12 and reads as 24: a cost line confidently several percent out.
+     * formatINR drops the paise when they are zero, hence '23' and not '23.00'.
+     */
+    expect(waSpendLine({ 'utility#billable': 200 }, rates)).toContain('₹23');
+    expect(waSpendLine({ 'utility#billable': 200 }, rates)).not.toContain('₹24');
   });
 });

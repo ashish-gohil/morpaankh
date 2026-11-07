@@ -151,6 +151,23 @@ export const RULES = {
    * An ALERT always goes, whatever the channel: a template is billed but it
    * arrives, and an alert that waits for a window is not an alert.
    */
+  /*
+   * N9. Meta's India rate card, in rupees, per DELIVERED template.
+   *
+   * Edit these when Meta changes them, which it does only on 1 Jan, 1 Apr,
+   * 1 Jul and 1 Oct. They are here rather than inferred because Meta does not
+   * tell us the price in the webhook, only the category and whether the
+   * message was billable.
+   *
+   * marketing is roughly seven times utility, which is the whole reason O9 and
+   * O8 exist and the reason a template silently recategorised to MARKETING
+   * (N10) is worth an URGENT alert.
+   *
+   * service is 0 up to the first 1,000 a number a month and then the utility
+   * rate; the meter counts them so the digest can say how close that is.
+   */
+  waRatesInr: { marketing: 0.86, utility: 0.115, service: 0.115, authentication: 0.115 },
+
   digestChannel: 'window-else-email',
   /*
    * Deleting the one-off discount codes this service mints.

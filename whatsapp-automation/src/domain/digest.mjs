@@ -106,6 +106,63 @@ function subscriberOffersLine(s) {
 }
 
 /**
+ * N9. What WhatsApp cost this month, in one line.
+ *
+ * Nothing said what the service spends. The owner could read it in WhatsApp
+ * Manager, a screen they do not otherwise use, so the largest variable cost in
+ * the automation was invisible beside freight and COGS.
+ *
+ * MONTH TO DATE, not yesterday, because that is the number a decision is made
+ * against: the free service allowance resets monthly and the marketing cost is
+ * only alarming in aggregate.
+ *
+ * Self-silencing: a month with nothing counted adds nothing to the digest.
+ *
+ * @param {Record<string, number>} counts  WACOUNT sort key -> count
+ * @param {Record<string, number>} rates   category -> rupees per billable message
+ */
+export function waSpendLine(counts, rates = {}) {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return '';
+
+  let tenThousandths = 0;
+  const byCategory = {};
+  let refused = 0;
+  let service = 0;
+
+  for (const [sk, n] of entries) {
+    if (!n) continue;
+    if (sk === 'SERVICE') { service = n; continue; }
+    if (sk.startsWith('REFUSED#')) { refused += n; continue; }
+    const [category, billable] = sk.split('#');
+    byCategory[category] = (byCategory[category] || 0) + n;
+    if (billable === 'billable') {
+      /*
+       * Accumulated in TEN-THOUSANDTHS OF A RUPEE, which is the smallest unit
+       * the rate card uses, and only converted to paise at the end.
+       *
+       * Rounding the rate to whole paise first is wrong and quietly so: the
+       * utility rate is 11.5 paise, Math.round takes it to 12, and 200
+       * messages then read as Rs 24 instead of Rs 23. Over a month that is a
+       * cost line that is confidently several percent out.
+       */
+      tenThousandths += Math.round((rates[category] || 0) * 10000) * n;
+    }
+  }
+
+  const parts = Object.entries(byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => `${n} ${c}`);
+  if (service) parts.push(`${service} free-form (${service} of 1,000 free this month)`);
+  if (!parts.length && !refused) return '';
+
+  const paise = Math.round(tenThousandths / 100);
+  const cost = paise ? `, about ${formatINR(paise)}` : '';
+  const ref = refused ? `; refused by Meta: ${refused}` : '';
+  return `. WhatsApp this month: ${parts.join(', ')}${cost}${ref}`;
+}
+
+/**
  * Yesterday's EVENTS, counted off the timestamps this service writes.
  *
  * THE DIGEST USED TO COUNT TAGS ON ORDERS SHOPIFY REPORTED AS UPDATED.
@@ -171,7 +228,8 @@ export function countEvents(states, { fromISO, toISO }) {
  *           subscribers?: {sent?: number, whatsapp?: number, email?: number, parked?: number,
  *                          converted?: number, revenuePaise?: number,
  *                          skips?: {reason: string, count: number}[]},
- *           events?: Record<string, number>}} [extra]
+ *           events?: Record<string, number>,
+ *           waCounts?: Record<string, number>, waRates?: Record<string, number>}} [extra]
  *   Counts that cannot be derived from a tag. "carts messaged" is one of them:
  *   an abandoned checkout has no order to tag, so it is counted off the Flow R
  *   records instead. "recovered" IS a tag, so it still comes from Shopify.
@@ -209,6 +267,7 @@ export function summarizeDigest(orders, extra = {}) {
     counts,
     line:
       line
+      + waSpendLine(extra.waCounts || {}, extra.waRates || {})
       + subscriberOffersLine(extra.subscribers)
       + openReplacementsLine(extra.replacements)
       + templateProblemsLine(extra.templateProblems),

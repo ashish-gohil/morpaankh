@@ -13,7 +13,7 @@ import { table } from '../store/table.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
 import { allSubRecs } from '../store/subscriberOffer.mjs';
 import { listOpen } from '../store/replace.mjs';
-import { windowOpen } from '../store/phoneProfile.mjs';
+import { windowOpen, waCounts } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { istParts, fromISTWall, addDays, formatISTDate } from '../lib/time.mjs';
 import { log } from '../log.mjs';
@@ -147,7 +147,19 @@ export const handler = async () => {
     toISO: todayStart.toISOString(),
   });
 
-  const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems, subscribers, events });
+  /*
+   * N9. Month to date, not yesterday: the free service allowance resets
+   * monthly and the marketing cost only matters in aggregate. One query on one
+   * row.
+   */
+  const month = `${p.y}-${String(p.mon + 1).padStart(2, '0')}`;
+  const counts = (await soft('readWaCounts', () => waCounts(month), {})) || {};
+
+  const { line } = summarizeDigest(norm, {
+    cartsMessaged, replacements, templateProblems, subscribers, events,
+    waCounts: counts,
+    waRates: RULES.waRatesInr,
+  });
 
   const deps = { clients: realClients };
   const vars = { date: formatISTDate(yStart), summary: line };

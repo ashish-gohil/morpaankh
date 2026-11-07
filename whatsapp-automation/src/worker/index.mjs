@@ -7,7 +7,7 @@
 import { log, maskPhone, metric } from '../log.mjs';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { addHours } from '../lib/time.mjs';
+import { addHours, istDayKey } from '../lib/time.mjs';
 import { realClients } from '../clients/index.mjs';
 import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
@@ -17,7 +17,7 @@ import { getState, runOnce, updateMessageStatus, patchFlowA, getSide } from '../
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
 import {
   isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing,
-  getAwaiting, listAwaiting, clearAwaiting, parkOffer, setHumanTakeover,
+  getAwaiting, listAwaiting, clearAwaiting, parkOffer, setHumanTakeover, countWaMessage,
 } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
@@ -534,6 +534,35 @@ async function onWaStatus(m) {
     // Delivery is the one fact that outranks a past bounce: this handset just
     // took a message. Let it undo the block rather than waiting out the expiry.
     if (st.status === 'delivered') await soft('clearUndeliverable', () => clearUndeliverable(ph), {});
+  }
+
+  /*
+   * N9. WHAT THIS COSTS, counted as Meta reports it.
+   *
+   * Nothing said what the service spends on WhatsApp. The owner could read it
+   * in WhatsApp Manager, a screen they do not otherwise use, so the largest
+   * variable cost in the automation was invisible beside freight and COGS.
+   *
+   * READ DEFENSIVELY. `status.pricing` is Meta's field and this code has not
+   * seen a live one: the push is read through optional chaining with a
+   * fallback, so a shape that differs from the documentation produces an
+   * `unknown` bucket rather than an exception on the delivery path. A wrong
+   * count is a wrong number on a digest; a throw here is a delivery outcome
+   * lost, which is the thing onWaStatus exists to record.
+   *
+   * Only `delivered` is billed, and only `failed` is refused, so those are the
+   * only two counted.
+   */
+  const month = istDayKey(new Date()).slice(0, 7);
+  if (st.status === 'delivered') {
+    const pricing = st.pricing || {};
+    const category = String(pricing.category || 'unknown').toLowerCase();
+    // `billable` is a boolean in the docs; absent means we cannot tell, and
+    // assuming billable is the safe direction for a cost meter.
+    const billable = pricing.billable === false ? 'free' : 'billable';
+    await soft('countWaDelivered', () => countWaMessage(month, `${category}#${billable}`), {});
+  } else if (st.status === 'failed' && code) {
+    await soft('countWaRefused', () => countWaMessage(month, `REFUSED#${code}`), {});
   }
   if (!st.id) return;
 

@@ -251,3 +251,38 @@ export async function parkOffer(phone, orderId, until, now = new Date()) {
 
 export const getParkedOffer = (phone) => table.get(pk(phone), OFFERWAIT);
 export const clearParkedOffer = (phone) => table.del(pk(phone), OFFERWAIT);
+
+/*
+ * N9. WACOUNT#<yyyy-mm> — what WhatsApp cost this month, and what Meta refused.
+ *
+ * Nothing said what this service spends. The owner could read it in WhatsApp
+ * Manager, which is a different screen from everything else they look at and
+ * does not appear in the daily digest or the P&L, so the single largest
+ * variable cost in the automation was invisible next to freight and COGS.
+ *
+ * ONE ROW A MONTH, many counters on it, incremented atomically: the queue
+ * serialises by order and not by month, so a read-modify-write would lose
+ * increments and a cost meter that under-reports is worse than none.
+ *
+ * Sort keys:
+ *   <category>#billable   delivered and charged (marketing, utility, service)
+ *   <category>#free       delivered inside an allowance
+ *   SERVICE               O8's free-form sends, for the 1,000 a month allowance
+ *   REFUSED#<code>        131049, 130472, 131026: not billed, but the share of
+ *                         sends Meta turns away is the number that explains why
+ *                         a flow "is not working"
+ */
+const countPk = (month) => `WACOUNT#${month}`;
+
+export async function countWaMessage(month, sk, now = new Date()) {
+  return table.addCount(countPk(month), sk, 'count', 1, {
+    month,
+    expiresAt: Math.floor(now.getTime() / 1000) + 400 * 86400,
+  });
+}
+
+/** Every counter for a month, as { [sk]: count }. */
+export async function waCounts(month) {
+  const rows = await table.query(countPk(month));
+  return Object.fromEntries(rows.map((r) => [String(r.SK), Number(r.count) || 0]));
+}
