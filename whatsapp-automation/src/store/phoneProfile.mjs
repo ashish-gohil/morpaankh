@@ -150,9 +150,29 @@ export async function inHumanTakeover(phone, now = new Date()) {
   return Boolean(p.humanTakeoverUntil && new Date(p.humanTakeoverUntil).getTime() > now.getTime());
 }
 
+/*
+ * N10. A customer turning marketing off INSIDE WhatsApp.
+ *
+ * They never sent us STOP, so nothing in this service knew: it would keep
+ * sending marketing templates, Meta would refuse each one, and the refusals
+ * would read as a throttle rather than as a person who asked us to stop. Which
+ * is worse than it sounds, because every refusal looks like the thing we
+ * already tolerate.
+ *
+ * SEPARATE from optOut, deliberately. optOut is this service's own record of
+ * someone replying STOP here, and it blocks everything we start; this blocks
+ * MARKETING only, which is what the customer actually turned off, and it is
+ * theirs to turn back on.
+ */
+export const setMarketingOptOut = (phone, off, now = new Date()) =>
+  patch(phone, { marketingOptOut: Boolean(off), marketingOptOutAt: off ? now.toISOString() : null });
+
 // caps
 export async function canSendMarketing(phone, now, days) {
-  return !withinDays((await getProfile(phone)).lastMarketingAt, now, days);
+  const p = await getProfile(phone);
+  // Their own choice, made in WhatsApp rather than to us. See setMarketingOptOut.
+  if (p.marketingOptOut) return false;
+  return !withinDays(p.lastMarketingAt, now, days);
 }
 export const markMarketing = (phone, now = new Date()) => patch(phone, { lastMarketingAt: now.toISOString() });
 /*

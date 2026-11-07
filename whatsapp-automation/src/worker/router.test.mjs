@@ -8,7 +8,11 @@ import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, recordMessage, getSide, updateMessageStatus, getState } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
-import { setUndeliverable, isUndeliverable, setOptOut, getParkedOffer, inHumanTakeover, getProfile } from '../store/phoneProfile.mjs';
+import {
+  setUndeliverable, isUndeliverable, setOptOut, getParkedOffer, inHumanTakeover, getProfile, canSendMarketing,
+} from '../store/phoneProfile.mjs';
+import { istDayKey } from '../lib/time.mjs';
+import { realClients } from '../clients/index.mjs';
 import { setAwaiting, getAwaiting, listAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
@@ -631,5 +635,93 @@ describe('the owner replying by hand holds the templates back', () => {
     await echo(CUSTOMER);
     const later = new Date(Date.now() + (RULES.humanTakeoverHours + 1) * 3600 * 1000);
     expect(await inHumanTakeover(CUSTOMER, later)).toBe(false);
+  });
+});
+
+/*
+ * N10. Four Meta webhook fields were acked and thrown away, so each of these
+ * changed silently:
+ *
+ *   a template MOVED TO MARKETING, about seven times the cost per send and
+ *     capped per customer behind 131049. On cod_confirm that is the order
+ *     confirmation becoming capped marketing.
+ *   a template's QUALITY dropping, the step before Meta pauses it.
+ *   the NUMBER's quality or messaging limit changing, which caps how many
+ *     different people a day can be reached at all.
+ *   a customer turning marketing off IN WHATSAPP, having never sent us STOP.
+ */
+describe('the Meta changes that used to happen silently', () => {
+  let alerted;
+  beforeEach(() => {
+    config.ownerAlertPhones = ['+919999999999'];
+    config.dryRun = false;
+    /*
+     * The owner alert has to SUCCEED for these tests to mean anything: every
+     * handler wraps its alert in runOnce, which records nothing when the
+     * function throws, so against the real client the once-a-day gate would
+     * never close and the test would pass for the wrong reason.
+     */
+    alerted = [];
+    vi.spyOn(realClients.whatsapp, 'sendTemplate').mockImplementation(async (a) => {
+      alerted.push(a);
+      return { messageId: `wamid.${alerted.length}` };
+    });
+  });
+
+  it('alerts once a day when a template is recategorised', async () => {
+    const ev = () => routes.wa_template_category({
+      kind: 'wa_template_category', name: 'cod_confirm_v3', from: 'UTILITY', to: 'MARKETING',
+    });
+    await ev();
+    await ev();
+    // Once, not twice: Meta can resend the same field.
+    expect(alerted).toHaveLength(1);
+    expect(JSON.stringify(alerted[0])).toContain('URGENT');
+    // cod_confirm is the order confirmation, so MARKETING on it is urgent.
+    expect(JSON.stringify(alerted[0])).toContain('seven times');
+  });
+
+  it('alerts on a template quality drop, which is the step before a pause', async () => {
+    await routes.wa_template_quality({ kind: 'wa_template_quality', name: 'order_shipped_v2', score: 'RED' });
+    expect(alerted).toHaveLength(1);
+    expect(JSON.stringify(alerted[0])).toContain('before they pause it');
+  });
+
+  it('says nothing about a GREEN quality score', async () => {
+    await routes.wa_template_quality({ kind: 'wa_template_quality', name: 'order_shipped_v2', score: 'GREEN' });
+    expect(alerted).toEqual([]);
+  });
+
+  /*
+   * The customer's own choice, made in WhatsApp rather than to us. Separate
+   * from optOut: this blocks MARKETING only, which is what they turned off,
+   * and it is theirs to turn back on.
+   */
+  it('stops marketing to a customer who turned it off in WhatsApp', async () => {
+    const PH = '+919637361371';
+    expect(await canSendMarketing(PH, new Date(), 7)).toBe(true);
+    await routes.wa_user_preference({ kind: 'wa_user_preference', from: PH, category: 'marketing', value: 'stop' });
+    expect(await canSendMarketing(PH, new Date(), 7)).toBe(false);
+    // And it is reversible, because they can turn it back on.
+    await routes.wa_user_preference({ kind: 'wa_user_preference', from: PH, category: 'marketing', value: 'resume' });
+    expect(await canSendMarketing(PH, new Date(), 7)).toBe(true);
+  });
+
+  it('leaves a non-marketing preference alone', async () => {
+    const PH = '+919637361371';
+    await routes.wa_user_preference({ kind: 'wa_user_preference', from: PH, category: 'something_else', value: 'stop' });
+    expect(await canSendMarketing(PH, new Date(), 7)).toBe(true);
+  });
+
+  /*
+   * None of these payload shapes has been seen live, so a field that is absent
+   * must be an ack rather than an exception on a webhook that also carries
+   * customer messages.
+   */
+  it('survives an empty payload of every kind', async () => {
+    await expect(routes.wa_template_category({ kind: 'wa_template_category' })).resolves.toBeUndefined();
+    await expect(routes.wa_template_quality({ kind: 'wa_template_quality' })).resolves.toBeUndefined();
+    await expect(routes.wa_phone_quality({ kind: 'wa_phone_quality' })).resolves.toBeUndefined();
+    await expect(routes.wa_user_preference({ kind: 'wa_user_preference' })).resolves.toBeUndefined();
   });
 });

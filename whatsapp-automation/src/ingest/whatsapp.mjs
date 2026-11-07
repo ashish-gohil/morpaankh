@@ -109,6 +109,74 @@ export const whatsappIngest = {
         // acked and thrown away: a template could be paused for quality and the
         // first anyone would know is customers not being messaged. order_shipped
         // has no fallback version, so for that one a pause is a silent outage.
+        /*
+         * N10. The four Meta fields that change what this service can do, and
+         * said nothing when they changed.
+         *
+         * Each gets its own kind and its own group, because they are about
+         * different things: a template, the phone number, or one customer's
+         * preference. The PAYLOAD SHAPES ARE READ DEFENSIVELY, with every
+         * field optional: this code has not seen a live one of any of them, and
+         * an ack-and-ignore is better than an exception on a webhook that also
+         * carries messages.
+         */
+        if (ch.field === 'template_category_update') {
+          items.push({
+            message: {
+              kind: 'wa_template_category',
+              name: v.message_template_name || v.message_template_id || null,
+              from: v.previous_category || null,
+              to: v.new_category || v.correct_category || null,
+            },
+            groupId: `template:${v.message_template_name || 'unknown'}`,
+            dedupId: `wa-cat-${v.message_template_name}-${v.new_category || v.correct_category}-${entry.time || ''}`,
+          });
+        }
+        if (ch.field === 'message_template_quality_update') {
+          items.push({
+            message: {
+              kind: 'wa_template_quality',
+              name: v.message_template_name || null,
+              score: v.new_quality_score || null,
+              previous: v.previous_quality_score || null,
+            },
+            groupId: `template:${v.message_template_name || 'unknown'}`,
+            dedupId: `wa-q-${v.message_template_name}-${v.new_quality_score}-${entry.time || ''}`,
+          });
+        }
+        if (ch.field === 'phone_number_quality_update') {
+          items.push({
+            message: {
+              kind: 'wa_phone_quality',
+              display: v.display_phone_number || null,
+              event: v.event || null,
+              limit: v.current_limit || null,
+            },
+            groupId: 'waba:phone',
+            dedupId: `wa-pq-${v.event}-${v.current_limit}-${entry.time || ''}`,
+          });
+        }
+        /*
+         * A customer turning marketing off INSIDE WhatsApp. They never sent us
+         * STOP, so nothing in this service knew, and we would keep sending
+         * marketing templates Meta then refuses. Grouped by phone, like every
+         * other per-person event, so it cannot overtake a send to them.
+         */
+        for (const pref of v.user_preferences || []) {
+          if (!pref?.wa_id) continue;
+          items.push({
+            message: {
+              kind: 'wa_user_preference',
+              from: `+${String(pref.wa_id).replace(/^\+/, '')}`,
+              category: pref.category || 'marketing',
+              value: pref.value || null,
+              at: pref.timestamp || null,
+            },
+            groupId: `phone:+${String(pref.wa_id).replace(/^\+/, '')}`,
+            dedupId: `wa-pref-${pref.wa_id}-${pref.value}-${pref.timestamp || entry.time || ''}`,
+          });
+        }
+
         if (ch.field === 'message_template_status_update') {
           items.push({
             message: {

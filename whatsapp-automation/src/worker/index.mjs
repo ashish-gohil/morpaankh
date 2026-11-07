@@ -18,6 +18,7 @@ import { getAwbMap, getWamidMap } from '../store/maps.mjs';
 import {
   isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing,
   getAwaiting, listAwaiting, clearAwaiting, parkOffer, setHumanTakeover, countWaMessage,
+  setMarketingOptOut,
 } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
@@ -822,6 +823,68 @@ async function onTemplateStatus(m) {
   );
 }
 
+/*
+ * N10. The three Meta health fields, and the customer preference one.
+ *
+ * All four were acked and thrown away, so each of these changed silently:
+ *
+ *   a template MOVED TO MARKETING, which costs about seven times more per send
+ *     and brings the per-user cap behind 131049 with it. On cod_confirm that is
+ *     the order confirmation becoming capped marketing.
+ *   a template's QUALITY dropping, which is the step before Meta pauses it.
+ *   the NUMBER's quality or messaging limit changing, which caps how many
+ *     distinct people a day can be reached at all.
+ *   a customer turning marketing off IN WHATSAPP, having never sent us STOP.
+ */
+const URGENT_TEMPLATES = new Set(['cod_confirm', 'order_confirmed', 'order_shipped', 'ndr_action']);
+
+async function onTemplateCategory(m) {
+  const to = String(m.to || '').toUpperCase();
+  const name = String(m.name || '');
+  // The registry key, not the versioned name: cod_confirm_v3 -> cod_confirm.
+  const key = Object.keys(TEMPLATES).find((k) => TEMPLATES[k].name === name) || name;
+  const urgent = to === 'MARKETING' && URGENT_TEMPLATES.has(key);
+  log[urgent ? 'error' : 'warn']('wa template category changed', { name, from: m.from, to: m.to });
+  metric('TemplateCategoryChanged', 1, { to: to || 'unknown' });
+  await soft('templateCategoryAlert', () =>
+    runOnce(`tplcat:${name}`, `cat:${to}:${istDayKey(new Date())}`, () =>
+      ownerAlert(
+        deps(),
+        name || 'template',
+        `${urgent ? 'URGENT: ' : ''}Meta moved the ${name} template from ${m.from || 'unknown'} to ${m.to || 'unknown'}.` +
+          (to === 'MARKETING'
+            ? ' MARKETING costs about seven times more per message and is capped per customer, so some of these will now be refused outright.'
+            : ''),
+      )), {});
+}
+
+async function onTemplateQuality(m) {
+  const score = String(m.score || '').toUpperCase();
+  const bad = score === 'RED' || score === 'YELLOW';
+  log[bad ? 'error' : 'info']('wa template quality', { name: m.name, score, previous: m.previous });
+  metric('TemplateQuality', 1, { score: score || 'unknown' });
+  if (!bad) return;
+  await soft('templateQualityAlert', () =>
+    runOnce(`tplq:${m.name}`, `q:${score}:${istDayKey(new Date())}`, () =>
+      ownerAlert(deps(), m.name || 'template', `the ${m.name} template's quality is ${score} at Meta. RED is the step before they pause it, which stops those messages completely`)), {});
+}
+
+async function onPhoneQuality(m) {
+  log.error('wa phone quality', { event: m.event, limit: m.limit });
+  metric('PhoneQuality', 1, { event: String(m.event || 'unknown') });
+  await soft('phoneQualityAlert', () =>
+    runOnce('waba:phone', `pq:${m.event}:${m.limit}:${istDayKey(new Date())}`, () =>
+      ownerAlert(deps(), 'WhatsApp number', `Meta reports ${m.event || 'a change'} on the business number, messaging limit now ${m.limit || 'unknown'}. This caps how many different people a day we can reach at all`)), {});
+}
+
+async function onUserPreference(m) {
+  const off = String(m.value || '').toLowerCase() === 'stop';
+  if (String(m.category || 'marketing').toLowerCase() !== 'marketing') return;
+  await setMarketingOptOut(m.from, off);
+  log.info('wa user preference', { phone: maskPhone(m.from), marketing: off ? 'off' : 'on' });
+  metric('UserPreference', 1, { value: off ? 'stop' : 'resume' });
+}
+
 async function onCart(m) {
   if (m.step === 'final') return cartRecovery.onFinal(m.checkoutId, deps());
   return cartRecovery.onFirst(m.checkoutId, deps());
@@ -861,6 +924,10 @@ const routes = {
     log.info('human takeover: the owner replied by hand', { phone: maskPhone(m.to), until });
   },
   wa_template_status: onTemplateStatus,
+  wa_template_category: onTemplateCategory,
+  wa_template_quality: onTemplateQuality,
+  wa_phone_quality: onPhoneQuality,
+  wa_user_preference: onUserPreference,
   razorpay: onRazorpay,
   delhivery: onDelhivery,
   timer: onTimer,
