@@ -335,6 +335,34 @@ export const TEMPLATES = {
     buttons: [flowBtn('Rate your order')],
   },
 
+  /*
+   * N1. The same-day nudge, sent while the parcel is in the rider's hands.
+   *
+   * This is the moment an NDR is still preventable. Flow C's prompt arrives
+   * AFTER a failed attempt, by which time somebody has already driven to the
+   * address and the parcel is on its way to a second attempt or to RTO. A line
+   * the morning of says "keep the cash ready" and "tell us if you will be
+   * out", which are the two reasons a COD delivery fails here.
+   *
+   * UTILITY, and it is: an order the customer placed, out for delivery today,
+   * with an amount to have ready. No offer in it.
+   *
+   * NOT APPROVED YET. It is new, so Meta has to review it; onOutForDelivery
+   * skips and alerts the owner once rather than failing a parcel over a
+   * template that is still pending.
+   */
+  out_for_delivery: {
+    name: 'out_for_delivery_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, thank you for your order {{order_number}}. It is out for delivery today with ' +
+      'Delhivery. Please keep {{cod_total}} ready.\n\n' +
+      'If you will not be available, please reply here and we will reschedule it.',
+    examples: { customer_name: 'Aarav', order_number: '#1234', cod_total: 'Rs 1,499' },
+    buttons: [trackBtn('Track your order')],
+  },
+
   ndr_action: {
     name: 'ndr_action_v2',
     language: 'en',

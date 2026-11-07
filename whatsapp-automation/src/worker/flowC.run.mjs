@@ -11,8 +11,10 @@ import { classifyAddressReply } from '../domain/ndr.mjs';
 import { addHours, addDays, nextWindowTime, withinWindow, istDayKey } from '../lib/time.mjs';
 import { getState, patchFlowC, runOnce } from '../store/orderState.mjs';
 import { isOptedOut, touchInbound, setAwaiting, clearAwaiting, markRto } from '../store/phoneProfile.mjs';
+import { alertOncePerDay } from '../store/cartRecovery.mjs';
+import { formatINR } from '../lib/money.mjs';
 import { scheduleTimer } from '../timers/schedule.mjs';
-import { getNorm, tpl, sendBest, sess, ownerAlert } from './send.mjs';
+import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import * as flowA from './flowA.run.mjs';
 import { log } from '../log.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -223,6 +225,75 @@ export async function onAddressText(orderId, text, deps) {
       // keep awaiting for one more reply
     }
   }
+}
+
+/**
+ * N1. The parcel is with the rider today.
+ *
+ * This is the last moment an NDR is preventable. Flow C's own prompt arrives
+ * AFTER a failed attempt, by which time somebody has driven to the address and
+ * the parcel is heading for a second attempt or for RTO. "Keep this much
+ * ready" and "tell us if you will be out" the morning of covers the two
+ * reasons a COD delivery fails here.
+ *
+ * ONCE PER WAYBILL PER IST DAY. Delhivery can scan out-for-delivery twice in a
+ * day, and a second attempt on a later day is a genuinely new nudge, so the
+ * key is the day rather than the order.
+ *
+ * COD WITH SOMETHING LEFT TO PAY, only. A prepaid parcel needs nothing ready,
+ * and an order already paid online would be asked to hand over money it has
+ * paid.
+ *
+ * Past 19:00 it is SKIPPED rather than deferred: tomorrow morning it will not
+ * be true, and a message about a delivery that has already failed is the NDR
+ * prompt's job.
+ */
+export async function onOutForDelivery(orderId, deps, { awb } = {}) {
+  if (flowCOff('onOutForDelivery', orderId)) return;
+  const now = nowOf(deps);
+  if (!withinWindow(now, RULES.ofdSendWindow)) {
+    return log.info('flowC ofd: outside the send window, skipping rather than deferring', { orderId });
+  }
+  const n = await getNorm(deps, orderId);
+  if (!n || n.cancelledAt || !n.verifiedPhone) return;
+  if (await isOptedOut(n.verifiedPhone)) return;
+
+  const duePaise = Math.max(0, n.currentTotalPaise - (n.receivedPaise || 0));
+  if (duePaise <= 0) {
+    return log.info('flowC ofd: nothing left to pay, no nudge needed', { orderId });
+  }
+
+  const day = istDayKey(now);
+  const st = await getState(orderId);
+  const sent = st?.flowC?.ofdSent || {};
+  const key = `${awb || n.delhiveryAwb || 'noawb'}:${day}`;
+  if (sent[key]) return;
+
+  try {
+    const res = await sendBest(deps, n.verifiedPhone, 'out_for_delivery', {
+      customer_name: n.firstName,
+      order_number: n.name,
+      cod_total: formatINR(duePaise),
+    }, { orderId: n.numericId, token: n.delhiveryAwb, now });
+    if (res?.skipped) return;
+  } catch (e) {
+    /*
+     * The template is new, so Meta may still be reviewing it. Skipping is
+     * right: this nudge is a bonus and failing a courier event over it would
+     * cost the delivery and the RTO handling that follow. One line to the
+     * owner, once a day, because an unapproved template is something only they
+     * can fix.
+     */
+    if (!isTemplateUnusable(e)) throw e;
+    await soft('ofdTemplateAlert', async () => {
+      if (await alertOncePerDay('ofd-template', now)) {
+        await ownerAlert(deps, n.name, 'the out_for_delivery template is not approved on WhatsApp yet, so the same-day delivery nudge is not going out. Submit it and get it approved');
+      }
+    }, { orderId });
+    return log.warn('flowC ofd: template not usable, nothing sent', { orderId, waCode: e.waCode });
+  }
+
+  await patchFlowC(orderId, { ofdSent: { ...sent, [key]: now.toISOString() } });
 }
 
 // ---- RTO --------------------------------------------------------------------

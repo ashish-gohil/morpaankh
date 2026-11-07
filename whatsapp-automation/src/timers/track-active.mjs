@@ -26,7 +26,7 @@ const TERMINAL = ['DELIVERED', 'RTO_INITIATED', 'RTO_DELIVERED', 'LOST', 'CANCEL
  * has lost needs a claim raised and a reshipment decided, and nothing anywhere
  * said it had happened.
  */
-const ACTIONABLE = ['DELIVERED', 'NDR', 'RTO_INITIATED', 'RTO_DELIVERED', 'LOST'];
+const ACTIONABLE = ['DELIVERED', 'NDR', 'RTO_INITIATED', 'RTO_DELIVERED', 'LOST', 'OUT_FOR_DELIVERY'];
 
 export async function trackActiveShipments(clients = realClients) {
   const active = await table.scanGsi1(); // AWB# MAP items: { PK, orderId, activeShipment }

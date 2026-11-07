@@ -435,3 +435,87 @@ describe('Flow C never confirms an NDR action it could not take', () => {
     expect(alerts(clients.whatsapp)).toHaveLength(0);
   });
 });
+
+/*
+ * N1. The out-for-delivery nudge is the last moment an NDR is preventable.
+ * Flow C's own prompt arrives AFTER a failed attempt, by which time somebody
+ * has driven to the address and the parcel is heading for a second attempt or
+ * for RTO.
+ */
+describe('the same-day nudge while the parcel is with the rider', () => {
+  const names = (wa) => wa.sent.filter((s) => s.type === 'template').map((s) => s.name);
+  const bodies = (wa) => wa.sent.map((s) => s.body || '').join(' | ');
+  const midday = fromISTWall(2026, 9, 21, 11, 0);
+
+  it('tells a COD customer what to have ready', async () => {
+    const { clients, deps } = setup();
+    await C.onOutForDelivery('12345', { ...deps, now: midday }, { awb: 'AWB1' });
+    // A template carries its variables in `components`, not in `body`.
+    const said = JSON.stringify(clients.whatsapp.sent);
+    expect(said).toMatch(/out_for_delivery|out for delivery today/);
+    expect(said).toContain('1,499');
+  });
+
+  it('sends once a day however many times the scan arrives', async () => {
+    const { clients, deps } = setup();
+    await C.onOutForDelivery('12345', { ...deps, now: midday }, { awb: 'AWB1' });
+    await C.onOutForDelivery('12345', { ...deps, now: fromISTWall(2026, 9, 21, 15, 0) }, { awb: 'AWB1' });
+    expect(clients.whatsapp.sent).toHaveLength(1);
+  });
+
+  it('but a second attempt the next day is a new nudge', async () => {
+    const { clients, deps } = setup();
+    await C.onOutForDelivery('12345', { ...deps, now: midday }, { awb: 'AWB1' });
+    await C.onOutForDelivery('12345', { ...deps, now: fromISTWall(2026, 9, 22, 11, 0) }, { awb: 'AWB1' });
+    expect(clients.whatsapp.sent).toHaveLength(2);
+  });
+
+  it('says nothing on a prepaid parcel, which needs nothing ready', async () => {
+    const prepaid = order({
+      displayFinancialStatus: 'PAID',
+      netPaymentSet: { shopMoney: { amount: '1499.00' } },
+    });
+    const { clients, deps } = setup(prepaid);
+    await C.onOutForDelivery('12345', { ...deps, now: midday }, { awb: 'AWB1' });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  /*
+   * Skipped rather than deferred: tomorrow morning it will not be true, and a
+   * message about a delivery that has already failed is the NDR prompt's job.
+   */
+  it('skips a late scan rather than arming it for tomorrow', async () => {
+    const { clients, deps } = setup();
+    await C.onOutForDelivery('12345', { ...deps, now: fromISTWall(2026, 9, 21, 20, 30) }, { awb: 'AWB1' });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+    expect(_peekTimers().map((t) => t.name)).not.toContain('C-12345-ofd');
+  });
+
+  it('respects an opt-out', async () => {
+    await setOptOut(PHONE, true);
+    const { clients, deps } = setup();
+    await C.onOutForDelivery('12345', { ...deps, now: midday }, { awb: 'AWB1' });
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  /*
+   * The template is new and Meta has not reviewed it. A pending template must
+   * not cost the courier event: the delivery and the RTO handling that follow
+   * matter more than the nudge.
+   */
+  it('skips and tells the owner once when the template is not approved', async () => {
+    config.ownerAlertPhones = ['+919999999999'];
+    const { clients, deps } = setup();
+    const real = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (a.name.startsWith('out_for_delivery')) {
+        throw Object.assign(new Error('template does not exist'), { waCode: 132001 });
+      }
+      return real(a);
+    };
+    await expect(C.onOutForDelivery('12345', { ...deps, now: midday }, { awb: 'AWB1' })).resolves.toBeUndefined();
+    const alerts = clients.whatsapp.sent.filter((s) => s.name && s.name.startsWith('ops_alert'));
+    expect(alerts).toHaveLength(1);
+    expect(JSON.stringify(alerts[0].components)).toContain('out_for_delivery');
+  });
+});

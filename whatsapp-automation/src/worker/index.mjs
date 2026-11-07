@@ -99,6 +99,9 @@ async function onShopify(m) {
     if (payload?.status === 'attempted_delivery' || payload?.status === 'failure') {
       return flowC.onNdr(orderId, deps(), { attemptAt: payload.happened_at || payload.created_at || null });
     }
+    // The same nudge from Shopify's side. Keyed per waybill per IST day, so
+    // whichever source reports it first is the only one that sends.
+    if (payload?.status === 'out_for_delivery') return flowC.onOutForDelivery(orderId, deps());
   }
 }
 
@@ -672,6 +675,8 @@ async function onDelhivery(m) {
   });
   if (state === 'DELIVERED') return flowB.onDelivered(orderId, m.at || null, deps());
   if (state === 'NDR') return flowC.onNdr(orderId, deps(), { attemptAt: m.at || null });
+  // N1. The last moment an NDR is preventable: the parcel is with the rider.
+  if (state === 'OUT_FOR_DELIVERY') return flowC.onOutForDelivery(orderId, deps(), { awb: m.awb });
   /*
    * RTO_DELIVERED routes here too. It is the same event one leg later, and the
    * poller drops an AWB from the GSI as soon as it turns terminal, so whichever

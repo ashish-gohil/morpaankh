@@ -123,6 +123,15 @@ export const RULES = {
    * template can fix, so past this the owner is told to call instead.
    */
   ndrMaxPrompts: 3,
+  /*
+   * N1. The out-for-delivery nudge.
+   *
+   * 08:00 to 19:00 IST: the point is to reach them BEFORE the rider does, and
+   * a message at 21:00 about a delivery that already failed is Flow C's job,
+   * not this one's. Past the window it is skipped rather than deferred, because
+   * tomorrow it will not be true.
+   */
+  ofdSendWindow: { start: '08:00', end: '19:00' },
 
   // caps
   marketingCapDays: 7,
