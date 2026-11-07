@@ -35,9 +35,25 @@ const pad = (x) => String(x).padStart(2, '0');
  *   calendar day the window covers, which is also the sweep's day marker.
  */
 export function istYesterdayWindow(now) {
+  return istDayWindow(now, 1);
+}
+
+/**
+ * One whole IST day, `daysBack` days before today.
+ *
+ * daysBack 1 is yesterday, which is the only window the sweep used to know
+ * about. N5 needs the earlier ones too: a run that failed or was blocked lost
+ * its day for good, because the marker is only written on success and nothing
+ * ever went back to look.
+ *
+ * @param {Date} now
+ * @param {number} daysBack 1 = yesterday
+ */
+export function istDayWindow(now, daysBack = 1) {
   const p = istParts(now);
-  const end = fromISTWall(p.y, p.mon, p.day, 0, 0); // today 00:00 IST, exclusive
-  const start = addDays(end, -1);
+  const todayStart = fromISTWall(p.y, p.mon, p.day, 0, 0); // today 00:00 IST
+  const end = addDays(todayStart, -(daysBack - 1)); // exclusive
+  const start = addDays(todayStart, -daysBack);
   const s = istParts(start);
   return {
     date: `${s.y}-${pad(s.mon + 1)}-${pad(s.day)}`,

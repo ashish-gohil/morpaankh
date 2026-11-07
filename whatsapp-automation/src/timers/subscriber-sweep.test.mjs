@@ -12,15 +12,15 @@
  * sweepUnconfirmed runs ABOVE the mode branch, so { mode: 'subscribers' }
  * MUST be handled and returned at the very top of the handler.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { table, _resetMemory } from '../store/table.mjs';
 import { _drainQueue } from '../queue.mjs';
 import { makeFakeClients } from '../clients/fakes/index.mjs';
 import { fromISTWall } from '../lib/time.mjs';
-import { emailKey, istYesterdayWindow } from '../domain/subscriberOffer.mjs';
-import { ensureSubRec, getSweepDay } from '../store/subscriberOffer.mjs';
+import { emailKey, istYesterdayWindow, istDayWindow } from '../domain/subscriberOffer.mjs';
+import { ensureSubRec, getSweepDay , setSweepDay } from '../store/subscriberOffer.mjs';
 import { sweepNewSubscribers } from './subscriber-sweep.mjs';
 import { handler as reconcileHandler } from './reconcile.mjs';
 
@@ -80,7 +80,15 @@ beforeEach(() => {
   _drainQueue();
   config.ownerAlertPhones = ['+919999999999'];
   config.flows.W = { enabled: true, startAt: '2026-10-01T00:00:00Z' };
+  /*
+   * ONE DAY, for every test below. The sweep looks back three days by default
+   * (N5), and each of these tests is about what one day's pass does: a
+   * three-day default would have them asserting against three Shopify reads
+   * and three windows. The catch-up has its own describe block at the end.
+   */
+  RULES.subscriberOffer.catchUpDays = 1;
 });
+afterEach(() => { RULES.subscriberOffer.catchUpDays = 3; });
 
 // ---------------------------------------------------------------------------
 describe('the daily sweep', () => {
@@ -446,5 +454,92 @@ describe('the reconcile mode dispatch', () => {
     const full = await reconcileHandler({});
     expect(full.mode).toBe('full');
     expect(full.subscribers).toBeUndefined();
+  });
+});
+
+/*
+ * N5. The sweep only ever looked at yesterday, and the day marker is written on
+ * SUCCESS. So a run that failed, or was blocked because the template was not
+ * approved, or never fired because the rule was off, lost that day's
+ * subscribers for good: nothing went back to look, and only a hand-run with
+ * `run --date` could recover it.
+ */
+describe('days that never happened', () => {
+  beforeEach(() => { RULES.subscriberOffer.catchUpDays = 3; });
+
+  /* A customer created on a given IST day, 09:00 that morning. */
+  const onDay = (id, daysBack) => {
+    const w = istDayWindow(NOW, daysBack);
+    return customer(id, { createdAt: new Date(Date.parse(w.startISO) + 9 * 3600 * 1000).toISOString() });
+  };
+
+  it('picks up the two days before yesterday as well', async () => {
+    const clients = setup({ customers: [onDay('A3', 3), onDay('A2', 2), onDay('A1', 1)] });
+    const out = await sweepNewSubscribers(clients, NOW);
+
+    const ids = _drainQueue().map((q) => q.message.customerId).sort();
+    expect(ids).toEqual(['A1', 'A2', 'A3']);
+    // Reported, so a catch-up is visible in the logs rather than silent.
+    expect(out.catchUp.map((c) => c.enqueued)).toEqual([1, 1]);
+  });
+
+  /*
+   * OLDEST FIRST: somebody who signed up three days ago has been waiting
+   * longest, and the per-run cap should spend itself on them rather than on
+   * yesterday's.
+   */
+  it('works oldest first', async () => {
+    const clients = setup({ customers: [onDay('A3', 3), onDay('A2', 2), onDay('A1', 1)] });
+    await sweepNewSubscribers(clients, NOW);
+    const windows = listCalls(clients).map((c) => c.sinceISO);
+    expect(windows).toEqual([
+      istDayWindow(NOW, 3).startISO,
+      istDayWindow(NOW, 2).startISO,
+      istDayWindow(NOW, 1).startISO,
+    ]);
+  });
+
+  it('skips a day that already has its marker, without asking Shopify', async () => {
+    const clients = setup({ customers: [onDay('A2', 2), onDay('A1', 1)] });
+    // Yesterday ran fine; the day before never did.
+    await setSweepDay(istDayWindow(NOW, 1).date, { enqueued: 1, listed: 1 }, NOW);
+
+    await sweepNewSubscribers(clients, NOW);
+    const dates = listCalls(clients).map((c) => c.sinceISO);
+    expect(dates).not.toContain(istDayWindow(NOW, 1).startISO);
+    expect(_drainQueue().map((q) => q.message.customerId)).toEqual(['A2']);
+  });
+
+  it('writes a marker per day, so the next run is a no-op', async () => {
+    const clients = setup({ customers: [onDay('A2', 2), onDay('A1', 1)] });
+    await sweepNewSubscribers(clients, NOW);
+    _drainQueue();
+    await sweepNewSubscribers(clients, NOW);
+    expect(_drainQueue()).toHaveLength(0);
+  });
+
+  /*
+   * A week-old signup is not a welcome. Three days is the cap for the same
+   * reason the code itself lives 24 hours.
+   */
+  it('never reaches back past the cap', async () => {
+    const clients = setup({ customers: [onDay('OLD', 5)] });
+    await sweepNewSubscribers(clients, NOW);
+    expect(_drainQueue()).toHaveLength(0);
+  });
+
+  it('one unreadable day does not stop the others', async () => {
+    let n = 0;
+    const clients = setup({ customers: [onDay('A3', 3), onDay('A2', 2), onDay('A1', 1)] });
+    const real = clients.shopify.listNewCustomers;
+    clients.shopify.listNewCustomers = async (args) => {
+      n += 1;
+      if (n === 1) throw new Error('THROTTLED');
+      return real(args);
+    };
+    await sweepNewSubscribers(clients, NOW);
+    const ids = _drainQueue().map((q) => q.message.customerId).sort();
+    // The oldest day failed; the other two still went.
+    expect(ids).toEqual(['A1', 'A2']);
   });
 });

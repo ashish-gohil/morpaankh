@@ -323,6 +323,17 @@ export const RULES = {
     gift: true,
     codeDigits: 4,
     maxPerRun: 100,
+    /*
+     * N5. How many previous IST days the sweep will go back and pick up.
+     *
+     * The day marker is written on SUCCESS, so a run that failed, was blocked
+     * by an unapproved template, or never fired lost that day's subscribers
+     * for good: nothing went back to look.
+     *
+     * Three, for the same reason the welcome code lives 24 hours: a welcome
+     * message a week late is not a welcome. 1 restores the old behaviour.
+     */
+    catchUpDays: 3,
     sendWindow: { start: '10:00', end: '21:00' },
     collectionHandle: 'best-sellers',
     excludeTags: ['cod-block', 'no-marketing'],

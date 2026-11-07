@@ -15,7 +15,7 @@
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { realClients } from '../clients/index.mjs';
-import { istYesterdayWindow, normalizeCustomer, subscriberEligible } from '../domain/subscriberOffer.mjs';
+import { istYesterdayWindow, istDayWindow, normalizeCustomer, subscriberEligible } from '../domain/subscriberOffer.mjs';
 import { getSubRec, getSweepDay, setSweepDay, subAlertOncePerDay } from '../store/subscriberOffer.mjs';
 import { subGroup } from '../worker/subscriberOffer.run.mjs';
 import { TEMPLATES } from '../../messages/templates.mjs';
@@ -53,10 +53,55 @@ async function templatesReady(clients) {
  * @param {any} [clients]
  * @param {Date} [now]
  */
+/**
+ * N5. Yesterday, and the days before it that never happened.
+ *
+ * The sweep only ever looked at yesterday, and the day marker is written on
+ * SUCCESS. So a run that failed, or was blocked because the template was not
+ * approved, or never fired because the rule was off, lost that day's
+ * subscribers for good: nothing went back to look, and only a hand-run with
+ * `run --date` could recover it.
+ *
+ * Up to three previous days, OLDEST FIRST, each with its own marker, its own
+ * maxPerRun and its own startAt check. Oldest first because a person who
+ * signed up three days ago has been waiting longest, and because the per-run
+ * cap should spend itself on them rather than on today's.
+ *
+ * Three is the cap for the same reason the offer has a 24 hour code: a welcome
+ * message a week late is not a welcome.
+ */
 export async function sweepNewSubscribers(clients = realClients, now = new Date()) {
   if (!config.flows.W.enabled) return { skipped: 'flow-w-off' };
 
-  const day = istYesterdayWindow(now);
+  const days = [];
+  for (let back = w().catchUpDays ?? 3; back >= 1; back -= 1) days.push(istDayWindow(now, back));
+
+  const runs = [];
+  for (const day of days) {
+    // Each day is independent: one that cannot be read must not stop the rest,
+    // and the day marker means a completed one costs nothing to revisit.
+    const r = await soft('subscriberSweepDay', () => sweepOneDay(clients, now, day), { date: day.date });
+    if (r) runs.push(r);
+  }
+  const latest = runs[runs.length - 1] || { skipped: 'nothing-to-do' };
+  const caught = runs.slice(0, -1).filter((r) => (r.enqueued?.length || 0) > 0);
+  if (caught.length) {
+    log.warn('subscriber sweep: caught up days that had been missed', {
+      days: caught.map((r) => r.date),
+      enqueued: caught.reduce((n, r) => n + r.enqueued.length, 0),
+    });
+  }
+  /*
+   * `catchUp` only when there IS one, so a one-day run returns exactly the
+   * shape it always did. An always-present empty key would make every caller
+   * and every test carry a field that means nothing.
+   */
+  const earlier = runs.slice(0, -1);
+  if (!earlier.length) return latest;
+  return { ...latest, catchUp: earlier.map((r) => ({ date: r.date, enqueued: r.enqueued?.length ?? 0, skipped: r.skipped })) };
+}
+
+async function sweepOneDay(clients, now, day) {
   /*
    * The day marker, read first. A completed day is a complete no-op, including
    * the Shopify read: this runs once a day off a cron, and a second invocation
