@@ -9,7 +9,7 @@
 import { config } from '../config.mjs';
 import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 import { getSecrets } from '../secrets.mjs';
-import { log } from '../log.mjs';
+import { log, metric } from '../log.mjs';
 import { withRetry } from '../lib/resilience.mjs';
 import { toPaise } from '../lib/money.mjs';
 import { istParts } from '../lib/time.mjs';
@@ -21,46 +21,153 @@ import { istParts } from '../lib/time.mjs';
  *        mutations that can be repeated without a second effect. Order edits
  *        and payment marking are NOT idempotent, so they default to false.
  */
+/*
+ * THE LEAKY BUCKET, READ RATHER THAN GUESSED AT.
+ *
+ * Shopify's limit is cost-based: a standard plan holds 1,000 points and
+ * restores 100 a second, and a throttle is an HTTP 200 carrying a THROTTLED
+ * error. This client mapped that to 429 and left it to withRetry, which waits
+ * about 300 ms and then 600 ms. A 500-point query needs five SECONDS of
+ * refill, so both retries failed, the SQS message failed with it, and it came
+ * back 6 minutes later having blocked its order's group throughout. All of that
+ * for a limit whose exact refill time is in the response we already had.
+ *
+ * `extensions.cost` says what the query asked for, what it actually cost, how
+ * many points are left and how fast they return. A throttled call NEVER
+ * EXECUTED, which is why waiting and retrying is safe even for a mutation.
+ *
+ * The last reading is kept so the NEXT call can wait before it asks: the P&L
+ * pages through months of orders back to back, and arriving to find the bucket
+ * empty is cheaper to avoid than to recover from.
+ */
+let lastThrottle = null;
+const COST_WAIT_CAP_MS = 8_000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** How long until the bucket holds `need` points. 0 when it already does. */
+function refillWaitMs(need, status) {
+  const available = Number(status?.currentlyAvailable);
+  const rate = Number(status?.restoreRate);
+  if (!Number.isFinite(available) || !Number.isFinite(rate) || rate <= 0) return 0;
+  if (!Number.isFinite(need) || need <= available) return 0;
+  return Math.min(COST_WAIT_CAP_MS, Math.ceil(((need - available) / rate) * 1000) + 250);
+}
+
+/** One HTTP attempt. Throws on anything that is not a clean 2xx with data. */
+async function attempt(endpoint, token, query, variables, opName) {
+  const res = await fetch(endpoint, {
+    // Bounded, or a hung Shopify holds the worker to its 60 s limit and the
+    // SQS message blocks its order's group for 6 minutes. See lib/timeout.
+    ...deadline(TIMEOUT_MS.shopify),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+    body: JSON.stringify({ query, variables }),
+  });
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    const e = new Error(`Shopify non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`);
+    e.status = res.status;
+    throw e;
+  }
+
+  const cost = json.extensions?.cost;
+  if (cost?.throttleStatus) {
+    lastThrottle = {
+      status: cost.throttleStatus,
+      lastCost: Number(cost.requestedQueryCost) || Number(cost.actualQueryCost) || 0,
+    };
+  }
+  /*
+   * A query costing more than a fifth of the whole bucket is worth naming: it
+   * is the shape that throttles the one after it, and without the operation
+   * name there is nothing to go and look at.
+   */
+  if (Number(cost?.actualQueryCost) > 200) {
+    log.info('shopify: expensive query', {
+      opName,
+      actualQueryCost: cost.actualQueryCost,
+      available: cost.throttleStatus?.currentlyAvailable,
+    });
+  }
+
+  if (json.errors) {
+    const e = new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
+    // Shopify answers a rate limit with HTTP 200 and a THROTTLED error, so it
+    // has to be mapped by hand or it would never be retried.
+    if (JSON.stringify(json.errors).includes('THROTTLED')) {
+      e.status = 429;
+      e.throttled = true;
+      e.need = Number(cost?.requestedQueryCost) || 0;
+      e.throttleStatus = cost?.throttleStatus;
+    }
+    e.status = e.status || res.status;
+    throw e;
+  }
+  /*
+   * A non-2xx whose body still parses as JSON used to fall straight through
+   * here and return `undefined`, so a 503 from Shopify looked exactly like
+   * "this order does not exist" to every caller. Check the status.
+   */
+  if (!res.ok) {
+    const e = new Error(`Shopify HTTP ${res.status}: ${text.slice(0, 200)}`);
+    e.status = res.status;
+    throw e;
+  }
+  return json.data;
+}
+
 async function graphql(query, variables = {}, { idempotent = false } = {}) {
   const s = await getSecrets();
   const endpoint = `https://${config.shopDomain}/admin/api/${config.shopifyApiVersion}/graphql.json`;
+  /*
+   * The operation name, for the cost log. Read out of the document rather than
+   * passed in, so every caller gets it without being changed.
+   */
+  const opName = /(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || 'anonymous';
+
+  /*
+   * PRE-WAIT. The last call told us how much the bucket held and how fast it
+   * refills, and roughly what a query here costs. The P&L pages through months
+   * of orders back to back, so arriving to find the bucket empty is cheaper to
+   * avoid than to recover from.
+   */
+  if (lastThrottle?.lastCost) {
+    const wait = refillWaitMs(lastThrottle.lastCost, lastThrottle.status);
+    if (wait) {
+      log.info('shopify: waiting for the cost bucket before asking', { opName, waitMs: wait });
+      await sleep(wait);
+    }
+  }
+
   return withRetry(
     'shopify.graphql',
     async () => {
-      const res = await fetch(endpoint, {
-        // Bounded, or a hung Shopify holds the worker to its 60 s limit and the
-        // SQS message blocks its order's group for 6 minutes. See lib/timeout.
-        ...deadline(TIMEOUT_MS.shopify),
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': s.shopifyAdminToken },
-        body: JSON.stringify({ query, variables }),
-      });
-      const text = await res.text();
-      let json;
       try {
-        json = JSON.parse(text);
-      } catch {
-        const e = new Error(`Shopify non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`);
-        e.status = res.status;
-        throw e;
+        return await attempt(endpoint, s.shopifyAdminToken, query, variables, opName);
+      } catch (e) {
+        if (!e.throttled) throw e;
+        /*
+         * WAIT FOR EXACTLY AS LONG AS THE BUCKET NEEDS, ONCE, HERE.
+         *
+         * A throttled call NEVER EXECUTED, which is why waiting and retrying is
+         * safe even for a mutation, and why this can live in the client rather
+         * than being each caller's decision. withRetry's 300 ms then 600 ms is
+         * not a fraction of the five seconds a 500-point query needs, so both
+         * its attempts failed and the message came back 6 minutes later having
+         * blocked its order's group throughout.
+         */
+        const need = e.need || lastThrottle?.lastCost || 0;
+        const wait = refillWaitMs(need, e.throttleStatus || lastThrottle?.status) || 1_000;
+        log.warn('shopify: throttled, waiting for the bucket to refill', { opName, waitMs: wait, need });
+        metric('ShopifyThrottleWait', 1);
+        await sleep(wait);
+        // Once. Still throttled after a measured wait is a real problem and
+        // belongs to withRetry's 429 handling, not to another wait here.
+        return attempt(endpoint, s.shopifyAdminToken, query, variables, opName);
       }
-      if (json.errors) {
-        const e = new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
-        // Shopify answers a rate limit with HTTP 200 and a THROTTLED error, so
-        // it has to be mapped by hand or it would never be retried.
-        if (JSON.stringify(json.errors).includes('THROTTLED')) e.status = 429;
-        e.status = e.status || res.status;
-        throw e;
-      }
-      // A non-2xx whose body still parses as JSON used to fall straight through
-      // here and return `undefined`, so a 503 from Shopify looked exactly like
-      // "this order does not exist" to every caller. Check the status.
-      if (!res.ok) {
-        const e = new Error(`Shopify HTTP ${res.status}: ${text.slice(0, 200)}`);
-        e.status = res.status;
-        throw e;
-      }
-      return json.data;
     },
     { idempotent },
   );
