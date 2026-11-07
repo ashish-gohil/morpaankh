@@ -12,6 +12,13 @@ import { RULES } from '../../messages/rules.mjs';
 import { setWamidMap } from './maps.mjs';
 
 const pk = (id) => `ORDER#${id}`;
+/*
+ * DynamoDB's eviction time, in epoch seconds. Never derived from a business
+ * deadline: a code's life, a lock's lease and a link's expiry are promises to
+ * somebody, and letting one of those set `expiresAt` is how a row disappears
+ * while it still matters.
+ */
+const ttl = (days, now = new Date()) => Math.floor(now.getTime() / 1000) + days * 86400;
 
 export function getState(id) {
   return table.get(pk(id), 'STATE');
@@ -25,6 +32,17 @@ export async function ensureState(id, init = {}) {
     orderId: String(id),
     version: 0,
     flowA: {},
+    /*
+     * 400 days. Nothing expired before this, so every order added a STATE row
+     * that stayed forever.
+     *
+     * Longer than the MSG# rows below on purpose: those are a log, this is the
+     * order's memory. The P&L restates closed months, Flow R's repeat-customer
+     * checks read back, and a replacement record already keeps 400 days, so a
+     * state row expiring at 180 would leave all three reading a month whose
+     * orders had gone.
+     */
+    expiresAt: ttl(RULES.stateTtlDays),
     ...init,
   });
   if (created) return getState(id);
@@ -96,7 +114,16 @@ export async function runOnce(id, action, fn) {
  */
 export async function recordMessage(id, wamid, data) {
   if (!wamid) return;
-  await table.put({ PK: pk(id), SK: `MSG#${wamid}`, wamid, ...data, at: new Date().toISOString() });
+  // A log, so stateRetentionDays rather than the state row's 400: nothing asks
+  // what a six-month-old message's delivery status was.
+  await table.put({
+    PK: pk(id),
+    SK: `MSG#${wamid}`,
+    wamid,
+    ...data,
+    at: new Date().toISOString(),
+    expiresAt: ttl(RULES.stateRetentionDays),
+  });
   await setWamidMap(wamid, { orderId: String(id), key: data?.key || null });
 }
 

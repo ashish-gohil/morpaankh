@@ -522,5 +522,19 @@ export const RULES = {
   // misc
   refundEtaText: '5 to 7 working days',
   stateRetentionDays: 180,
+  /*
+   * How long an order's STATE row lives.
+   *
+   * Longer than stateRetentionDays, and deliberately: the message rows are a
+   * log and the state row is the order's memory. The P&L restates closed
+   * months, Flow R's repeat-customer checks read back, and a replacement
+   * record is kept 400 days for the same reason, so a state row that expired
+   * at 180 would leave those reading a month whose orders had vanished.
+   *
+   * Nothing had a TTL before this. Every order added STATE and MSG# rows
+   * forever: storage, point-in-time-recovery size and every remaining scan all
+   * grew with the catalogue's age rather than with the work.
+   */
+  stateTtlDays: 400,
   timezone: 'Asia/Kolkata',
 };
