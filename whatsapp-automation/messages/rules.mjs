@@ -126,6 +126,23 @@ export const RULES = {
 
   // caps
   marketingCapDays: 7,
+  /*
+   * How the owner's own messages reach them.
+   *
+   * 'window-else-email': a free session message while their 24 hour window is
+   * open, and otherwise email for the digest and a template for an alert. The
+   * digest is MARKETING, as Meta categorised ops_digest, so it was about 30
+   * marketing templates a month per owner phone, each exposed to the per-user
+   * cap behind 131049. Some days it was refused outright, which is the worst
+   * version: a summary that silently does not arrive.
+   *
+   * 'template' restores the old behaviour exactly, for when something about
+   * this is wrong and the owner needs the digest back today.
+   *
+   * An ALERT always goes, whatever the channel: a template is billed but it
+   * arrives, and an alert that waits for a window is not an alert.
+   */
+  digestChannel: 'window-else-email',
   reviewAskCapDays: 14,
   humanTakeoverHours: 12,
   // How long a 131026 bounce keeps a number on the do-not-send list. Meta sends

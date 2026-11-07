@@ -252,6 +252,14 @@ async function onWaInbound(m) {
     if (!(await ownsOrder(p.orderId, phone))) {
       return log.warn('tap: phone does not own this order, ignoring', { flow: p.flow, action: p.action });
     }
+    /*
+     * The owner tapping "Got it" on a digest or an alert. It does nothing
+     * except exist: touchInbound at the top of this handler has already
+     * reopened their 24 hour window, which is the entire purpose of the button
+     * (see ownerSend). Without a branch here it would fall through to the
+     * ownership gate and be logged as a stranger tapping someone's order.
+     */
+    if (p.flow === 'O') return log.info('owner acknowledged', { action: p.action });
     if (p.flow === 'A') return routeFlowATap(p.orderId, p.action, phone);
     if (p.flow === 'C') return routeFlowCTap(p.orderId, p.action);
     /*

@@ -19,14 +19,15 @@
  * The code list lives in one place because four call sites read it: both flows'
  * thrown-error path and both flows' status-webhook path.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { isWindowDeliverable, isTemplateUnusable, tpl } from './send.mjs';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { isWindowDeliverable, isTemplateUnusable, tpl, ownerAlert } from './send.mjs';
 import { config } from '../config.mjs';
 import { table, _resetMemory } from '../store/table.mjs';
 import { getWamidMap } from '../store/maps.mjs';
-import { setUndeliverable } from '../store/phoneProfile.mjs';
-import { makeFakeWhatsApp } from '../clients/fakes/index.mjs';
+import { setUndeliverable, touchInbound } from '../store/phoneProfile.mjs';
+import { makeFakeWhatsApp, makeFakeClients } from '../clients/fakes/index.mjs';
 import { TEMPLATES } from '../../messages/templates.mjs';
+import { RULES } from '../../messages/rules.mjs';
 
 const PHONE = '+919812345678';
 const IMG = 'https://cdn.shopify.com/s/files/1/x/bandhan.jpg?v=1';
@@ -200,5 +201,63 @@ describe('a template send registers its wamid against the order', () => {
     } finally {
       table.put = boom.put;
     }
+  });
+});
+
+/*
+ * O9. ops_digest is MARKETING, as Meta categorised it, so the daily summary was
+ * about 30 marketing templates a month per owner phone, each exposed to the
+ * per-user cap behind 131049: some days it was refused outright. ops_alert and
+ * ops_error are UTILITY and, since 1 Oct 2026, are billed even inside the
+ * window.
+ */
+describe('owner messages go by whichever channel arrives', () => {
+  const OWNER = '+919999999999';
+
+  beforeEach(() => {
+    // Its own reset: the window one test opens must not leak into the next,
+    // which is the difference between a session message and a template.
+    _resetMemory();
+    config.dryRun = false;
+    config.ownerAlertPhones = [OWNER];
+    RULES.digestChannel = 'window-else-email';
+  });
+  afterEach(() => { RULES.digestChannel = 'window-else-email'; });
+
+  it('sends free-form while the owner window is open', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(OWNER, new Date());
+    await ownerAlert({ clients }, '#1234', 'something needs a look');
+    const sent = clients.whatsapp.sent;
+    expect(sent.filter((s) => s.type === 'template')).toHaveLength(0);
+    expect(sent.map((s) => s.body || '').join(' ')).toContain('something needs a look');
+  });
+
+  it('carries a Got it button, which is what keeps the next one free', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(OWNER, new Date());
+    await ownerAlert({ clients }, '#1234', 'look at this');
+    const msg = clients.whatsapp.sent.find((s) => s.buttons);
+    expect(msg.buttons.map((b) => b.title)).toEqual(['Got it']);
+    // Routable, and never 'undefined' in the payload.
+    expect(msg.buttons[0].id).toBe('v1|O|owner|ack');
+  });
+
+  /*
+   * The one that must not change. An alert that waits for a window is not an
+   * alert, so a shut window means a billed template, not silence.
+   */
+  it('still sends the alert as a template when the window is shut', async () => {
+    const clients = makeFakeClients({});
+    await ownerAlert({ clients }, '#1234', 'urgent thing');
+    expect(clients.whatsapp.sent.filter((s) => (s.name || '').startsWith('ops_alert')).length).toBeGreaterThan(0);
+  });
+
+  it('digestChannel template restores the old behaviour exactly', async () => {
+    RULES.digestChannel = 'template';
+    const clients = makeFakeClients({});
+    await touchInbound(OWNER, new Date());
+    await ownerAlert({ clients }, '#1234', 'look at this');
+    expect(clients.whatsapp.sent.filter((s) => (s.name || '').startsWith('ops_alert')).length).toBeGreaterThan(0);
   });
 });

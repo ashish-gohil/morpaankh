@@ -8,7 +8,8 @@ import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
-import { isUndeliverable } from '../store/phoneProfile.mjs';
+import { isUndeliverable, windowOpen } from '../store/phoneProfile.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import { recordMessage } from '../store/orderState.mjs';
 import { soft } from '../lib/resilience.mjs';
 
@@ -280,9 +281,42 @@ export async function sess(deps, phone, key, vars, ctx = {}) {
  */
 export async function ownerAlert(deps, orderName, alertText) {
   for (const phone of config.ownerAlertPhones) {
-    await soft('ownerAlert', () => tpl(deps, phone, 'ops_alert', { order_number: orderName, alert_text: alertText }, {}), {
+    await soft('ownerAlert', () => ownerSend(deps, phone, 'ops_alert', { order_number: orderName, alert_text: alertText }), {
       orderName,
       alertText,
     });
   }
+}
+
+/**
+ * One owner message, by whichever channel actually arrives.
+ *
+ * Free inside their 24 hour window, billed outside it. ops_alert and ops_error
+ * are UTILITY and, since 1 Oct 2026, are billed even when the window IS open,
+ * so the session twin is a straight saving and says exactly the same words.
+ *
+ * AN ALERT ALWAYS GOES. If the window is shut the template is sent, billed,
+ * because an alert that waits for a window is not an alert. The digest is the
+ * one that may fall back to email instead (see timers/digest.mjs).
+ *
+ * The twin carries a "Got it" button, and that is the mechanism rather than a
+ * courtesy: a tap reopens the window, so tomorrow's messages are free too.
+ *
+ * `digestChannel: 'template'` restores the old behaviour for both.
+ */
+export async function ownerSend(deps, phone, key, vars) {
+  if (RULES.digestChannel !== 'template' && (await windowOpen(phone, new Date(), RULES.windowSafetyMinutes))) {
+    /*
+     * ctx.orderId is what encodePayload puts in the button id, and an owner
+     * message is not about one order. A literal keeps 'undefined' out of the
+     * payload and gives the router's O branch something readable to log.
+     */
+    const r = await sess(deps, phone, `${key}_session`, vars, { orderId: 'owner' });
+    if (r) {
+      metric('OwnerSessionSend', 1, { key });
+      return r;
+    }
+    // No twin for this key: fall through to the template rather than go silent.
+  }
+  return tpl(deps, phone, key, vars, {});
 }

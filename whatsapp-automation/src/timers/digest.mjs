@@ -5,7 +5,7 @@
  */
 import { config } from '../config.mjs';
 import { realClients } from '../clients/index.mjs';
-import { tpl } from '../worker/send.mjs';
+import { tpl, ownerSend } from '../worker/send.mjs';
 import { summarizeDigest, countEvents } from '../domain/digest.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE } from '../../messages/templates.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -13,6 +13,8 @@ import { table } from '../store/table.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
 import { allSubRecs } from '../store/subscriberOffer.mjs';
 import { listOpen } from '../store/replace.mjs';
+import { windowOpen } from '../store/phoneProfile.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import { istParts, fromISTWall, addDays, formatISTDate } from '../lib/time.mjs';
 import { log } from '../log.mjs';
 
@@ -148,9 +150,40 @@ export const handler = async () => {
   const { line } = summarizeDigest(norm, { cartsMessaged, replacements, templateProblems, subscribers, events });
 
   const deps = { clients: realClients };
+  const vars = { date: formatISTDate(yStart), summary: line };
+
+  /*
+   * THE DIGEST IS THE ONE OWNER MESSAGE THAT MAY GO BY EMAIL INSTEAD.
+   *
+   * ops_digest is MARKETING, as Meta categorised it, so this was about 30
+   * marketing templates a month per owner phone, each exposed to the per-user
+   * cap behind 131049. Some days it was refused outright: a summary that
+   * silently does not arrive is worse than one that arrives late.
+   *
+   * Inside the owner's window it goes free-form, with a "Got it" button whose
+   * tap reopens the window so tomorrow's is free too. Outside it, email, which
+   * is unmetered and is where the P&L already goes. An ALERT never does this
+   * (see ownerSend): an alert that waits for a window is not an alert.
+   */
+  let sent = 0;
   for (const phone of config.ownerAlertPhones) {
-    await tpl(deps, phone, 'ops_digest', { date: formatISTDate(yStart), summary: line }, {});
+    const open = RULES.digestChannel !== 'template' && (await windowOpen(phone, now, RULES.windowSafetyMinutes));
+    if (!open && RULES.digestChannel === 'window-else-email' && config.pnlEmailTo.length) continue;
+    await soft('digestSend', () => ownerSend(deps, phone, 'ops_digest', vars), {});
+    sent += 1;
   }
-  log.info('digest sent', { line });
+
+  const byEmail = sent < config.ownerAlertPhones.length && config.pnlEmailTo.length > 0;
+  if (byEmail) {
+    await soft('digestEmail', () =>
+      realClients.email.send({
+        to: config.pnlEmailTo.join(','),
+        subject: `Morpaankh, ${formatISTDate(yStart)}`,
+        text: `${formatISTDate(yStart)}\n\n${line}\n`,
+        html: `<p><strong>${formatISTDate(yStart)}</strong></p><p>${line}</p>`,
+      }), {});
+  }
+
+  log.info('digest sent', { line, byWhatsApp: sent, byEmail });
   return { ok: true, line };
 };

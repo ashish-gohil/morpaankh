@@ -114,6 +114,30 @@ export const SESSION = {
       'right now, so it stays cash on delivery. Please reply here if you need help.',
   },
   /*
+   * OWNER MESSAGES, FREE INSIDE THE WINDOW.
+   *
+   * ops_digest is MARKETING, as Meta categorised it, so the daily summary was
+   * about 30 marketing templates a month per owner phone, each one exposed to
+   * the per-user cap behind 131049: some days the digest was simply refused.
+   * ops_alert and ops_error are UTILITY and, since 1 Oct 2026, are billed even
+   * when the owner's window is open.
+   *
+   * These twins say exactly what the templates say. The "Got it" button is the
+   * point of the whole thing: a tap reopens the owner's 24 hour window, so the
+   * next day's digest and the next alert are free as well. Without it the
+   * window closes and every message falls back to a billed template.
+   */
+  ops_digest_session: {
+    type: 'buttons',
+    body: '{{date}}\n\n{{summary}}',
+    buttons: [{ title: 'Got it', flow: 'O', action: 'ack' }],
+  },
+  ops_alert_session: {
+    type: 'buttons',
+    body: '{{order_number}}: {{alert_text}}',
+    buttons: [{ title: 'Got it', flow: 'O', action: 'ack' }],
+  },
+  /*
    * THE THREE REPLIES FOR A BUTTON THAT OUTLIVED ITS ORDER.
    *
    * WhatsApp buttons never expire. The confirmation sent three minutes after
