@@ -543,6 +543,56 @@ class WaAutomationStack extends cdk.Stack {
     route('/subscribe', [HttpMethod.POST, HttpMethod.OPTIONS], subscribeFn);
     route('/cart-capture', [HttpMethod.POST, HttpMethod.OPTIONS], cartCaptureFn);
 
+    /*
+     * PER-ROUTE THROTTLING, IN FRONT OF LAMBDA.
+     *
+     * /cart-capture and /subscribe are public and unsigned, because a browser
+     * cannot hold a secret. Their only limit lives INSIDE the handler, as a
+     * per-IP counter and, since F1, per-phone and per-hour caps. Every one of
+     * those is a DynamoDB write and a Lambda invocation that a flood still
+     * pays for: the refusal is correct and it is not free.
+     *
+     * A stage route setting is refused by API Gateway before anything is
+     * invoked, so the flood costs nothing at all. It is BEST EFFORT, which is
+     * why the in-handler caps stay: those are the correctness guarantee, this
+     * is the cost one.
+     *
+     * The rates are shaped to the real traffic. /cart-capture served 214
+     * requests in 30 days, about 7 a day, so 5 a second with a burst of 10 is
+     * several hundred times headroom. The three redirects are taps on a link
+     * in a message and get a little more, since a WhatsApp preview fetch and
+     * the customer's own tap can arrive together.
+     *
+     * The stage must DEPEND on the routes: CloudFormation rejects a route
+     * setting naming a route it has not created yet.
+     */
+    /*
+     * addPropertyOverride, not `stage.routeSettings = ...`, and the difference
+     * is not style.
+     *
+     * RouteSettings is a MAP keyed by route key, and assigning a value to the
+     * L1 property here synthesises it VERBATIM: an array stays an array and
+     * camelCase keys stay camelCase. CloudFormation accepts that template and
+     * API Gateway then ignores the settings, which is the worst kind of
+     * infrastructure change, one that is present in the diff and absent in
+     * reality. The override is the documented raw escape hatch and takes
+     * CloudFormation's own casing, which is what the synth check below asserts.
+     */
+    const stage = api.defaultStage.node.defaultChild;
+    const limit = (rate, burst) => ({ ThrottlingRateLimit: rate, ThrottlingBurstLimit: burst });
+    stage.addPropertyOverride('RouteSettings', {
+      'POST /cart-capture': limit(5, 10),
+      'POST /subscribe': limit(5, 10),
+      'GET /p/{token}': limit(10, 20),
+      'GET /r/{token}': limit(10, 20),
+      'GET /w/{token}': limit(10, 20),
+    });
+    for (const child of api.node.findAll()) {
+      if (child.node?.defaultChild?.cfnResourceType === 'AWS::ApiGatewayV2::Route') {
+        stage.addDependency(child.node.defaultChild);
+      }
+    }
+
     // ---- recurring schedules (IST via cron in UTC) ------------------------
     // Delhivery poll hourly 08:00-22:00 IST == 02:30-16:30 UTC.
     new events.Rule(this, 'PollRule', {

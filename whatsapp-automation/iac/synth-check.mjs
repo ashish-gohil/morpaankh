@@ -103,5 +103,30 @@ check('every function has a log retention policy', () => {
   assert.deepEqual(missing, [], `no retention policy for: ${missing.join(', ')}`);
 });
 
+/*
+ * O10. The public unsigned endpoints are throttled in front of Lambda, so a
+ * flood costs nothing rather than one invocation and one DynamoDB write per
+ * refused request.
+ *
+ * Asserted in CloudFormation's own casing, because that is the trap: assigning
+ * the L1 property synthesises VERBATIM, so an array or camelCase keys produce
+ * a template CloudFormation accepts and API Gateway ignores. A throttle
+ * present in the diff and absent in reality.
+ */
+check('the public routes are throttled, in CloudFormation s casing', () => {
+  const stage = resources.find(([, r]) => r.Type === 'AWS::ApiGatewayV2::Stage');
+  assert.ok(stage, 'no stage found');
+  const rs = stage[1].Properties?.RouteSettings;
+  assert.ok(rs && !Array.isArray(rs), 'RouteSettings must be a MAP keyed by route key, not a list');
+  for (const routeKey of ['POST /cart-capture', 'POST /subscribe', 'GET /p/{token}', 'GET /r/{token}', 'GET /w/{token}']) {
+    const one = rs[routeKey];
+    assert.ok(one, `no throttle for ${routeKey}`);
+    assert.ok(Number(one.ThrottlingRateLimit) > 0, `${routeKey}: ThrottlingRateLimit missing (camelCase does nothing)`);
+    assert.ok(Number(one.ThrottlingBurstLimit) > 0, `${routeKey}: ThrottlingBurstLimit missing`);
+  }
+  // CloudFormation rejects a route setting naming a route it has not created.
+  assert.ok((stage[1].DependsOn || []).length >= 5, 'the stage must depend on the routes it throttles');
+});
+
 console.log(failures ? `\n${failures} failed` : '\nall passed');
 process.exit(failures ? 1 : 0);
