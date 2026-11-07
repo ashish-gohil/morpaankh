@@ -6,6 +6,8 @@
  */
 import { makeIngest } from './base.mjs';
 import { verifySharedSecret } from '../lib/signature.mjs';
+import { getAwbMap } from '../store/maps.mjs';
+import { log } from '../log.mjs';
 
 // Header name agreed with Delhivery (OPEN, confirm at Phase 7).
 const SECRET_HEADER = 'x-delhivery-token';
@@ -20,20 +22,49 @@ function shipmentsOf(body) {
 export const delhiveryIngest = {
   name: 'delhivery',
   verify: (_raw, h, s) => verifySharedSecret(h[SECRET_HEADER], s.delhiveryPushSecret),
-  toItems(_h, body) {
-    return shipmentsOf(body)
-      .map((sh) => {
-        const awb = sh.AWB || sh.Waybill || sh.waybill;
-        const status = sh.Status?.Status || sh.status;
-        const at = sh.Status?.StatusDateTime || sh.StatusDateTime || '';
-        if (!awb) return null;
-        return {
-          message: { kind: 'delhivery', awb: String(awb), status, at, shipment: sh },
-          groupId: `awb:${awb}`,
-          dedupId: `dl-${awb}-${status}-${at}`,
-        };
-      })
-      .filter(Boolean);
+  /*
+   * GROUPED BY ORDER, NOT BY WAYBILL.
+   *
+   * The FIFO queue serialises by group, and every other handler for an order
+   * uses `order:<id>`. Grouping these by `awb:<awb>` put courier events in a
+   * group of their own, so a DELIVERED push and the orders/updated for the same
+   * order could run at once: both read the state row, both write it, and the
+   * loser's write is lost. That is the shape that erases a conversion stamp or
+   * a review schedule.
+   *
+   * It has never bitten because Delhivery has not enabled the push for this
+   * account (2 invocations in 30 days, against the poller's 452), and the
+   * poller already groups by order. This is the thing to have fixed BEFORE that
+   * webhook is switched on, not after.
+   *
+   * The AWB group remains the fallback for a waybill we have no mapping for,
+   * which is better than dropping the event: the worker logs it as an unknown
+   * AWB and a human can see it.
+   */
+  async toItems(_h, body) {
+    const out = [];
+    for (const sh of shipmentsOf(body)) {
+      const awb = sh.AWB || sh.Waybill || sh.waybill;
+      const status = sh.Status?.Status || sh.status;
+      const at = sh.Status?.StatusDateTime || sh.StatusDateTime || '';
+      if (!awb) continue;
+      let groupId = `awb:${awb}`;
+      try {
+        const map = await getAwbMap(String(awb));
+        if (map?.orderId) groupId = `order:${map.orderId}`;
+        else log.warn('delhivery push: no order for this waybill, grouping by waybill', { awb: String(awb) });
+      } catch (e) {
+        // A table read failure must not lose a courier event. The AWB group is
+        // the old behaviour, so the worst case is the race this fix removes.
+        log.error('delhivery push: could not resolve the waybill to an order', { err: e.message });
+      }
+      out.push({
+        message: { kind: 'delhivery', awb: String(awb), status, at, shipment: sh },
+        groupId,
+        dedupId: `dl-${awb}-${status}-${at}`,
+      });
+    }
+    return out;
   },
 };
 

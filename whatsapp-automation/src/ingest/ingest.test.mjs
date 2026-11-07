@@ -4,6 +4,8 @@ import { handler as shopifyHandler } from './shopify.mjs';
 import { handler as whatsappHandler } from './whatsapp.mjs';
 import { razorpayIngest } from './razorpay.mjs';
 import { whatsappIngest } from './whatsapp.mjs';
+import { delhiveryIngest } from './delhivery.mjs';
+import { setAwbMap } from '../store/maps.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _drainQueue } from '../queue.mjs';
 import { _resetSecrets } from '../secrets.mjs';
@@ -153,5 +155,40 @@ describe('whatsapp ingest: template status changes', () => {
     };
     const kinds = whatsappIngest.toItems({}, mixed).map((i) => i.message.kind);
     expect(kinds).toEqual(['wa_inbound', 'wa_template_status']);
+  });
+});
+
+/*
+ * F27. The FIFO queue serialises by GROUP, and every other handler for an order
+ * uses `order:<id>`. The Delhivery push used `awb:<awb>`, so a DELIVERED push
+ * and the orders/updated for the same order sat in different groups and could
+ * run at once: both read the state row, both write it, and the loser's write is
+ * lost. That is the shape that erases a conversion stamp or a review schedule.
+ *
+ * It has never bitten because Delhivery has not enabled the push for this
+ * account. This is the thing to have fixed BEFORE it is switched on.
+ */
+describe('the Delhivery push shares the order s queue group', () => {
+  const push = (awb) => ({
+    Shipments: [{ AWB: awb, Status: { Status: 'Delivered', StatusType: 'DL', StatusDateTime: '2026-11-06T10:00:00' } }],
+  });
+
+  it('groups by order when the waybill is known', async () => {
+    await setAwbMap('AWB77', '12345');
+    const items = await delhiveryIngest.toItems({}, push('AWB77'));
+    expect(items).toHaveLength(1);
+    expect(items[0].groupId).toBe('order:12345');
+    // The dedup id is unchanged: AWB + status + time is still the event's identity.
+    expect(items[0].dedupId).toBe('dl-AWB77-Delivered-2026-11-06T10:00:00');
+  });
+
+  it('falls back to the waybill rather than losing an unmapped event', async () => {
+    const items = await delhiveryIngest.toItems({}, push('AWB-UNKNOWN'));
+    expect(items[0].groupId).toBe('awb:AWB-UNKNOWN');
+  });
+
+  it('skips a shipment with no waybill at all', async () => {
+    const items = await delhiveryIngest.toItems({}, { Shipments: [{ Status: { Status: 'Delivered' } }] });
+    expect(items).toEqual([]);
   });
 });

@@ -11,7 +11,7 @@
  *   verify(raw, headers, secrets) -> boolean
  *   verifyGet?(event, secrets)    -> response   (WhatsApp GET challenge)
  *   checkRequest?(headers)        -> boolean     (e.g. Shopify shop-domain)
- *   toItems(headers, body)        -> [{ message, groupId, dedupId }]
+ *   toItems(headers, body)        -> [{ message, groupId, dedupId }] (may be async)
  */
 import { rawBody } from '../lib/signature.mjs';
 import { markSeen, unmarkSeen } from '../store/dedupe.mjs';
@@ -60,7 +60,10 @@ export function makeIngest(provider) {
 
     let items;
     try {
-      items = provider.toItems(headers, body) || [];
+      // Awaited, so a provider may read the table to decide its group. The
+      // Delhivery push has to: grouping by waybill races the order-group
+      // handlers for the same order. A sync toItems is unaffected.
+      items = (await provider.toItems(headers, body)) || [];
     } catch (e) {
       log.error('ingest map failed', { provider: provider.name, err: e.message });
       return resp(200, 'ignored'); // malformed payload: ack so it is not retried forever
