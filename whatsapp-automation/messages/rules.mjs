@@ -143,6 +143,25 @@ export const RULES = {
    * arrives, and an alert that waits for a window is not an alert.
    */
   digestChannel: 'window-else-email',
+  /*
+   * Deleting the one-off discount codes this service mints.
+   *
+   * Every cart recovery, welcome offer and review thanks creates its own
+   * DiscountCodeBasic. The store held 81 expired discounts on 2026-11-07, 72 of
+   * them these, growing by two or three a day: every discount listing pages
+   * through the lot and the admin's own list becomes unusable.
+   *
+   * 60 days past the code's end date. Nothing in this service reads an expired
+   * private code: publicCodeDiscounts asks for status:active, and
+   * discountByCode is a collision check at creation time against a code minted
+   * minutes earlier. The grep is in the commit message.
+   *
+   * dryRun TRUE to begin with, on purpose. The first run reports a count to
+   * the owner and deletes nothing, because the thing being deleted is money
+   * that was promised to somebody and the selection is a title prefix. Flip it
+   * once the count looks right.
+   */
+  codeCleanup: { enabled: true, dryRun: true, olderThanDays: 60, maxPerRun: 100 },
   reviewAskCapDays: 14,
   humanTakeoverHours: 12,
   // How long a 131026 bounce keeps a number on the do-not-send list. Meta sends

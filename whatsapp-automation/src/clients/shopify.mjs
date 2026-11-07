@@ -1049,6 +1049,12 @@ async function ordersCreatedSince(sinceISO) {
  */
 let codeCache = { at: 0, codes: /** @type {any[]} */ ([]) };
 const CODE_CACHE_MS = 10 * 60 * 1000;
+/*
+ * The titles this service gives the single-use codes it mints. Private, every
+ * one of them: one customer, one code, and never a public offer.
+ */
+export const PRIVATE_CODE_TITLES = ['Cart recovery #', 'Subscriber offer #', 'Review thanks'];
+
 export const CART_RECOVERY_TITLE = 'Cart recovery #';
 /*
  * Flow W's titles, excluded below for exactly the same reason as Flow R's: the
@@ -1385,6 +1391,83 @@ async function collectionBestSellers(handle, limit = 6) {
  * @param {string} code
  * @returns {Promise<{id: string, title: string}|null>}
  */
+/**
+ * The expired PRIVATE codes old enough to delete.
+ *
+ * Every cart recovery, welcome offer and review thanks creates its own
+ * DiscountCodeBasic. The store held 81 expired discounts on 2026-11-07, 72 of
+ * them these, growing by two or three a day. Every discount listing pages
+ * through the lot (sync-offers, publicCodeDiscounts) and the admin's own
+ * discount list becomes unusable.
+ *
+ * THE TITLE TEST IS THE SAFETY, and it is not theoretical: the same expired
+ * list contains OFF20 and WELCOME200, which are public codes with the same
+ * type, the same status and a usage limit. Only a title this service wrote
+ * qualifies.
+ *
+ * `endsAt` is also required to be present and past the cutoff, so a code with
+ * no end date is never selected: that would be a code that has not expired.
+ *
+ * @param {{endedBeforeISO: string}} args
+ * @returns {Promise<{id: string, title: string, endsAt: string}[]>}
+ */
+async function expiredPrivateCodes({ endedBeforeISO }) {
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const data = await graphql(
+      `query ExpiredPrivate($after: String){
+         discountNodes(first: 100, after: $after, query: "status:expired"){
+           edges { cursor node {
+             id
+             discount { __typename ... on DiscountCodeBasic { title status endsAt } }
+           } }
+           pageInfo { hasNextPage endCursor }
+         } }`,
+      { after: cursor },
+      { idempotent: true },
+    );
+    for (const e of data.discountNodes.edges) {
+      const d = e.node.discount;
+      if (d?.__typename !== 'DiscountCodeBasic') continue;
+      if (d.status !== 'EXPIRED') continue;
+      const title = String(d.title || '');
+      if (!PRIVATE_CODE_TITLES.some((t) => title.startsWith(t))) continue;
+      if (!d.endsAt || d.endsAt >= endedBeforeISO) continue;
+      out.push({ id: e.node.id, title, endsAt: d.endsAt });
+    }
+    if (!data.discountNodes.pageInfo.hasNextPage) break;
+    cursor = data.discountNodes.pageInfo.endCursor;
+  }
+  return out;
+}
+
+/**
+ * Delete discounts by EXPLICIT ID, never by search.
+ *
+ * discountCodeBulkDelete accepts a `search` argument, and passing one would
+ * mean Shopify deciding what matches rather than the caller: the selection
+ * above is the only thing standing between this and a public code. Ids only.
+ *
+ * Asynchronous: the job id is returned and Shopify works through it.
+ *
+ * @param {string[]} ids
+ */
+async function deleteDiscounts(ids) {
+  if (!ids.length) return { jobId: null, deleted: 0 };
+  const data = await graphql(
+    `mutation DeleteCodes($ids: [ID!]!){
+       discountCodeBulkDelete(ids: $ids){
+         job { id done }
+         userErrors { field message code }
+       } }`,
+    { ids },
+  );
+  const errs = data.discountCodeBulkDelete.userErrors || [];
+  if (errs.length) throw new Error(`discountCodeBulkDelete: ${JSON.stringify(errs)}`);
+  return { jobId: data.discountCodeBulkDelete.job?.id || null, deleted: ids.length };
+}
+
 async function discountByCode(code) {
   const data = await graphql(
     `query SubCodeOwner($code: String!){
@@ -1404,6 +1487,8 @@ export const shopify = {
   graphql,
   getCustomer,
   discountByCode,
+  expiredPrivateCodes,
+  deleteDiscounts,
   getCustomerByPhone,
   listNewCustomers,
   ordersByEmail,

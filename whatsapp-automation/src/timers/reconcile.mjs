@@ -24,6 +24,7 @@ import { sweepNewSubscribers } from './subscriber-sweep.mjs';
 import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
+import { istParts } from '../lib/time.mjs';
 import * as flowB from '../worker/flowB.run.mjs';
 import { enqueue } from '../queue.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -224,6 +225,52 @@ export async function sweepUnreviewed(now = new Date()) {
   return out;
 }
 
+/**
+ * Delete the one-off discount codes that expired two months ago.
+ *
+ * ONCE A MONTH, on the 1st, inside the nightly pass. Not daily: this reads
+ * every expired discount in the store and the thing it deletes has been
+ * useless for sixty days, so a month's latency costs nothing and twelve runs a
+ * year is the whole job.
+ *
+ * Two safeties, and they are the point:
+ *   The selection is by TITLE PREFIX, which only this service writes. The same
+ *     expired list holds OFF20 and WELCOME200, public codes with the same type
+ *     and status, and deleting one of those is deleting a live promise.
+ *   The first runs are DRY, reporting a count to the owner and deleting
+ *     nothing, because the selection is a string match against money.
+ */
+export async function sweepExpiredCodes(now = new Date()) {
+  const r = RULES.codeCleanup;
+  if (!r?.enabled) return { skipped: 'disabled' };
+  // The 1st in IST, which is the calendar the owner reads.
+  if (istParts(now).day !== 1) return { skipped: 'not-the-first' };
+
+  const endedBeforeISO = new Date(now.getTime() - r.olderThanDays * 86400 * 1000).toISOString();
+  const found = await realClients.shopify.expiredPrivateCodes({ endedBeforeISO });
+  const batch = found.slice(0, r.maxPerRun);
+
+  if (!batch.length) {
+    log.info('reconcile: no expired private codes old enough to delete', { endedBeforeISO });
+    return { found: 0, deleted: 0 };
+  }
+
+  if (r.dryRun || config.dryRun) {
+    await soft('codeCleanupDryRun', () =>
+      alert(`${found.length} expired one-off discount codes are older than ${r.olderThanDays} days and would be deleted. Set RULES.codeCleanup.dryRun to false to let it run`, 'discount cleanup'), {});
+    log.warn('reconcile: code cleanup is a dry run, nothing deleted', { found: found.length, oldest: batch[0]?.endsAt });
+    return { found: found.length, deleted: 0, dryRun: true };
+  }
+
+  const res = await realClients.shopify.deleteDiscounts(batch.map((c) => c.id));
+  log.warn('reconcile: deleted expired one-off discount codes', {
+    found: found.length,
+    deleted: batch.length,
+    jobId: res.jobId,
+  });
+  return { found: found.length, deleted: batch.length, jobId: res.jobId };
+}
+
 export const handler = async (event = {}) => {
   /*
    * 'carts' is handled FIRST and returns, before anything else in this
@@ -289,6 +336,11 @@ export const handler = async (event = {}) => {
       out.reviews = await sweepUnreviewed();
     } catch (e) {
       log.error('reconcile review sweep failed', { err: e.message });
+    }
+    try {
+      out.codes = await sweepExpiredCodes();
+    } catch (e) {
+      log.error('reconcile code cleanup failed', { err: e.message });
     }
   }
 

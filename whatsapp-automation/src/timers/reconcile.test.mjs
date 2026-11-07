@@ -11,7 +11,8 @@ import { realClients } from '../clients/index.mjs';
 import { _drainQueue, _peekQueue } from '../queue.mjs';
 import { _resetTimers, _peekTimers } from './schedule.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { sweepUnconfirmed, sweepUnreviewed } from './reconcile.mjs';
+import { sweepUnconfirmed, sweepUnreviewed, sweepExpiredCodes } from './reconcile.mjs';
+import { fromISTWall } from '../lib/time.mjs';
 
 // The sweep's whole job is scheduling an ask, so these tests enable it.
 beforeEach(() => { RULES.reviewAskEnabled = true; });
@@ -313,5 +314,88 @@ describe('the sweep repairs fresh orders only', () => {
     orders = [order('905', hoursAgo(72))];
     const out = await sweepUnconfirmed(NOW);
     expect(out.stuck).toEqual([]);
+  });
+});
+
+/*
+ * O13. Every cart recovery, welcome offer and review thanks creates its own
+ * DiscountCodeBasic. The store held 81 expired discounts on 2026-11-07, 72 of
+ * them these, growing by two or three a day: every discount listing pages
+ * through the lot and the admin's own list becomes unusable.
+ *
+ * The danger is the selection. That same expired list holds OFF20 and
+ * WELCOME200, public codes with the same type, the same status and a usage
+ * limit, and deleting one of those deletes a live promise.
+ */
+describe('deleting the one-off codes this service minted', () => {
+  const NOV1 = fromISTWall(2026, 11, 1, 2, 0); // the 1st, in IST
+  const NOV2 = fromISTWall(2026, 11, 2, 2, 0);
+  let listed;
+  let deleted;
+
+  beforeEach(() => {
+    listed = [];
+    deleted = [];
+    // config.dryRun gates this too, which is correct in production and would
+    // make every test below pass for the wrong reason.
+    config.dryRun = false;
+    RULES.codeCleanup = { enabled: true, dryRun: false, olderThanDays: 60, maxPerRun: 100 };
+    vi.spyOn(realClients.shopify, 'expiredPrivateCodes').mockImplementation(async (args) => {
+      listed.push(args);
+      return RULES._fixture || [];
+    });
+    vi.spyOn(realClients.shopify, 'deleteDiscounts').mockImplementation(async (ids) => {
+      deleted.push(...ids);
+      return { jobId: 'gid://shopify/Job/1', deleted: ids.length };
+    });
+  });
+  afterEach(() => { delete RULES._fixture; });
+
+  it('runs on the 1st and not on the 2nd', async () => {
+    expect(await sweepExpiredCodes(NOV2)).toMatchObject({ skipped: 'not-the-first' });
+    expect(listed).toHaveLength(0);
+    await sweepExpiredCodes(NOV1);
+    expect(listed).toHaveLength(1);
+  });
+
+  it('asks only for codes that ended more than 60 days ago', async () => {
+    await sweepExpiredCodes(NOV1);
+    const cutoff = new Date(listed[0].endedBeforeISO);
+    const days = Math.round((NOV1.getTime() - cutoff.getTime()) / 86400000);
+    expect(days).toBe(60);
+  });
+
+  it('deletes by explicit id, never by a search Shopify would interpret', async () => {
+    RULES._fixture = [
+      { id: 'gid://shopify/DiscountCodeNode/1', title: 'Cart recovery #123', endsAt: '2026-08-01T00:00:00Z' },
+      { id: 'gid://shopify/DiscountCodeNode/2', title: 'Subscriber offer #456', endsAt: '2026-08-02T00:00:00Z' },
+    ];
+    const out = await sweepExpiredCodes(NOV1);
+    expect(deleted).toEqual(['gid://shopify/DiscountCodeNode/1', 'gid://shopify/DiscountCodeNode/2']);
+    expect(out).toMatchObject({ found: 2, deleted: 2 });
+  });
+
+  it('deletes nothing and tells the owner the count while it is a dry run', async () => {
+    RULES.codeCleanup.dryRun = true;
+    RULES._fixture = [{ id: 'gid://shopify/DiscountCodeNode/1', title: 'Cart recovery #123', endsAt: '2026-08-01T00:00:00Z' }];
+    const out = await sweepExpiredCodes(NOV1);
+    expect(deleted).toEqual([]);
+    expect(out).toMatchObject({ found: 1, deleted: 0, dryRun: true });
+  });
+
+  it('caps one run, so a long backlog is worked through over months', async () => {
+    RULES.codeCleanup.maxPerRun = 2;
+    RULES._fixture = [1, 2, 3, 4, 5].map((n) => ({
+      id: `gid://shopify/DiscountCodeNode/${n}`, title: 'Cart recovery #x', endsAt: '2026-08-01T00:00:00Z',
+    }));
+    const out = await sweepExpiredCodes(NOV1);
+    expect(deleted).toHaveLength(2);
+    expect(out).toMatchObject({ found: 5, deleted: 2 });
+  });
+
+  it('does nothing at all when switched off', async () => {
+    RULES.codeCleanup.enabled = false;
+    expect(await sweepExpiredCodes(NOV1)).toMatchObject({ skipped: 'disabled' });
+    expect(listed).toHaveLength(0);
   });
 });
