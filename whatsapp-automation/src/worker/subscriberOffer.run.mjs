@@ -159,7 +159,9 @@ async function hasCart(deps, n, now) {
     if (parked?.until && new Date(parked.until).getTime() > now.getTime()) return true;
     // A cart the storefront captured. COD King's OTP happens before Shopify
     // files an AbandonedCheckout, so this is the source that sees most of them.
-    const captures = await listCaptures();
+    // Bounded by the same lookback the Shopify list below uses, so the two
+    // sources answer the same question over the same window.
+    const captures = await listCaptures(cartLookbackSince(n.createdAt));
     if (captures.some((c) => c.phone === n.phone)) return true;
   }
   const checkouts = await deps.clients.shopify.listAbandonedCheckouts(cartLookbackSince(n.createdAt));

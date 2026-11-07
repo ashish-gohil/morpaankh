@@ -15,6 +15,7 @@
  * short TTL and nothing downstream reads it again.
  */
 import { table } from './table.mjs';
+import { log } from '../log.mjs';
 // The id scheme belongs to the domain, which must not import this file back:
 // see the checkJs note in src/domain/cartCapture.mjs.
 import { captureIdFor, tokenFromCaptureId } from '../domain/cartCapture.mjs';
@@ -80,6 +81,15 @@ export async function putCapture({
     attrs,
     source,
     ...(verifiedBy ? { verifiedBy } : {}),
+    /*
+     * GSI2's sparse keys. `kind` says what this row is and `kindAt` when, so
+     * the five-minute cart sweep can QUERY the captures instead of scanning
+     * the whole table for them 156 times a day. kindAt mirrors capturedAt,
+     * which moves forward on every save, so the sweep's "oldest first" order
+     * is the index's own order.
+     */
+    kind: 'capcart',
+    kindAt: now.toISOString(),
     capturedAt: now.toISOString(),
     expiresAt: ttl(now),
     ...keep,
@@ -90,5 +100,25 @@ export async function putCapture({
 /** One captured cart by its `cap_<token>` id. */
 export const getCapture = (id) => table.get(pk(tokenFromCaptureId(id)), SK);
 
-/** Every captured cart still in the table. Paginated by scanBySk. */
-export const listCaptures = () => table.scanBySk(SK);
+/**
+ * The captured carts, newest bound optional.
+ *
+ * A QUERY on GSI2, with a scan as the fallback. The fallback exists for one
+ * window only: between the deploy that adds the index and the backfill that
+ * stamps `kind` on the rows already in the table. An empty query result is
+ * ambiguous during that window, so a scan confirms it, and a scan that finds
+ * rows is logged loudly because it means the backfill has not been run.
+ *
+ * Delete the fallback once scripts/backfill-kind.mjs has run --live.
+ *
+ * @param {string} [sinceISO] ignore captures older than this
+ */
+export async function listCaptures(sinceISO) {
+  const rows = await table.queryKind('capcart', { sinceISO });
+  if (rows.length) return rows;
+  const scanned = (await table.scanBySk(SK)).filter((r) => !sinceISO || String(r.capturedAt || '') >= sinceISO);
+  if (scanned.length) {
+    log.warn('cartCapture: GSI2 is empty but rows exist, run scripts/backfill-kind.mjs --live', { found: scanned.length });
+  }
+  return scanned;
+}

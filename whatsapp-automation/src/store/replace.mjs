@@ -29,6 +29,7 @@
  *    preview went stale, taking the only record of what was promised with it.
  */
 import { table, VersionConflict } from './table.mjs';
+import { log } from '../log.mjs';
 import { RULES } from '../../messages/rules.mjs';
 
 const pk = (orderId) => `REPL#${orderId}`;
@@ -124,6 +125,11 @@ export async function createRequest(orderId, data, now = new Date()) {
     version: 0,
     state: 'AWAITING_CONFIRMATION',
     createdAt: now.toISOString(),
+    // GSI2's sparse keys. The P&L reads replacement requests by scanning once
+    // per sequence number (REQ#1, REQ#2, ...), which is one full-table scan
+    // each; one query by kind replaces the lot.
+    kind: 'replreq',
+    kindAt: now.toISOString(),
     expiresAt: ttl(now),
     ...data,
   });
@@ -134,6 +140,8 @@ export async function createRequest(orderId, data, now = new Date()) {
     orderId: String(orderId),
     seq,
     at: now.toISOString(),
+    kind: 'replopen',
+    kindAt: now.toISOString(),
     expiresAt: ttl(now),
   });
   return getRequest(orderId, seq);
@@ -158,9 +166,12 @@ export async function patchRequest(orderId, seq, fields) {
 /**
  * The requests that are still open, newest first.
  *
- * One scan of the pointer rows, then one read each. The pointer deliberately
+ * One QUERY of the pointer rows, then one read each. The pointer deliberately
  * carries only the keys: two copies of the state is two things to keep in step,
  * and this runs a handful of times a week.
+ *
+ * The scan fallback covers the window between the deploy that adds GSI2 and
+ * the backfill; delete it once backfill-kind.mjs has run --live.
  *
  * A preview whose deadline has passed is NOT open. Nothing marks it EXPIRED
  * unless somebody taps it, so without this the daily digest would keep saying
@@ -169,7 +180,11 @@ export async function patchRequest(orderId, seq, fields) {
  * digest that stops being read.
  */
 export async function listOpen(limit = 10, now = new Date()) {
-  const ptrs = await table.scanBySk('REPLOPEN');
+  let ptrs = await table.queryKind('replopen');
+  if (!ptrs.length) {
+    ptrs = await table.scanBySk('REPLOPEN');
+    if (ptrs.length) log.warn('replace: GSI2 is empty but pointers exist, run scripts/backfill-kind.mjs --live', { found: ptrs.length });
+  }
   const rows = [];
   for (const p of ptrs.sort((a, b) => String(b.at).localeCompare(String(a.at)))) {
     const r = await getRequest(p.orderId, p.seq);

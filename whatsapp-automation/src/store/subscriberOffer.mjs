@@ -33,6 +33,7 @@
  *    closes and takes the attribution window and the outcome with it.
  */
 import { table, VersionConflict } from './table.mjs';
+import { log } from '../log.mjs';
 import { RULES } from '../../messages/rules.mjs';
 
 const recPk = (id) => `SUBOFFER#${id}`;
@@ -57,6 +58,9 @@ export async function ensureSubRec(id, init = {}, now = new Date()) {
     customerId: String(id),
     version: 0,
     createdAt: now.toISOString(),
+    // GSI2's sparse keys: see allSubRecs below.
+    kind: 'subrec',
+    kindAt: now.toISOString(),
     expiresAt: ttl(now),
     ...init,
   });
@@ -225,7 +229,24 @@ export const setSweepDay = (date, data = {}, now = new Date()) =>
   table.put({ PK: `SUBOFFER#RUN#${date}`, SK: 'DAY', date, ...data, at: now.toISOString(), expiresAt: ttl(now) });
 
 /** Every SUB row, for the digest and for `subscriber-offer.mjs preview`. */
-export const allSubRecs = () => table.scanBySk('SUB');
+/**
+ * The SUB rows, for the daily digest.
+ *
+ * A QUERY on GSI2 rather than a table Scan, which is billed for every row it
+ * evaluates. The scan fallback covers the window between the deploy that adds
+ * the index and the backfill; delete it once backfill-kind.mjs has run --live.
+ *
+ * @param {string} [sinceISO] ignore records older than this
+ */
+export async function allSubRecs(sinceISO) {
+  const rows = await table.queryKind('subrec', { sinceISO });
+  if (rows.length) return rows;
+  const scanned = (await table.scanBySk('SUB')).filter((r) => !sinceISO || String(r.createdAt || '') >= sinceISO);
+  if (scanned.length) {
+    log.warn('subscriberOffer: GSI2 is empty but rows exist, run scripts/backfill-kind.mjs --live', { found: scanned.length });
+  }
+  return scanned;
+}
 
 /**
  * True the FIRST time today this label is raised, false afterwards.

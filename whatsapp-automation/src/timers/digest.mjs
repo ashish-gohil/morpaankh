@@ -47,7 +47,10 @@ export const handler = async () => {
    * in the Shopify count above and the two numbers can be compared.
    */
   const yEnd = todayStart.getTime();
-  const cartsMessaged = (await allRecs()).filter((rec) => {
+  // Bounded: this only counts records whose firstSentAt is inside yesterday,
+  // and a record is created at most a few hours before its first send.
+  const recsSince = addDays(yStart, -2).toISOString();
+  const cartsMessaged = (await allRecs(recsSince)).filter((rec) => {
     const at = rec.firstSentAt ? new Date(rec.firstSentAt).getTime() : 0;
     return at >= yStart.getTime() && at < yEnd;
   }).length;
@@ -105,7 +108,7 @@ export const handler = async () => {
    * has-cart" is the difference between a flow that is working and one that is
    * quietly reaching nobody.
    */
-  const subs = (await allSubRecs()).filter((rec) => {
+  const subs = (await allSubRecs(recsSince)).filter((rec) => {
     const at = Date.parse(rec.firstSentAt || rec.outcomeAt || rec.createdAt || '');
     return at >= yStart.getTime() && at < yEnd;
   });

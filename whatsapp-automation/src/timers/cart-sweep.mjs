@@ -51,7 +51,16 @@ import { log } from '../log.mjs';
 async function collectCaptured(clients, now, r, out) {
   let rows = [];
   try {
-    rows = await listCaptures();
+    /*
+     * BOUNDED, which is where the saving actually is. This sweep runs every
+     * five minutes inside 09:30 to 22:30, about 156 times a day, and it only
+     * ever cares about captures young enough to still be eligible. A little
+     * slack past maxCheckoutAgeHours so a row that just aged out is still read
+     * and its skip reason still recorded, which is what the capture row's own
+     * three day TTL exists for.
+     */
+    const sinceISO = new Date(now.getTime() - (r.maxCheckoutAgeHours + 2) * 3600 * 1000).toISOString();
+    rows = await listCaptures(sinceISO);
   } catch (e) {
     log.warn('cart sweep: could not read captured carts, falling back to Shopify only', { err: e.message });
     return [];

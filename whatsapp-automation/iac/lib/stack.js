@@ -86,6 +86,32 @@ class WaAutomationStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    /*
+     * GSI2: the rows a sweep needs, keyed by WHAT they are and WHEN.
+     *
+     * A DynamoDB Scan reads up to 1 MB a page and is billed for everything it
+     * reads, not for what the filter returns. Six callers were doing exactly
+     * that, and one of them runs every five minutes inside 09:30 to 22:30:
+     * measured over the 30 days to 2026-11-06 the table served 229,616 read
+     * units against 12,370 write units, 18.6 reads per write, on 4,017 items.
+     * The ratio gets worse as the table grows, which is the part that matters.
+     *
+     * SPARSE on purpose. Only rows that carry `kind` appear here, so the index
+     * holds captures, cart records, subscriber records and replacement rows,
+     * and not the STATE, MSG#, WAMID#, dedupe or rate-limit rows that are most
+     * of the table. A sweep then reads the rows it needs and nothing else.
+     *
+     * Projection ALL because every reader wants the whole row: a KEYS_ONLY
+     * index would turn one query into a query plus N gets, which is the cost
+     * this is removing.
+     */
+    table.addGlobalSecondaryIndex({
+      indexName: 'GSI2',
+      partitionKey: { name: 'kind', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'kindAt', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // ---- SQS FIFO + DLQ ---------------------------------------------------
     const dlq = new sqs.Queue(this, 'Dlq', {
       queueName: 'wa-automation-dlq.fifo',

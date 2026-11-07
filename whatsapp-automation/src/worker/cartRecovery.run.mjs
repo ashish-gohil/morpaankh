@@ -911,6 +911,28 @@ export async function onCheckoutSeen(payload, deps) {
   return { captured: id };
 }
 
+/*
+ * How far back an order can be attributed to a cart message.
+ *
+ * The code's own life plus the attribution grace, plus a day of slack: a
+ * record older than that cannot be the one this order came back from, which is
+ * the window attributeToRecovery judges by anyway. Bounding the READ matters
+ * because onOrderCreated runs on EVERY orders/create and it used to be a
+ * full-table Scan each time.
+ *
+ * MEASURED FROM THE ORDER'S OWN DATE, not from the clock. A webhook can be
+ * redelivered hours later, Shopify retries for four hours, and the reconcile
+ * sweep replays orders up to a day and a half old: anchoring to `now` would
+ * make attribution depend on when we happened to process the event rather than
+ * on when the customer bought. The order's createdAt gives the same answer
+ * every time it is read.
+ */
+const attributionSince = (payload, now) => {
+  const at = Date.parse(payload?.created_at || payload?.createdAt || '') || now.getTime();
+  const hours = RULES.cartRecovery.codeValidHours + RULES.cartRecovery.attributionGraceHours + 24;
+  return new Date(at - hours * 3600 * 1000).toISOString();
+};
+
 /**
  * An order arrived. Two separate questions, in this order:
  *   1. did it come back from a cart message of ours (attribution), and
@@ -926,7 +948,7 @@ export async function onOrderCreated(payload, deps) {
    * ONE read of the recovery rows, shared by both halves: whose cart is this,
    * judged by any identity the order carries.
    */
-  const mine = (await allRecs()).filter((rec) => sameShopper(keys, shopperKeys(rec)));
+  const mine = (await allRecs(attributionSince(payload, nowOf(deps)))).filter((rec) => sameShopper(keys, shopperKeys(rec)));
   /*
    * ATTRIBUTION FIRST, THEN THE STOP, and the order is load-bearing.
    * setOutcome is first-writer-wins, so stamping `already-ordered` on a row
@@ -976,7 +998,7 @@ export async function stopPendingForShopper(payload, deps, keys = shopperKeys(pa
     await soft('cartMarkOrdered', () => markOrdered(key, { orderId: payload?.id, at: placedAt, now }), { order: payload?.id });
   }
 
-  const candidates = mine || (await allRecs()).filter((rec) => sameShopper(keys, shopperKeys(rec)));
+  const candidates = mine || (await allRecs(attributionSince(payload, nowOf(deps)))).filter((rec) => sameShopper(keys, shopperKeys(rec)));
   const stopped = [];
   for (const stale of candidates) {
     /*
@@ -1044,7 +1066,7 @@ async function attributeToRecovery(payload, deps, mine = null) {
   const lock = phone ? await getPhoneLock(phone) : null;
   let rec = lock?.checkoutId ? await getRec(lock.checkoutId) : null;
   if (!rec?.firstSentAt) {
-    const candidates = (mine || (await allRecs()).filter((row) => sameShopper(shopperKeys(payload), shopperKeys(row))))
+    const candidates = (mine || (await allRecs(attributionSince(payload, nowOf(deps)))).filter((row) => sameShopper(shopperKeys(payload), shopperKeys(row))))
       .filter((row) => row.firstSentAt)
       .sort((x, y) => new Date(y.firstSentAt).getTime() - new Date(x.firstSentAt).getTime());
     [rec] = candidates;

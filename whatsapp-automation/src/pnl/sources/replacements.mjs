@@ -76,11 +76,32 @@ export async function fetchReplacements({ monthStartUtc, monthEndUtc, orders = n
       rows.push(...(await table.query(pk)).filter((r) => r.PK === pk));
     }
   } else {
-    for (let seq = 1; seq <= maxSeq; seq += 1) {
-      const page = await table.scanBySk(`REQ#${seq}`);
-      rows.push(...page.filter((r) => String(r.PK || '').startsWith('REPL#')));
-      if (seq === maxSeq && page.length) {
-        log.warn('pnl replacements: an order has more replacements than the scan reaches', { maxSeq });
+    /*
+     * ONE QUERY, not one full-table scan per sequence number.
+     *
+     * This ran scanBySk('REQ#1'), scanBySk('REQ#2'), ... up to maxSeq, and
+     * every one of those is billed for the whole table. It also meant a
+     * replacement past maxSeq was invisible, which is what the warning below
+     * was for; a query by kind has no such ceiling and the warning goes with it.
+     *
+     * The scan fallback covers the window between the deploy that adds GSI2 and
+     * the backfill. Delete it, and maxSeq with it, once backfill-kind.mjs has
+     * run --live.
+     */
+    const mine = (rs) => rs.filter((r) => String(r.PK || '').startsWith('REPL#'));
+    const queried = mine(await table.queryKind('replreq'));
+    if (queried.length) {
+      rows.push(...queried);
+    } else {
+      for (let seq = 1; seq <= maxSeq; seq += 1) {
+        const page = await table.scanBySk(`REQ#${seq}`);
+        rows.push(...mine(page));
+        if (seq === maxSeq && page.length) {
+          log.warn('pnl replacements: an order has more replacements than the scan reaches', { maxSeq });
+        }
+      }
+      if (rows.length) {
+        log.warn('pnl replacements: GSI2 is empty but rows exist, run scripts/backfill-kind.mjs --live', { found: rows.length });
       }
     }
   }

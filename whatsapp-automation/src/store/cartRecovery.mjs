@@ -20,6 +20,7 @@
  *    window, the reminder guard and the outcome with it.
  */
 import { table, VersionConflict } from './table.mjs';
+import { log } from '../log.mjs';
 import { RULES } from '../../messages/rules.mjs';
 
 const recPk = (id) => `CART#${id}`;
@@ -44,6 +45,9 @@ export async function ensureRec(id, init = {}, now = new Date()) {
     checkoutId: String(id),
     version: 0,
     createdAt: now.toISOString(),
+    // GSI2's sparse keys: see the note on allRecs below.
+    kind: 'cartrec',
+    kindAt: now.toISOString(),
     expiresAt: ttl(now),
     ...init,
   });
@@ -201,17 +205,35 @@ export const setCartLinkMap = (token, checkoutId) =>
 export const getCartLinkMap = (token) => table.get(linkPk(token), 'MAP');
 
 /**
- * Every CART REC row, for the daily digest.
+ * The CART REC rows, for the digest and for attributing an order to a cart.
  *
- * FILTERED BY PK ON PURPOSE. scanBySk matches on the sort key with no PK
- * condition at all, so this used to be "every row in the table whose SK is
- * REC" and the digest's "carts messaged" count was one new flow away from
- * counting somebody else's records as abandoned carts. Flow W is that new
- * flow: it files under SUBOFFER#.../SUB precisely so it cannot land here, and
- * this line is the other half of that promise, for the flow after it.
+ * A QUERY on GSI2 rather than a table Scan. `onOrderCreated` called this on
+ * EVERY orders/create, and the digest calls it once a day, and a Scan is billed
+ * for every row it evaluates rather than for the handful it returns.
+ *
+ * STILL FILTERED BY PK. The old scanBySk matched on the sort key with no PK
+ * condition at all, so it was "every row in the table whose SK is REC" and the
+ * digest's "carts messaged" count was one new flow away from counting somebody
+ * else's records. The `kind` key makes that structurally impossible now, and
+ * the PK filter stays anyway: two guarantees cost one comparison.
+ *
+ * The scan fallback covers one window only, between the deploy that adds the
+ * index and the backfill. Delete it once backfill-kind.mjs has run --live.
+ *
+ * @param {string} [sinceISO] ignore records older than this
  */
-export const allRecs = async () =>
-  (await table.scanBySk('REC')).filter((rec) => String(rec.PK || '').startsWith('CART#'));
+export async function allRecs(sinceISO) {
+  const mine = (rows) => rows.filter((rec) => String(rec.PK || '').startsWith('CART#'));
+  const rows = mine(await table.queryKind('cartrec', { sinceISO }));
+  if (rows.length) return rows;
+  const scanned = mine(await table.scanBySk('REC')).filter(
+    (rec) => !sinceISO || String(rec.createdAt || '') >= sinceISO,
+  );
+  if (scanned.length) {
+    log.warn('cartRecovery: GSI2 is empty but rows exist, run scripts/backfill-kind.mjs --live', { found: scanned.length });
+  }
+  return scanned;
+}
 
 /**
  * True the FIRST time today this label is raised, false afterwards.
