@@ -8,7 +8,7 @@ import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { ensureState, patchState, recordMessage, getSide, updateMessageStatus, getState } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
-import { setUndeliverable, isUndeliverable, setOptOut, getParkedOffer } from '../store/phoneProfile.mjs';
+import { setUndeliverable, isUndeliverable, setOptOut, getParkedOffer, inHumanTakeover, getProfile } from '../store/phoneProfile.mjs';
 import { setAwaiting, getAwaiting, listAwaiting, markMarketing, canSendMarketing } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { routes } from './index.mjs';
@@ -598,5 +598,38 @@ describe('a reply that could belong to either of two orders', () => {
   it('still routes the reply when only one question is open', async () => {
     await setAwaiting(OWNER, { type: 'address', orderId: '111', until: soon() });
     await expect(text(OWNER, '395007 Surat')).rejects.toThrow();
+  });
+});
+
+/*
+ * N2. This number is in COEXISTENCE mode: the owner answers customers from the
+ * WhatsApp Business app on their phone. Those messages are not inbound to us,
+ * so the service could not see them at all and would drop a template into the
+ * middle of a conversation somebody was having by hand.
+ */
+describe('the owner replying by hand holds the templates back', () => {
+  const CUSTOMER = '+919637361371';
+  const echo = (to) => routes.wa_echo({ kind: 'wa_echo', to, at: '1793000000' });
+
+  it('puts the CUSTOMER in takeover, not the owner', async () => {
+    await echo(CUSTOMER);
+    expect(await inHumanTakeover(CUSTOMER)).toBe(true);
+    // Getting this backwards would silence the whole service.
+    expect(await inHumanTakeover(OWNER)).toBe(false);
+  });
+
+  /*
+   * An echo is OUR message, not theirs. Treating it as a 24 hour window would
+   * let a marketing template go out on the strength of our own reply.
+   */
+  it('opens no 24 hour window', async () => {
+    await echo(CUSTOMER);
+    expect((await getProfile(CUSTOMER)).lastInboundAt).toBeFalsy();
+  });
+
+  it('expires on its own, so a conversation does not silence a number forever', async () => {
+    await echo(CUSTOMER);
+    const later = new Date(Date.now() + (RULES.humanTakeoverHours + 1) * 3600 * 1000);
+    expect(await inHumanTakeover(CUSTOMER, later)).toBe(false);
   });
 });

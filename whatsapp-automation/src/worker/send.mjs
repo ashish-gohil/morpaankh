@@ -8,7 +8,7 @@ import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession, SESSION } from '../../messages/session.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
-import { isUndeliverable, windowOpen } from '../store/phoneProfile.mjs';
+import { isUndeliverable, windowOpen, inHumanTakeover } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { recordMessage } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
@@ -211,6 +211,22 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
   // number's quality rating down, which is what 131049 throttling is made of.
   // Owner alert numbers are exempt: losing those silently is how the dead
   // worker went unnoticed for ten hours.
+  /*
+   * N2. The owner is mid-conversation with this customer, by hand, from the
+   * WhatsApp Business app. A business-initiated template landing in the middle
+   * of that is the most jarring thing this service can do, and the customer
+   * cannot tell the two apart.
+   *
+   * TEMPLATES ONLY. A session reply to a tap still goes: the customer pressed a
+   * button and is waiting, and going silent on them would be worse. Owner
+   * phones are exempt, as they are from the undeliverable check below, because
+   * an alert must reach them whatever else is happening.
+   */
+  if (!config.ownerAlertPhones.includes(phone) && (await inHumanTakeover(phone))) {
+    log.info('send skipped: a person is handling this conversation', { key, phone: maskPhone(phone) });
+    metric('SendSkippedHumanTakeover', 1, { key });
+    return { skipped: 'human-takeover', templateName: key };
+  }
   if (!config.ownerAlertPhones.includes(phone) && (await isUndeliverable(phone))) {
     log.info('template: recipient is undeliverable, not sending', { key, phone: maskPhone(phone) });
     metric('SendSkippedUndeliverable', 1, { key });

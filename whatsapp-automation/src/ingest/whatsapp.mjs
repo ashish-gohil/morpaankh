@@ -76,6 +76,34 @@ export const whatsappIngest = {
             dedupId: `wa-status-${st.id}-${st.status}`,
           });
         }
+        /*
+         * N2. THE OWNER'S OWN REPLIES, ECHOED BACK.
+         *
+         * This number is in COEXISTENCE mode: the owner answers customers from
+         * the WhatsApp Business app on their phone, and those messages are not
+         * inbound to us, so until now the service could not see them at all. It
+         * would happily drop a template into the middle of a conversation
+         * somebody was having by hand.
+         *
+         * An echo's `to` is the CUSTOMER, which is the opposite of an inbound
+         * message's `from`, and getting that backwards would put the owner's own
+         * number into takeover and silence the whole service.
+         *
+         * NOT counted as inbound. It opens no 24 hour window, clears no
+         * opt-out, and triggers no reply: the customer did not write to us, our
+         * own colleague did, and treating it as a window would let a template
+         * go out on the strength of our own message.
+         */
+        for (const echo of v.message_echoes || []) {
+          const to = echo?.to;
+          if (!to) continue;
+          items.push({
+            message: { kind: 'wa_echo', to: `+${String(to).replace(/^\+/, '')}`, at: echo.timestamp || null },
+            groupId: `phone:+${String(to).replace(/^\+/, '')}`,
+            dedupId: `wa-echo-${echo.id || `${to}-${echo.timestamp || ''}`}`,
+          });
+        }
+
         // Meta tells us the moment it rejects, pauses or disables a template.
         // Only `messages` and `statuses` were read, so every one of these was
         // acked and thrown away: a template could be paused for quality and the

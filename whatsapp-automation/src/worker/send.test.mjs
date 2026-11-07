@@ -20,11 +20,11 @@
  * thrown-error path and both flows' status-webhook path.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isWindowDeliverable, isTemplateUnusable, tpl, ownerAlert, sendBest } from './send.mjs';
+import { isWindowDeliverable, isTemplateUnusable, tpl, ownerAlert, sendBest, sess } from './send.mjs';
 import { config } from '../config.mjs';
 import { table, _resetMemory } from '../store/table.mjs';
 import { getWamidMap } from '../store/maps.mjs';
-import { setUndeliverable, touchInbound } from '../store/phoneProfile.mjs';
+import { setUndeliverable, touchInbound, setHumanTakeover } from '../store/phoneProfile.mjs';
 import { makeFakeWhatsApp, makeFakeClients } from '../clients/fakes/index.mjs';
 import { TEMPLATES } from '../../messages/templates.mjs';
 import { RULES } from '../../messages/rules.mjs';
@@ -338,5 +338,49 @@ describe('sendBest takes the cheapest channel that arrives', () => {
     }, { orderId: '12345' });
     expect(res.skipped).toBe('undeliverable');
     expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+});
+
+/*
+ * N2, the send half. A template landing in the middle of a conversation the
+ * owner is having by hand is the most jarring thing this service can do, and
+ * the customer cannot tell the two apart.
+ */
+describe('a conversation a person is handling', () => {
+  const CUSTOMER = '+919637361371';
+
+  beforeEach(() => {
+    _resetMemory();
+    config.dryRun = false;
+    config.ownerAlertPhones = ['+919999999999'];
+  });
+
+  it('holds a business-initiated template', async () => {
+    const clients = makeFakeClients({});
+    await setHumanTakeover(CUSTOMER, new Date(Date.now() + 3600 * 1000).toISOString());
+    const res = await tpl({ clients }, CUSTOMER, 'order_shipped', {
+      customer_name: 'Bharti', order_number: '#1234', item_line: 'x',
+      payment_line: 'y', courier: 'Delhivery', awb: '123',
+    }, {});
+    expect(res.skipped).toBe('human-takeover');
+    expect(clients.whatsapp.sent).toHaveLength(0);
+  });
+
+  /*
+   * A session reply still goes. The customer pressed a button and is waiting,
+   * and going silent on them would be worse than the interruption.
+   */
+  it('still answers a tap', async () => {
+    const clients = makeFakeClients({});
+    await setHumanTakeover(CUSTOMER, new Date(Date.now() + 3600 * 1000).toISOString());
+    await sess({ clients }, CUSTOMER, 'keep_cod_ack', { customer_name: 'Bharti', order_number: '#1234' });
+    expect(clients.whatsapp.sent).toHaveLength(1);
+  });
+
+  it('never holds an alert to the owner', async () => {
+    const clients = makeFakeClients({});
+    await setHumanTakeover('+919999999999', new Date(Date.now() + 3600 * 1000).toISOString());
+    await ownerAlert({ clients }, '#1234', 'look at this');
+    expect(clients.whatsapp.sent.length).toBeGreaterThan(0);
   });
 });

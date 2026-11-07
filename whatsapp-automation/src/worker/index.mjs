@@ -6,6 +6,8 @@
  */
 import { log, maskPhone, metric } from '../log.mjs';
 import { config } from '../config.mjs';
+import { RULES } from '../../messages/rules.mjs';
+import { addHours } from '../lib/time.mjs';
 import { realClients } from '../clients/index.mjs';
 import { decodePayload, verifyToken } from '../lib/ids.mjs';
 import { hasTag } from '../domain/order.mjs';
@@ -15,7 +17,7 @@ import { getState, runOnce, updateMessageStatus, patchFlowA, getSide } from '../
 import { getAwbMap, getWamidMap } from '../store/maps.mjs';
 import {
   isOptedOut, setOptOut, touchInbound, setUndeliverable, clearUndeliverable, clearMarketing,
-  getAwaiting, listAwaiting, clearAwaiting, parkOffer,
+  getAwaiting, listAwaiting, clearAwaiting, parkOffer, setHumanTakeover,
 } from '../store/phoneProfile.mjs';
 import { renderSession } from '../../messages/session.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
@@ -812,6 +814,23 @@ const routes = {
   suboffer: onSubOffer,
   wa_inbound: onWaInbound,
   wa_status: onWaStatus,
+  /*
+   * N2. The owner answered this customer by hand, from the WhatsApp Business
+   * app. Hold every business-initiated template to that number for a while:
+   * nothing is more jarring than an automated message landing in the middle of
+   * a real conversation, and the service cannot see that conversation except
+   * through these echoes.
+   *
+   * Deliberately does NOT touchInbound. The customer did not write to us, our
+   * own colleague did, and treating it as a 24 hour window would let a template
+   * go out on the strength of our own message.
+   */
+  wa_echo: async (m) => {
+    if (!m.to) return;
+    const until = addHours(new Date(), RULES.humanTakeoverHours).toISOString();
+    await setHumanTakeover(m.to, until);
+    log.info('human takeover: the owner replied by hand', { phone: maskPhone(m.to), until });
+  },
   wa_template_status: onTemplateStatus,
   razorpay: onRazorpay,
   delhivery: onDelhivery,

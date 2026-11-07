@@ -128,20 +128,22 @@ export async function getAwaiting(phone, now = new Date()) {
   return live.length === 1 ? live[0] : null;
 }
 
-// human takeover (coexistence echoes)
-//
-// NOT BUILT. Nothing calls setHumanTakeover and nothing calls inHumanTakeover,
-// and RULES.humanTakeoverHours is referenced nowhere else in the service, so
-// treat these three as a design that was never wired up rather than as working
-// behaviour. It matters because this number is in COEXISTENCE mode: the owner
-// answers from the WhatsApp app on their phone, and the bot will happily send a
-// template into the middle of that conversation.
-//
-// Finishing it needs a piece we do not have yet: the Meta app must be
-// subscribed to the `message_echoes` webhook field so we see messages the owner
-// sent by hand. Once those arrive, call setHumanTakeover(phone, +12h) on each
-// echo and add inHumanTakeover to the guard in send.mjs tpl(), next to the
-// opt-out and undeliverable checks.
+/*
+ * human takeover (coexistence echoes)
+ *
+ * WIRED UP (N2, 2026-11-07). This number is in COEXISTENCE mode: the owner
+ * answers customers from the WhatsApp Business app on their phone, and until
+ * now the service could not see those messages at all, so it would drop a
+ * template into the middle of a conversation somebody was having by hand.
+ *
+ * The missing piece was the `smb_message_echoes` webhook field, which Meta
+ * only sends once the app is subscribed to it. The ingest reads those echoes
+ * now and the worker calls setHumanTakeover on each one; tpl() refuses a
+ * business-initiated template to a phone in takeover.
+ *
+ * M6 is still required: this does nothing until the field is subscribed in the
+ * Meta App Dashboard. The code is inert rather than wrong without it.
+ */
 export const setHumanTakeover = (phone, until) => patch(phone, { humanTakeoverUntil: until });
 export async function inHumanTakeover(phone, now = new Date()) {
   const p = await getProfile(phone);
