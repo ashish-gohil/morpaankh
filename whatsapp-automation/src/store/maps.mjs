@@ -54,3 +54,31 @@ export const getPayTokenMap = (token) => get(`PAYTOKEN#${token}`);
 // deliver was invisible per-order: the log said a phone number and a code.
 export const setWamidMap = (wamid, data) => put(`WAMID#${wamid}`, data); // { orderId, key }
 export const getWamidMap = (wamid) => get(`WAMID#${wamid}`);
+
+/*
+ * DELHIVERY#PUSH / LAST — when the status push webhook last delivered anything.
+ *
+ * Delhivery enables the push on request and has not for this account: the
+ * endpoint has 2 invocations in 30 days against the poller's 452. The poller is
+ * therefore the only live source of NDR, delivery and RTO, and it runs hourly
+ * from 08:00 to 22:00 IST whether anything has moved or not.
+ *
+ * Once the push IS live, hourly polling is redundant work and the poller can
+ * drop to three checks a day. But "is the push live" cannot be a config flag:
+ * a flag says what somebody believed when they set it, and the failure that
+ * matters is the push going quiet without anybody noticing, which is a day of
+ * blind parcels. This row is the observation instead.
+ */
+const PUSH_PK = 'DELHIVERY#PUSH';
+
+export const markDelhiveryPush = (now = new Date()) =>
+  table.put({
+    PK: PUSH_PK,
+    SK: 'LAST',
+    at: now.toISOString(),
+    // Not a business deadline: it only has to outlive the staleness window the
+    // poller reads it with.
+    expiresAt: ttl(30, now),
+  });
+
+export const getDelhiveryPush = () => table.get(PUSH_PK, 'LAST');

@@ -6,7 +6,7 @@
  */
 import { makeIngest } from './base.mjs';
 import { verifySharedSecret } from '../lib/signature.mjs';
-import { getAwbMap } from '../store/maps.mjs';
+import { getAwbMap, markDelhiveryPush } from '../store/maps.mjs';
 import { log } from '../log.mjs';
 
 // Header name agreed with Delhivery (OPEN, confirm at Phase 7).
@@ -63,6 +63,20 @@ export const delhiveryIngest = {
         groupId,
         dedupId: `dl-${awb}-${status}-${at}`,
       });
+    }
+    /*
+     * Record that the push delivered something. The poller reads this to decide
+     * whether it still needs to run hourly, and an observation is the only
+     * honest answer to "is the push live": a config flag says what somebody
+     * believed when they set it, and the failure that matters is the push going
+     * quiet without anybody noticing.
+     *
+     * Recorded even for a payload we enqueue nothing from, because the question
+     * is whether Delhivery is talking to us, not whether this particular scan
+     * was interesting.
+     */
+    if (out.length || shipmentsOf(body).length) {
+      await markDelhiveryPush();
     }
     return out;
   },
