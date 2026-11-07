@@ -128,5 +128,28 @@ check('the public routes are throttled, in CloudFormation s casing', () => {
   assert.ok((stage[1].DependsOn || []).length >= 5, 'the stage must depend on the routes it throttles');
 });
 
+/*
+ * O7. Arm costs about 20% less per GB-second for the same Node code, and a
+ * function added later without it is invisible: it just costs more.
+ */
+check('every function runs on arm64', () => {
+  const wrong = resources
+    .filter(([, r]) => r.Type === 'AWS::Lambda::Function')
+    .map(([, r]) => r.Properties)
+    .filter((p) => typeof p?.FunctionName === 'string' && p.FunctionName.startsWith('wa-'))
+    .filter((p) => !(p.Architectures || []).includes('arm64'))
+    .map((p) => p.FunctionName);
+  assert.deepEqual(wrong, [], `not on arm64: ${wrong.join(', ')}`);
+});
+
+check('the P&L layer runs on either architecture', () => {
+  const layer = resources.find(([, r]) => r.Type === 'AWS::Lambda::LayerVersion');
+  assert.ok(layer, 'no layer found');
+  const archs = layer[1].Properties?.CompatibleArchitectures || [];
+  assert.ok(archs.includes('arm64'), 'the layer does not declare arm64');
+  // Both, so a function can be moved back to x86 without republishing it.
+  assert.ok(archs.includes('x86_64'), 'the layer does not declare x86_64');
+});
+
 console.log(failures ? `\n${failures} failed` : '\nall passed');
 process.exit(failures ? 1 : 0);

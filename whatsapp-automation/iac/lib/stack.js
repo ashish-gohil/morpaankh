@@ -264,6 +264,20 @@ class WaAutomationStack extends cdk.Stack {
       const fn = new lambda.Function(this, name, {
         functionName: `wa-${name}`,
         runtime: lambda.Runtime.NODEJS_24_X,
+        /*
+         * Arm, which costs about 20% less per GB-second for the same Node code.
+         *
+         * Honest about the size of this: Lambda is currently USD 0 of a 1.47
+         * bill, because every invocation fits inside the free tier. It saves
+         * close to nothing TODAY and is simply the correct default once volume
+         * grows past that.
+         *
+         * Safe because nothing here is native. The function asset excludes
+         * node_modules entirely, the AWS SDK comes from the runtime, and the
+         * one npm package that reaches production, exceljs in the P&L layer, is
+         * pure JavaScript (no .node binaries in the built layer, checked).
+         */
+        architecture: lambda.Architecture.ARM_64,
         code: CODE,
         handler,
         timeout: opts.timeout || Duration.seconds(30),
@@ -398,6 +412,13 @@ class WaAutomationStack extends cdk.Stack {
     const pnlLayer = new lambda.LayerVersion(this, 'PnlLayer', {
       code: lambda.Code.fromAsset(PNL_LAYER_DIR),
       compatibleRuntimes: [lambda.Runtime.NODEJS_24_X],
+      /*
+       * BOTH architectures, not just Arm. exceljs is pure JavaScript so the
+       * same zip runs on either, and declaring both means this layer version
+       * does not have to be republished to move a function back to x86 if Arm
+       * ever turns out to be a problem.
+       */
+      compatibleArchitectures: [lambda.Architecture.ARM_64, lambda.Architecture.X86_64],
       description: 'exceljs, for the monthly P&L workbook',
     });
     /*
