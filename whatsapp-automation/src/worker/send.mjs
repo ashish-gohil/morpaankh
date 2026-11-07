@@ -6,11 +6,13 @@ import { config } from '../config.mjs';
 import { normalizeOrder } from '../domain/order.mjs';
 import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
-import { renderSession } from '../../messages/session.mjs';
+import { renderSession, SESSION } from '../../messages/session.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
 import { isUndeliverable, windowOpen } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { recordMessage } from '../store/orderState.mjs';
+import { table } from '../store/table.mjs';
+import { istDayKey } from '../lib/time.mjs';
 import { soft } from '../lib/resilience.mjs';
 
 /**
@@ -270,6 +272,73 @@ export async function sess(deps, phone, key, vars, ctx = {}) {
   // `return null` below, which is exactly what happens to 'html' today.
   if (r.type === 'list') return wa.sendList({ to: phone, body: r.body, buttonText: r.buttonText, rows: r.rows });
   return null;
+}
+
+/*
+ * Since 1 Oct 2026 Meta bills a UTILITY template even inside the customer's
+ * 24 hour window, and gives each number 1,000 free SERVICE (free-form)
+ * messages a month before charging the utility rate for those too. So a
+ * free-form message in an open window is free, and the template beside it is
+ * not, for identical words.
+ *
+ * The counter is per IST month on one row, incremented atomically because the
+ * queue serialises by order and not by month. 900 is a warning and not a stop:
+ * past 1,000 a session message costs the same as the utility template it
+ * replaced, so there is nothing to gain by going back to templates, and
+ * stopping would cost the customer the message.
+ */
+const SERVICE_FREE_PER_MONTH = 1000;
+const SERVICE_WARN_AT = 900;
+
+async function countServiceSend(deps, phone, now) {
+  const month = istDayKey(now).slice(0, 7);
+  const n = await table.addCount(`WACOUNT#${month}`, 'SERVICE', 'count', 1, {
+    month,
+    expiresAt: Math.floor(now.getTime() / 1000) + 400 * 86400,
+  });
+  if (n === SERVICE_WARN_AT) {
+    await soft('serviceAllowanceAlert', () =>
+      ownerAlert(deps, 'WhatsApp', `${n} of the ${SERVICE_FREE_PER_MONTH} free service messages used this month. Past that they cost the utility rate`), {});
+  }
+  return n;
+}
+
+/**
+ * The cheapest message that will actually arrive.
+ *
+ * Window open and a `<key>_session` twin exists: free-form, free. Otherwise the
+ * template. On 131047 (the window shut between our check and the send) it falls
+ * back to the template once, which is the whole reason the check being slightly
+ * stale is safe.
+ *
+ * A key with no twin falls through to the template silently, so making a key
+ * free in-window is one entry in messages/session.mjs and nothing else.
+ *
+ * cod_confirm deliberately does NOT route through here: it goes out three
+ * minutes after the order, when the customer has almost never written to us, so
+ * the window is shut and the check would be a wasted read on every order.
+ */
+export async function sendBest(deps, phone, key, vars, ctx = {}) {
+  const now = ctx.now || new Date();
+  const twin = `${key}_session`;
+  if (SESSION[twin] && (await windowOpen(phone, now, RULES.windowSafetyMinutes))) {
+    try {
+      if (await isUndeliverable(phone)) {
+        metric('SendSkippedUndeliverable', 1, { key });
+        return { skipped: 'undeliverable', templateName: `session:${key}` };
+      }
+      const r = await sess(deps, phone, twin, vars, ctx);
+      await soft('countServiceSend', () => countServiceSend(deps, phone, now), {});
+      metric('SessionInsteadOfTemplate', 1, { key });
+      return { ...r, templateName: `session:${key}` };
+    } catch (e) {
+      // 131047: re-engagement required, i.e. the window closed under us. Any
+      // other failure is the session channel's own and the template is still
+      // worth trying, because the alternative is the customer hearing nothing.
+      log.warn('session send failed, falling back to the template', { key, waCode: e.waCode, err: e.message });
+    }
+  }
+  return tpl(deps, phone, key, vars, ctx);
 }
 
 /**

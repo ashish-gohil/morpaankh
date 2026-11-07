@@ -12,7 +12,7 @@ import { addHours, addDays, nextWindowTime, withinWindow, istDayKey } from '../l
 import { getState, patchFlowC, runOnce } from '../store/orderState.mjs';
 import { isOptedOut, touchInbound, setAwaiting, clearAwaiting, markRto } from '../store/phoneProfile.mjs';
 import { scheduleTimer } from '../timers/schedule.mjs';
-import { getNorm, tpl, sess, ownerAlert } from './send.mjs';
+import { getNorm, tpl, sendBest, sess, ownerAlert } from './send.mjs';
 import * as flowA from './flowA.run.mjs';
 import { log } from '../log.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -112,7 +112,7 @@ export async function onNdr(orderId, deps, { attemptAt } = {}) {
       extra: { attemptAt: at.toISOString() },
     });
   }
-  const res = await tpl(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(at) }, { orderId: n.numericId });
+  const res = await sendBest(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(at) }, { orderId: n.numericId, now });
   if (res?.skipped) return;
   await patchFlowC(orderId, { ndrAsked: { ...asked, [day]: now.toISOString() }, ndrAskedAt: now.toISOString() });
   // One tag, on the first prompt: it is what the daily digest counts, and
@@ -274,7 +274,17 @@ export async function onRtoTimer(orderId, deps) {
   if (await isOptedOut(n.verifiedPhone)) return;
   const st = await getState(orderId);
   if (st?.flowC?.rtoReasonAskedAt) return;
-  const res = await tpl(deps, n.verifiedPhone, 'rto_reason', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId });
+  /*
+   * The session twin is a LIST, because six reasons will not fit in three
+   * reply buttons, so its rows have to be passed in. They are built from
+   * RTO_REASONS, the same list the template's buttons are generated from, so
+   * the two channels can never offer different reasons.
+   */
+  const res = await sendBest(deps, n.verifiedPhone, 'rto_reason', { customer_name: n.firstName, order_number: n.name }, {
+    orderId: n.numericId,
+    rows: RTO_REASONS.map((r) => ({ action: `rto_${r.id}`, title: r.label })),
+    now: nowOf(deps),
+  });
   if (res?.skipped) return;
   await patchFlowC(orderId, { rtoReasonAskedAt: nowOf(deps).toISOString() });
 }

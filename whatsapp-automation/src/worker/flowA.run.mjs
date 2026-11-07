@@ -31,13 +31,21 @@ import {
 } from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
-import { getNorm, tpl, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
+import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import { onUntrackedFulfillment } from './flowB.run.mjs';
 import { OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from '../../messages/session.mjs';
 import { log } from '../log.mjs';
 import { soft, withRetry } from '../lib/resilience.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
+
+/*
+ * Delhivery's public tracking page. The order_shipped TEMPLATE stores this as
+ * its button base at Meta and is given only the AWB as a suffix; a free-form
+ * CTA has no stored base, so the whole URL is built here. One constant, so the
+ * two channels cannot point at different pages.
+ */
+const TRACK_BASE = 'https://www.delhivery.com/track/package/';
 
 const A_TIMERS = ['cod', 'reminder', 'fallback', 'highrisk'];
 async function cancelAllTimers(orderId) {
@@ -716,9 +724,10 @@ export async function onReminder(orderId, deps) {
   if (await isOptedOut(n.verifiedPhone)) return;
   const amt = computeAmounts(n, RULES);
   const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
-  const res = await tpl(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
+  const res = await sendBest(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
     orderId: n.numericId,
     preferLegacy: !offerOk,
+    now,
   });
   if (res?.skipped) return;
   await patchFlowA(orderId, { reminderSentAt: now.toISOString() });
@@ -746,10 +755,18 @@ export async function onFallback(orderId, deps) {
   const amt = computeAmounts(n, RULES);
   const link = await ensurePaymentLink(deps, n, amt, now);
   if (!link) return;
-  const res = await tpl(deps, n.verifiedPhone, 'prepaid_offer', offerVars(n, amt, now, link), {
+  /*
+   * The one MARKETING send in Flow A, so the window is worth more here than
+   * anywhere else: inside it the message carries no category at all, which
+   * means the per-user cap behind 131049 does not apply. Meta refuses roughly a
+   * third of this store's marketing sends with that code.
+   */
+  const res = await sendBest(deps, n.verifiedPhone, 'prepaid_offer', offerVars(n, amt, now, link), {
     orderId: n.numericId,
     token: link.token,
+    url: payUrl(link),
     imageUrl: heroImageUrl(n),
+    now,
   });
   if (res?.skipped) return;
   // fallbackSentAt is what stops a retry re-sending a MARKETING message, so it
@@ -1142,7 +1159,7 @@ async function sendShipped(orderId, n, deps) {
 
   await runOnce(orderId, 'shipped-message', async () => {
     const duePaise = Math.max(0, n.currentTotalPaise - n.receivedPaise);
-    const res = await tpl(
+    const res = await sendBest(
       deps,
       n.verifiedPhone,
       'order_shipped',
@@ -1154,7 +1171,15 @@ async function sendShipped(orderId, n, deps) {
         courier: 'Delhivery',
         awb: n.delhiveryAwb,
       },
-      { orderId: n.numericId, token: n.delhiveryAwb },
+      {
+        orderId: n.numericId,
+        // The template button takes the AWB as a suffix on its stored base; a
+        // free-form CTA takes the whole URL, so both are given and whichever
+        // channel is used finds what it needs.
+        token: n.delhiveryAwb,
+        url: `${TRACK_BASE}${n.delhiveryAwb}`,
+        now: nowOf(deps),
+      },
     );
     if (res?.skipped) {
       log.info('flowA shipped: send skipped', { orderId, skip: res.skipped });

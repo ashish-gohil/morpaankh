@@ -114,6 +114,99 @@ export const SESSION = {
       'right now, so it stays cash on delivery. Please reply here if you need help.',
   },
   /*
+   * TWINS OF THE TEMPLATES, FOR WHEN THE WINDOW IS OPEN.
+   *
+   * Since 1 Oct 2026 a UTILITY template is billed even inside the 24 hour
+   * window, while a free-form message in that window is free up to 1,000
+   * service messages a number a month. These say the same words and carry the
+   * SAME button actions, so the router needs no changes and a customer cannot
+   * tell which door a message came through.
+   *
+   * sendBest in worker/send.mjs picks: window open and a twin here, free-form;
+   * otherwise the template. A `_session` key with no twin falls back silently,
+   * which is why adding one is all it takes to make a key free in-window.
+   *
+   * The two review keys have NO twin on purpose. delivered_review and
+   * review_reminder open a WhatsApp Flow and carry a signed flow token, and
+   * the free-form equivalent is an interactive Flow message the client does
+   * not implement. They stay templates until it does.
+   */
+  order_shipped_session: {
+    type: 'cta_url',
+    body:
+      'Hello {{customer_name}}, order {{order_number}} is packed and labelled and ready for pickup.\n\n' +
+      'Item: {{item_line}}\n' +
+      'At delivery: {{payment_line}}\n' +
+      'Courier: {{courier}}\n' +
+      'Tracking number: {{awb}}\n\n' +
+      'Tracking starts updating once the courier collects it. Tap below to follow it.',
+    ctaText: 'Track your order',
+  },
+  cod_reminder_session: {
+    type: 'buttons',
+    body:
+      'Hello {{customer_name}}, we are still holding your order {{order_number}}.\n\n' +
+      '{{item_line}}\n\n' +
+      'Cash on delivery: {{cod_total}}\n' +
+      'Pay online instead: {{prepaid_total}}\n\n' +
+      'One tap is all we need to send it for packing. Prepaid orders go out on priority.\n\n' +
+      'Need a different size or colour? Tap Change or cancel and we will sort it out.',
+    buttons: [
+      { title: 'Pay online now', flow: 'A', action: 'pay_online' },
+      /*
+       * "Confirm this order", not the template's "Confirm cash on delivery":
+       * a free-form reply button title is capped at 20 characters and that one
+       * is 24. The ACTION is identical, so the tap does exactly what it does
+       * on the template, and the body two lines up has already said the order
+       * is on cash on delivery.
+       */
+      { title: 'Confirm this order', flow: 'A', action: 'confirm' },
+      { title: 'Change or cancel', flow: 'A', action: 'cancel' },
+    ],
+  },
+  /*
+   * The MARKETING one, and the biggest saving here: inside the window this
+   * carries no category at all, so the per-user cap behind 131049 does not
+   * apply to it. Meta refuses roughly a third of this store's marketing sends.
+   */
+  prepaid_offer_session: {
+    type: 'cta_url',
+    body:
+      'Hello {{customer_name}}, your order {{order_number}} is still set to cash on delivery.\n\n' +
+      '{{item_line}}\n\n' +
+      '*Pay online and you pay {{prepaid_total}}* instead of {{cod_total}}\n' +
+      '*{{saving}} stays with you*\n' +
+      '{{gift_line}}\n' +
+      '*Packed first and dispatched on priority*, so it reaches you sooner\n\n' +
+      'The link below is open until {{valid_until}}.',
+    ctaText: 'Pay online',
+  },
+  ndr_action_session: {
+    type: 'buttons',
+    body:
+      'Hello {{customer_name}}, our courier partner tried to reach you with order {{order_number}} on ' +
+      '{{attempt_date}} and could not complete the delivery.\n\n' +
+      'Nothing is lost. Tell us what suits you and we will arrange it.',
+    buttons: [
+      { title: 'Deliver tomorrow', flow: 'C', action: 'ndr_reattempt' },
+      { title: 'Change address', flow: 'C', action: 'ndr_address' },
+      { title: 'Cancel order', flow: 'C', action: 'ndr_cancel' },
+    ],
+  },
+  /*
+   * A LIST, not buttons: the template offers six reasons and a free-form
+   * message may carry at most three reply buttons. The row actions are the
+   * template's own, so onRtoReason reads them unchanged.
+   */
+  rto_reason_session: {
+    type: 'list',
+    flow: 'C',
+    body:
+      'Hello {{customer_name}}, order {{order_number}} could not be delivered and is on its way back to us.\n\n' +
+      'If you can spare a moment, tell us what went wrong. We read every one of these.',
+    listButton: 'Tell us why',
+  },
+  /*
    * OWNER MESSAGES, FREE INSIDE THE WINDOW.
    *
    * ops_digest is MARKETING, as Meta categorised it, so the daily summary was
@@ -606,8 +699,14 @@ export function renderSession(key, vars = {}, ctx = {}) {
     // Rows are per-order, so they arrive in ctx.rows as [{id, title, description?}]
     // where id is a full action string (it carries ids, so it is built by the
     // caller rather than from a static `action` like buttons are).
+    /*
+     * `m.flow` with 'A' as the default. This was a hardcoded 'A', which was
+     * true of every list that existed (the variant-change ones) and silently
+     * wrong for the first list belonging to another flow: rto_reason_session's
+     * rows are flow C taps, and a row built as 'A' routes nowhere.
+     */
     const rows = (ctx.rows || []).map((r) => ({
-      id: encodePayload({ flow: 'A', orderId: ctx.orderId, action: r.action }),
+      id: encodePayload({ flow: m.flow || 'A', orderId: ctx.orderId, action: r.action }),
       title: r.title,
       ...(r.description ? { description: r.description } : {}),
     }));

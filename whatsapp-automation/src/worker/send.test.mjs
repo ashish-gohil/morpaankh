@@ -20,7 +20,7 @@
  * thrown-error path and both flows' status-webhook path.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isWindowDeliverable, isTemplateUnusable, tpl, ownerAlert } from './send.mjs';
+import { isWindowDeliverable, isTemplateUnusable, tpl, ownerAlert, sendBest } from './send.mjs';
 import { config } from '../config.mjs';
 import { table, _resetMemory } from '../store/table.mjs';
 import { getWamidMap } from '../store/maps.mjs';
@@ -259,5 +259,84 @@ describe('owner messages go by whichever channel arrives', () => {
     await touchInbound(OWNER, new Date());
     await ownerAlert({ clients }, '#1234', 'look at this');
     expect(clients.whatsapp.sent.filter((s) => (s.name || '').startsWith('ops_alert')).length).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * O8. Since 1 Oct 2026 Meta bills a UTILITY template even inside the customer's
+ * 24 hour window, and gives each number 1,000 free SERVICE (free-form) messages
+ * a month. So a free-form message in an open window is free and the template
+ * beside it is not, for identical words. Flows R and W already used the window;
+ * every other template did not.
+ */
+describe('sendBest takes the cheapest channel that arrives', () => {
+  const PHONE = '+919812345678';
+
+  beforeEach(() => {
+    _resetMemory();
+    config.dryRun = false;
+    config.sendAllowlist = [];
+  });
+
+  it('goes free-form when the window is open and a twin exists', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(PHONE, new Date());
+    const res = await sendBest({ clients }, PHONE, 'ndr_action', {
+      customer_name: 'Aarav', order_number: '#1234', attempt_date: '20 Sep',
+    }, { orderId: '12345' });
+    expect(res.templateName).toBe('session:ndr_action');
+    expect(clients.whatsapp.sent.filter((s) => s.type === 'template')).toHaveLength(0);
+  });
+
+  it('keeps the same button actions, so the router needs no changes', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(PHONE, new Date());
+    await sendBest({ clients }, PHONE, 'ndr_action', {
+      customer_name: 'Aarav', order_number: '#1234', attempt_date: '20 Sep',
+    }, { orderId: '12345' });
+    const msg = clients.whatsapp.sent.find((s) => s.buttons);
+    expect(msg.buttons.map((b) => b.id)).toEqual([
+      'v1|C|12345|ndr_reattempt', 'v1|C|12345|ndr_address', 'v1|C|12345|ndr_cancel',
+    ]);
+  });
+
+  it('sends the template when the window is shut', async () => {
+    const clients = makeFakeClients({});
+    const res = await sendBest({ clients }, PHONE, 'ndr_action', {
+      customer_name: 'Aarav', order_number: '#1234', attempt_date: '20 Sep',
+    }, { orderId: '12345' });
+    expect(res.templateName).toMatch(/^ndr_action/);
+  });
+
+  it('sends the template for a key with no twin, rather than nothing', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(PHONE, new Date());
+    const res = await sendBest({ clients }, PHONE, 'cod_confirm', {
+      customer_name: 'Aarav', order_number: '#1234', item_line: 'Khili Dhoop, size M',
+      order_total: 'Rs 1,499', cod_total: 'Rs 1,499', prepaid_total: 'Rs 1,349', gift_line: 'x',
+    }, { orderId: '12345' });
+    expect(res.templateName).toMatch(/^cod_confirm/);
+  });
+
+  it('counts the free-form sends, which is the allowance that runs out', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(PHONE, new Date());
+    const vars = { customer_name: 'Aarav', order_number: '#1234', attempt_date: '20 Sep' };
+    await sendBest({ clients }, PHONE, 'ndr_action', vars, { orderId: '12345' });
+    await sendBest({ clients }, PHONE, 'ndr_action', vars, { orderId: '12345' });
+    const month = new Date().toISOString().slice(0, 7);
+    const row = await table.get(`WACOUNT#${month}`, 'SERVICE');
+    expect(row.count).toBe(2);
+  });
+
+  it('refuses a number WhatsApp has already rejected, on the session path too', async () => {
+    const clients = makeFakeClients({});
+    await touchInbound(PHONE, new Date());
+    await setUndeliverable(PHONE);
+    const res = await sendBest({ clients }, PHONE, 'ndr_action', {
+      customer_name: 'Aarav', order_number: '#1234', attempt_date: '20 Sep',
+    }, { orderId: '12345' });
+    expect(res.skipped).toBe('undeliverable');
+    expect(clients.whatsapp.sent).toHaveLength(0);
   });
 });
