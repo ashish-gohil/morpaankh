@@ -148,6 +148,11 @@ const HELP = [
   '/replace 1234 noor m xl',
   'Books a reverse pickup of the size M and sends size XL instead.',
   '',
+  'A size change is the customer s own choice, so they pay the two-way freight',
+  'first. I ask them, and nothing is booked until you send /replace paid.',
+  'Add pays:us to skip that and book straight away.',
+  '',
+  '/replace paid 1234',
   '/replace status 1234',
   '/replace cancel 1234',
   '/replace retry 1234',
@@ -378,6 +383,7 @@ export async function onOwnerRequest(text, deps, adminPhone) {
   if (verb === 'status') return onStatus(parsed.orderName, deps, adminPhone);
   if (verb === 'cancel') return onCancel(parsed.orderName, deps, adminPhone);
   if (verb === 'retry') return onRetry(parsed.orderName, deps, adminPhone);
+  if (verb === 'paid') return onPaid(parsed.orderName, deps, adminPhone);
   // A bare /replace, and anything the parser could not place, is a request for
   // the help text rather than an error: it is the only reply that teaches.
   if (verb !== 'create') return onHelp(deps, adminPhone);
@@ -755,6 +761,21 @@ export async function execute(orderId, seqIn, deps, adminPhone, { holdsLock = fa
       return shadowFinish(orderId, seq, req, { returnSpec, forwardSpec }, deps, reply, 'shadow');
     }
 
+    /*
+     * N4. COLLECT BEFORE BOOKING, when the customer is the one paying.
+     *
+     * The owner's policy is that a size change is the customer's choice, so
+     * they pay two-way freight upfront by UPI. `pays: 'customer'` was RECORDED
+     * and nothing ever collected it, so every size change shipped two parcels
+     * at the store's expense while the record said otherwise.
+     *
+     * Checked HERE rather than at the preview, so the owner still sees the real
+     * quote and taps Confirm on it. The confirmation is what starts the ask.
+     */
+    if (req.pays === 'customer' && !req.paidAt) {
+      return askForPayment(orderId, seq, req, deps, reply, ordNum, now);
+    }
+
     if (!req.returnAwb) {
       const res = await step(orderId, seq, 'return', req, reply, ordNum, () =>
         runOnce(orderId, `replace:${seq}:R`, () => bookLeg(deps.clients.logistics, 'R', returnSpec)));
@@ -1070,6 +1091,108 @@ export async function onCancel(orderName, deps, adminPhone) {
     `${n.name}: ${done.join('. ') || 'nothing was booked'}. ` +
       `${req.notified?.sent ? 'The customer WAS already told a pickup was coming, so tell them it is off.' : 'The customer was never told.'}`,
   );
+}
+
+/**
+ * N4. Ask the customer for the two-way freight, then stop.
+ *
+ * Nothing is booked. The request sits in AWAITING_PAYMENT until the owner runs
+ * `/replace paid <order>`, and expires on its own after payWindowHours because
+ * the quote it is based on is minutes fresh and freight moves.
+ *
+ * The amount is the sum of the two quotes, ROUNDED UP to the rupee: asking a
+ * customer for 184.37 reads as a mistake, and rounding down would mean
+ * collecting less than the courier charges.
+ */
+async function askForPayment(orderId, seq, req, deps, reply, ordNum, now) {
+  /*
+   * NO QUOTE, NO ASK. Inventing a number here would be asking a customer for
+   * money we cannot justify, and the two quotes are exactly what the courier
+   * will bill. The owner is told to settle it by hand instead.
+   *
+   * `== null` BEFORE Number(), and that is not pedantry: Delhivery answers an
+   * unquotable lane with null, `Number(null)` is 0, and 0 is finite. A
+   * Number.isFinite check alone would have sailed past a missing quote and
+   * asked the customer for Rs 0. A test caught it.
+   */
+  const quoted = (v) => (v == null || v === '' ? null : Number(v));
+  const ret = quoted(req.quoteReturnInr);
+  const fwd = quoted(req.quoteForwardInr);
+  if (ret == null || fwd == null || !Number.isFinite(ret) || !Number.isFinite(fwd)) {
+    await store.patchRequest(orderId, seq, { state: 'FAILED', failedAt: now.toISOString(), failure: 'no-freight-quote' });
+    return reply(
+      `${req.orderName}: Delhivery would not quote the freight, so I cannot tell the customer what to pay. ` +
+        'Agree an amount with them, take it, then run /replace paid ' + ordNum + '.',
+    );
+  }
+  const total = Math.ceil(ret + fwd);
+  const until = new Date(now.getTime() + RULES.replace.payWindowHours * 3600 * 1000);
+
+  await store.patchRequest(orderId, seq, {
+    state: 'AWAITING_PAYMENT',
+    payAmountInr: total,
+    payAskedAt: now.toISOString(),
+    payBy: until.toISOString(),
+  });
+
+  const phone = req.verifiedPhone;
+  if (!phone) {
+    return reply(`${req.orderName}: nothing booked, and there is no reachable WhatsApp number to ask for the ${rupees(total)} freight. Call them, take it, then /replace paid ${ordNum}.`);
+  }
+
+  const qr = RULES.replace.upiQrUrl;
+  await soft('replacePayAsk', () =>
+    sess(deps, phone, 'replacement_pay_request', {
+      customer_name: req.customerName || 'there',
+      order_number: req.orderName,
+      total: rupees(total),
+      // Empty QR means the amount still goes out as text: asking for money
+      // with no way to send it is worse than asking without a picture.
+      pay_line: qr ? 'You can pay by UPI using the QR below.' : 'Please pay by UPI to the number you have for us.',
+    }), { orderId, seq });
+  if (qr) {
+    await soft('replacePayQr', () => deps.clients.whatsapp.sendImage({ to: phone, url: qr, caption: `${req.orderName}: ${rupees(total)}` }), { orderId, seq });
+  }
+
+  log.info('replace: waiting for the customer to pay the freight', { orderId, seq, total });
+  return reply(
+    `${req.orderName}: NOTHING IS BOOKED yet. I have asked the customer for ${rupees(total)} ` +
+      `(pickup ${rupees(ret)} plus delivery ${rupees(fwd)}). Run /replace paid ${ordNum} when the money arrives. ` +
+      `It expires in ${RULES.replace.payWindowHours} hours and the freight has to be re-quoted after that.`,
+  );
+}
+
+/** `/replace paid 1234`: the freight arrived, so book it. */
+export async function onPaid(orderName, deps, adminPhone) {
+  const reply = replier(deps, adminPhone);
+  if (!orderName) return reply('Send it with the order number, like /replace paid 1234');
+  const n = await getNormByName(deps, bare(orderName));
+  if (!n) return reply(`No order #${bare(orderName)} here.`);
+  const req = await store.latestRequest(n.numericId);
+  if (!req) return reply(`No replacement has ever been raised on ${n.name}.`);
+  if (req.state !== 'AWAITING_PAYMENT') {
+    return reply(`${n.name} replacement ${req.seq} is ${req.state}, not waiting for payment. /replace status ${bare(orderName)}`);
+  }
+
+  const now = nowOf(deps);
+  /*
+   * An EXPIRED ask is not a payment. The amount was built from a freight quote
+   * that is now two days old, and honouring it would mean booking at a price
+   * nobody has checked. Re-quote instead.
+   */
+  if (req.payBy && new Date(req.payBy).getTime() <= now.getTime()) {
+    await store.patchRequest(n.numericId, req.seq, { state: 'EXPIRED', expiredAt: now.toISOString() });
+    return reply(
+      `${n.name}: that payment request is more than ${RULES.replace.payWindowHours} hours old and freight has moved. ` +
+        'Send /replace again for a fresh quote.',
+    );
+  }
+
+  await store.patchRequest(n.numericId, req.seq, { paidAt: now.toISOString(), state: 'CONFIRMED' });
+  log.warn('replace: freight paid, booking', { orderId: n.numericId, seq: req.seq, amount: req.payAmountInr });
+  // Straight into the same execute the Confirm tap uses, which now passes the
+  // payment gate because paidAt is set.
+  return execute(n.numericId, req.seq, deps, adminPhone, { holdsLock: false });
 }
 
 /** `/replace retry 1234`: pick a FAILED or half-finished request back up. */

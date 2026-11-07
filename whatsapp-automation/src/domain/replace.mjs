@@ -90,7 +90,12 @@ function present(v) {
  * with a sub-verb of "order" and refuses a command that is spelled correctly.
  */
 const ALIAS = /^\/(replace-order|replace|rp)(?=$|[\s#\d])/i;
-const SUB_VERBS = new Set(['status', 'cancel', 'retry', 'list', 'help']);
+/*
+ * `paid` is N4's: a customer-paid replacement waits for the money before
+ * anything is booked, and this is how the owner says it arrived. It takes an
+ * order number like the others.
+ */
+const SUB_VERBS = new Set(['status', 'cancel', 'retry', 'paid', 'list', 'help']);
 const REASONS = new Set(['size', 'damaged', 'wrong', 'other']);
 const PAYERS = new Set(['us', 'customer']);
 

@@ -154,7 +154,13 @@ const shopifyWrites = (c) =>
     .map((x) => x.op)
     .filter((o) => !['getOrder', 'getOrderByName', 'getProductVariants', 'getShippingDetails'].includes(o));
 
-const run = (deps, text = '/replace 1234 noor m xl') => RP.onOwnerRequest(text, deps, ADMIN);
+/*
+ * `pays:us` by default here too. The parser defaults a size change to
+ * pays:customer and N4 then holds the booking until the freight is paid; these
+ * tests are about the adapter and the booking, so they skip that gate. The
+ * collection has its own tests in worker/replace.test.mjs.
+ */
+const run = (deps, text = '/replace 1234 noor m xl pays:us') => RP.onOwnerRequest(text, deps, ADMIN);
 const confirm = async (deps) => {
   const r = await store.latestRequest(ORDER);
   const action = Object.fromEntries(

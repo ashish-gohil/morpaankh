@@ -51,6 +51,7 @@ export function makeFakeWhatsApp({ failTemplateWith = null, skipWith = null, tem
       sent.push({ type: 'media', filename, mime, bytes: bytes?.length ?? 0 });
       return { mediaId: `fake-media-${filename}` };
     },
+    sendImage: async (a) => rec('image', a),
     sendDocument: async (a) => rec('document', a),
     downloadMedia: async (id) => media[id] || { bytes: Buffer.from(''), mime: '', filename: '' },
   };

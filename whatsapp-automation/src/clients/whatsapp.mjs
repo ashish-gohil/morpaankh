@@ -295,6 +295,21 @@ export const whatsapp = {
    * emails the file and only a template with a document header can carry it
    * unprompted. The caller decides; this is a primitive.
    */
+  /*
+   * N4: the UPI QR a customer-paid replacement asks them to pay with. A
+   * primitive, like sendDocument: free-form, so the caller is responsible for
+   * the window being open, which it is here because the customer asked for the
+   * exchange.
+   */
+  sendImage: ({ to, mediaId, link, url, caption }) =>
+    post(to, {
+      type: 'image',
+      image: {
+        ...(mediaId ? { id: mediaId } : { link: link || url }),
+        ...(caption ? { caption } : {}),
+      },
+    }),
+
   sendDocument: ({ to, mediaId, link, filename, caption }) =>
     post(to, {
       type: 'document',

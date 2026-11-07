@@ -114,6 +114,30 @@ export const SESSION = {
       'right now, so it stays cash on delivery. Please reply here if you need help.',
   },
   /*
+   * N4. A customer-paid replacement, asking for the money before anything is
+   * booked.
+   *
+   * The owner's policy is that a size change is the customer's choice, so they
+   * pay two-way freight upfront. `pays: 'customer'` was RECORDED and nothing
+   * ever collected it, so every size change shipped two parcels at the store's
+   * expense while the record said the customer was paying.
+   *
+   * Free-form rather than a template, because it has to arrive in the
+   * conversation the owner is already having about the exchange, and because
+   * the amount is per-request. The window is open by definition: the customer
+   * asked for this exchange.
+   */
+  replacement_pay_request: {
+    type: 'text',
+    body:
+      'Hello {{customer_name}}, thank you for your patience with order {{order_number}}.\n\n' +
+      'A size exchange is two courier trips, the pickup and the new delivery, and that comes to ' +
+      '{{total}}. Once we have it we will book the pickup straight away.\n\n' +
+      '{{pay_line}}\n\n' +
+      'Please share the payment screenshot here and we will take it from there.',
+  },
+
+  /*
    * TWINS OF THE TEMPLATES, FOR WHEN THE WINDOW IS OPEN.
    *
    * Since 1 Oct 2026 a UTILITY template is billed even inside the 24 hour

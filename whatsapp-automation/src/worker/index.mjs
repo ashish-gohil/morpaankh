@@ -349,7 +349,7 @@ const OWNER_HELP = [
   'Asks the customer on order #1214 to pick a new size or colour.',
   '',
   '/replace 1214 noor m xl',
-  'Books a reverse pickup of the size M and sends size XL instead. Also /replace status, cancel, retry, list.',
+  'Books a reverse pickup of the size M and sends size XL instead. A size change is the customer s own choice, so I ask them for the two-way freight first and book nothing until you send /replace paid 1214. Add pays:us to skip that. Also /replace status, cancel, retry, list.',
   '',
   '/pnl',
   'Last month profit and loss, as a workbook. Also /pnl 2026-10, /pnl oct, /pnl oct 2026, /pnl mtd.',

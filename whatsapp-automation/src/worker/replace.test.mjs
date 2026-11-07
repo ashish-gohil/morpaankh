@@ -150,7 +150,15 @@ const req = () => store.latestRequest(ORDER);
 const previewActions = (c) =>
   Object.fromEntries((lastTo(c, ADMIN).buttons || []).map((b) => [b.title, decodePayload(b.id).action]));
 
-const run = (deps, text = '/replace 1234 noor m xl') => RP.onOwnerRequest(text, deps, ADMIN);
+/*
+ * `pays:us` by DEFAULT in these tests, deliberately.
+ *
+ * The parser defaults a size change to pays:customer, and N4 then holds the
+ * booking until the freight is paid. Every test below is about the BOOKING
+ * mechanics, so they say pays:us to get past that gate; the collection itself
+ * has its own describe block at the end of this file.
+ */
+const run = (deps, text = '/replace 1234 noor m xl pays:us') => RP.onOwnerRequest(text, deps, ADMIN);
 const tap = (deps, action, phone = ADMIN) => RP.route(ORDER, action, deps, phone);
 
 beforeEach(() => {
@@ -175,7 +183,9 @@ beforeEach(() => {
 describe('the preview', () => {
   it('names the order, the masked phone, the address, the swap, the money and the deadline', async () => {
     const { clients, deps } = await setup();
-    await run(deps);
+    // The bare command, so the parser's own default for a size change applies:
+    // the customer pays. That is what the preview has to show the owner.
+    await run(deps, '/replace 1234 noor m xl');
 
     const body = said(clients, ADMIN);
     expect(body).toMatch(/Replacement for #1234/);
@@ -186,6 +196,8 @@ describe('the preview', () => {
     expect(body).toMatch(/14 Jhalana Road, Malviya Nagar, Jaipur, Rajasthan, 302017/);
     expect(body).toMatch(/1 x Noor, size M goes back, Noor, size XL goes out/);
     expect(body).toMatch(/Paid as: COD/);
+    // This test drives the command itself, so it keeps the parser's own
+    // default for a size change: the customer pays.
     expect(body).toMatch(/Freight paid by: customer/);
     expect(body).toMatch(/reverse pickup yes, prepaid delivery yes/);
     expect(body).toMatch(/pickup Rs 70, delivery Rs 70/);
@@ -1064,5 +1076,101 @@ describe('a confirmed replacement holds the review ask', () => {
     await confirm(deps);
     await B.onDelivered(ORDER, '2026-10-22T06:00:00Z', deps);
     expect(_peekTimers().map((t) => t.name)).not.toContain(`B-${ORDER}-review_ask`);
+  });
+});
+
+/*
+ * N4. The owner's policy is that a size change is the customer's own choice, so
+ * they pay two-way freight upfront by UPI. `pays: 'customer'` was RECORDED and
+ * nothing ever collected it, so every size change shipped two parcels at the
+ * store's expense while the record said the customer was paying.
+ */
+describe('a customer-paid replacement collects before it books', () => {
+  const confirm = async (deps, text) => {
+    await run(deps, text);
+    return tap(deps, `rpok:1:${(await req()).nonce}`);
+  };
+  const bodies = (clients) => clients.whatsapp.sent.map((s) => s.body || '').join(' | ');
+
+  it('books NOTHING and asks the customer for the two-way freight', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl');
+
+    expect(bookings(clients)).toEqual([]);
+    expect((await req()).state).toBe('AWAITING_PAYMENT');
+    const said = bodies(clients);
+    expect(said).toContain('two courier trips');
+    // The owner is told plainly that nothing is booked.
+    expect(said).toContain('NOTHING IS BOOKED');
+  });
+
+  it('asks for the sum of both quotes, rounded up to the rupee', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl');
+    const r = await req();
+    // Rounded UP: asking for 184.37 reads as a mistake, and rounding down
+    // would collect less than the courier charges.
+    expect(r.payAmountInr).toBe(Math.ceil(Number(r.quoteReturnInr) + Number(r.quoteForwardInr)));
+    expect(bodies(clients)).toContain(String(r.payAmountInr.toLocaleString('en-IN')));
+  });
+
+  it('books both parcels once the owner says the money arrived', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl');
+    await RP.onPaid('1234', deps, ADMIN);
+    expect(bookings(clients)).toEqual(['createReverse', 'createForward']);
+    expect((await req()).paidAt).toBeTruthy();
+  });
+
+  it('refuses /replace paid on a request that is not waiting for it', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl pays:us');
+    await RP.onPaid('1234', deps, ADMIN);
+    expect(said(clients, ADMIN)).toMatch(/not waiting for payment/);
+  });
+
+  /*
+   * The amount was built from a freight quote. Two days later that quote is
+   * stale, and honouring it would mean booking at a price nobody has checked.
+   */
+  it('expires the ask rather than booking on a two-day-old quote', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl');
+    const lateNow = new Date(NOW.getTime() + (RULES.replace.payWindowHours + 1) * 3600 * 1000);
+    // The owner typed the command, which is what opens their own 24 hour
+    // window: the router touchInbounds before dispatching. Without this the
+    // reply is correctly refused and the test would be measuring that instead.
+    await touchInbound(ADMIN, lateNow);
+    await RP.onPaid('1234', { ...deps, now: lateNow }, ADMIN);
+    expect(bookings(clients)).toEqual([]);
+    expect((await req()).state).toBe('EXPIRED');
+    expect(said(clients, ADMIN)).toMatch(/freight has moved/);
+  });
+
+  it('pays:us is untouched and books straight away', async () => {
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl pays:us');
+    expect(bookings(clients)).toEqual(['createReverse', 'createForward']);
+  });
+
+  /*
+   * No quote means no honest number to ask for. Inventing one would be asking
+   * a customer for money we cannot justify.
+   */
+  it('refuses to invent an amount when Delhivery would not quote', async () => {
+    // The real adapter answers a failed quote with null, so quoteInr: null is
+    // the only honest way to simulate one.
+    const { clients, deps } = await setup({ logistics: { quoteInr: null } });
+    await confirm(deps, '/replace 1234 noor m xl');
+    expect(bookings(clients)).toEqual([]);
+    expect(said(clients, ADMIN)).toMatch(/would not quote|cannot tell the customer what to pay/);
+  });
+
+  it('sends the UPI QR when one is configured, and copes without', async () => {
+    RULES.replace.upiQrUrl = 'https://cdn.example.com/upi.png';
+    const { clients, deps } = await setup();
+    await confirm(deps, '/replace 1234 noor m xl');
+    expect(clients.whatsapp.sent.some((s) => s.type === 'image')).toBe(true);
+    RULES.replace.upiQrUrl = '';
   });
 });

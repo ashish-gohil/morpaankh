@@ -348,6 +348,23 @@ export const RULES = {
     windowDays: 7,
     // A preview goes stale because stock, serviceability and freight all move.
     confirmMinutes: 15,
+    /*
+     * N4. The owner's policy: when the fault is the customer's, which for this
+     * store means a size change, they pay two-way freight upfront by UPI
+     * before anything is booked. `pays: 'customer'` was RECORDED and nothing
+     * ever collected, so every size change shipped two parcels at the store's
+     * expense while the record said otherwise.
+     *
+     * 48 hours, because the preview's own stock and freight numbers are only
+     * minutes fresh and the quote is what the customer is being asked to pay:
+     * past two days it has to be re-quoted rather than honoured.
+     *
+     * upiQrUrl is empty until the owner provides one. Empty means the amount
+     * still goes out, as text, with no image: asking for money with no way to
+     * send it is worse than asking without a picture.
+     */
+    payWindowHours: 48,
+    upiQrUrl: '',
     maxSwapsPerCommand: 5,
     /*
      * An e-waybill is a separate compliance document this service does not
