@@ -199,6 +199,37 @@ export async function listOpen(limit = 10, now = new Date()) {
 }
 
 /**
+ * Every request with a parcel still in flight.
+ *
+ * NOT listOpen, and that distinction is the whole reason this exists. The
+ * REPLOPEN pointer is dropped the moment a request reaches a TERMINAL state,
+ * and DONE is terminal: it means both parcels were BOOKED and the customer was
+ * told. Those are precisely the requests whose waybills are moving and need
+ * watching, so tracking off listOpen would watch every request except the ones
+ * that matter.
+ *
+ * Read off GSI2's `replreq` kind instead, bounded by date, and filtered to
+ * requests that have a waybill and at least one leg that has not finished.
+ *
+ * @param {{sinceISO?: string}} [opts]
+ */
+export async function listTrackable({ sinceISO } = {}) {
+  const FINISHED = new Set(['DELIVERED', 'RTO_DELIVERED', 'LOST', 'CANCELLED']);
+  const rows = await table.queryKind('replreq', { sinceISO });
+  return rows
+    .filter((r) => String(r.PK || '').startsWith('REPL#'))
+    .filter((r) => r.returnAwb || r.forwardAwb)
+    .filter((r) => {
+      // A leg with no waybill cannot move, so it does not keep this alive.
+      const legs = [
+        r.returnAwb ? r.returnStatus : 'DELIVERED',
+        r.forwardAwb ? r.forwardStatus : 'DELIVERED',
+      ];
+      return legs.some((st) => !FINISHED.has(String(st || '')));
+    });
+}
+
+/**
  * Take the one-execution-per-order lease, or report that somebody holds it.
  *
  * putIfFree, not putNew: the lease has to expire on its own, because a worker

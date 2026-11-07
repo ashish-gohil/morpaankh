@@ -18,6 +18,7 @@
  * falls back to hourly the moment that goes stale, with one alert.
  */
 import { trackActiveShipments } from './track-active.mjs';
+import { trackReplacements } from './track-replacements.mjs';
 import { getDelhiveryPush } from '../store/maps.mjs';
 import { alertOncePerDay } from '../store/cartRecovery.mjs';
 import { realClients } from '../clients/index.mjs';
@@ -67,6 +68,21 @@ export const handler = async () => {
   }
 
   const r = await trackActiveShipments();
-  log.info('poll-delhivery done', { ...r, pushFresh });
-  return { ok: true, ...r };
+
+  /*
+   * N3. Both legs of every open replacement, tracked separately.
+   *
+   * Separately BECAUSE replacement waybills are deliberately kept out of the
+   * poller's index: they carry no `activeShipment`, so they never enter GSI1,
+   * because onDelhivery routes any terminal event on a mapped AWB into the
+   * ORIGINAL order's flows. A reverse pickup reaching RTO would fire Flow C's
+   * RTO flow on an order that was never returned. See DECISIONS T2.
+   *
+   * Soft: a replacement nobody can read must not stop the main poll, which is
+   * the one that drives real customers' delivery and NDR messages.
+   */
+  const replacements = await soft('trackReplacements', () => trackReplacements(now), {});
+
+  log.info('poll-delhivery done', { ...r, pushFresh, replacements: replacements?.checked ?? null });
+  return { ok: true, ...r, replacements };
 };

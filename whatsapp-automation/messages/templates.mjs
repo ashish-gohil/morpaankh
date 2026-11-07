@@ -475,6 +475,37 @@ export const TEMPLATES = {
    * The button tracks the REVERSE waybill, because the only thing the customer
    * can usefully watch is the pickup they have to be home for.
    */
+  /*
+   * N3. The replacement is on its way.
+   *
+   * /replace booked both parcels and then went blind: nothing tracked either
+   * waybill, so the owner added the forward parcel to a pickup from memory and
+   * the customer, who had just handed over the garment they paid for, heard
+   * nothing more until it arrived. This is the one message that closes that
+   * gap.
+   *
+   * NEW, so Meta has to review it. The leg tracker skips and alerts the owner
+   * once a day until it is approved rather than failing the poll.
+   */
+  replacement_shipped: {
+    name: 'replacement_shipped_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, your replacement for order {{order_number}} is on its way.\n\n' +
+      'Item: {{new_item}}\n' +
+      'Courier: Delhivery\n' +
+      'Tracking number: {{awb}}\n\n' +
+      'Thank you for your patience with the exchange.',
+    examples: {
+      customer_name: 'Aarav',
+      order_number: '#1234',
+      new_item: 'Noor, size XL',
+      awb: '59152210001142',
+    },
+    buttons: [trackBtn('Track your replacement')],
+  },
+
   replacement_raised: {
     name: 'replacement_raised_v1',
     language: 'en',
