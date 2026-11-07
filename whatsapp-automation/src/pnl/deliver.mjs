@@ -161,7 +161,9 @@ export async function deliver({ report, meta, bytes, filename, clients, phones, 
     });
   }
 
-  metric('PnlDelivered', 1, { month: meta.month });
+  // `month` as a log field, not a dimension: see PnlLedgerUploaded.
+  metric('PnlDelivered', 1);
+  log.info('pnl delivered', { month: meta.month });
   log.info('pnl delivered', {
     month: meta.month,
     // Email is the only channel that is known to have succeeded at this point.

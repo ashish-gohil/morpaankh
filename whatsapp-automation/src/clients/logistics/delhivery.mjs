@@ -67,7 +67,13 @@ async function call(method, path, { body, form, idempotent = false } = {}) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  return withRetry(`delhivery.${path}`, async () => {
+  /*
+   * A fixed label per operation, not the path. See labelFor in
+   * clients/courier.mjs: a path in a metric label opens a CloudWatch series
+   * per distinct path, and these carry waybills and ids.
+   */
+  const label = `delhivery.${String(path).split('?')[0].split('/').filter(Boolean).slice(-2).join('/') || 'call'}`;
+  return withRetry(label, async () => {
     // Booking a parcel is never retried, so it gets the longer deadline.
     const res = await fetch(`${BASE()}${path}`, { method, headers, body: payload, ...deadline(TIMEOUT_MS.delhiveryWrite) });
     const text = await res.text();

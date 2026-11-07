@@ -51,6 +51,32 @@ async function authHeaders() {
   return { Authorization: `Token ${s.delhiveryToken}`, 'Content-Type': 'application/json' };
 }
 
+/**
+ * The metric label for a call: provider and OPERATION, never the path.
+ *
+ * `delhivery.${path}` put the whole path in the label, query string and all, so
+ * the tracking call produced
+ * `delhivery./api/v1/packages/json/?waybill=59152210001142,591522...`. A
+ * CloudWatch metric is billed per hour per unique name AND DIMENSION SET, so
+ * every distinct batch of waybills opened its own series, forever. CloudWatch
+ * is already half this account's bill (USD 0.73 of 1.47 in October) and 59
+ * series are live.
+ *
+ * A fixed name per operation, so TransientRetry is one series per operation
+ * and actually aggregates: "Delhivery tracking is flaky today" is a question
+ * the old labels could not answer because every call was its own metric.
+ */
+function labelFor(method, path) {
+  const clean = String(path).split('?')[0];
+  if (clean.includes('/packages/json')) return 'delhivery.track';
+  if (clean.includes('/p/edit')) return 'delhivery.edit';
+  if (clean.includes('/p/update')) return 'delhivery.ndr';
+  if (clean.includes('/invoice/charges')) return 'delhivery.charges';
+  // A path this function has not met. The method and the first two segments,
+  // which is enough to recognise and still a fixed, finite string.
+  return `delhivery.${method.toLowerCase()}:${clean.split('/').filter(Boolean).slice(0, 2).join('/')}`;
+}
+
 async function req(method, path, body, { idempotent = false } = {}) {
   const headers = await authHeaders();
   /*
@@ -59,7 +85,7 @@ async function req(method, path, body, { idempotent = false } = {}) {
    * for a slow answer. `idempotent` already carries exactly that distinction.
    */
   const ms = idempotent ? TIMEOUT_MS.delhiveryTrack : TIMEOUT_MS.delhiveryWrite;
-  return withRetry(`delhivery.${path}`, async () => {
+  return withRetry(labelFor(method, path), async () => {
     const res = await fetch(`${BASE()}${path}`, {
       method,
       headers,

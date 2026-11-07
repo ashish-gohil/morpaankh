@@ -375,10 +375,19 @@ class WaAutomationStack extends cdk.Stack {
       env: { SUBSCRIBE_ORIGINS: 'http://127.0.0.1:9292 http://localhost:9292' },
     });
 
-    // worker (all side effects). No reserved concurrency: this account's total
-    // limit is 10 and a reservation would drop the unreserved pool below AWS's
-    // minimum. FIFO ordering per MessageGroupId holds regardless, so correctness
-    // is unaffected; set `reserved` here only on an account with headroom.
+    /*
+     * worker (all side effects). STILL no reserved concurrency, but the reason
+     * has changed and the old one was stale: this comment said the account
+     * limit was 10, which was true when the service was new and is not now.
+     * It is 1,000, confirmed against the live account, and the stack already
+     * says so two hundred lines down.
+     *
+     * The real reason to leave it unreserved is sharper: a throttled poll can
+     * count as a RECEIVE against an SQS message, so a reservation that starts
+     * throttling pushes messages toward the DLQ after five of them rather than
+     * just slowing them down. FIFO ordering per MessageGroupId holds either
+     * way, so this is about delivery and not correctness.
+     */
     const worker = makeFn('worker', 'src/worker/index.handler', {
       timeout: Duration.seconds(60),
     });

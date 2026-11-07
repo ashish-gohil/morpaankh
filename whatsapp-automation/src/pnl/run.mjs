@@ -311,7 +311,9 @@ export async function runPnl({
       delivered = await deliver({ report, meta: wbMeta, bytes, filename, clients, phones, emails });
     }
 
-    metric('PnlBuilt', 1, { month });
+    // `month` as a log field, not a dimension: see PnlLedgerUploaded.
+    metric('PnlBuilt', 1);
+    log.info('pnl built', { month });
     log.info('pnl built', {
       month,
       trigger,

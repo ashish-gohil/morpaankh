@@ -329,6 +329,13 @@ Known, deliberately not changed mid-incident: Lambda log groups have unlimited
 retention (cost only). CDK's logRetention adds another custom-resource Lambda
 and the account concurrency cap is 10.
 
+**Both halves of that are now out of date (2026-11-07).** The account limit is
+1,000, not 10, confirmed against the live account. And the retention IS set
+now: O5 puts a `logs.LogRetention` on every function in `makeFn`, which is
+exactly the custom-resource Lambda this paragraph was avoiding. It costs one
+extra function and one IAM role, against CloudWatch storage that was half the
+October bill (USD 0.73 of 1.47) on log groups that kept everything forever.
+
 ### N. First confirmed delivery + a prepaid-tagging bug (2026-09-23)
 
 Owner added a payment method (Visa, Tax ID verified, INR, ₹3 verification

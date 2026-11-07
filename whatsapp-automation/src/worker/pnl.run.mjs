@@ -181,7 +181,14 @@ export async function onLedgerUpload(typed, deps, phone, document) {
     rows: parsedLedger.rows.length,
     stored: Boolean(stored && !stored.skipped),
   });
-  metric('PnlLedgerUploaded', 1, { month: parsed.month });
+  /*
+   * `month` is a LOG FIELD, not a dimension. A CloudWatch metric is billed per
+   * hour per unique name and dimension set, so a month in the dimensions opens
+   * a new series every month, forever, and none of them aggregate: "has the
+   * ledger been uploaded this year" becomes twelve metrics instead of one.
+   */
+  metric('PnlLedgerUploaded', 1);
+  log.info('pnl ledger uploaded', { month: parsed.month });
   return reply(deps, phone, 'pnl_ledger_saved', {
     month: label,
     rows: String(parsedLedger.rows.length),
