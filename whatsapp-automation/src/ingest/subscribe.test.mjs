@@ -4,6 +4,8 @@ vi.mock('../clients/shopify.mjs', () => ({ shopify: { graphql: vi.fn() } }));
 
 import { shopify } from '../clients/shopify.mjs';
 import { config } from '../config.mjs';
+import { _resetMemory } from '../store/table.mjs';
+import { _resetSecrets } from '../secrets.mjs';
 import { handler, normalizePhone, normalizeEmail, cleanName, splitName } from './subscribe.mjs';
 
 const ORIGIN = 'https://www.morpaankh.in';
@@ -22,6 +24,13 @@ const GOOD = { email: 'asha@example.com', phone: '+919876543210', name: 'Asha' }
 const body = (r) => JSON.parse(r.body);
 
 beforeEach(() => {
+  /*
+   * The table is reset per test now. Without it the rate-limit rows persisted
+   * across the whole file, which the IP tests worked around with a fresh
+   * address each time; the per-NUMBER cap (N7) cannot be worked around that
+   * way, because the number is the thing being capped.
+   */
+  _resetMemory();
   shopify.graphql.mockReset();
   config.dryRun = false;
 });
@@ -87,8 +96,11 @@ describe('guards', () => {
   it('rate limits the sixth attempt from one IP', async () => {
     shopify.graphql.mockResolvedValue({ customerByIdentifier: null, customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: GOOD.phone } } } });
     const ip = '203.0.113.9';
-    for (let i = 0; i < 5; i++) expect((await post(GOOD, { ip })).statusCode).toBe(200);
-    const sixth = await post(GOOD, { ip });
+    // A different NUMBER each time, so this measures the IP limit and not the
+    // per-number cap, which would otherwise trip first at the fourth.
+    const nth = (i) => ({ ...GOOD, phone: `+91987654321${i}` });
+    for (let i = 0; i < 5; i++) expect((await post(nth(i), { ip })).statusCode).toBe(200);
+    const sixth = await post(nth(5), { ip });
     expect(sixth.statusCode).toBe(429);
     expect(body(sixth).error).toBe('rate_limited');
   });
@@ -274,5 +286,114 @@ describe('saving', () => {
     const r = await post(GOOD);
     expect(r.statusCode).toBe(502);
     expect(body(r)).toEqual({ ok: false, error: 'save_failed' });
+  });
+});
+
+/*
+ * N7. /subscribe is public and unsigned, and Flow W messages whatever number
+ * was typed, which is the owner's own decision. So a fake signup is a WhatsApp
+ * message to somebody who never asked for one, and the per-IP limit does not
+ * bound that: one caller rotating addresses, or one address typing a different
+ * stranger's number each time, stays under 5-per-IP-per-10-min forever.
+ */
+describe('bot protection', () => {
+  const PH = '+919876500001';
+
+  it('caps one number at three signups a day', async () => {
+    shopify.graphql.mockResolvedValue({
+      customerByIdentifier: null,
+      customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: PH } } },
+    });
+    for (let i = 0; i < 3; i++) expect((await post({ ...GOOD, phone: PH })).statusCode).toBe(200);
+    const fourth = await post({ ...GOOD, phone: PH });
+    expect(fourth.statusCode).toBe(429);
+    expect(body(fourth).error).toBe('rate_limited');
+  });
+
+  /*
+   * With no secret the token is NOT required, so the secret and the theme
+   * widget can be deployed in either order without a window in which every
+   * real signup is rejected.
+   */
+  it('does not require a Turnstile token until the secret is set', async () => {
+    delete process.env.TURNSTILE_SECRET;
+    _resetSecrets();
+    shopify.graphql.mockResolvedValue({
+      customerByIdentifier: null,
+      customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: PH } } },
+    });
+    expect((await post({ ...GOOD, phone: PH })).statusCode).toBe(200);
+  });
+
+  it('refuses a request with no token once the secret IS set', async () => {
+    process.env.TURNSTILE_SECRET = 'ts-secret';
+    _resetSecrets();
+    const res = await post({ ...GOOD, phone: PH });
+    expect(res.statusCode).toBe(403);
+    expect(body(res).error).toBe('verification_failed');
+    delete process.env.TURNSTILE_SECRET;
+    _resetSecrets();
+  });
+
+  it('accepts a token Cloudflare approves', async () => {
+    process.env.TURNSTILE_SECRET = 'ts-secret';
+    _resetSecrets();
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) });
+    shopify.graphql.mockResolvedValue({
+      customerByIdentifier: null,
+      customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: PH } } },
+    });
+    try {
+      expect((await post({ ...GOOD, phone: PH, turnstileToken: 'tok' })).statusCode).toBe(200);
+    } finally {
+      globalThis.fetch = realFetch;
+      delete process.env.TURNSTILE_SECRET;
+      _resetSecrets();
+    }
+  });
+
+  it('refuses a token Cloudflare rejects', async () => {
+    process.env.TURNSTILE_SECRET = 'ts-secret';
+    _resetSecrets();
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ success: false }) });
+    try {
+      expect((await post({ ...GOOD, phone: PH, turnstileToken: 'tok' })).statusCode).toBe(403);
+    } finally {
+      globalThis.fetch = realFetch;
+      delete process.env.TURNSTILE_SECRET;
+      _resetSecrets();
+    }
+  });
+
+  /*
+   * Cloudflare being unreachable must not cost a real signup. This is the
+   * storefront's only save path and the downside is asymmetric: failing closed
+   * loses subscribers for as long as the outage lasts, while failing open lets
+   * through whatever the honeypot and the two caps do not already stop.
+   */
+  it('lets the signup through when Cloudflare cannot be reached', async () => {
+    process.env.TURNSTILE_SECRET = 'ts-secret';
+    _resetSecrets();
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error('ENOTFOUND'); };
+    shopify.graphql.mockResolvedValue({
+      customerByIdentifier: null,
+      customerCreate: { userErrors: [], customer: { id: 'gid://shopify/Customer/1', defaultPhoneNumber: { phoneNumber: PH } } },
+    });
+    try {
+      expect((await post({ ...GOOD, phone: PH, turnstileToken: 'tok' })).statusCode).toBe(200);
+    } finally {
+      globalThis.fetch = realFetch;
+      delete process.env.TURNSTILE_SECRET;
+      _resetSecrets();
+    }
+  });
+
+  it('still answers the honeypot exactly like a success', async () => {
+    const res = await post({ ...GOOD, phone: PH, hp: 'bot' });
+    expect(res.statusCode).toBe(200);
+    expect(body(res)).toEqual({ ok: true, status: 'created' });
   });
 });

@@ -32,6 +32,21 @@ const FIELDS = {
   delhiveryToken: 'DELHIVERY_TOKEN',
   delhiveryPushSecret: 'DELHIVERY_PUSH_SECRET',
   /*
+   * N7. Cloudflare Turnstile's server-side secret, for the signup popup.
+   *
+   * OPTIONAL, and the endpoint's behaviour turns on whether it is set.
+   * /subscribe is public and unsigned, and Flow W messages whatever number was
+   * typed, which is the owner's own decision: so a fake signup is a WhatsApp
+   * message to a stranger, and the per-IP limit does not stop one caller
+   * rotating addresses.
+   *
+   * Absent means the token is NOT required, because requiring one before the
+   * storefront sends it would reject every real signup. Present means every
+   * request must carry a valid token. That ordering is what lets the secret and
+   * the theme widget be deployed in either order.
+   */
+  turnstileSecret: 'TURNSTILE_SECRET',
+  /*
    * Meta Marketing API, read only, for the monthly P&L's ad spend. Its own key
    * rather than a shared one: the meta-outcomes System User token would do the
    * job (ads_management covers the insights read, verified 2026-11-03), but it

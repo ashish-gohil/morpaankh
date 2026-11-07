@@ -23,6 +23,9 @@ import { config } from '../config.mjs';
 import { shopify } from '../clients/shopify.mjs';
 import { table } from '../store/table.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
+import { getSecrets } from '../secrets.mjs';
+import { istDayKey } from '../lib/time.mjs';
+import { deadline, TIMEOUT_MS } from '../lib/timeout.mjs';
 
 /* The live storefront. Extra origins (a theme-dev localhost, a preview host)
  * come from SUBSCRIBE_ORIGINS so testing never needs a code change. */
@@ -46,6 +49,55 @@ export const SUBSCRIBER_TAGS = ['popup-subscriber', 'whatsapp-optin'];
  * ponytail: per-IP only, so one carrier NAT shares a bucket. Key on IP+email if
  * a real subscriber ever reports being blocked. */
 const RATE_MAX = 5;
+/* N7. Per NUMBER per IST day, which is the thing the IP limit does not bound. */
+const PHONE_MAX_PER_DAY = 3;
+
+async function withinPhoneCap(phone, now = new Date()) {
+  const day = istDayKey(now);
+  // Two days, so the row outlives the IST day it counts. Never a business
+  // deadline: this is DynamoDB's eviction, not a promise to anybody.
+  const expiresAt = Math.floor(now.getTime() / 1000) + 2 * 86400;
+  for (let slot = 0; slot < PHONE_MAX_PER_DAY; slot++) {
+    if (await table.putNew({ PK: `RATE#sub#ph#${phone}#${day}`, SK: `SLOT#${slot}`, expiresAt })) return true;
+  }
+  return false;
+}
+
+/**
+ * N7. Is Cloudflare satisfied this is a person?
+ *
+ * @returns {Promise<true|false|null>} null when Turnstile is not configured,
+ *   which means "do not block": requiring a token before the storefront sends
+ *   one would reject every real signup.
+ */
+async function verifyTurnstile(token, ip) {
+  const s = await getSecrets();
+  if (!s.turnstileSecret) return null;
+  if (!token) return false;
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret: s.turnstileSecret, response: String(token), ...(ip ? { remoteip: ip } : {}) }),
+      ...deadline(TIMEOUT_MS.shopify),
+    });
+    const json = await res.json().catch(() => ({}));
+    return json.success === true;
+  } catch (e) {
+    /*
+     * CLOUDFLARE BEING UNREACHABLE MUST NOT COST A REAL SIGNUP.
+     *
+     * This is the storefront's only save path, and the downside is asymmetric:
+     * failing closed loses subscribers for as long as the outage lasts, while
+     * failing open lets through whatever the honeypot and the two caps do not
+     * already stop. Those caps are the floor, which is why they are not
+     * conditional on this.
+     */
+    log.warn('subscribe: could not reach Turnstile, allowing the signup', { err: e.message });
+    metric('TurnstileUnreachable', 1);
+    return null;
+  }
+}
 const RATE_WINDOW_S = 600;
 
 async function withinRate(ip) {
@@ -319,6 +371,37 @@ export const handler = async (event) => {
   if (!(await withinRate(ip))) {
     metric('SubscribeRejected', 1, { reason: 'rate' });
     return json(429, { ok: false, error: 'rate_limited' }, cors);
+  }
+
+  /*
+   * N7. ONE NUMBER, THREE SIGNUPS A DAY.
+   *
+   * The per-IP limit above is not a limit on who can be MESSAGED: one caller
+   * rotating addresses, or one address typing a different stranger's number
+   * each time, stays under 5-per-IP-per-10-min forever. Flow W messages
+   * whatever number was typed, which is the owner's own decision, so a fake
+   * signup is a WhatsApp message to somebody who never asked for one.
+   *
+   * Three, because a real person signing up twice is a mistake and three times
+   * is not a person.
+   */
+  if (!(await withinPhoneCap(phone))) {
+    log.warn('subscribe: this number has signed up too often today', { phone: maskPhone(phone) });
+    metric('SubscribeRejected', 1, { reason: 'phone_cap' });
+    return json(429, { ok: false, error: 'rate_limited' }, cors);
+  }
+
+  /*
+   * Turnstile, when it is configured. See turnstileSecret in secrets.mjs: with
+   * no secret the token is not required, so the secret and the theme widget can
+   * be deployed in either order without a window where every real signup is
+   * rejected.
+   */
+  const human = await verifyTurnstile(body.turnstileToken || body['cf-turnstile-response'], ip);
+  if (human === false) {
+    log.warn('subscribe: turnstile refused this request');
+    metric('SubscribeRejected', 1, { reason: 'turnstile' });
+    return json(403, { ok: false, error: 'verification_failed' }, cors);
   }
 
   try {
