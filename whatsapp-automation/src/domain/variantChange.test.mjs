@@ -97,11 +97,41 @@ describe('who may change an order', () => {
     expect(orderChangeable(order({ receivedPaise: 129900 }), COD, PHONE).reason).toBe('money-received');
   });
 
-  it('refuses anything that is not a stored COD order', () => {
-    expect(orderChangeable(order(), { class: 'PREPAID' }, PHONE).reason).toBe('not-cod');
+  it('refuses a class where money could have to move', () => {
+    // PARTIAL is the one that matters: a COD King advance means money HAS moved
+    // and more is owed, so even an identical price leaves a balance.
     expect(orderChangeable(order(), { class: 'PARTIAL' }, PHONE).reason).toBe('not-cod');
     expect(orderChangeable(order(), { class: 'UNKNOWN' }, PHONE).reason).toBe('not-cod');
     expect(orderChangeable(order(), {}, PHONE).reason).toBe('not-cod');
+  });
+
+  /*
+   * N8. A same-price swap on a FULLY PAID prepaid order moves no money:
+   * targetsFor requires the price to match to the paisa, and
+   * changeLineItemVariant refuses to COMMIT unless the total is unchanged, with
+   * an abandoned edit leaving the order untouched. So a prepaid customer can
+   * fix their own size, which is the single thing they most often write in
+   * about.
+   */
+  it('allows a fully paid prepaid order', () => {
+    const paid = order({ receivedPaise: 129900 });
+    expect(orderChangeable(paid, { class: 'PREPAID' }, PHONE)).toEqual({ ok: true });
+  });
+
+  it('refuses a prepaid order that is only part paid', () => {
+    const part = order({ receivedPaise: 60000 });
+    expect(orderChangeable(part, { class: 'PREPAID' }, PHONE).reason).toBe('part-paid');
+  });
+
+  it('refuses a prepaid order whose payment and total no longer agree', () => {
+    // Partially refunded, or edited after payment: somebody has to reason
+    // about the balance before a line is touched.
+    const odd = order({ receivedPaise: 129900, currentTotalPaise: 149900 });
+    expect(orderChangeable(odd, { class: 'PREPAID' }, PHONE).reason).toBe('part-paid');
+  });
+
+  it('still refuses a COD order with money already taken', () => {
+    expect(orderChangeable(order({ receivedPaise: 5000 }), COD, PHONE).reason).toBe('money-received');
   });
 
   it('refuses a cancelled order', () => {

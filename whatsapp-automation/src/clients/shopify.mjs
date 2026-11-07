@@ -629,7 +629,19 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
  * currentTotalPrice 1299.00), so asserting there would pass no matter what the
  * edit did. Same field name, opposite meaning.
  */
-async function changeLineItemVariant({ order, lineItemId, newVariantId, carryDiscountPaise = 0, staffNote }) {
+async function changeLineItemVariant({
+  order,
+  lineItemId,
+  newVariantId,
+  carryDiscountPaise = 0,
+  staffNote,
+  /*
+   * What the order owed BEFORE this edit, in paise. Defaults to the order
+   * total, which is right for an unpaid COD order and wrong for a prepaid one:
+   * see the comment at the drift check below. The caller knows which.
+   */
+  expectedOutstandingPaise,
+}) {
   const plan = { orderId: order.numericId, lineItemId, newVariantId };
   if (config.dryRun) {
     log.info('changeLineItemVariant plan (dry_run)', plan);
@@ -787,7 +799,22 @@ async function changeLineItemVariant({ order, lineItemId, newVariantId, carryDis
   const o = committed.orderEditCommit.order;
   const currentTotal = o.currentTotalPriceSet.shopMoney.amount;
   const outstanding = o.totalOutstandingSet.shopMoney.amount;
-  const drifted = paise(currentTotal) !== paise(before.total) || paise(outstanding) !== paise(before.total);
+  /*
+   * The outstanding balance is compared to WHAT WAS OWED BEFORE, not to the
+   * total.
+   *
+   * It read `outstanding !== before.total`, which is only the same thing on an
+   * unpaid COD order, where nothing has been collected so the whole total is
+   * owed. N8 lets a FULLY PAID prepaid order swap sizes, and there the
+   * outstanding is 0 against a total of the full amount, so the old comparison
+   * would have raised an URGENT "the total moved" alert on every single
+   * prepaid swap, about an order that was perfectly correct.
+   *
+   * `expectedOutstandingPaise` is passed in by the caller, which knows what
+   * the order had owed before it asked for the edit.
+   */
+  const expected = Number.isFinite(expectedOutstandingPaise) ? expectedOutstandingPaise : paise(before.total);
+  const drifted = paise(currentTotal) !== paise(before.total) || paise(outstanding) !== expected;
 
   return { ...plan, applied: true, method: 'order_edit', currentTotal, outstanding, drifted };
 }

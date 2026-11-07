@@ -570,3 +570,73 @@ describe('/size-change on an order COD King never touched', () => {
     expect(sent(clients).some((m) => m.type === 'list')).toBe(false);
   });
 });
+
+/*
+ * N8. A prepaid customer fixing their own size is the single thing they most
+ * often write in about. It is safe because no money moves: targetsFor requires
+ * the target's price to match to the paisa, and changeLineItemVariant refuses
+ * to COMMIT unless the total is unchanged, with an abandoned edit leaving the
+ * order untouched.
+ */
+describe('a prepaid customer changing their own size', () => {
+  const OWNER2 = '+917048000000';
+  const paidOrder = () =>
+    codOrder({
+      displayFinancialStatus: 'PAID',
+      netPaymentSet: { shopMoney: { amount: '1299.00' } },
+      currentTotalPriceSet: { shopMoney: { amount: '1299.00' } },
+      totalPriceSet: { shopMoney: { amount: '1299.00' } },
+    });
+
+  beforeEach(() => { config.ownerAlertPhones = [OWNER2]; });
+
+  /*
+   * setup() writes class COD, so the class has to be set AFTER it: the stored
+   * class is what orderChangeable reads, and it is deliberately a
+   * once-at-first-sight decision rather than something re-derived.
+   */
+  const prepaid = async () => {
+    const r = await setup(paidOrder());
+    await patchState(ORDER, { class: 'PREPAID' });
+    await touchInbound(PHONE, new Date('2026-10-02T06:00:00Z'));
+    return r;
+  };
+
+  it('is offered the size list', async () => {
+    const { clients, deps } = await prepaid();
+    await VC.onOwnerRequest('1234', deps, OWNER2);
+    expect(sent(clients).some((m) => m.type === 'list' && m.to === PHONE)).toBe(true);
+  });
+
+  /*
+   * THE SUBTLE ONE. The drift check compared the outstanding balance to the
+   * order TOTAL, which is only the same thing on an unpaid COD order. On a paid
+   * one the outstanding is 0 against a full total, so every prepaid swap would
+   * have raised an URGENT "the total moved" alert about a correct order.
+   */
+  it('raises no false alarm about the total having moved', async () => {
+    const { clients, deps } = await prepaid();
+    await VC.onOwnerRequest('1234', deps, OWNER2);
+    const list = sent(clients).find((m) => m.type === 'list');
+    await VC.route(ORDER, decodePayload(list.rows[0].id).action, deps, PHONE);
+    const confirm = sent(clients).find((m) => m.type === 'buttons');
+    if (confirm) await VC.route(ORDER, decodePayload(confirm.buttons[0].id).action, deps, PHONE);
+
+    const urgent = sent(clients).filter((m) => JSON.stringify(m).includes('the total moved'));
+    expect(urgent).toEqual([]);
+  });
+
+  it('tells the real outstanding to the client, so the check can be honest', async () => {
+    const { clients, deps } = await prepaid();
+    await VC.onOwnerRequest('1234', deps, OWNER2);
+    const list = sent(clients).find((m) => m.type === 'list');
+    await VC.route(ORDER, decodePayload(list.rows[0].id).action, deps, PHONE);
+    const confirm = sent(clients).find((m) => m.type === 'buttons');
+    if (confirm) await VC.route(ORDER, decodePayload(confirm.buttons[0].id).action, deps, PHONE);
+
+    // The fake records the whole argument object under `args`.
+    const call = clients.shopify.calls.find((c) => c.op === 'changeLineItemVariant');
+    expect(call, 'the swap was never attempted').toBeTruthy();
+    expect(call.args.expectedOutstandingPaise).toBe(0); // fully paid, so nothing is owed
+  });
+});

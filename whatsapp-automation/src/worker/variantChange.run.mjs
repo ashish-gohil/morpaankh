@@ -295,6 +295,14 @@ export async function onConfirm(orderId, lineNum, varNum, deps, phone) {
         newVariantId: target.id,
         carryDiscountPaise: line.discountPaise || 0,
         staffNote: `WhatsApp: ${fromDesc} changed to ${toDesc} by the customer`,
+        /*
+         * N8. What this order owed before the edit. On a COD order that is the
+         * whole total; on a fully paid prepaid one it is zero. Without it the
+         * drift check compares the outstanding to the TOTAL and raises an
+         * URGENT "the total moved" alert on every prepaid swap, about an order
+         * that is perfectly correct.
+         */
+        expectedOutstandingPaise: Math.max(0, (n.currentTotalPaise || 0) - (n.receivedPaise || 0)),
       });
       await patchFlowA(orderId, { variantChanges: (st?.flowA?.variantChanges || 0) + 1 });
       return out;

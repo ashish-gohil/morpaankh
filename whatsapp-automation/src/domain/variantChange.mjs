@@ -81,10 +81,33 @@ export function orderChangeable(n, st, phone, { orderAllowlist = [] } = {}) {
   // edits someone's order, so an unknown owner is a refusal.
   if (!n.verifiedPhone || !phone || n.verifiedPhone !== phone) return { ok: false, reason: 'not-owner' };
 
-  // COD only, and nothing captured. A paid or part-paid order means a refund or
-  // a top-up could be involved, and that is a person's decision.
-  if ((st?.class || null) !== 'COD') return { ok: false, reason: 'not-cod' };
-  if ((n.receivedPaise || 0) > 0) return { ok: false, reason: 'money-received' };
+  /*
+   * N8. COD, or a FULLY PAID prepaid order. Never a part-paid one.
+   *
+   * The original rule was COD-only with nothing captured, because "a paid or
+   * part-paid order means a refund or a top-up could be involved, and that is
+   * a person's decision". That is still exactly right about the MONEY, and a
+   * same-price swap moves none:
+   *
+   *   targetsFor already requires the target's price to match the current
+   *     variant's to the paisa, compared as strings off the same field.
+   *   changeLineItemVariant refuses to COMMIT unless the order total is
+   *     unchanged, and an abandoned edit leaves the order untouched, so that
+   *     check is the rollback.
+   *
+   * So a prepaid customer can fix their own size, which is the single thing
+   * they most often write in about, instead of waiting for somebody to answer.
+   *
+   * PART-PAID IS STILL REFUSED, and it is the case that matters: a COD King
+   * partial advance means money has moved and more is owed, so even an
+   * identical price leaves a balance somebody has to reason about.
+   */
+  const cls = st?.class || null;
+  if (cls !== 'COD' && cls !== 'PREPAID') return { ok: false, reason: 'not-cod' };
+  if (cls === 'COD' && (n.receivedPaise || 0) > 0) return { ok: false, reason: 'money-received' };
+  if (cls === 'PREPAID' && (n.receivedPaise || 0) !== (n.currentTotalPaise || 0)) {
+    return { ok: false, reason: 'part-paid' };
+  }
 
   // The owner's hard window: once an AWB exists the label is printed and
   // carries the old SKU, so changing the order would send the wrong garment
