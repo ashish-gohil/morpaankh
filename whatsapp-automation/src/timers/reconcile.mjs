@@ -25,6 +25,7 @@ import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
 import { afterStart } from '../domain/eligibility.mjs';
 import { istParts } from '../lib/time.mjs';
+import { hasInput } from '../pnl/snapshot.mjs';
 import * as flowB from '../worker/flowB.run.mjs';
 import { enqueue } from '../queue.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -271,6 +272,47 @@ export async function sweepExpiredCodes(now = new Date()) {
   return { found: found.length, deleted: batch.length, jobId: res.jobId };
 }
 
+/**
+ * N6. Ask the owner for last month's Delhivery statement, before the 7th.
+ *
+ * The ledger is the ONLY exact source of what a parcel actually cost. Without
+ * it the report computes freight at an assumed 500 g, which the Assumptions
+ * sheet is explicit is a FLOOR rather than an estimate: Delhivery bills
+ * max(dead, volumetric) and the owner reports being charged more than Rs 120 a
+ * parcel against computed charges well under that. So a month with no ledger is
+ * a month whose profit is optimistic by an unknown amount, and the only person
+ * who can fix that is the owner with a CSV.
+ *
+ * Two reminders, the 5th and the 6th, and neither if the file is already
+ * there. A reminder that arrives every day is one nobody reads.
+ */
+export async function remindLedger(now = new Date()) {
+  const r = RULES.pnl;
+  if (!r?.ledgerReminderDays?.length) return { skipped: 'disabled' };
+  const p = istParts(now);
+  if (!r.ledgerReminderDays.includes(p.day)) return { skipped: 'not-a-reminder-day' };
+
+  // Last month, in IST, which is the month the statement covers.
+  const lastMonth = p.mon === 0 ? `${p.y - 1}-12` : `${p.y}-${String(p.mon).padStart(2, '0')}`;
+
+  const have = await hasInput(lastMonth);
+  /*
+   * null means we could not tell, and that is deliberately NOT a reminder:
+   * nagging the owner for a file they already sent is how a reminder stops
+   * being believed, and this is the one that has to be.
+   */
+  if (have !== false) return { skipped: have === null ? 'cannot-tell' : 'already-have-it', month: lastMonth };
+
+  await soft('ledgerReminder', () =>
+    alert(
+      `last month's Delhivery statement is not in yet. Send the CSV here with the caption /pnl-ledger ${lastMonth} before the 7th. ` +
+        'Without it the report prices freight at an assumed 500 g, which is a floor, so the profit it shows is optimistic',
+      'P&L',
+    ), {});
+  log.warn('reconcile: reminded the owner about the ledger', { month: lastMonth, day: p.day });
+  return { reminded: true, month: lastMonth };
+}
+
 export const handler = async (event = {}) => {
   /*
    * 'carts' is handled FIRST and returns, before anything else in this
@@ -341,6 +383,11 @@ export const handler = async (event = {}) => {
       out.codes = await sweepExpiredCodes();
     } catch (e) {
       log.error('reconcile code cleanup failed', { err: e.message });
+    }
+    try {
+      out.ledger = await remindLedger();
+    } catch (e) {
+      log.error('reconcile ledger reminder failed', { err: e.message });
     }
   }
 

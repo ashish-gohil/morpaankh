@@ -11,7 +11,8 @@ import { realClients } from '../clients/index.mjs';
 import { _drainQueue, _peekQueue } from '../queue.mjs';
 import { _resetTimers, _peekTimers } from './schedule.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { sweepUnconfirmed, sweepUnreviewed, sweepExpiredCodes } from './reconcile.mjs';
+import { sweepUnconfirmed, sweepUnreviewed, sweepExpiredCodes, remindLedger } from './reconcile.mjs';
+import * as snapshot from '../pnl/snapshot.mjs';
 import { fromISTWall } from '../lib/time.mjs';
 
 // The sweep's whole job is scheduling an ask, so these tests enable it.
@@ -397,5 +398,63 @@ describe('deleting the one-off codes this service minted', () => {
     RULES.codeCleanup.enabled = false;
     expect(await sweepExpiredCodes(NOV1)).toMatchObject({ skipped: 'disabled' });
     expect(listed).toHaveLength(0);
+  });
+});
+
+/*
+ * N6. The Delhivery ledger is the ONLY exact source of what a parcel cost.
+ * Without it the report prices freight at an assumed 500 g, which the
+ * Assumptions sheet is explicit is a FLOOR rather than an estimate: Delhivery
+ * bills max(dead, volumetric) and the owner reports being charged more than Rs
+ * 120 a parcel against computed charges well under that.
+ *
+ * So a month with no ledger is a month whose profit is optimistic by an unknown
+ * amount, and the only person who can fix it is the owner with a CSV.
+ */
+describe('reminding the owner about last month s Delhivery statement', () => {
+  let have;
+
+  beforeEach(() => {
+    config.dryRun = false;
+    config.ownerAlertPhones = ['+919999999999'];
+    have = false;
+    vi.spyOn(snapshot, 'hasInput').mockImplementation(async () => have);
+  });
+
+  const on = (y, mon, day) => fromISTWall(y, mon, day, 10, 0);
+
+  it('reminds on the 5th and the 6th', async () => {
+    expect(await remindLedger(on(2026, 11, 5))).toMatchObject({ reminded: true, month: '2026-11' });
+    expect(await remindLedger(on(2026, 11, 6))).toMatchObject({ reminded: true });
+  });
+
+  it('says nothing on any other day, including the 7th', async () => {
+    for (const day of [1, 4, 7, 20]) {
+      expect(await remindLedger(on(2026, 11, day)), `day ${day}`).toMatchObject({ skipped: 'not-a-reminder-day' });
+    }
+  });
+
+  it('asks for LAST month, which is the month the statement covers', async () => {
+    const out = await remindLedger(on(2026, 11, 5)); // December 2026 in IST
+    expect(out.month).toBe('2026-11');
+  });
+
+  it('rolls the year back in January', async () => {
+    const out = await remindLedger(on(2027, 0, 5)); // January 2027
+    expect(out.month).toBe('2026-12');
+  });
+
+  it('says nothing once the file is there', async () => {
+    have = true;
+    expect(await remindLedger(on(2026, 11, 5))).toMatchObject({ skipped: 'already-have-it' });
+  });
+
+  /*
+   * Nagging the owner for a file they already sent is how a reminder stops
+   * being believed, and this is the one that has to be.
+   */
+  it('stays quiet when it cannot tell', async () => {
+    have = null;
+    expect(await remindLedger(on(2026, 11, 5))).toMatchObject({ skipped: 'cannot-tell' });
   });
 });

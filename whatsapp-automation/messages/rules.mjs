@@ -518,6 +518,21 @@ export const RULES = {
     // Past this, ledger and computed disagree enough to be worth a human look.
     ledgerVarianceAlertInr: 10,
     /*
+     * N6. Remind the owner to send last month's Delhivery statement.
+     *
+     * The ledger is the ONLY exact source of what a parcel actually cost.
+     * Without it the report computes freight at an assumed 500 g, which is a
+     * floor rather than an estimate: the Assumptions sheet says so, and the
+     * owner reports being billed more than Rs 120 a parcel against computed
+     * charges well under that. Every month without a ledger is a month whose
+     * profit is optimistic by an unknown amount.
+     *
+     * The 5th and the 6th, before the 7th. Two reminders, not a daily nag: one
+     * that arrives every day is one nobody reads, and this is the one that has
+     * to be believed.
+     */
+    ledgerReminderDays: [5, 6],
+    /*
      * DELIBERATELY EMPTY. Shopify plan, the COD King app, the domain and the
      * WhatsApp API are all real monthly money, but the owner has not given the
      * figures, and inventing them would put a wrong net profit on a document

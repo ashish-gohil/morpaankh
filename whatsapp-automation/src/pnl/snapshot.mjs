@@ -257,6 +257,34 @@ export async function putInput({ month, filename, bytes, now = new Date() }) {
 }
 
 /**
+ * N6. Is there a ledger for this month at all?
+ *
+ * Cheap on purpose: a LIST, not a GET. The reminder only needs to know whether
+ * the file exists, and downloading a statement to answer that would make a
+ * daily check cost as much as a report run.
+ *
+ * `null` means "could not tell", which the caller treats as "do not nag":
+ * reminding the owner to send a file they have already sent is how a reminder
+ * gets ignored, and this one has to be believed on the 7th.
+ *
+ * @returns {Promise<boolean|null>}
+ */
+export async function hasInput(month) {
+  if (!bucket()) return null;
+  const c = await client();
+  if (!c?.ListObjectsV2Command) return null;
+  try {
+    const list = await c.send(
+      new c.ListObjectsV2Command({ Bucket: bucket(), Prefix: keys.inputsPrefix(month), MaxKeys: 5 }),
+    );
+    return (list.Contents || []).some((o) => o.Size > 0);
+  } catch (e) {
+    log.warn('pnl: could not check for a stored ledger', { month, err: /** @type {any} */ (e).message?.slice(0, 160) });
+    return null;
+  }
+}
+
+/**
  * The most recently uploaded ledger for a month, so a plain `/pnl 2026-10`
  * picks up a file the owner sent in days earlier without them having to say so.
  * @returns {Promise<{bytes: Uint8Array, filename: string}|null>}
