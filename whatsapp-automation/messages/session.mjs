@@ -176,7 +176,7 @@ export const SESSION = {
       'One tap is all we need to send it for packing. Prepaid orders go out on priority.\n\n' +
       'Need a different size or colour? Tap Change or cancel and we will sort it out.',
     buttons: [
-      { title: 'Pay online now', flow: 'A', action: 'pay_online' },
+      { id: 'pay_online', title: 'Pay online now', flow: 'A', action: 'pay_online' },
       /*
        * "Confirm this order", not the template's "Confirm cash on delivery":
        * a free-form reply button title is capped at 20 characters and that one
@@ -184,8 +184,8 @@ export const SESSION = {
        * on the template, and the body two lines up has already said the order
        * is on cash on delivery.
        */
-      { title: 'Confirm this order', flow: 'A', action: 'confirm' },
-      { title: 'Change or cancel', flow: 'A', action: 'cancel' },
+      { id: 'confirm', title: 'Confirm this order', flow: 'A', action: 'confirm' },
+      { id: 'cancel', title: 'Change or cancel', flow: 'A', action: 'cancel' },
     ],
   },
   /*
@@ -212,9 +212,9 @@ export const SESSION = {
       '{{attempt_date}} and could not complete the delivery.\n\n' +
       'Nothing is lost. Tell us what suits you and we will arrange it.',
     buttons: [
-      { title: 'Deliver tomorrow', flow: 'C', action: 'ndr_reattempt' },
-      { title: 'Change address', flow: 'C', action: 'ndr_address' },
-      { title: 'Cancel order', flow: 'C', action: 'ndr_cancel' },
+      { id: 'ndr_reattempt', title: 'Deliver tomorrow', flow: 'C', action: 'ndr_reattempt' },
+      { id: 'ndr_address', title: 'Change address', flow: 'C', action: 'ndr_address' },
+      { id: 'ndr_cancel', title: 'Cancel order', flow: 'C', action: 'ndr_cancel' },
     ],
   },
   /*
@@ -247,12 +247,12 @@ export const SESSION = {
   ops_digest_session: {
     type: 'buttons',
     body: '{{date}}\n\n{{summary}}',
-    buttons: [{ title: 'Got it', flow: 'O', action: 'ack' }],
+    buttons: [{ id: 'ack', title: 'Got it', flow: 'O', action: 'ack' }],
   },
   ops_alert_session: {
     type: 'buttons',
     body: '{{order_number}}: {{alert_text}}',
-    buttons: [{ title: 'Got it', flow: 'O', action: 'ack' }],
+    buttons: [{ id: 'ack', title: 'Got it', flow: 'O', action: 'ack' }],
   },
   /*
    * THE THREE REPLIES FOR A BUTTON THAT OUTLIVED ITS ORDER.
@@ -298,8 +298,8 @@ export const SESSION = {
     type: 'buttons',
     body: 'Just to be sure before we stop the packing: should we cancel order {{order_number}}?',
     buttons: [
-      { title: 'Yes, cancel', flow: 'A', action: 'cancel_yes' },
-      { title: 'No, keep it', flow: 'A', action: 'cancel_no' },
+      { id: 'cancel_yes', title: 'Yes, cancel', flow: 'A', action: 'cancel_yes' },
+      { id: 'cancel_no', title: 'No, keep it', flow: 'A', action: 'cancel_no' },
     ],
   },
   cancel_done: {
@@ -335,9 +335,9 @@ export const SESSION = {
       'Before we stop the packing: would you like to change the size or colour on order {{order_number}}, ' +
       'or cancel it altogether?',
     buttons: [
-      { title: 'Change size/colour', flow: 'A', action: 'vc' },
-      { title: 'Cancel order', flow: 'A', action: 'cancel_yes' },
-      { title: 'Keep my order', flow: 'A', action: 'cancel_no' },
+      { id: 'vc', title: 'Change size/colour', flow: 'A', action: 'vc' },
+      { id: 'cancel_yes', title: 'Cancel order', flow: 'A', action: 'cancel_yes' },
+      { id: 'cancel_no', title: 'Keep my order', flow: 'A', action: 'cancel_no' },
     ],
   },
 
@@ -355,9 +355,9 @@ export const SESSION = {
     buttons: [
       // action: null means the caller MUST supply one in ctx.actions, because it
       // carries a line item id. renderSession throws rather than emit a dead button.
-      { title: 'Size', flow: 'A', action: null },
-      { title: 'Colour', flow: 'A', action: null },
-      { title: 'Keep as it is', flow: 'A', action: 'cancel_no' },
+      { id: 'pick_size', title: 'Size', flow: 'A', action: null },
+      { id: 'pick_colour', title: 'Colour', flow: 'A', action: null },
+      { id: 'cancel_no', title: 'Keep as it is', flow: 'A', action: 'cancel_no' },
     ],
   },
 
@@ -394,8 +394,8 @@ export const SESSION = {
       'The amount stays {{order_total}}.\n\n' +
       'Nothing has changed yet. Tap below to confirm.',
     buttons: [
-      { title: 'Yes, change it', flow: 'A', action: null }, // needs ctx.actions: carries line + variant
-      { title: 'Go back', flow: 'A', action: 'vc' },
+      { id: 'confirm_change', title: 'Yes, change it', flow: 'A', action: null }, // needs ctx.actions: carries line + variant
+      { id: 'vc', title: 'Go back', flow: 'A', action: 'vc' },
     ],
   },
 
@@ -568,8 +568,8 @@ export const SESSION = {
     type: 'buttons',
     body: '{{text}}',
     buttons: [
-      { title: 'Confirm', flow: 'P', action: null },
-      { title: 'Cancel', flow: 'P', action: null },
+      { id: 'confirm', title: 'Confirm', flow: 'P', action: null },
+      { id: 'cancel', title: 'Cancel', flow: 'P', action: null },
     ],
   },
 
@@ -713,8 +713,24 @@ export function renderSession(key, vars = {}, ctx = {}) {
         // A button whose action is null carries per-order ids and MUST be given
         // one. Falling back to a literal would emit a payload that routes
         // nowhere: the customer taps and nothing whatsoever happens.
-        const action = (ctx.actions && ctx.actions[b.title]) || b.action;
-        if (!action) throw new Error(`session ${key} button "${b.title}" needs ctx.actions["${b.title}"]`);
+        /*
+         * BY ID FIRST, THEN BY TITLE.
+         *
+         * ctx.actions used to be keyed by the button's TITLE TEXT, which is the
+         * one thing about a button that a translation changes. The Hindi twin
+         * of vc_pick_option has a button reading "रंग", and a call site keyed
+         * `{ Colour: ... }` would have found nothing there: the lookup misses,
+         * `b.action` is null, and the throw below is the best case. So every
+         * button carries a stable `id` that no translation touches, and that is
+         * what a call site keys on.
+         *
+         * The title lookup stays as a fallback and is not dead code: a message
+         * already on a customer's phone was rendered by the old shape, and any
+         * call site not yet moved over keeps working rather than throwing.
+         */
+        const byId = ctx.actions && b.id ? ctx.actions[b.id] : undefined;
+        const action = byId || (ctx.actions && ctx.actions[b.title]) || b.action;
+        if (!action) throw new Error(`session ${key} button "${b.id || b.title}" needs ctx.actions["${b.id || b.title}"]`);
         return { id: encodePayload({ flow: b.flow, orderId: ctx.orderId, action }), title: b.title };
       }),
     };

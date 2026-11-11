@@ -20,17 +20,17 @@
 import { encodePayload } from '../src/lib/ids.mjs';
 
 /** quick-reply / url / flow button descriptors used inside the registry. */
-const qr = (text, flow, action) => ({ kind: 'quick_reply', text, flow, action });
+export const qr = (text, flow, action) => ({ kind: 'quick_reply', text, flow, action });
 /*
  * A URL button on our own domain, whose only variable is the opaque token.
  * `path` is the route it lands on ('p' = pay link, 'r' = cart recovery) and is
  * read by templates-sync when it registers the button with Meta, so the route
  * is declared here once instead of being hardcoded in two files.
  */
-const urlBtn = (text, path = 'p') => ({ kind: 'url', text, path, urlPattern: `{{public}}/${path}/{{token}}` });
+export const urlBtn = (text, path = 'p') => ({ kind: 'url', text, path, urlPattern: `{{public}}/${path}/{{token}}` });
 /** A URL button whose variable suffix is appended to a fixed external base. */
-const trackBtn = (text) => ({ kind: 'url', text, base: 'https://www.delhivery.com/track/package/', example: '59152210001142' });
-const flowBtn = (text) => ({ kind: 'flow', text, flowKey: 'review' });
+export const trackBtn = (text) => ({ kind: 'url', text, base: 'https://www.delhivery.com/track/package/', example: '59152210001142' });
+export const flowBtn = (text) => ({ kind: 'flow', text, flowKey: 'review' });
 /*
  * The review form as a plain URL button. Used while the native review Flow
  * cannot be published: Meta requires business verification to publish a Flow,
@@ -38,7 +38,7 @@ const flowBtn = (text) => ({ kind: 'flow', text, flowKey: 'review' });
  * docs.google.com/forms/d/e/ URL and not the forms.gle shortener, because Meta
  * rejects URL-shortener domains in template buttons.
  */
-const reviewFormBtn = (text) => ({ kind: 'url', text, base: `${REVIEW_FORM.base}?`, example: 'usp=pp_url' });
+export const reviewFormBtn = (text) => ({ kind: 'url', text, base: `${REVIEW_FORM.base}?`, example: 'usp=pp_url' });
 
 /**
  * An IMAGE header. `sample` is only used at CREATE time: Meta wants a real
@@ -46,7 +46,7 @@ const reviewFormBtn = (text) => ({ kind: 'url', text, base: `${REVIEW_FORM.base}
  * through the resumable upload API to get the header handle. At SEND time the
  * per-order product image is supplied through ctx.imageUrl.
  */
-const imageHeader = (sample) => ({ format: 'IMAGE', sample });
+export const imageHeader = (sample) => ({ format: 'IMAGE', sample });
 
 /*
  * A DOCUMENT header, for a template whose whole point is the attached file.
@@ -59,7 +59,7 @@ const imageHeader = (sample) => ({ format: 'IMAGE', sample });
  */
 const documentHeader = (sampleName) => ({ format: 'DOCUMENT', sampleName });
 
-const SAMPLE_PRODUCT_IMAGE =
+export const SAMPLE_PRODUCT_IMAGE =
   'https://cdn.shopify.com/s/files/1/0998/6261/0292/files/WhatsAppImage2026-06-07at2.04.11PM.jpg?v=1780823415&width=800&height=800&crop=center';
 
 /*

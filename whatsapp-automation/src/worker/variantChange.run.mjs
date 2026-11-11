@@ -150,7 +150,9 @@ async function offerFor(orderId, n, line, targets, deps) {
       { item_desc: itemDesc },
       {
         orderId: n.numericId,
-        actions: { Size: act('vcos', lineNum), Colour: act('vcoc', lineNum) },
+        // Keyed by the button's stable id, not its title: the Hindi twin's
+        // buttons read "Size" and "रंग", and a title key would miss the second.
+        actions: { pick_size: act('vcos', lineNum), pick_colour: act('vcoc', lineNum) },
       },
     );
   }
@@ -242,7 +244,7 @@ export async function onPickSize(orderId, lineNum, varNum, deps, phone) {
     },
     {
       orderId: n.numericId,
-      actions: { 'Yes, change it': act('vcok', lineNum, numOf(target.id)) },
+      actions: { confirm_change: act('vcok', lineNum, numOf(target.id)) },
     },
   );
 }

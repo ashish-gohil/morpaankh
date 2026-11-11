@@ -640,9 +640,11 @@ async function startRequest(raw, parsed, deps, adminPhone) {
 
 /** The detail, then the buttons. One message when it fits, two when it does not. */
 async function sendPreview(deps, adminPhone, n, req, body) {
+  // By button id. replace_confirm is admin-only and stays English, but there
+  // is no reason for one call site to key differently from the rest.
   const actions = {
-    Confirm: act('rpok', req.seq, req.nonce),
-    Cancel: act('rpno', req.seq, req.nonce),
+    confirm: act('rpok', req.seq, req.nonce),
+    cancel: act('rpno', req.seq, req.nonce),
   };
   const short = `Book this replacement for ${n.name}?`;
   const fits = body.length + short.length < BUTTONS_BODY_MAX;
