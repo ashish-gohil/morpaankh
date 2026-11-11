@@ -16,7 +16,7 @@ import { log, maskPhone, metric } from '../log.mjs';
 import { setLang, getLang } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
 import { sess, getNormByName } from './send.mjs';
-import { normalizeLang, LANGS } from '../../messages/lang.mjs';
+import { normalizeLang, LANGS, langName } from '../../messages/lang.mjs';
 import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 
@@ -104,7 +104,13 @@ export async function onShowPicker(phone, deps) {
    * can read the way back. The body carries both scripts anyway.
    */
   const lang = await getLang(phone);
-  return sess(deps, phone, 'language_select', { customer_name: '' }, { lang });
+  /*
+   * No order in hand here, so no name either: this came from somebody typing
+   * LANGUAGE, not from a flow. langName gives the greeting we use when a name
+   * is missing, which is the same one every other message uses, rather than
+   * leaving "Hello ," with a hole in it.
+   */
+  return sess(deps, phone, 'language_select', { customer_name: langName(lang, null) }, { lang });
 }
 
 /**

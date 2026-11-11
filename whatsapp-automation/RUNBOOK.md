@@ -462,3 +462,64 @@ Safe and idempotent: a re-run overwrites nothing. Each run writes its own
 `reports/<month>/<runId>.xlsx` and `snapshots/<month>/<runId>.json`, the bucket
 is versioned, and next month's "Last Month Update" block reads the newest
 snapshot to show what has settled since.
+
+## Language: "why is this customer getting English?"
+
+The customer's language lives on `PHONE#<e164>/PROFILE` as `lang`, with
+`langSetAt` and `langSource` (`picker` / `keyword` / `owner`) beside it. That
+row has NO TTL, deliberately, so a choice made in January still applies in
+December.
+
+Work down this list. The first `no` is the answer.
+
+1. **Is the feature on at all?** `RULES.language.enabled`. It ships `false`,
+   which means `langFor()` returns English without reading the profile.
+2. **Is this phone in the pilot?** `RULES.language.allowPhones`. Non-empty
+   means ONLY those phones get the picker and Hindi. Empty means everyone.
+3. **Has this customer actually chosen?** Read the row:
+   ```
+   aws dynamodb get-item --table-name wa-automation --region ap-south-1 \
+     --key '{"PK":{"S":"PHONE#+9198XXXXXXXX"},"SK":{"S":"PROFILE"}}' \
+     --projection-expression 'lang,langSetAt,langSource,langAskCount,langAskedAt'
+   ```
+   No `lang` means they were never asked or never answered. `langAskCount`
+   at `RULES.language.maxAsks` means we have stopped asking, on purpose.
+4. **Is the Hindi template approved?** `node scripts/templates-sync.mjs`. A
+   Hindi template that is PENDING, REJECTED or missing prints under
+   "HINDI template(s) are not usable yet", and English goes out meanwhile.
+   This is the most likely answer for one specific message in Hindi while the
+   rest arrive fine. The daily digest says the same thing on its own line.
+5. **Is the key switched off?** `RULES.language.hiDisabledKeys`. This forces
+   one key back to English without touching Meta.
+6. **Did the send log say so?** Every message row carries the language that
+   actually went out:
+   ```
+   aws logs filter-log-pattern --log-group-name /aws/lambda/wa-worker \
+     --filter-pattern '"hindi template unusable"' --region ap-south-1
+   ```
+   and the `LangFallback` metric counts it per key.
+
+### Setting a customer's language by hand
+
+From an owner phone, in WhatsApp: `/lang 1214 hi` (or `en`). It sets the
+language of that ORDER'S customer, not your own handset. The customer can also
+switch themselves at any time by sending `HINDI`, `ENGLISH`, `हिंदी` or
+`अंग्रेजी`, or `LANGUAGE` / `भाषा` to be shown the picker again.
+
+### "The confirmation is five minutes late"
+
+That is the picker. A first order from a phone with no stored language gets
+`language_select` at +3 minutes and the confirmation waits
+`RULES.language.waitMinutes` for an answer. A tap sends it immediately; no tap
+sends it in English at the deadline. Reconcile's 20 minute grace covers the
+wait, and its re-arm is the safety net if the `lang_wait` timer is lost.
+
+The confirmation is NEVER held for anything else: a picker that throws, that is
+skipped, that fails to deliver, or a phone already asked `maxAsks` times all
+release it at once.
+
+### Turning it all off
+
+`RULES.language.enabled: false` and deploy. Stored choices stay on the profile
+rows and apply again the moment it is switched back on. Nothing needs undoing
+at Meta: the Hindi templates simply stop being reached.

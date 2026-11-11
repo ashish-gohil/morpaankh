@@ -1557,3 +1557,130 @@ will collect nothing. The fallback now needs the waybill to agree
 (`sh.orderType === 'cod'`), which leaves it doing its only real job, filling a
 COD waybill whose `CODAmount` came back empty, and stops it contradicting the
 page it prints on. #1236 is still in transit, so no delivered total moved.
+
+## W. The customer's own language, English or Hindi (2026-11-11)
+
+Branch `feat/wa-language`, built on `27d8fab`. Ships with
+`RULES.language.enabled: false`, so merging it changes nothing a customer sees.
+
+### The shape
+
+**One place resolves the language.** `langFor(phone)` in `src/worker/send.mjs`,
+read from the RECIPIENT PHONE, and no call site ever passes or guesses one. A
+flow asks for `cod_confirm` and gets whichever language that customer chose; a
+flow written next year inherits it by doing nothing. This was the whole reason
+for choosing the send helpers over a per-flow parameter: there are 60-odd
+customer send sites and any one of them forgetting to pass a language would be
+a silent English message.
+
+**English is byte-identical when nothing is stored.** `messages/golden.snapshot.json`
+pins all 103 rendered English payloads as they stood before this branch, and
+`golden.test.mjs` compares against it per key. With the feature off, `langFor`
+returns English WITHOUT READING THE PROFILE, so the path every order
+confirmation takes gains no extra read, no registry lookup and no new way to
+fail. That is not an approximation of today's behaviour, it is today's.
+
+**A language problem never costs a message.** Hindi template, then the current
+English template, then the existing LEGACY / NO_PRICE chain. The fallback fires
+on TEMPLATE_UNUSABLE codes ONLY: 131049, 130472 and 131026 are rethrown
+untouched, so the handling that parks a refused offer and flags a dead number
+still sees them unchanged.
+
+**Separate Meta names, and no Hindi LEGACY.** `cod_confirm_hi_v1` is its own
+template at Meta rather than a second language on `cod_confirm_v3`. Every
+name-keyed map in the service therefore keeps working untouched, and the owner
+can rewrite the Hindi at gate G1 and bump to `_hi_v2` without putting a word of
+English back through review. There is no Hindi LEGACY because the fallback for
+Hindi is English, which is the thing we know works.
+
+### Decisions worth the argument
+
+**The picker goes BEFORE the confirmation, and the confirmation waits five
+minutes.** This is the only place in the service that deliberately delays a
+customer message. The alternative, confirm in English and ask afterwards, makes
+the most important message of the order the one message that ignored their
+answer. Five minutes on a message that already waits three. Every other exit
+from `languageGate` is "send now".
+
+**Asked at most twice, per PHONE, across all their orders.** Being asked the
+same question on every order is how an automation starts to feel like a
+machine. `markLangAsked` is read-increment-write against the version it read,
+like `markRto`, because two orders for one phone can be in flight at once and a
+count computed from the losing row is not a cap.
+
+**Two orders minutes apart ask once.** The queue serialises by ORDER, not by
+phone, so both would have sent a picker. The second borrows the first's deadline
+and waits behind it; one tap answers both, because the tap writes to the phone
+and the confirmation reads from there.
+
+**Flow L taps are dispatched before the ownership gate.** The second place in
+the router that happens, and for the opposite reason to `/replace`'s. `ownsOrder`
+fails OPEN on an order it has never seen, and the picker goes out before any tap
+exists, so neither of its behaviours suits. `onPick` sets the language of the
+phone that pressed the button and re-checks the order's stored phone STRICTLY
+before touching that order, so a forged payload carrying a stranger's order sets
+the forger's own language and moves nothing else.
+
+**The picker is the one bilingual template in the registry.** Somebody who
+cannot read English cannot read an English question about which language they
+read. `language_select_plain_v1` carries the same question in English only, for
+if Meta refuses a mixed-script body, and `askMode: 'session'` drops the template
+entirely as plan B. The picker gets NO Hindi twin: a Hindi version could only be
+chosen by a customer who can already read the language we are asking about.
+
+**A failed picker is not a customer who was not told.** It records
+`flowA.langAskFailed`, which releases the confirmation on the next pass, and
+raises no alert and no `wa-undeliverable` tag. Nothing had been said about the
+order yet.
+
+**PROFILE rows have no TTL and must not get one.** `backfill-ttl.mjs` already
+names that sort key as one it will not touch, because an expired opt-out is
+marketing to somebody who said stop. A stored language inherits that property,
+which is exactly what it needs.
+
+### The part that was actually hard
+
+Not the registries. The English assembled in JavaScript and handed in as a
+variable: a Hindi body with ", size M" or "tomorrow at 9:20 PM" or an English
+"there" in it. `lazy((l) => ...)` defers those until the send helper knows the
+language, and resolves them AGAIN in English if the Hindi template turns out
+unusable. `Lazy.toJSON` throws, because a lazy value written to DynamoDB would
+serialise to `{}` and come back as a hole in a message months later. That throw
+caught Flow W's email path, which shares its vars with the WhatsApp path.
+
+Converted: `itemLine`'s three joiners and both fallbacks, `payment_line`,
+`orderTotalLine`'s paid/at-delivery split inside `{{order_total}}`, both gift
+lines, `refund_eta`, `formatExpiresAt`, `formatTimeLeft`, the `top_picks` joiner
+and the duplicate "our best sellers" beside it, `describeVariant`, the
+`vc_pick_item` row descriptions, every RTO row title, `/replace`'s `pay_line`
+and item descriptions, `newItemLine`, and the `/r/` and `/p/` pages.
+
+`/replace` PERSISTED the joined English descriptor on a request row that lives
+400 days, and by the time the replacement ships a week later that string was all
+there was. It stores the PARTS now (title, colour, size) beside the English
+join, so the line can be assembled in the customer's language at the moment it
+is sent; a request raised before this change still reads correctly from the old
+field.
+
+Session button `ctx.actions` was keyed by BUTTON TITLE TEXT, which is the one
+thing about a button a translation changes. Every button carries a stable `id`
+now and call sites key on that. The title lookup stays underneath and is not
+dead code: a message already on a customer's phone was rendered by the old
+shape.
+
+### Out of scope, deliberately English
+
+The SES welcome email, the WhatsApp review Flow JSON (a Hindi Flow is a second
+published Flow and a second id), the Google review form, and every owner-facing
+message. Owner safety is structural rather than a phone check: there are no
+Hindi definitions for `ops_*` or `pnl_*`, so those fall back to English however
+the owner's own language is set.
+
+### Rollout
+
+G0 code complete, off. G1 the owner reads `docs/hindi-copy-review.md`
+(`npm run copy:hi`). G2 pilot four templates with
+`templates-sync --live --only=...`. G3 the rest. G4 `enabled: true` with
+`allowPhones` set to the owner's handsets, checked on a real order. G5
+`allowPhones: []`. Rollback at any point is `enabled: false`; stored choices
+survive and apply again when it is switched back on.

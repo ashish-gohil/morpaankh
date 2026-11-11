@@ -149,28 +149,6 @@ async function onWaInbound(m) {
   }
 
   /*
-   * THE LANGUAGE KEYWORDS, checked here: after STOP and START, after the
-   * slash commands, and before the awaiting-answer branch below.
-   *
-   * After STOP, because STOP is the instruction that matters most and must not
-   * be shadowed. Before `awaiting`, because a customer who has been asked for
-   * their address and instead types HINDI is asking to switch languages, not
-   * giving us "HINDI" as a street.
-   *
-   * Matched on the WHOLE trimmed message, never on a substring: "HINDI" inside
-   * a sentence is somebody talking about Hindi, and switching their language
-   * over it would be worse than doing nothing.
-   *
-   * Deliberately BEFORE the opt-out gate further down and not behind it. A
-   * customer who once sent STOP is still entitled to be read in their own
-   * language when they do write in: an opt-out stops what we start, and this
-   * is them asking for something.
-   */
-  const asked = langFromText(msg.text?.body);
-  if (asked === 'pick') return language.onShowPicker(phone, deps());
-  if (asked) return language.onKeyword(phone, asked, deps());
-
-  /*
    * A slash command from an admin phone is US, not a customer.
    *
    * WhatsApp buttons are tappable only by the person who received them, and our
@@ -213,6 +191,28 @@ async function onWaInbound(m) {
     });
     return;
   }
+
+  /*
+   * THE LANGUAGE KEYWORDS, checked here: after STOP and START, after the
+   * slash commands, and before the awaiting-answer branch below.
+   *
+   * After STOP, because STOP is the instruction that matters most and must not
+   * be shadowed. Before `awaiting`, because a customer who has been asked for
+   * their address and instead types HINDI is asking to switch languages, not
+   * giving us "HINDI" as a street.
+   *
+   * Matched on the WHOLE trimmed message, never on a substring: "HINDI" inside
+   * a sentence is somebody talking about Hindi, and switching their language
+   * over it would be worse than doing nothing.
+   *
+   * Deliberately BEFORE the opt-out gate further down and not behind it. A
+   * customer who once sent STOP is still entitled to be read in their own
+   * language when they do write in: an opt-out stops what we start, and this
+   * is them asking for something.
+   */
+  const asked = langFromText(msg.text?.body);
+  if (asked === 'pick') return language.onShowPicker(phone, deps());
+  if (asked) return language.onKeyword(phone, asked, deps());
 
   /*
    * OPT-OUT STOPS WHAT WE START. IT DOES NOT STOP WHAT THEY DO.
