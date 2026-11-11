@@ -76,6 +76,20 @@ class Lazy {
   toJSON() {
     throw new Error('a lazy value cannot be stored: resolve it at send time, not at park time');
   }
+
+  /*
+   * And it cannot be printed either.
+   *
+   * Without this, an unresolved lazy reaching sanitizeParam or fill() becomes
+   * the literal string "[object Object]" in the middle of a real customer's
+   * message, and nothing anywhere complains. That is the one failure mode of
+   * this whole design that could reach a handset unnoticed, so it throws:
+   * every path that renders a message calls String() on its values, which
+   * makes a missed resolve a test failure instead of a word in a parcel.
+   */
+  toString() {
+    throw new Error('an unresolved lazy value reached a message: resolve it through resolveVars first');
+  }
 }
 
 /** Defer a phrase until the send helper knows the language. */
