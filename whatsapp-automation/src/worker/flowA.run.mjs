@@ -28,8 +28,7 @@ import {
 } from '../store/orderState.mjs';
 import {
   isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing,
-  getParkedOffer, clearParkedOffer,
-} from '../store/phoneProfile.mjs';
+  getParkedOffer, clearParkedOffer, langState, markLangAsked } from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
@@ -47,7 +46,7 @@ const nowOf = (deps) => deps.now || new Date();
  */
 const TRACK_BASE = 'https://www.delhivery.com/track/package/';
 
-const A_TIMERS = ['cod', 'reminder', 'fallback', 'highrisk'];
+const A_TIMERS = ['cod', 'reminder', 'fallback', 'highrisk', 'lang_wait'];
 async function cancelAllTimers(orderId) {
   for (const step of A_TIMERS) await cancelTimer({ flow: 'A', orderId, step });
 }
@@ -259,6 +258,126 @@ async function sendSkipped(deps, orderId, n, skip) {
   log.info('flowA cod: send skipped, order left unmarked', { orderId, skip });
 }
 
+/**
+ * Tag the order when its confirmation went out in Hindi.
+ *
+ * For the human on the other end of the admin, not for this service: the owner
+ * filtering the Shopify admin needs to know which language to reply in before
+ * they type, and nothing else on the order says so. One tag, written once,
+ * soft, because a missing tag is an inconvenience and a throw here would
+ * message the customer a second time.
+ */
+async function tagLang(deps, n, orderId, res) {
+  if (res?.lang !== 'hi') return;
+  await soft('tagsAdd:wa-lang-hi', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-lang-hi']), { orderId });
+}
+
+/*
+ * THE LANGUAGE GATE. Ask once, wait five minutes, then send regardless.
+ *
+ * This is the only place in the service that delays a customer message, so it
+ * is worth being precise about what it is buying. The confirmation is the
+ * first thing a new customer hears from us. Sending it in English and THEN
+ * asking which language they read means the most important message of the
+ * order is the one message that ignored their answer. Asking first costs five
+ * minutes on a message that already waits three.
+ *
+ * Every exit except the last one is 'go', and that is deliberate: this gate
+ * must never be the reason somebody was not told about their order. A throw
+ * from the picker send, a skipped send, a phone that has already been asked
+ * twice, a picker that failed to deliver, the feature being off, all of them
+ * let the confirmation leave immediately.
+ *
+ * 'wait' returns WITHOUT codSkip and WITHOUT codConfirmAt, so the order is
+ * neither marked sent nor marked decided. Reconcile's 20 minute grace already
+ * covers a 5 minute wait, and its re-arm is the safety net for a lost timer.
+ *
+ * @returns {Promise<'go'|'wait'>}
+ */
+async function languageGate(deps, orderId, n, st, now) {
+  const L = RULES.language || {};
+  if (!L.enabled || L.askMode !== 'template') return 'go';
+  const phone = n.verifiedPhone;
+  // The G4 pilot switch: off the list, nothing about this order changes.
+  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return 'go';
+  /*
+   * The picker was accepted by Meta and then failed to deliver. onWaStatus
+   * sets this and runs onCodTimer again, so the confirmation goes now. A phone
+   * that cannot receive the picker can still receive the confirmation: they
+   * are different templates and the second may be the one that works.
+   */
+  if (st.flowA?.langAskFailed) return 'go';
+
+  const waitMs = (L.waitMinutes ?? 5) * 60 * 1000;
+
+  // Already asked ON THIS ORDER. Either the wait is up, or we wait on.
+  if (st.flowA?.langAskAt) {
+    const due = new Date(st.flowA.langAskAt).getTime() + waitMs;
+    if (now.getTime() >= due) return 'go';
+    await armTimer(orderId, 'lang_wait', new Date(due), now);
+    return 'wait';
+  }
+
+  const ls = await soft('langState', () => langState(phone), { orderId });
+  // A profile we could not read is not a reason to hold a confirmation.
+  if (!ls) return 'go';
+  if (ls.chosen) return 'go';
+
+  /*
+   * ANOTHER ORDER ASKED THIS PHONE MOMENTS AGO.
+   *
+   * Two orders placed minutes apart are two records in flight at once, and
+   * the queue serialises by ORDER, not by phone. Without this they would both
+   * send a picker and the customer would get the same question twice. The
+   * second order borrows the first one's deadline instead and waits behind it:
+   * one tap then answers both, because the tap writes the language to the
+   * PHONE and the confirmation reads it from there.
+   */
+  if (ls.askedAt && now.getTime() - new Date(ls.askedAt).getTime() < waitMs) {
+    const due = new Date(ls.askedAt).getTime() + waitMs;
+    await patchFlowA(orderId, { langAskAt: ls.askedAt });
+    await armTimer(orderId, 'lang_wait', new Date(due), now);
+    log.info('flowA lang: another order just asked this phone, waiting behind it', { orderId });
+    return 'wait';
+  }
+
+  /*
+   * Asked enough times already. Per PHONE and across all their orders, not
+   * per order: being asked the same question on every order is how an
+   * automation starts to feel like a machine.
+   */
+  if (ls.askCount >= (L.maxAsks ?? 2)) {
+    log.info('flowA lang: already asked this phone enough times, sending English', { orderId, askCount: ls.askCount });
+    return 'go';
+  }
+
+  let res;
+  try {
+    res = await runOnce(orderId, 'lang-ask', () =>
+      tpl(deps, phone, 'language_select', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId }));
+  } catch (e) {
+    // Never block the confirmation on the picker. Both versions of
+    // language_select are new, so both are in Meta review at first and this is
+    // the expected path on day one.
+    log.warn('flowA lang: the picker could not be sent, confirming in English', { orderId, err: e.message, waCode: e.waCode });
+    metric('LangAskFailed', 1, {});
+    return 'go';
+  }
+  /*
+   * A skipped send is not a send: dry run, not on the send allowlist, human
+   * takeover, an undeliverable number. Nothing is stamped, so the picker is
+   * still owed once the gate that skipped it lifts.
+   */
+  if (!res || res.skipped) return 'go';
+
+  await soft('markLangAsked', () => markLangAsked(phone, now), { orderId });
+  await patchFlowA(orderId, { langAskAt: now.toISOString() });
+  await armTimer(orderId, 'lang_wait', new Date(now.getTime() + waitMs), now);
+  metric('LangAsked', 1, {});
+  log.info('flowA lang: asked which language, holding the confirmation', { orderId, waitMinutes: L.waitMinutes });
+  return 'wait';
+}
+
 export async function onCodTimer(orderId, deps) {
   const now = nowOf(deps);
   const n = await getNorm(deps, orderId);
@@ -333,6 +452,14 @@ export async function onCodTimer(orderId, deps) {
     return;
   }
 
+  /*
+   * LAST of the gates, and that order matters. Everything above decides
+   * whether this customer is messaged at all; this only decides which language
+   * to message them in, so it must not run for an order that is ineligible,
+   * opted out, already shipped or has no reachable phone.
+   */
+  if ((await languageGate(deps, orderId, n, st, now)) === 'wait') return;
+
   // PREPAID and PARTIAL customers get a thank-you with their order details and
   // nothing else: there is nothing for them to confirm, and no COD chase.
   if (cls !== 'COD') {
@@ -357,6 +484,7 @@ export async function onCodTimer(orderId, deps) {
     // copy, and then let nothing after it throw.
     await patchFlowA(orderId, { step: 'order_confirmed', codConfirmAt: now.toISOString() });
     await soft('tagsAdd:wa-order-confirmed', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-order-confirmed']), { orderId });
+    await tagLang(deps, n, orderId, res);
     return;
   }
 
@@ -384,6 +512,7 @@ export async function onCodTimer(orderId, deps) {
   // whole record and message them a second time.
   await patchFlowA(orderId, { step: 'confirm_sent', codConfirmAt: now.toISOString() });
   await soft('tagsAdd:wa-cod-sent', () => deps.clients.shopify.tagsAdd(n.gid, ['wa-cod-sent']), { orderId });
+  await tagLang(deps, n, orderId, res);
 
   await armTimer(orderId, 'reminder', deferPastQuietHours(addMinutes(now, RULES.codReminderAfterMin), RULES.quietHours), now);
   // Not armed when the offer is off, so we do not create a schedule per order
@@ -707,6 +836,52 @@ export async function onCancelYes(orderId, deps) {
 }
 
 // ---- timers -----------------------------------------------------------------
+/**
+ * The confirmation already went out, in the other language. Say it once more,
+ * in the one they just chose.
+ *
+ * Only for a COD order that is still OPEN: paid, shipped and cancelled orders
+ * have nothing left to confirm, and repeating "tap to send it for packing" at
+ * a parcel already in transit is the exact failure the dispatch checks exist
+ * to stop. A non-COD order is skipped too, because order_confirmed has no
+ * free-form twin and the tap's own window is what makes this free.
+ *
+ * cod_reminder rather than cod_confirm: its words ("we are still holding your
+ * order") are true of an order that has been confirmed-to but not tapped, and
+ * cod_confirm's "is with us and ready to be packed" has already been said.
+ *
+ * @returns {Promise<{resent:boolean}|null>} null when there is nothing to resend
+ */
+export async function resendConfirm(orderId, deps, lang) {
+  const now = nowOf(deps);
+  const st = await getState(orderId);
+  if (!st?.flowA?.codConfirmAt) return null; // nothing was sent, so nothing to repeat
+  if (st.class !== 'COD') return null;
+  const n = await getNorm(deps, orderId);
+  if (!n || !n.verifiedPhone) return null;
+  if (tapState(n, st) !== 'open') return null;
+
+  const action = `lang-resend:${lang}`;
+  /*
+   * Checked BEFORE runOnce, not instead of it. runOnce returns the stored
+   * result on a repeat and the caller cannot tell that from a fresh send, so a
+   * customer tapping Hindi twice would be answered with nothing at all. This
+   * reports the repeat honestly and lets the caller send the short receipt.
+   */
+  if (await getSide(orderId, action)) return { resent: false };
+
+  return runOnce(orderId, action, async () => {
+    const amt = computeAmounts(n, RULES);
+    const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
+    const res = await sendBest(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
+      orderId: n.numericId,
+      preferLegacy: !offerOk,
+      now,
+    });
+    return { resent: !res?.skipped };
+  });
+}
+
 export async function onReminder(orderId, deps) {
   const now = nowOf(deps);
   const st = await getState(orderId);

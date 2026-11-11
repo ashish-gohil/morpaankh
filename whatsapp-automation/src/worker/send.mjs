@@ -191,7 +191,9 @@ async function dispatch(deps, phone, def, vars, ctx, key) {
       { orderId: ctx.orderId },
     );
   }
-  return { ...res, templateName: t.name };
+  // `lang` back to the caller, so Flow A can tag the order wa-lang-hi and the
+  // owner opening it in Shopify knows which language to answer by hand in.
+  return { ...res, templateName: t.name, lang: t.language };
 }
 
 /*
@@ -466,7 +468,7 @@ export async function sendBest(deps, phone, key, vars, ctx = {}) {
       const r = await sess(deps, phone, twin, vars, ctx);
       await soft('countServiceSend', () => countServiceSend(deps, phone, now), {});
       metric('SessionInsteadOfTemplate', 1, { key });
-      return { ...r, templateName: `session:${key}` };
+      return { ...r, templateName: `session:${key}`, lang: await langFor(phone) };
     } catch (e) {
       // 131047: re-engagement required, i.e. the window closed under us. Any
       // other failure is the session channel's own and the template is still

@@ -263,6 +263,22 @@ export async function hasLang(phone) {
   return LANGS.includes(String((await getProfile(phone)).lang));
 }
 
+/**
+ * Everything the Flow A gate needs about this phone's language, in ONE read.
+ *
+ * `chosen` is the distinction getLang cannot make: an unset language and a
+ * deliberate 'en' both read as English when sending, but only one of them
+ * means we still have to ask.
+ */
+export async function langState(phone) {
+  const p = await getProfile(phone);
+  return {
+    chosen: LANGS.includes(String(p.lang)) ? normalizeLang(p.lang) : null,
+    askedAt: p.langAskedAt || null,
+    askCount: Number(p.langAskCount) || 0,
+  };
+}
+
 export const setLang = (phone, lang, source = 'picker', now = new Date()) =>
   patch(phone, { lang: normalizeLang(lang), langSetAt: now.toISOString(), langSource: source });
 

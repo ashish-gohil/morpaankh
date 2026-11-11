@@ -20,9 +20,9 @@ import {
   getAwaiting, listAwaiting, clearAwaiting, parkOffer, setHumanTakeover, countWaMessage,
   setMarketingOptOut,
 } from '../store/phoneProfile.mjs';
-import { renderSession } from '../../messages/session.mjs';
+import { langFromText } from '../../messages/lang.mjs';
 import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
-import { ownerAlert, isWindowDeliverable } from './send.mjs';
+import { ownerAlert, isWindowDeliverable, sess } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 import * as flowB from './flowB.run.mjs';
@@ -32,6 +32,7 @@ import * as cartRecovery from './cartRecovery.run.mjs';
 import * as subscriberOffer from './subscriberOffer.run.mjs';
 import * as replace from './replace.run.mjs';
 import * as pnl from './pnl.run.mjs';
+import * as language from './language.run.mjs';
 
 // Derived from the registry, never hand-listed, so adding a template without a
 // legacy version cannot silently drop off this list.
@@ -46,16 +47,21 @@ function deps() {
   return { clients: realClients, now: new Date() };
 }
 
+/*
+  * ROUTED THROUGH sess(), which it used to be a hand-rolled copy of.
+  *
+  * The two bodies were identical, five branches each, and that was fine until
+  * language resolution arrived: sess() reads the recipient's profile and
+  * renders in their language, and this one did not, so the four messages that
+  * went through here (optout_done, optin_done, the two-open-questions handoff,
+  * and the owner's command replies) would have stayed English for a customer
+  * who had chosen Hindi. Two chokepoints is one too many.
+  *
+  * Owner replies are unaffected either way: there are no Hindi twins for
+  * ops_reply and the rest, so renderSession falls back to English for them.
+  */
 async function sendSessionTo(phone, key, vars = {}, ctx = {}) {
-  const r = renderSession(key, vars, ctx);
-  const wa = realClients.whatsapp;
-  if (r.type === 'text') return wa.sendText({ to: phone, body: r.body });
-  if (r.type === 'buttons') return wa.sendButtons({ to: phone, body: r.body, buttons: r.buttons });
-  if (r.type === 'cta_url') return wa.sendCtaUrl({ to: phone, body: r.body, buttonText: r.buttonText, url: r.url });
-  // Without this line a 'list' would render and then be dropped by the
-  // `return null` below, which is exactly what happens to 'html' today.
-  if (r.type === 'list') return wa.sendList({ to: phone, body: r.body, buttonText: r.buttonText, rows: r.rows });
-  return null;
+  return sess(deps(), phone, key, vars, ctx);
 }
 
 // ---- Shopify webhooks -------------------------------------------------------
@@ -123,6 +129,28 @@ async function onWaInbound(m) {
     await setOptOut(phone, false);
     return sendSessionTo(phone, 'optin_done', {});
   }
+
+  /*
+   * THE LANGUAGE KEYWORDS, checked here: after STOP and START, after the
+   * slash commands, and before the awaiting-answer branch below.
+   *
+   * After STOP, because STOP is the instruction that matters most and must not
+   * be shadowed. Before `awaiting`, because a customer who has been asked for
+   * their address and instead types HINDI is asking to switch languages, not
+   * giving us "HINDI" as a street.
+   *
+   * Matched on the WHOLE trimmed message, never on a substring: "HINDI" inside
+   * a sentence is somebody talking about Hindi, and switching their language
+   * over it would be worse than doing nothing.
+   *
+   * Deliberately BEFORE the opt-out gate further down and not behind it. A
+   * customer who once sent STOP is still entitled to be read in their own
+   * language when they do write in: an opt-out stops what we start, and this
+   * is them asking for something.
+   */
+  const asked = langFromText(msg.text?.body);
+  if (asked === 'pick') return language.onShowPicker(phone, deps());
+  if (asked) return language.onKeyword(phone, asked, deps());
 
   /*
    * A slash command from an admin phone is US, not a customer.
@@ -249,6 +277,23 @@ async function onWaInbound(m) {
       if (rp) return rp;
       return log.warn('replace: unknown P tap action', { action: p.action });
     }
+    /*
+     * Flow L is the second one dispatched before the ownership gate, and for
+     * the opposite reason to P's.
+     *
+     * ownsOrder compares the tapping phone to the order's stored verified
+     * phone, and it FAILS OPEN on an order it has never seen. Neither
+     * behaviour is what a language tap wants: the picker goes out at the
+     * confirmation moment, which is before any tap has been recorded, and the
+     * answer belongs to the PHONE rather than to the order at all.
+     *
+     * onPick sets the language of the phone that pressed the button and of no
+     * other, and re-checks the order's own stored phone strictly before it
+     * touches that order. So a forged payload carrying a stranger's order id
+     * sets the FORGER's language, which is theirs to set, and moves the
+     * stranger's order not at all.
+     */
+    if (p.flow === 'L') return language.onPick(phone, p.action, p.orderId, deps());
     // Button payloads are "v1|A|<orderId>|cancel_yes" in CLEAR TEXT: unlike the
     // Flow token they carry no signature, and the order id is the plain Shopify
     // number. The review path right above already refuses a phone that does not
@@ -341,6 +386,14 @@ const COMMANDS = {
   // The only command that needs the attachment: it arrives as a caption on the
   // statement file itself.
   '/pnl-ledger': (phone, args, typed, document) => pnl.onLedgerUpload(typed, deps(), phone, document),
+  /*
+   * For the phone call that ends "just send it to me in Hindi". Sets it
+   * against the ORDER'S customer, not the owner's own handset.
+   */
+  '/lang': async (phone, args) => {
+    const r = await language.onOwnerRequest(args, deps(), phone);
+    return sendSessionTo(phone, 'ops_reply', { text: r.reply });
+  },
 };
 
 const OWNER_HELP = [
@@ -357,6 +410,9 @@ const OWNER_HELP = [
   '',
   '/pnl-ledger 2026-10',
   'Send the Delhivery statement as a file with this as its caption, to lock the actual courier charges.',
+  '',
+  '/lang 1214 hi',
+  'Writes to that order s customer in Hindi from now on. Use en to put them back. They can also switch themselves by sending HINDI or ENGLISH.',
 ].join('\n');
 
 /**
@@ -635,6 +691,32 @@ async function onWaStatus(m) {
    * and alerts, which is the case that matters: cod_confirm failing 131026 IS
    * a customer who heard nothing.
    */
+  /*
+   * A PICKER THAT FAILED IS NOT A CUSTOMER WHO WAS NOT TOLD.
+   *
+   * Everything below tags the order wa-undeliverable and tells the owner "this
+   * customer has not been told, contact them". For language_select that is
+   * simply false: nothing has been said about the order yet, and the thing
+   * that matters is that the CONFIRMATION now goes out without waiting five
+   * minutes for an answer that cannot arrive.
+   *
+   * langAskFailed is what makes languageGate return 'go' on the next pass, so
+   * the confirmation leaves in English immediately and is not asked again for
+   * this order. No tag, no alert, no owner action needed.
+   */
+  if (map.key === 'language_select') {
+    await soft('langAskFailed', () => patchFlowA(map.orderId, { langAskFailed: code || 'unknown' }), {
+      orderId: map.orderId,
+    });
+    await soft('langAskFailedConfirm', () => flowA.onCodTimer(map.orderId, d), { orderId: map.orderId });
+    metric('LangAskUndelivered', 1, {});
+    log.warn('wa status: the language picker did not arrive, confirming in English now', {
+      orderId: map.orderId,
+      code,
+    });
+    return;
+  }
+
   if (map.key === 'prepaid_offer' || isWindowDeliverable(code)) {
     await soft('flowAOfferFailed', () => patchFlowA(map.orderId, { offerFailed: code || 'unknown' }), {
       orderId: map.orderId,
@@ -757,6 +839,13 @@ async function onTimer(m) {
   if (m.flow === 'A') {
     switch (m.step) {
       case 'cod':
+        return flowA.onCodTimer(m.orderId, d);
+      /*
+       * The language wait is up. Same handler: onCodTimer re-reads the order,
+       * finds langAskAt stamped and the deadline passed, and sends the
+       * confirmation in whatever language the customer did or did not choose.
+       */
+      case 'lang_wait':
         return flowA.onCodTimer(m.orderId, d);
       case 'reminder':
         return flowA.onReminder(m.orderId, d);
