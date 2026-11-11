@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { TEMPLATES, LEGACY, renderTemplate, toPositionalBody, placeholderOrder } from './templates.mjs';
+import { TEMPLATES, LEGACY, NO_PRICE, renderTemplate, toPositionalBody, placeholderOrder } from './templates.mjs';
 import { SESSION, renderSession, OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from './session.mjs';
 import * as labels from './labels.mjs';
 import { CART_PAGES } from './pages.mjs';
@@ -15,7 +15,14 @@ const EMOJI = /\p{Extended_Pictographic}/u;
 const CATEGORIES = ['UTILITY', 'MARKETING', 'AUTHENTICATION'];
 
 describe('template registry shape (Meta rules)', () => {
-  for (const [key, t] of [...Object.entries(TEMPLATES), ...Object.entries(LEGACY)]) {
+  /*
+   * NO_PRICE joins the loop. send.mjs reaches it whenever there is no product
+   * photo or no prepaid price to quote, so it is as sendable as the other two,
+   * and it was the one registry whose body length and placeholder placement
+   * nothing checked. Noticed while building the same checks for the Hindi
+   * registries, where the equivalent slot IS covered.
+   */
+  for (const [key, t] of [...Object.entries(TEMPLATES), ...Object.entries(LEGACY), ...Object.entries(NO_PRICE)]) {
     describe(key, () => {
       it('body <= 1024 and valid category', () => {
         expect(t.body.length).toBeLessThanOrEqual(1024);
@@ -59,10 +66,17 @@ describe('session registry shape', () => {
       }
     });
   }
+  /*
+   * EVERY cta, not the two that happened to be listed. Meta caps the display
+   * text at 20 characters and it is checked AFTER rendering, because a cta
+   * carrying an amount ("Pay {{new_total}}") is longer once there is a number
+   * in it. Five of the seven were never checked at all.
+   */
   it('cta display text stays <= 20 when rendered', () => {
-    for (const key of ['confirmed_with_offer', 'pay_online_offer']) {
+    for (const [key, m] of Object.entries(SESSION)) {
+      if (m.type !== 'cta_url') continue;
       const r = renderSession(key, sampleVars(key), { url: 'https://x' });
-      expect(r.buttonText.length, `${key} cta`).toBeLessThanOrEqual(20);
+      expect(r.buttonText.length, `${key} cta: ${r.buttonText}`).toBeLessThanOrEqual(20);
     }
   });
 });
@@ -332,8 +346,22 @@ describe('the subscriber welcome email copy', () => {
 
 const IMG = 'https://cdn.shopify.com/s/files/1/x/sample.jpg?width=800&height=800&crop=center';
 
-// sample vars for session cta rendering
+/*
+ * Sample vars for session cta rendering, derived from the message itself.
+ *
+ * This used to be a fixed object of seven names, which was enough while only
+ * two keys were rendered here. Checking every cta_url means supplying whatever
+ * each one actually asks for, or fill() throws on the missing ones.
+ */
 function sampleVars(key) {
-  const base = { customer_name: 'A', order_number: '#1', new_total: 'Rs 1,499', order_total: 'Rs 1,599', saving: 'Rs 150', gift_line: 'a gift from us', valid_until: '21 Sep' };
-  return base;
+  const m = SESSION[key];
+  const named = [...`${m?.body || ''}${m?.ctaText || ''}`.matchAll(/\{\{(\w+)\}\}/g)].map((x) => x[1]);
+  const known = {
+    customer_name: 'A', order_number: '#1', new_total: 'Rs 1,499', order_total: 'Rs 1,599',
+    cod_total: 'Rs 1,499', prepaid_total: 'Rs 1,349', saving: 'Rs 150', gift_line: 'a gift from us',
+    valid_until: '21 Sep', item_line: 'Khili Dhoop, size M', code: 'MORPAANKHA47',
+    expires_at: 'tomorrow at 9:20 PM', time_left: '2 hours', min_order: 'Rs 1,500',
+    top_picks: 'Khili Dhoop, Bandhan and Morani', awb: '59152210001142',
+  };
+  return Object.fromEntries(named.map((n) => [n, known[n] ?? `[${n}]`]));
 }

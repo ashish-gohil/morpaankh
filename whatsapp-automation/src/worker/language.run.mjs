@@ -13,10 +13,11 @@
  * receipt.
  */
 import { log, maskPhone, metric } from '../log.mjs';
-import { setLang, getLang } from '../store/phoneProfile.mjs';
+import { setLang, getLang, langState, markLangAsked } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
+import { RULES } from '../../messages/rules.mjs';
 import { sess, getNormByName } from './send.mjs';
-import { normalizeLang, LANGS, langName } from '../../messages/lang.mjs';
+import { normalizeLang, LANGS, langName, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
 
@@ -82,6 +83,42 @@ export async function onPick(phone, action, orderId, deps) {
 
   await sess(deps, phone, 'language_set', {}, { lang });
   return { replied: 'ack' };
+}
+
+/*
+ * PLAN B: the picker as a free-form message, after they tap something else.
+ *
+ * Reached only when RULES.language.askMode is 'session', which is what gate G2
+ * switches to if Meta rejects the picker TEMPLATE or classifies it MARKETING.
+ * Then there is no template to send at the confirmation moment, and the
+ * confirmation is never delayed at all; instead the question goes out the first
+ * time the customer taps anything on an order message, which is the first
+ * moment a 24 hour window is open and a free-form message can reach them.
+ *
+ * ONCE PER PHONE, ever, and recorded through the same markLangAsked counter the
+ * template path uses, so maxAsks means the same thing on both routes.
+ *
+ * soft at the call site: this is an extra question asked after the customer has
+ * already been answered. It must never cost them the reply they tapped for.
+ */
+export async function offerPickerAfterTap(phone, deps) {
+  const L = RULES.language || {};
+  if (!L.enabled || L.askMode !== 'session') return null;
+  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return null;
+
+  const ls = await langState(phone);
+  if (ls.chosen) return null;
+  // Asked before, on either route. One question, not one per tap.
+  if (ls.askedAt || ls.askCount >= (L.maxAsks ?? 2)) return null;
+
+  const r = await sess(deps, phone, 'language_select', { customer_name: langName(DEFAULT_LANG, null) }, {});
+  // A skipped send is not a send, so nothing is stamped and the question is
+  // still owed once the gate that skipped it lifts.
+  if (!r) return null;
+  await markLangAsked(phone, nowOf(deps));
+  metric('LangAskedSession', 1, {});
+  log.info('language: asked which language after their first tap', { phone: maskPhone(phone) });
+  return r;
 }
 
 /**

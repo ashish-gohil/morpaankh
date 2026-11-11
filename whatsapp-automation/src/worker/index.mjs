@@ -329,7 +329,17 @@ async function onWaInbound(m) {
      * ownership gate and be logged as a stranger tapping someone's order.
      */
     if (p.flow === 'O') return log.info('owner acknowledged', { action: p.action });
-    if (p.flow === 'A') return routeFlowATap(p.orderId, p.action, phone);
+    if (p.flow === 'A') {
+      const out = await routeFlowATap(p.orderId, p.action, phone);
+      /*
+       * Plan B's trigger, and it does nothing unless askMode is 'session'.
+       * Their tap just opened a 24 hour window, which is the first moment a
+       * free-form picker can reach them. soft, and AFTER the handler: they
+       * tapped for an answer, and an extra question must never cost them it.
+       */
+      await soft('langOfferAfterTap', () => language.offerPickerAfterTap(phone, deps()), {});
+      return out;
+    }
     if (p.flow === 'C') return routeFlowCTap(p.orderId, p.action);
     /*
      * Flow R re-checks ownership STRICTLY inside onTap. ownsOrder above fails
