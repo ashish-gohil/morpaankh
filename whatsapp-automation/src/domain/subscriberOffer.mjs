@@ -10,6 +10,7 @@
  * recipient's number from normalizeVerifiedPhone. Two copies of any of those
  * would drift, and each of them is money or a message.
  */
+import { str, lazy, langName, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { createHash, randomInt } from 'node:crypto';
 import { istParts, fromISTWall, addDays } from '../lib/time.mjs';
 import { normalizeVerifiedPhone } from '../lib/phone.mjs';
@@ -406,14 +407,15 @@ export function escapeHtml(v) {
  * product name goes reads as a broken message.
  * @param {any[]|null|undefined} items
  */
-export function topPicks(items) {
+export function topPicks(items, lang = DEFAULT_LANG) {
   const names = (items || [])
     .filter((p) => p && p.title && p.availableForSale !== false && (p.status == null || p.status === 'ACTIVE'))
     .slice(0, 3)
     .map((p) => String(p.title));
-  if (!names.length) return 'our best sellers';
+  if (!names.length) return str(lang, 'bestSellers');
   if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  // Product titles are never translated. Only the joining word is.
+  return `${names.slice(0, -1).join(', ')} ${str(lang, 'listAnd')} ${names[names.length - 1]}`;
 }
 
 /*
@@ -436,17 +438,28 @@ const param = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slic
  * Rs 1,500" is literally true of every order it works on, and printing
  * Rs 1,500.01 in a message would be correct and unreadable.
  *
- * @param {{n: any, rec: any, topPicks: string, now: Date, rules: any}} args
+ * @param {{n: any, rec: any, picks: any[]|null|undefined, now: Date, rules: any}} args
  */
-export function subscriberVars({ n, rec, topPicks: picks, now, rules }) {
+/*
+ * Takes the RAW picks now, not an already-joined string.
+ *
+ * topPicks joins with "and", which is a word, so the join cannot happen until
+ * the language is known. Passing the items through means the joiner and the
+ * "our best sellers" fallback are decided at send time, in one place, and the
+ * second copy of that literal that used to live on the line below is gone.
+ *
+ * param() runs INSIDE each lazy, so the 300 character cap and the whitespace
+ * scrub apply to the Hindi string that actually goes out.
+ */
+export function subscriberVars({ n, rec, picks, now, rules }) {
   const w = rules.subscriberOffer;
   return {
-    customer_name: param(n.firstName),
+    customer_name: lazy((l) => param(langName(l, n.firstName))),
     code: param(rec.code),
     saving: param(formatINR(w.amountInr * 100)),
     min_order: param(formatINR(w.minOrderAboveInr * 100)),
-    expires_at: param(formatExpiresAt(new Date(rec.codeEndsAt), now)),
-    top_picks: param(picks) || 'our best sellers',
+    expires_at: lazy((l) => param(formatExpiresAt(new Date(rec.codeEndsAt), now, l))),
+    top_picks: lazy((l) => param(topPicks(picks, l))),
   };
 }
 

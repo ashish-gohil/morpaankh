@@ -17,12 +17,13 @@
  * Every exit past the SUB row records an `outcome`, which is the only answer
  * the owner will ever get to "why did this person not get their welcome code".
  */
+import { lazy, str, langName, resolveVars, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { config } from '../config.mjs';
 import { SUBSCRIBER_OFFER_TITLE, CART_RECOVERY_TITLE } from '../clients/shopify.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import {
   normalizeCustomer, subscriberEligible, chooseChannel, phoneSkipReason, subscriberOfferGuard,
-  subscriberCode, subscriberVars, topPicks, landingUrl, escapeHtml, minimumPaise, shopifyMinimumInr,
+  subscriberCode, subscriberVars, landingUrl, escapeHtml, minimumPaise, shopifyMinimumInr,
   onSubscriberAllowlist,
 } from '../domain/subscriberOffer.mjs';
 import { formatExpiresAt, shopperKeys, sameShopper, phoneKey, emailKey, idTail } from '../domain/cart.mjs';
@@ -328,7 +329,15 @@ async function sendEmail(deps, n, vars, token, picks) {
   const utm = `utm_source=email&utm_medium=automation&utm_campaign=welcome_24h`;
   const unsubscribeUrl = unsubscribeFor(n);
   const { subject, text, html } = renderSubscriberEmail({
-    vars,
+    /*
+     * RESOLVED FOR ENGLISH, HERE. The email is out of scope for Hindi: it is
+     * SES, it has its own template, and it goes to somebody WhatsApp could not
+     * reach. But `vars` is shared with the WhatsApp path and so carries lazy
+     * values, and an unresolved one reaching the renderer would put an object
+     * where a product name goes. Its toJSON throws, which is how this was
+     * caught rather than shipped.
+     */
+    vars: resolveVars(vars, DEFAULT_LANG),
     rawFirstName: n.rawFirstName,
     url: `${config.publicBaseUrl}/w/${token}`,
     picks,
@@ -611,7 +620,7 @@ export async function onFirst(customerId, deps) {
   });
 
   const rec = await getSubRec(customerId);
-  const vars = subscriberVars({ n, rec, topPicks: topPicks(picks), now, rules: RULES });
+  const vars = subscriberVars({ n, rec, picks, now, rules: RULES });
 
   let res;
   try {
@@ -808,7 +817,7 @@ export async function onWindowOpen(phone, deps) {
   if (await hasOrdered(deps, n)) return drop('ordered', 'already-ordered');
 
   const picks = await bestSellers(deps);
-  const vars = subscriberVars({ n, rec, topPicks: topPicks(picks), now, rules: RULES });
+  const vars = subscriberVars({ n, rec, picks, now, rules: RULES });
   let res;
   try {
     res = await sendWhatsApp(deps, phone, vars, { orderId: String(customerId), token: rec.token }, true);
@@ -896,7 +905,7 @@ export async function onSubStatus(customerId, st, now = new Date(), deps = null)
     const n = normalizeCustomer(await deps.clients.shopify.getCustomer(customerId));
     if (!n) return;
     const picks = await bestSellers(deps);
-    const vars = subscriberVars({ n, rec, topPicks: topPicks(picks), now, rules: RULES });
+    const vars = subscriberVars({ n, rec, picks, now, rules: RULES });
     await emailFallback(deps, customerId, n, vars, picks, rec.token, now);
   }, { customerId });
 }
@@ -920,8 +929,8 @@ export async function onTap(customerId, action, phone, deps) {
 
   const closed = rec.codeEndsAt ? new Date(rec.codeEndsAt).getTime() <= now.getTime() : true;
   const n = normalizeCustomer(await deps.clients.shopify.getCustomer(customerId));
-  const vars = { customer_name: n?.firstName || 'there', code: rec.code || '', expires_at: '' };
-  if (!closed) vars.expires_at = formatExpiresAt(new Date(rec.codeEndsAt), now);
+  const vars = { customer_name: lazy((l) => langName(l, n?.firstName)), code: rec.code || '', expires_at: '' };
+  if (!closed) vars.expires_at = lazy((l) => formatExpiresAt(new Date(rec.codeEndsAt), now, l));
 
   await sess(deps, phone, closed ? 'subscriber_help_ack_closed' : 'subscriber_help_ack', vars);
   await patchSubRec(customerId, { helpRequestedAt: now.toISOString() });

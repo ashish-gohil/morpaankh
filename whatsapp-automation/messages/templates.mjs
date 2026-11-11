@@ -635,6 +635,36 @@ export const TEMPLATES = {
       'Open the workbook for the day by day and order by order breakdown.',
     examples: { month: 'October 2026', net: '+₹18,420', delivered: '34' },
   },
+  /*
+   * THE PICKER. Asked once, at the Flow A confirmation moment, never again.
+   *
+   * UTILITY and nothing but: it carries no offer, no code and no price, so
+   * there is nothing here for Meta to reclassify. It is also the one template
+   * in this registry that is DELIBERATELY BILINGUAL. Somebody who cannot read
+   * English cannot read an English question about which language they read,
+   * and the whole message is wasted on exactly the customer it exists for.
+   *
+   * The risk is Meta's mixed-language rule, which is why there is a fallback
+   * (language_select_plain_v1) carrying the same question in English only. If
+   * Meta refuses both, or classifies either as MARKETING, RULES.language
+   * .askMode: 'session' drops the template entirely and asks free-form inside
+   * the window instead. That is gate G2's decision, not this file's.
+   *
+   * Flow 'L', dispatched BEFORE the ownership gate in the router, like 'P':
+   * the tap sets the language of the phone that pressed it and of no other.
+   */
+  language_select: {
+    name: 'language_select_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, thank you for your order {{order_number}}. ' +
+      'We can write to you in English or in Hindi.\n\n' +
+      'नमस्ते, हम आपसे English या हिंदी में बात कर सकते हैं। नीचे चुनें, आगे के सारे संदेश उसी भाषा में आएँगे।',
+    examples: { customer_name: 'Aarav', order_number: '#1234' },
+    buttons: [qr('English', 'L', 'lang_en'), qr('हिंदी', 'L', 'lang_hi')],
+  },
+
 };
 
 /**
@@ -643,6 +673,27 @@ export const TEMPLATES = {
  * here. Entries are dropped once their replacement is approved and stable.
  */
 export const LEGACY = {
+  /*
+   * The picker with the Hindi line removed, for if Meta refuses a bilingual
+   * body. Both buttons in Latin here: a template Meta rejected for mixing
+   * scripts will not be rescued by keeping one Devanagari button on it.
+   *
+   * Both versions are new, so both are in review at the same time and neither
+   * can be sent on day one. That is survivable and not a gap: languageGate
+   * treats a throw from this send as 'go' and lets the confirmation leave
+   * immediately, in English, exactly as it does today.
+   */
+  language_select: {
+    name: 'language_select_plain_v1',
+    language: 'en',
+    category: 'UTILITY',
+    body:
+      'Hello {{customer_name}}, thank you for your order {{order_number}}. ' +
+      'We can write to you in English or in Hindi. Tap one below and we will use it from here on.',
+    examples: { customer_name: 'Aarav', order_number: '#1234' },
+    buttons: [qr('English', 'L', 'lang_en'), qr('Hindi', 'L', 'lang_hi')],
+  },
+
   /*
    * The previous dispatch copy. It overclaims (it says the parcel has left when
    * fulfillments/create only means a label exists), so it is NOT the copy we

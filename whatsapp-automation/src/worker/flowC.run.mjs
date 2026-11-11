@@ -4,6 +4,7 @@
  * edit / cancel. RTO: tag, stop other flows, capture the reason, apply cod-block
  * when warranted. All sends DRY_RUN + allowlist gated; writes idempotent.
  */
+import { lazy, str, langName } from '../../messages/lang.mjs';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { RTO_REASONS, COD_BLOCK_REASONS } from '../../messages/labels.mjs';
@@ -114,7 +115,7 @@ export async function onNdr(orderId, deps, { attemptAt } = {}) {
       extra: { attemptAt: at.toISOString() },
     });
   }
-  const res = await sendBest(deps, n.verifiedPhone, 'ndr_action', { customer_name: n.firstName, order_number: n.name, attempt_date: fmtDate(at) }, { orderId: n.numericId, now });
+  const res = await sendBest(deps, n.verifiedPhone, 'ndr_action', { customer_name: lazy((l) => langName(l, n.firstName)), order_number: n.name, attempt_date: fmtDate(at) }, { orderId: n.numericId, now });
   if (res?.skipped) return;
   await patchFlowC(orderId, { ndrAsked: { ...asked, [day]: now.toISOString() }, ndrAskedAt: now.toISOString() });
   // One tag, on the first prompt: it is what the daily digest counts, and
@@ -271,7 +272,7 @@ export async function onOutForDelivery(orderId, deps, { awb } = {}) {
 
   try {
     const res = await sendBest(deps, n.verifiedPhone, 'out_for_delivery', {
-      customer_name: n.firstName,
+      customer_name: lazy((l) => langName(l, n.firstName)),
       order_number: n.name,
       cod_total: formatINR(duePaise),
     }, { orderId: n.numericId, token: n.delhiveryAwb, now });
@@ -351,9 +352,21 @@ export async function onRtoTimer(orderId, deps) {
    * RTO_REASONS, the same list the template's buttons are generated from, so
    * the two channels can never offer different reasons.
    */
-  const res = await sendBest(deps, n.verifiedPhone, 'rto_reason', { customer_name: n.firstName, order_number: n.name }, {
+  const res = await sendBest(deps, n.verifiedPhone, 'rto_reason', { customer_name: lazy((l) => langName(l, n.firstName)), order_number: n.name }, {
     orderId: n.numericId,
-    rows: RTO_REASONS.map((r) => ({ action: `rto_${r.id}`, title: r.label })),
+    /*
+     * Titles by lazy(), so a Hindi body cannot sit above six English reasons.
+     * Keyed on the reason's ID and not on its English label: the id is also
+     * the tap action and the order tag, so translating by id means the label
+     * can change in either language without touching the routing.
+     *
+     * sliced to 24, which the English never was. Meta's row title cap is 24
+     * characters and "डिलीवरी में बहुत देर हुई" is close to it.
+     */
+    rows: RTO_REASONS.map((r) => ({
+      action: `rto_${r.id}`,
+      title: lazy((l) => str(l, `rto_${r.id}`).slice(0, 24)),
+    })),
     now: nowOf(deps),
   });
   if (res?.skipped) return;

@@ -10,6 +10,7 @@ import { config } from '../config.mjs';
 import * as variantChange from './variantChange.run.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { hasTag, itemLine, heroImageUrl } from '../domain/order.mjs';
+import { lazy, str, langName } from '../../messages/lang.mjs';
 import { classify } from '../domain/classify.mjs';
 import { computeAmounts } from '../domain/amounts.mjs';
 import { flowAEligible, excludeFromAll } from '../domain/eligibility.mjs';
@@ -33,7 +34,6 @@ import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import { onUntrackedFulfillment } from './flowB.run.mjs';
-import { OFFER_GIFT_LINE, OFFER_NO_GIFT_LINE } from '../../messages/session.mjs';
 import { log } from '../log.mjs';
 import { soft, withRetry } from '../lib/resilience.mjs';
 
@@ -497,7 +497,7 @@ async function tapGate(deps, n, st) {
  */
 const closedReply = (deps, n, key) =>
   sess(deps, n.verifiedPhone, key, {
-    customer_name: n.firstName,
+    customer_name: lazy((l) => langName(l, n.firstName)),
     order_number: n.name,
     awb: n.delhiveryAwb || '',
   });
@@ -529,7 +529,7 @@ export async function onConfirm(orderId, deps) {
   if (link) {
     await sess(deps, n.verifiedPhone, 'confirmed_with_offer', offerVars(n, amt, now, link), { url: payUrl(link) });
   } else {
-    await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
+    await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: lazy((l) => langName(l, n.firstName)), order_number: n.name });
   }
 }
 
@@ -554,7 +554,7 @@ export async function onPayOnline(orderId, deps) {
    */
   if (state === 'shipped') {
     return sess(deps, n.verifiedPhone, 'pay_at_door', {
-      customer_name: n.firstName,
+      customer_name: lazy((l) => langName(l, n.firstName)),
       order_number: n.name,
       cod_total: formatINR(n.currentTotalPaise),
     });
@@ -569,7 +569,7 @@ export async function onPayOnline(orderId, deps) {
    * tapped. Say the option is unavailable and leave the door open.
    */
   return sess(deps, n.verifiedPhone, 'pay_online_unavailable', {
-    customer_name: n.firstName,
+    customer_name: lazy((l) => langName(l, n.firstName)),
     order_number: n.name,
   });
 }
@@ -593,7 +593,7 @@ export async function onKeepCod(orderId, deps) {
   await cancelTimer({ flow: 'A', orderId, step: 'fallback' });
   await deps.clients.shopify.tagsAdd(n.gid, ['wa-confirmed']);
   await patchFlowA(orderId, { step: 'kept_cod', confirmedAt: now.toISOString() });
-  await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: n.firstName, order_number: n.name });
+  await sess(deps, n.verifiedPhone, 'keep_cod_ack', { customer_name: lazy((l) => langName(l, n.firstName)), order_number: n.name });
 }
 
 export async function onCancel(orderId, deps) {
@@ -885,7 +885,7 @@ export async function onPaymentPaid(orderId, entity, deps) {
       );
       await soft('paymentCheckingMsg', () =>
         sess(deps, n.verifiedPhone, 'payment_received_checking', {
-          customer_name: n.firstName,
+          customer_name: lazy((l) => langName(l, n.firstName)),
           order_number: n.name,
           amount_paid: formatINR(paidPaise),
         }),
@@ -1027,7 +1027,7 @@ async function refundOnce(deps, orderId, paymentId, amountPaise) {
 async function notifyPaid(deps, n, orderId, paidPaise, now) {
   if (!n.verifiedPhone) return null;
   return runOnce(orderId, 'paid-notify', async () => {
-    const vars = { customer_name: n.firstName, amount_paid: formatINR(paidPaise), order_number: n.name };
+    const vars = { customer_name: lazy((l) => langName(l, n.firstName)), amount_paid: formatINR(paidPaise), order_number: n.name };
     const res = (await windowOpen(n.verifiedPhone, now, RULES.windowSafetyMinutes))
       ? await sess(deps, n.verifiedPhone, 'payment_received', vars)
       : await tpl(deps, n.verifiedPhone, 'prepaid_confirmed', vars, { orderId: n.numericId });
@@ -1164,10 +1164,18 @@ async function sendShipped(orderId, n, deps) {
       n.verifiedPhone,
       'order_shipped',
       {
-        customer_name: n.firstName,
+        /*
+          * lazy(), because this is built before anything has read the
+          * recipient's profile. send.mjs resolves each one once it knows the
+          * language, and resolves them again in English if a Hindi template
+          * turns out unusable. The amount and the courier name are not lazy:
+          * neither is translated.
+          */
+        customer_name: lazy((l) => langName(l, n.firstName)),
         order_number: n.name,
-        item_line: itemLine(n) || 'Your order',
-        payment_line: duePaise > 0 ? `please keep ${formatINR(duePaise)} ready` : 'nothing to pay, this order is prepaid',
+        item_line: lazy((l) => itemLine(n, l) || str(l, 'yourOrder')),
+        payment_line: lazy((l) =>
+          duePaise > 0 ? str(l, 'keepReady', formatINR(duePaise)) : str(l, 'nothingToPay')),
         courier: 'Delhivery',
         awb: n.delhiveryAwb,
       },
@@ -1209,22 +1217,22 @@ async function sendShipped(orderId, n, deps) {
  * COD and fully prepaid orders have nothing to split, so they read exactly as
  * before.
  */
-function orderTotalLine(n) {
+function orderTotalLine(n, lang) {
   const total = formatINR(n.currentTotalPaise);
   const due = Math.max(0, n.currentTotalPaise - (n.receivedPaise || 0));
   if (!n.receivedPaise || due <= 0) return total;
-  return `${total} (${formatINR(n.receivedPaise)} paid online, ${formatINR(due)} at delivery)`;
+  return str(lang, 'totalSplit', total, formatINR(n.receivedPaise), formatINR(due));
 }
 
 function confirmVars(n, amt) {
   return {
-    customer_name: n.firstName,
+    customer_name: lazy((l) => langName(l, n.firstName)),
     order_number: n.name,
-    item_line: itemLine(n) || 'Your order',
-    order_total: orderTotalLine(n),
+    item_line: lazy((l) => itemLine(n, l) || str(l, 'yourOrder')),
+    order_total: lazy((l) => orderTotalLine(n, l)),
     cod_total: formatINR(n.currentTotalPaise),
     prepaid_total: formatINR(amt ? amt.newTotalPaise : n.currentTotalPaise),
-    gift_line: amt?.gift ? OFFER_GIFT_LINE : OFFER_NO_GIFT_LINE,
+    gift_line: lazy((l) => str(l, amt?.gift ? 'giftLine' : 'noGiftLine')),
   };
 }
 
@@ -1248,15 +1256,15 @@ function offerVars(n, amt, now, link) {
   const savingPaise = Math.max(0, n.currentTotalPaise - newTotalPaise);
   const until = link?.expiresAt ? new Date(link.expiresAt * 1000) : addHours(now, RULES.payLinkMaxHours);
   return {
-    customer_name: n.firstName,
+    customer_name: lazy((l) => langName(l, n.firstName)),
     order_number: n.name,
-    item_line: itemLine(n) || 'Your order',
+    item_line: lazy((l) => itemLine(n, l) || str(l, 'yourOrder')),
     new_total: formatINR(newTotalPaise),
     prepaid_total: formatINR(newTotalPaise),
     order_total: formatINR(n.currentTotalPaise),
     cod_total: formatINR(n.currentTotalPaise),
     saving: formatINR(savingPaise),
-    gift_line: amt?.gift ? OFFER_GIFT_LINE : OFFER_NO_GIFT_LINE,
+    gift_line: lazy((l) => str(l, amt?.gift ? 'giftLine' : 'noGiftLine')),
     valid_until: formatIST(until),
   };
 }
@@ -1264,10 +1272,10 @@ function offerVars(n, amt, now, link) {
 async function sendRefundMessage(deps, n, orderId, paidPaise, now) {
   if (!n) return;
   const vars = {
-    customer_name: n.firstName,
+    customer_name: lazy((l) => langName(l, n.firstName)),
     order_number: n.name,
     amount_paid: formatINR(paidPaise ?? 0),
-    refund_eta: RULES.refundEtaText,
+    refund_eta: lazy((l) => str(l, 'refundEta')),
     cod_amount: formatINR(n.currentTotalPaise),
   };
   if (await windowOpen(n.verifiedPhone, now, RULES.windowSafetyMinutes)) {

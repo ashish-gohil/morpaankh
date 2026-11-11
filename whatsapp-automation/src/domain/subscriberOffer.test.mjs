@@ -9,6 +9,7 @@
  *   the code format, which must satisfy the regex the THEME uses to decide
  *   whether to leave a link-supplied code alone (see RECOVERY_CODE below).
  */
+import { resolveVars } from '../../messages/lang.mjs';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { RULES } from '../../messages/rules.mjs';
 import { fromISTWall } from '../lib/time.mjs';
@@ -675,15 +676,25 @@ describe('the top picks line', () => {
 // ---------------------------------------------------------------------------
 describe('the template parameters', () => {
   const rec = { code: 'MORPAANKHPRIYA4729', codeEndsAt: fromISTWall(2026, 9, 25, 11, 0).toISOString() };
+  /*
+   * RESOLVED FOR ENGLISH. subscriberVars returns lazy values now: the "and"
+   * that joins the picks is a word, so it cannot be chosen before the
+   * recipient's language is known. The send helper resolves them; here the
+   * test does, which is also the assertion that the English side is unchanged.
+   */
+  const PICKS = [{ title: 'Khili Dhoop' }, { title: 'Bandhan' }, { title: 'Morani' }];
   const vars = (over = {}) =>
-    subscriberVars({
-      n: normalizeCustomer(customer()),
-      rec,
-      topPicks: 'Khili Dhoop, Bandhan and Morani',
-      now: NOW,
-      rules: RULES,
-      ...over,
-    });
+    resolveVars(
+      subscriberVars({
+        n: normalizeCustomer(customer()),
+        rec,
+        picks: PICKS,
+        now: NOW,
+        rules: RULES,
+        ...over,
+      }),
+      'en',
+    );
 
   it('renders the SPEC examples exactly', () => {
     expect(vars()).toEqual({
@@ -694,6 +705,26 @@ describe('the template parameters', () => {
       expires_at: 'tomorrow at 11:00 AM',
       top_picks: 'Khili Dhoop, Bandhan and Morani',
     });
+  });
+
+  it('resolves for Hindi with the Hindi joiner, and keeps the product names', () => {
+    const hi = resolveVars(
+      subscriberVars({ n: normalizeCustomer(customer()), rec, picks: PICKS, now: NOW, rules: RULES }),
+      'hi',
+    );
+    // Product titles are never translated. The joining word is.
+    expect(hi.top_picks).toBe('Khili Dhoop, Bandhan \u0914\u0930 Morani');
+    // The amounts and the code are the same characters in both languages.
+    expect(hi.code).toBe('MORPAANKHPRIYA4729');
+    expect(hi.saving).toBe('\u20b9200');
+  });
+
+  it('falls back to the best-sellers phrase in the right language when there are no picks', () => {
+    const mk = (l) => resolveVars(
+      subscriberVars({ n: normalizeCustomer(customer()), rec, picks: [], now: NOW, rules: RULES }), l,
+    );
+    expect(mk('en').top_picks).toBe('our best sellers');
+    expect(mk('hi').top_picks).toBe('\u0939\u092e\u093e\u0930\u0947 \u0938\u092c\u0938\u0947 \u092a\u0938\u0902\u0926\u0940\u0926\u093e');
   });
 
   it('shows the WHOLE rupee minimum to the customer, not the Shopify 1500.01', () => {
@@ -711,7 +742,7 @@ describe('the template parameters', () => {
   it('never contains a newline, a tab or a run of four spaces', () => {
     const hostile = vars({
       n: normalizeCustomer(customer({ firstName: 'Pri\nya\tSharma    x' })),
-      topPicks: 'A\nB\tC    D',
+      picks: [{ title: 'A\nB\tC    D' }],
     });
     for (const [k, v] of Object.entries(hostile)) {
       expect(/[\n\t]/.test(v), `${k}: ${JSON.stringify(v)}`).toBe(false);
@@ -721,7 +752,10 @@ describe('the template parameters', () => {
 
   it('caps every value, so one long product title cannot blow the body past 1024', () => {
     const long = Array.from({ length: 20 }, (_, i) => `A very long piece name number ${i}`).join(', ');
-    const out = vars({ topPicks: long });
+    // ONE enormous title, not twenty: topPicks takes the first three, so
+    // twenty short ones no longer reach the cap and the test would pass
+    // without testing anything.
+    const out = vars({ picks: [{ title: long }] });
     for (const [k, v] of Object.entries(out)) expect(v.length, k).toBeLessThanOrEqual(300);
   });
 

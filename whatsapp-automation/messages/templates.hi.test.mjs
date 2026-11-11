@@ -12,6 +12,17 @@ const EMOJI = /\p{Extended_Pictographic}/u;
  */
 const OWNER_ONLY = ['ops_alert', 'ops_error', 'ops_digest', 'pnl_report_ready'];
 
+/*
+ * THE PICKER HAS NO HINDI TWIN, and must not get one.
+ *
+ * It is the one message sent to somebody whose language we do not know yet, so
+ * a Hindi version could only be chosen by a customer who can already read the
+ * language we are asking them to choose. It carries both languages in one
+ * body instead, which is why it is the only bilingual template in the
+ * registry.
+ */
+const NO_HINDI_TWIN = ['language_select'];
+
 /* The words that make Meta reclassify a UTILITY template as MARKETING. */
 const OFFER_WORDS = ['बचत', 'छूट', 'ऑफर', 'ऑफ़र', 'डिस्काउंट', 'गिफ्ट', 'मुफ़्त', 'मुफ्त', 'फ्री'];
 
@@ -26,12 +37,20 @@ const btnShape = (b) => ({
 
 describe('every customer key has Hindi, and no owner key does', () => {
   it('covers every customer-facing template and nothing else', () => {
-    const want = Object.keys(TEMPLATES).filter((k) => !OWNER_ONLY.includes(k)).sort();
+    const skip = [...OWNER_ONLY, ...NO_HINDI_TWIN];
+    const want = Object.keys(TEMPLATES).filter((k) => !skip.includes(k)).sort();
     expect(Object.keys(TEMPLATES_HI).sort()).toEqual(want);
   });
 
-  it('leaves the owner own messages in English', () => {
-    for (const k of OWNER_ONLY) expect(TEMPLATES_HI[k], k).toBeUndefined();
+  it('leaves the owner own messages, and the picker, in English', () => {
+    for (const k of [...OWNER_ONLY, ...NO_HINDI_TWIN]) expect(TEMPLATES_HI[k], k).toBeUndefined();
+  });
+
+  it('and the picker carries both scripts in the one body', () => {
+    // Belt and braces on the reason NO_HINDI_TWIN exists: if this body ever
+    // loses its Devanagari, a Hindi reader cannot answer it at all.
+    expect(/[\u0900-\u097F]/.test(TEMPLATES.language_select.body)).toBe(true);
+    expect(/[A-Za-z]/.test(TEMPLATES.language_select.body)).toBe(true);
   });
 
   it('PLAIN_HI covers exactly the keys whose English path has a no-image or no-price version', () => {

@@ -20,6 +20,7 @@
  *    a fact about the catalogue, not a guarantee, so a target priced
  *    differently is simply not offered and the customer gets a handoff.
  */
+import { str, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { excludeFromAll } from './eligibility.mjs';
 
@@ -201,12 +202,38 @@ export function resolveTarget(line, product, variantGid) {
   return targetsFor(line, product).find((v) => v.id === variantGid) || null;
 }
 
-/** "Khili Dhoop, size 2XL" / "Bandhan, Brown, size XL" for the confirm line. */
-export function describeVariant(title, variant) {
-  const parts = [title];
-  const c = colourOfVariant(variant);
-  const sz = sizeOfVariant(variant);
-  if (c) parts.push(c);
-  if (sz) parts.push(`size ${sz}`);
-  return parts.join(', ');
+/**
+ * "Khili Dhoop, size 2XL" / "Bandhan, Brown, size XL" for the confirm line.
+ *
+ * The product title and the colour name are the shop's own words and are never
+ * translated: a customer reading "Aubergine purple" on the website has to see
+ * the same thing here. Only "size" is.
+ *
+ * Defaults to English because /replace persists this string on its request row
+ * and the owner's own tools read it back.
+ */
+export function describeVariant(title, variant, lang = DEFAULT_LANG) {
+  return describeParts(variantParts(title, variant), lang);
+}
+
+/**
+ * The same three facts, unjoined: `{ title, colour, size }`.
+ *
+ * /replace PERSISTS its item descriptions on a request row that lives 400
+ * days, and it used to persist the JOINED English string. By the time the
+ * replacement ships and the customer is told, that string is all there is, so
+ * a Hindi customer got an English descriptor and there was no way to rebuild
+ * it. Storing the parts means the line can be assembled in whatever language
+ * the customer turns out to read, at the moment it is sent.
+ */
+export function variantParts(title, variant) {
+  return { title, colour: colourOfVariant(variant) || null, size: sizeOfVariant(variant) || null };
+}
+
+/** Join `{ title, colour, size }` the way describeVariant always has. */
+export function describeParts(parts, lang = DEFAULT_LANG) {
+  const out = [parts?.title];
+  if (parts?.colour) out.push(parts.colour);
+  if (parts?.size) out.push(str(lang, 'describeSize', parts.size));
+  return out.filter(Boolean).join(', ');
 }

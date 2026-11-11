@@ -11,6 +11,8 @@
  * stay English inside a Hindi body.
  */
 
+import { RULES } from './rules.mjs';
+
 export const LANGS = ['en', 'hi'];
 export const DEFAULT_LANG = 'en';
 
@@ -130,40 +132,165 @@ export function resolveRows(rows, lang) {
  */
 export const STR = {
   en: {
-    // itemLine
-    itemSize: (s) => `, size ${s}`,
+    // --- itemLine (domain/order.mjs)
+    itemSize: (sz) => `, size ${sz}`,
     itemPieces: (q) => `, ${q} pieces`,
     itemMore: (n) => ` and ${n} more item${n === 1 ? '' : 's'}`,
     yourOrder: 'Your order',
     yourBag: 'your bag',
-    // name fallbacks
+
+    // --- the name we use when the order carries none
     there: 'there',
-    // subscriber offer
+
+    // --- Flow A
+    keepReady: (amount) => `please keep ${amount} ready`,
+    nothingToPay: 'nothing to pay, this order is prepaid',
+    totalSplit: (total, paid, due) => `${total} (${paid} paid online, ${due} at delivery)`,
+    /*
+     * The two gift lines. They used to live in session.mjs as
+     * OFFER_GIFT_LINE / OFFER_NO_GIFT_LINE; that file now re-exports these, so
+     * there is one copy of the words and registry.test.mjs still finds them
+     * where it always did.
+     */
+    giftLine: '*A gift from us*, wrapped in with your order',
+    noGiftLine: '*Nothing to arrange* at the door on the day',
+    // From RULES, so this cannot drift from the figure the owner edits.
+    refundEta: RULES.refundEtaText,
+
+    // --- closing times and countdowns (domain/cart.mjs)
+    expiresToday: (clock) => `today at ${clock}`,
+    expiresTomorrow: (clock) => `tomorrow at ${clock}`,
+    expiresOn: (date, clock) => `${date} at ${clock}`,
+    minutesLeft: (m) => `${m} minute${m === 1 ? '' : 's'}`,
+    hoursLeft: (h) => `${h} hour${h === 1 ? '' : 's'}`,
+    hoursMinutesLeft: (hours, m) => `${hours} ${m} minutes`,
+
+    // --- Flow W
     bestSellers: 'our best sellers',
     listAnd: 'and',
-    // variant change
+
+    // --- variant change
     sizeOption: 'Size',
     colourOption: 'Colour',
-    describeSize: (s) => `size ${s}`,
-    describeColour: (c) => c,
+    describeSize: (sz) => `size ${sz}`,
+
+    // --- /replace
+    payByQr: 'You can pay by UPI using the QR below.',
+    payByNumber: 'Please pay by UPI to the number you have for us.',
+    theItem: 'the item',
+    theReplacement: 'the replacement',
+    yourReplacement: 'your replacement',
+    itemQty: (name, qty) => `${name} x ${qty}`,
+
+    // --- Flow C list rows and quick replies. The keys are the RTO_REASONS ids
+    // and the NDR actions, so a row is translated by its id and never by its
+    // English label.
+    rto_not_available: 'I was not available',
+    rto_changed_mind: 'Changed my mind',
+    rto_size_fit: 'Size or fit concern',
+    rto_delivery_late: 'Delivery took too long',
+    rto_did_not_order: 'I did not order this',
+    rto_other: 'Other reason',
+    ndr_reattempt: 'Deliver tomorrow',
+    ndr_address: 'Change address',
+    ndr_cancel: 'Cancel order',
+
+    // --- the /r/ redirect pages (messages/pages.mjs)
+    pageClosedHeading: 'Your private code has closed, but your bag is still saved.',
+    pageClosedButton: 'Continue to my bag',
+    pageOrderedHeading: 'Your order is placed. Thank you for choosing Morpaankh.',
+    pageOrderedButton: 'Visit Morpaankh',
   },
+
   hi: {
-    // Size stays Latin (it is on the label and on the website), the joiner is
-    // Devanagari. "साइज़ M" reads as one phrase to a Hindi reader.
-    itemSize: (s) => `, Size ${s}`,
+    // Size stays Latin: it is what is printed on the label and shown on the
+    // website, and a shopper comparing the two must see the same letter.
+    itemSize: (sz) => `, Size ${sz}`,
     itemPieces: (q) => `, ${q} पीस`,
     itemMore: (n) => ` और ${n} अन्य आइटम`,
     yourOrder: 'आपका Order',
     yourBag: 'आपका बैग',
+
+    /*
+     * Not a translation of "there". Hindi has no neutral stand-in for a name
+     * in this position, so the greeting takes the honorific instead: "Hello
+     * जी" reads as politely impersonal, which is exactly what the English is
+     * doing.
+     */
     there: 'जी',
+
+    keepReady: (amount) => `कृपया ${amount} तैयार रखें`,
+    nothingToPay: 'कुछ नहीं देना है, यह Order Prepaid है',
+    totalSplit: (total, paid, due) => `${total} (${paid} ऑनलाइन चुकाया, ${due} डिलीवरी पर)`,
+    giftLine: '*हमारी तरफ़ से एक गिफ्ट*, आपके पार्सल के साथ',
+    noGiftLine: '*दरवाज़े पर कुछ भी* तय करने की ज़रूरत नहीं',
+    refundEta: '5 से 7 कार्य दिवस',
+
+    // The clock itself stays as formatIST renders it, 12 hour with AM or PM:
+    // it is how phones in India show the time, and a 24 hour clock here would
+    // disagree with the one the customer is reading it on.
+    expiresToday: (clock) => `आज ${clock}`,
+    expiresTomorrow: (clock) => `कल ${clock}`,
+    expiresOn: (date, clock) => `${date}, ${clock}`,
+    minutesLeft: (m) => `${m} मिनट`,
+    hoursLeft: (h) => `${h} घंटे`,
+    hoursMinutesLeft: (hours, m) => `${hours} ${m} मिनट`,
+
     bestSellers: 'हमारे सबसे पसंदीदा',
     listAnd: 'और',
+
     sizeOption: 'Size',
     colourOption: 'रंग',
-    describeSize: (s) => `Size ${s}`,
-    describeColour: (c) => c,
+    describeSize: (sz) => `Size ${sz}`,
+
+    payByQr: 'नीचे दिए QR से आप UPI पर पेमेंट कर सकते हैं।',
+    payByNumber: 'कृपया हमारे उस नंबर पर UPI से पेमेंट करें जो आपके पास है।',
+    theItem: 'वह आइटम',
+    theReplacement: 'रिप्लेसमेंट',
+    yourReplacement: 'आपका रिप्लेसमेंट',
+    itemQty: (name, qty) => `${name} x ${qty}`,
+
+    /*
+     * Every one of these is genderless about the customer. Hindi first person
+     * past tense carries gender ("मैं उपलब्ध नहीं था" assumes a man), and this
+     * is a list a customer picks from, so the wording cannot assume.
+     */
+    rto_not_available: 'घर पर कोई नहीं था',
+    rto_changed_mind: 'मैंने मन बदल लिया',
+    rto_size_fit: 'Size ठीक नहीं था',
+    rto_delivery_late: 'डिलीवरी में बहुत देर हुई',
+    rto_did_not_order: 'मैंने यह Order नहीं किया',
+    rto_other: 'कोई और कारण',
+    ndr_reattempt: 'कल डिलीवरी करें',
+    ndr_address: 'Address बदलें',
+    ndr_cancel: 'Order रद्द करें',
+
+    pageClosedHeading: 'आपका निजी कोड बंद हो गया है, लेकिन आपका बैग अब भी सहेजा हुआ है।',
+    pageClosedButton: 'मेरे बैग पर जाएँ',
+    pageOrderedHeading: 'आपका Order दर्ज हो गया है। Morpaankh चुनने के लिए Thank you।',
+    pageOrderedButton: 'Morpaankh देखें',
   },
 };
+
+/*
+ * The name an order carries when Shopify gave us none.
+ *
+ * normalizeOrder applies this fallback the moment the order is read, long
+ * before anything knows which language the message will go out in, so by the
+ * time a var is built the English word is already in `n.firstName`. Exported
+ * as a constant and compared against, rather than left as a bare literal in
+ * three files, so langName below is explicit about what it is doing instead of
+ * matching a magic string.
+ */
+export const NAME_FALLBACK = 'there';
+
+/**
+ * A customer's first name, or the greeting we use when there is none.
+ *
+ * Call this wherever `customer_name` is built from a normalised order, inside
+ * a lazy(), so a Hindi message does not open with an English "there".
+ */
+export const langName = (lang, name) => (!name || name === NAME_FALLBACK ? str(lang, 'there') : name);
 
 /**
  * One fragment, in one language, with English as the backstop.

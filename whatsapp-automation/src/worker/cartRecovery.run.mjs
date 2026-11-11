@@ -14,6 +14,7 @@
  * Every exit past the REC row records an `outcome`, which is what stops the
  * five-minute sweep from re-enqueueing the same checkout forever.
  */
+import { lazy, str, langName } from '../../messages/lang.mjs';
 import { config } from '../config.mjs';
 import { CART_RECOVERY_TITLE } from '../clients/shopify.mjs';
 import { RULES } from '../../messages/rules.mjs';
@@ -50,12 +51,14 @@ const r = () => RULES.cartRecovery;
 /** The template vars, built as the union of both cart templates' placeholders. */
 function cartVars(n, rec, now) {
   return {
-    customer_name: n.firstName,
-    item_line: itemLine(n) || 'your bag',
+    customer_name: lazy((l) => langName(l, n.firstName)),
+    item_line: lazy((l) => itemLine(n, l) || str(l, 'yourBag')),
     code: rec.code,
     saving: formatINR(rec.offerPaise),
-    expires_at: formatExpiresAt(new Date(rec.codeEndsAt), now),
-    time_left: formatTimeLeft(new Date(rec.codeEndsAt).getTime() - now.getTime()),
+    // "tomorrow at 9:20 PM" and "2 hours" are prose, so both wait for the
+    // language. The clock and the date inside them do not change.
+    expires_at: lazy((l) => formatExpiresAt(new Date(rec.codeEndsAt), now, l)),
+    time_left: lazy((l) => formatTimeLeft(new Date(rec.codeEndsAt).getTime() - now.getTime(), l)),
   };
 }
 
@@ -743,15 +746,15 @@ export async function onTap(checkoutId, action, phone, deps) {
   await touchInbound(phone, now);
 
   const closed = rec.codeEndsAt ? new Date(rec.codeEndsAt).getTime() <= now.getTime() : true;
-  const vars = { customer_name: rec.name ? rec.name : 'there', code: rec.code || '', expires_at: '' };
+  const vars = { customer_name: lazy((l) => langName(l, rec.name)), code: rec.code || '', expires_at: '' };
   if (!closed) {
-    vars.expires_at = formatExpiresAt(new Date(rec.codeEndsAt), now);
+    vars.expires_at = lazy((l) => formatExpiresAt(new Date(rec.codeEndsAt), now, l));
   }
   // The name on the REC row is the checkout's, not the customer's, so the
   // greeting is re-read from Shopify rather than guessed at.
   const raw = await readCheckout(deps, checkoutId);
   const n = normalizeCheckout(raw);
-  vars.customer_name = n?.firstName || 'there';
+  vars.customer_name = lazy((l) => langName(l, n?.firstName));
 
   await sess(deps, phone, closed ? 'cart_help_ack_closed' : 'cart_help_ack', vars);
   await patchRec(checkoutId, { helpRequestedAt: now.toISOString() });

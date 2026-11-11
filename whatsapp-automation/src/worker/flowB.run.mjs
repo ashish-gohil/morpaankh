@@ -4,6 +4,7 @@
  * else DRAFT); the thank-you code is given for ANY genuine review, whatever the
  * rating. All sends DRY_RUN + allowlist gated; all writes idempotent.
  */
+import { lazy, str, langName } from '../../messages/lang.mjs';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { hasRtoTag } from '../domain/order.mjs';
@@ -249,7 +250,7 @@ export async function onReviewTimer(orderId, deps) {
   // refuses to publish the Flow (publishing one requires business verification).
   const viaLink = config.reviewVia === 'link';
   const vars = {
-    customer_name: n.firstName,
+    customer_name: lazy((l) => langName(l, n.firstName)),
     order_number: n.name,
     // Never `now` as the first choice: see assumedDeliveredAt in
     // onUntrackedFulfillment. `now` is the last resort, not the fallback.
@@ -318,7 +319,7 @@ export async function onReviewReminder(orderId, deps) {
   // The reminder has no link twin, and a reminder nobody can answer verifiably
   // is not worth sending. The ask above already told the owner why.
   if (!token) return log.warn('flowB reminder: no signing key, not sending', { orderId });
-  const res = await tpl(deps, n.verifiedPhone, 'review_reminder', { customer_name: n.firstName, order_number: n.name }, { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, false) });
+  const res = await tpl(deps, n.verifiedPhone, 'review_reminder', { customer_name: lazy((l) => langName(l, n.firstName)), order_number: n.name }, { orderId: n.numericId, flowToken: token, flowActionData: flowData(n, false) });
   if (res?.skipped) return;
   await patchFlowB(orderId, { reminderSentAt: now.toISOString() });
 }
@@ -338,7 +339,7 @@ export async function onReviewSubmit(orderId, submission, deps) {
     // silently left them staring at nothing with no one aware of it. Still no
     // automatic re-ask (that would nag), but say something and raise it.
     log.warn('flowB: invalid review submission', { orderId, errors: v.errors });
-    await soft('sess:review_invalid', () => sess(deps, n.verifiedPhone, 'review_code_pending', { customer_name: n.firstName }), { orderId });
+    await soft('sess:review_invalid', () => sess(deps, n.verifiedPhone, 'review_code_pending', { customer_name: lazy((l) => langName(l, n.firstName)) }), { orderId });
     await ownerAlert(deps, n.name, `a review came in that could not be read (${v.errors.join(', ')}). The customer was told their code is coming, so please follow up by hand`);
     return;
   }
@@ -375,14 +376,14 @@ export async function onReviewSubmit(orderId, submission, deps) {
 
   if (code) {
     await sess(deps, n.verifiedPhone, 'review_code', {
-      customer_name: n.firstName,
+      customer_name: lazy((l) => langName(l, n.firstName)),
       code,
       amount: formatINR(RULES.reviewCodeAmountInr * 100),
       min_order: formatINR(RULES.reviewCodeMinSubtotalInr * 100),
       valid_until: formatISTDate(addDays(now, RULES.reviewCodeValidDays)),
     });
   } else {
-    await sess(deps, n.verifiedPhone, 'review_code_pending', { customer_name: n.firstName });
+    await sess(deps, n.verifiedPhone, 'review_code_pending', { customer_name: lazy((l) => langName(l, n.firstName)) });
     await ownerAlert(deps, n.name, 'review code creation failed, the customer was promised one and is waiting. Create a code by hand and send it');
   }
 

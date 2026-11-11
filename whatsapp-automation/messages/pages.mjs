@@ -9,16 +9,31 @@
  */
 
 /** Pine green and brass, Cormorant Garamond heading, one button, mobile first. */
+import { STR, str, DEFAULT_LANG } from './lang.mjs';
+
 export const CART_PAGES = {
   closed: {
-    heading: 'Your private code has closed, but your bag is still saved.',
-    button: 'Continue to my bag',
+    heading: STR.en.pageClosedHeading,
+    button: STR.en.pageClosedButton,
   },
   ordered: {
-    heading: 'Your order is placed. Thank you for choosing Morpaankh.',
-    button: 'Visit Morpaankh',
+    heading: STR.en.pageOrderedHeading,
+    button: STR.en.pageOrderedButton,
   },
 };
+
+/**
+ * The same two pages in one language.
+ *
+ * The /r/ redirect knows the phone from the token's own record, so a customer
+ * who chose Hindi gets a Hindi page rather than an English one at the end of a
+ * Hindi message. `lang` also sets the document's `lang` attribute, which is
+ * what a screen reader reads it with.
+ */
+export const cartPagesIn = (lang) => ({
+  closed: { heading: str(lang, 'pageClosedHeading'), button: str(lang, 'pageClosedButton') },
+  ordered: { heading: str(lang, 'pageOrderedHeading'), button: str(lang, 'pageOrderedButton') },
+});
 
 const esc = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -26,10 +41,11 @@ const esc = (s) =>
 /**
  * @param {{heading: string, button: string}} copy
  * @param {string} href where the button goes
+ * @param {string} [lang] sets the document's lang attribute
  */
-export function cartPage(copy, href) {
+export function cartPage(copy, href, lang = DEFAULT_LANG) {
   return (
-    '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+    `<!doctype html><html lang="${lang === 'hi' ? 'hi' : 'en'}"><head><meta charset="utf-8">` +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>Morpaankh</title>' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +

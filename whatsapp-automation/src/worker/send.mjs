@@ -7,8 +7,10 @@ import { normalizeOrder } from '../domain/order.mjs';
 import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession, SESSION } from '../../messages/session.mjs';
+import { TEMPLATES_HI, PLAIN_HI } from '../../messages/templates.hi.mjs';
+import { resolveVars, resolveRows, normalizeLang, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { log, metric, maskPhone } from '../log.mjs';
-import { isUndeliverable, windowOpen, inHumanTakeover } from '../store/phoneProfile.mjs';
+import { isUndeliverable, windowOpen, inHumanTakeover, getLang } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { recordMessage } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
@@ -181,12 +183,61 @@ async function dispatch(deps, phone, def, vars, ctx, key) {
   if (ctx.orderId && res?.messageId) {
     await soft(
       'recordMessage',
-      () => recordMessage(ctx.orderId, res.messageId, { key, template: t.name }),
+      // `lang` as well as the name, so "which language did this customer
+      // actually receive" is answerable per message. `key` stays the REGISTRY
+      // key, untouched, because onWaStatus reads it to decide whether a
+      // failure was an optional offer or a customer who heard nothing.
+      () => recordMessage(ctx.orderId, res.messageId, { key, template: t.name, lang: t.language }),
       { orderId: ctx.orderId },
     );
   }
   return { ...res, templateName: t.name };
 }
+
+/*
+ * WHICH LANGUAGE THIS PHONE READS. The ONE place that decides, for every
+ * customer message this service sends.
+ *
+ * Resolved here and nowhere else, from the RECIPIENT PHONE, so no call site
+ * ever passes or guesses a language. That is the whole shape of the feature: a
+ * flow asks for `cod_confirm` and gets whichever language that customer chose,
+ * and a new flow inherits it by doing nothing.
+ *
+ * Three ways out, all of them 'en':
+ *   the feature is off           no read at all, so no added cost or failure
+ *   allowPhones is set and this phone is not on it   the G4 pilot switch
+ *   the profile read failed      a DynamoDB blip must cost a word, not a message
+ *
+ * The read failure is log.warn and NOT soft(): soft logs at ERROR, the alert
+ * wiring emails the owner on any error line, and "we sent English" is not an
+ * incident.
+ */
+export async function langFor(phone) {
+  const L = RULES.language || {};
+  if (!L.enabled) return DEFAULT_LANG;
+  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return DEFAULT_LANG;
+  try {
+    return normalizeLang(await getLang(phone));
+  } catch (e) {
+    log.warn('language: profile read failed, sending English', { err: e.message, phone: maskPhone(phone) });
+    metric('LangReadFailed', 1, {});
+    return DEFAULT_LANG;
+  }
+}
+
+/*
+ * A Hindi template Meta has just refused, remembered for ten minutes.
+ *
+ * Without this, a Hindi template still in review costs every send a wasted
+ * round trip to Meta and a 132001 before the English one goes. In memory and
+ * per Lambda container on purpose: it is a cost optimisation, not a decision,
+ * so losing it on a cold start is free and getting it wrong only ever means
+ * one extra attempt.
+ */
+const HI_RETRY_MS = 10 * 60 * 1000;
+const hiUnusable = new Map();
+const hiPaused = (name, at) => (hiUnusable.get(name) || 0) > at;
+const markHiUnusable = (name, at) => hiUnusable.set(name, at + HI_RETRY_MS);
 
 /**
  * Send a template by registry key, falling back to its LEGACY version when the
@@ -236,6 +287,63 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
   const fallback = LEGACY[key] || null;
 
   /*
+   * Hoisted above the Hindi branch below, which needs the same answer. Reads
+   * only `primary` and `ctx`, so moving the declaration changes nothing.
+   */
+  const noImage = primary.header?.format === 'IMAGE' && !ctx.imageUrl;
+
+  /*
+   * HINDI FIRST, ENGLISH ALWAYS AVAILABLE.
+   *
+   * The Hindi def is picked by the SAME question the English path asks three
+   * lines down: no product photo or no price to quote means the plain version.
+   * Parity between the registries is asserted in templates.hi.test.mjs, so the
+   * two can never be chosen in different circumstances.
+   *
+   * No Hindi def for this key, or hiDisabledKeys naming it, means the English
+   * path runs completely untouched. That is how the owner turns one wrong
+   * Hindi template off without a Meta round trip and without a registry edit.
+   *
+   * On TEMPLATE_UNUSABLE ONLY do we come back out of here and send English:
+   * new copy still in review, a paused template, a parameter mismatch. Every
+   * other error is rethrown, so 131049, 130472 and 131026 behave exactly as
+   * they do today and the handling that parks an offer or flags a dead number
+   * still sees them.
+   */
+  const lang = await langFor(phone);
+  if (lang === 'hi' && !(RULES.language.hiDisabledKeys || []).includes(key)) {
+    const hiDef = noImage || ctx.preferLegacy ? PLAIN_HI[key] || TEMPLATES_HI[key] : TEMPLATES_HI[key];
+    const at = Date.now();
+    if (hiDef && !hiPaused(hiDef.name, at)) {
+      try {
+        return await dispatch(deps, phone, hiDef, resolveVars(vars, 'hi'), { ...ctx, lang: 'hi' }, key);
+      } catch (e) {
+        if (!isTemplateUnusable(e)) throw e;
+        markHiUnusable(hiDef.name, at);
+        log.warn('hindi template unusable, sending the English one', {
+          key,
+          name: hiDef.name,
+          waCode: e.waCode,
+        });
+        metric('LangFallback', 1, { key });
+        // and on into the English path below, with the vars resolved again
+      }
+    }
+  }
+
+  /*
+   * RESOLVED FOR ENGLISH, and resolved HERE rather than at the call site.
+   *
+   * A lazy var carries a phrase whose language was not known when the caller
+   * built it. Reaching this line means English is what is going out, whether
+   * because that is what the customer reads or because Hindi was refused
+   * above, so every fragment is rendered in English and the message cannot end
+   * up half translated. resolveVars returns the same object when nothing in it
+   * is lazy, so today's callers allocate nothing.
+   */
+  const enVars = resolveVars(vars, DEFAULT_LANG);
+
+  /*
    * THE FALLBACK SLOT HAS TWO DIFFERENT JOBS, and they want opposite answers.
    *
    *   no price to quote (ctx.preferLegacy), or no product photo (noImage)
@@ -252,19 +360,18 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
    * an IMAGE header: falling back to LEGACY (v2) would still have one and still
    * fail. This reproduces today's behaviour exactly.
    */
-  const noImage = primary.header?.format === 'IMAGE' && !ctx.imageUrl;
   if (noImage || ctx.preferLegacy) {
     const priceless = NO_PRICE[key] || fallback;
     if (!priceless) {
       if (noImage) throw new Error(`template ${key} needs ctx.imageUrl and has no fallback`);
     } else {
       log.info('template: using the price-free version', { key, name: priceless.name, noImage: Boolean(noImage) });
-      return dispatch(deps, phone, priceless, vars, ctx, key);
+      return dispatch(deps, phone, priceless, enVars, ctx, key);
     }
   }
 
   try {
-    return await dispatch(deps, phone, primary, vars, ctx, key);
+    return await dispatch(deps, phone, primary, enVars, ctx, key);
   } catch (e) {
     if (!fallback || !TEMPLATE_UNUSABLE.has(e.waCode)) throw e;
     log.warn('template unusable, sending previous version', {
@@ -274,12 +381,25 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
       fallback: fallback.name,
     });
     metric('TemplateFallback', 1, { key });
-    return dispatch(deps, phone, fallback, vars, ctx, key);
+    return dispatch(deps, phone, fallback, enVars, ctx, key);
   }
 }
 
+/**
+ * One free-form message, in the recipient's language.
+ *
+ * The language is resolved from the phone here, exactly as tpl() does it, so a
+ * tap answered in the window gets the same language as the template that
+ * carried the button. ctx.rows go through too: a list's row TITLES and
+ * DESCRIPTIONS are built per order by the caller, and a Hindi body above
+ * English rows is the mixture this whole design exists to prevent.
+ *
+ * No Hindi twin for the key means renderSession falls back to English on its
+ * own, so there is nothing to check here.
+ */
 export async function sess(deps, phone, key, vars, ctx = {}) {
-  const r = renderSession(key, vars, ctx);
+  const lang = ctx.lang || (await langFor(phone));
+  const r = renderSession(key, resolveVars(vars, lang), { ...ctx, lang, rows: resolveRows(ctx.rows, lang) });
   const wa = deps.clients.whatsapp;
   if (r.type === 'text') return wa.sendText({ to: phone, body: r.body });
   if (r.type === 'buttons') return wa.sendButtons({ to: phone, body: r.body, buttons: r.buttons });

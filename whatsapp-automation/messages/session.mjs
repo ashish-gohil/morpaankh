@@ -8,6 +8,8 @@
  * stock) so the caller passes them to sess() in ctx.rows.
  * buttons carry an `action` used to build the reply id payload at render time.
  */
+import { SESSION_HI } from './session.hi.mjs';
+import { STR } from './lang.mjs';
 import { encodePayload } from '../src/lib/ids.mjs';
 
 /**
@@ -17,8 +19,14 @@ import { encodePayload } from '../src/lib/ids.mjs';
  * middle of the list, and for the Meta templates an empty variable is rejected
  * outright. flowA picks by `amt.gift`.
  */
-export const OFFER_GIFT_LINE = '*A gift from us*, wrapped in with your order';
-export const OFFER_NO_GIFT_LINE = '*Nothing to arrange* at the door on the day';
+/*
+ * The two gift lines now live in messages/lang.mjs, because they are phrases
+ * assembled in code and handed in as a variable, which is exactly what that
+ * file is for. Re-exported from here so registry.test.mjs and any caller
+ * still find them where they always were.
+ */
+export const OFFER_GIFT_LINE = STR.en.giftLine;
+export const OFFER_NO_GIFT_LINE = STR.en.noGiftLine;
 
 export const SESSION = {
   confirmed_with_offer: {
@@ -677,6 +685,37 @@ export const SESSION = {
       'Tap below and your code is applied for you.',
     ctaText: 'Shop best sellers',
   },
+
+  /*
+   * THE PICKER, as a free-form message.
+   *
+   * Sent when the customer has written to us (so the window is open and this
+   * is free) and when askMode is 'session', which is plan B for if Meta
+   * rejects the template picker or classifies it MARKETING.
+   *
+   * Deliberately bilingual: somebody who cannot read English cannot read an
+   * English question about which language they read. The button titles carry
+   * the languages in their own scripts for the same reason.
+   */
+  language_select: {
+    type: 'buttons',
+    body:
+      'Hello {{customer_name}}, we can write to you in English or in Hindi.\n\n'
+      + 'नमस्ते, हम आपसे English या हिंदी में बात कर सकते हैं। नीचे चुनें।',
+    buttons: [
+      { id: 'lang_en', title: 'English', flow: 'L', action: 'lang_en' },
+      { id: 'lang_hi', title: 'हिंदी', flow: 'L', action: 'lang_hi' },
+    ],
+  },
+
+  /*
+   * The acknowledgement after a switch. Short on purpose: it is a receipt, not
+   * a message, and its whole job is to prove the choice landed.
+   */
+  language_set: {
+    type: 'text',
+    body: 'Thank you. We will write to you in English from now on. Reply HINDI at any time to switch.',
+  },
 };
 
 const PLACEHOLDER = /\{\{(\w+)\}\}/g;
@@ -698,7 +737,16 @@ function fill(str, vars, key) {
  * @returns a shape the whatsapp client can send (or {type:'html',body} for the page)
  */
 export function renderSession(key, vars = {}, ctx = {}) {
-  const m = SESSION[key];
+  /*
+   * THE HINDI TWIN, OR ENGLISH. Never a throw, and never a mixture.
+   *
+   * A key with no Hindi twin falls through to English rather than failing,
+   * which is the same bargain the whole feature is built on: a language
+   * problem is a message in the wrong language, and an exception here is a
+   * customer who hears nothing at all. It also means adding Hindi for one more
+   * key is one entry in session.hi.mjs and nothing else.
+   */
+  const m = (ctx.lang === 'hi' && SESSION_HI[key]) || SESSION[key];
   if (!m) throw new Error(`unknown session message: ${key}`);
   const body = fill(m.body, vars, key);
   if (m.type === 'text' || m.type === 'html') return { type: m.type, body };

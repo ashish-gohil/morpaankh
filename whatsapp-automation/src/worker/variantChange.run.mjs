@@ -17,6 +17,7 @@
  *
  * NOTHING IS WRITTEN UNTIL THE CONFIRM TAP. Every step before vcok only reads.
  */
+import { lazy, str, langName } from '../../messages/lang.mjs';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { getState, patchFlowA, runOnce } from '../store/orderState.mjs';
@@ -114,7 +115,13 @@ export async function onStart(orderId, deps, phone, { touch = true } = {}) {
     const rows = lines.slice(0, MAX_ROWS).map((l) => ({
       action: act('vcl', numOf(l.id)),
       title: l.title.slice(0, 24),
-      description: [colourOfVariant(currentVariantOf(l)), l.size && `size ${l.size}`].filter(Boolean).join(', ').slice(0, 72),
+      // The row DESCRIPTION is prose too, so it waits for the language like
+      // the title does. The colour name itself is never translated.
+      description: lazy((l) =>
+        [colourOfVariant(currentVariantOf(l)), l.size && str(l, 'describeSize', l.size)]
+          .filter(Boolean)
+          .join(', ')
+          .slice(0, 72)),
     }));
     return sess(deps, n.verifiedPhone, 'vc_pick_item', { order_number: n.name }, { orderId: n.numericId, rows });
   }
@@ -135,10 +142,10 @@ async function offerFor(orderId, n, line, targets, deps) {
   if (!targets.length) {
     return sess(deps, n.verifiedPhone, 'vc_nothing_available', {
       order_number: n.name,
-      item_desc: describeVariant(line.title, currentVariantOf(line)),
+      item_desc: lazy((l) => describeVariant(line.title, currentVariantOf(line), l)),
     });
   }
-  const itemDesc = describeVariant(line.title, currentVariantOf(line));
+  const itemDesc = lazy((l) => describeVariant(line.title, currentVariantOf(line), l));
   const currentColour = colourOfVariant(currentVariantOf(line));
   const lineNum = numOf(line.id);
 
@@ -176,7 +183,7 @@ export async function onPickOption(orderId, lineNum, which, deps, phone) {
       deps,
       n.verifiedPhone,
       'vc_pick_colour',
-      { item_desc: describeVariant(line.title, currentVariantOf(line)) },
+      { item_desc: lazy((l) => describeVariant(line.title, currentVariantOf(line), l)) },
       { orderId: n.numericId, rows },
     );
   }
@@ -202,7 +209,7 @@ async function sizeList(orderId, n, line, targets, colour, deps) {
   if (!sizes.length) {
     return sess(deps, n.verifiedPhone, 'vc_nothing_available', {
       order_number: n.name,
-      item_desc: describeVariant(line.title, currentVariantOf(line)),
+      item_desc: lazy((l) => describeVariant(line.title, currentVariantOf(line), l)),
     });
   }
   const lineNum = numOf(line.id);
@@ -216,7 +223,7 @@ async function sizeList(orderId, n, line, targets, colour, deps) {
     deps,
     n.verifiedPhone,
     'vc_pick_size',
-    { item_desc: describeVariant(line.title, currentVariantOf(line)) },
+    { item_desc: lazy((l) => describeVariant(line.title, currentVariantOf(line), l)) },
     { orderId: n.numericId, rows },
   );
 }
@@ -236,10 +243,10 @@ export async function onPickSize(orderId, lineNum, varNum, deps, phone) {
     n.verifiedPhone,
     'vc_confirm',
     {
-      customer_name: n.firstName,
+      customer_name: lazy((l) => langName(l, n.firstName)),
       order_number: n.name,
-      from_desc: describeVariant(line.title, currentVariantOf(line)),
-      to_desc: describeVariant(line.title, target),
+      from_desc: lazy((l) => describeVariant(line.title, currentVariantOf(line), l)),
+      to_desc: lazy((l) => describeVariant(line.title, target, l)),
       order_total: rupees(n.currentTotalPaise),
     },
     {
@@ -275,9 +282,9 @@ export async function onConfirm(orderId, lineNum, varNum, deps, phone) {
   if (already) {
     log.info('variantChange: target already on the order, nothing to do', { orderId, varNum });
     return sess(deps, n.verifiedPhone, 'vc_already_done', {
-      customer_name: n.firstName,
+      customer_name: lazy((l) => langName(l, n.firstName)),
       order_number: n.name,
-      to_desc: describeVariant(already.title, currentVariantOf(already)),
+      to_desc: lazy((l) => describeVariant(already.title, currentVariantOf(already), l)),
     });
   }
 
@@ -286,6 +293,12 @@ export async function onConfirm(orderId, lineNum, varNum, deps, phone) {
   const target = resolveTarget(line, product, (product?.variants?.nodes || []).find((v) => numOf(v.id) === String(varNum))?.id);
   if (!target) return handoff(orderId, n, 'target-unavailable', deps);
 
+  /*
+   * These two stay ENGLISH. They are read by the owner alert below ("customer
+   * changed X to Y themselves"), which the owner reads whatever the customer
+   * chose. The customer's own copy of the same phrase is built separately, in
+   * their language, at the vc_changed send.
+   */
   const fromDesc = describeVariant(line.title, currentVariantOf(line));
   const toDesc = describeVariant(line.title, target);
 
@@ -325,7 +338,7 @@ export async function onConfirm(orderId, lineNum, varNum, deps, phone) {
     const fresh = (await getNorm(deps, orderId)) || n;
     return sess(deps, n.verifiedPhone, 'vc_changed', {
       order_number: n.name,
-      to_desc: toDesc,
+      to_desc: lazy((l) => describeVariant(line.title, target, l)),
       order_total: rupees(fresh.currentTotalPaise),
     });
   } catch (e) {

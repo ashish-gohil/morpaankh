@@ -19,6 +19,8 @@
  * So this tracks them separately and by hand, off the REPLOPEN pointers, and
  * routes each leg to its own outcome rather than into the order's flows.
  */
+import { lazy, str, langName, DEFAULT_LANG } from '../../messages/lang.mjs';
+import { describeParts } from '../domain/variantChange.mjs';
 import { realClients } from '../clients/index.mjs';
 import * as store from '../store/replace.mjs';
 import { mapCourierStatus } from '../domain/courier-status.mjs';
@@ -124,9 +126,9 @@ async function notifyShipped(req, now) {
   await store.patchRequest(req.orderId, req.seq, { shippedNotifiedAt: now.toISOString() });
   try {
     await tpl(deps(), req.verifiedPhone, 'replacement_shipped', {
-      customer_name: req.customerName || 'there',
+      customer_name: lazy((l) => langName(l, req.customerName)),
       order_number: req.orderName,
-      new_item: newItemLine(req),
+      new_item: lazy((l) => newItemLine(req, l)),
       awb: req.forwardAwb,
     }, { token: req.forwardAwb, orderId: req.orderId });
   } catch (e) {
@@ -162,10 +164,16 @@ async function finishDelivered(req, now) {
   }, { orderId: req.orderId });
 }
 
-/** "Noor, size XL", from the request's own snapshot. */
-function newItemLine(req) {
-  const items = req.items?.forward || [];
-  const first = items[0];
-  if (!first) return 'your replacement';
-  return [first.name || first.title, first.size].filter(Boolean).join(', ') || 'your replacement';
+/**
+ * "Noor, size XL", from the request's own snapshot, in the customer's language.
+ *
+ * `parts` when the row has them. A request raised before /replace started
+ * storing them carries only the joined English `name`, and that is still
+ * better than a blank where a garment should be.
+ */
+function newItemLine(req, lang = DEFAULT_LANG) {
+  const first = (req.items?.forward || [])[0];
+  if (!first) return str(lang, 'yourReplacement');
+  const line = first.parts ? describeParts(first.parts, lang) : first.name;
+  return line || str(lang, 'yourReplacement');
 }

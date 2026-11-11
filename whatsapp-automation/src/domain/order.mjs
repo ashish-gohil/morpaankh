@@ -3,6 +3,7 @@
  * use. Pure. Keeps all the "where does this field live" knowledge in one place.
  */
 import { toPaise } from '../lib/money.mjs';
+import { str, DEFAULT_LANG, NAME_FALLBACK } from '../../messages/lang.mjs';
 import { verifiedPhoneFromCustomAttributes } from '../lib/phone.mjs';
 
 /** COD King tags carry emoji + text; match on the text, case-insensitive. */
@@ -139,7 +140,7 @@ export function normalizeOrder(o) {
     // the customer is paying the courier. isCodOrder reads this.
     codShippingLine: Boolean(codLine),
     verifiedPhone: verifiedPhoneFromCustomAttributes(o.customAttributes),
-    firstName: o.customer?.firstName || 'there',
+    firstName: o.customer?.firstName || NAME_FALLBACK,
     customerGid: o.customer?.id || null,
     zip: o.shippingAddress?.zip || null,
     createdAt: o.createdAt,
@@ -180,16 +181,29 @@ function sizeOf(li) {
  * tabs or long runs of spaces. Extra items are counted rather than listed so
  * the line stays short on a phone.
  */
-export function itemLine(n) {
+/**
+ * "Khili Dhoop, size M, 2 pieces and 1 more item".
+ *
+ * The joining words are the customer's language; the product title and the
+ * size letter never are, because those have to agree with the website and with
+ * what is printed on the label.
+ *
+ * Defaults to English, which is what the owner-facing callers want: an alert
+ * naming a bag is read by the owner, whatever the customer chose.
+ *
+ * @param {any} n a normalised order
+ * @param {string} [lang]
+ */
+export function itemLine(n, lang = DEFAULT_LANG) {
   const items = n?.lineItems || [];
   if (!items.length) return null;
   const [first, ...rest] = items;
   let line = first.title;
-  if (first.size) line += `, size ${first.size}`;
-  if (first.quantity > 1) line += `, ${first.quantity} pieces`;
+  if (first.size) line += str(lang, 'itemSize', first.size);
+  if (first.quantity > 1) line += str(lang, 'itemPieces', first.quantity);
   if (rest.length) {
     const more = rest.reduce((sum, li) => sum + (li.quantity || 1), 0);
-    line += ` and ${more} more item${more === 1 ? '' : 's'}`;
+    line += str(lang, 'itemMore', more);
   }
   return line;
 }

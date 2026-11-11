@@ -33,6 +33,7 @@
  * customer sends: it describes exactly what it would have created. A deploy
  * that forgets REPLACE_MODE is safe. See DECISIONS.md section T.
  */
+import { lazy, str, langName, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { randomBytes } from 'node:crypto';
 import { config } from '../config.mjs';
 import { RULES } from '../../messages/rules.mjs';
@@ -43,7 +44,7 @@ import { classify } from '../domain/classify.mjs';
 // "Noor, size M" / "Bandhan, Brown, size XL". The same words the self-service
 // size change already puts in front of a customer, so the two features do not
 // describe the same garment two different ways.
-import { describeVariant } from '../domain/variantChange.mjs';
+import { describeVariant, variantParts, describeParts } from '../domain/variantChange.mjs';
 import { getState, runOnce, patchFlowB } from '../store/orderState.mjs';
 import { cancelTimer } from '../timers/schedule.mjs';
 import { windowOpen, isOptedOut, isUndeliverable } from '../store/phoneProfile.mjs';
@@ -283,7 +284,12 @@ function specsFor({ n, shipping, resolved, seq }) {
     const self = fwd ? r.variant : { selectedOptions: r.line.selectedOptions };
     return {
       sku: (fwd ? r.variant.sku : r.sku) || r.sku || '',
+      // Still the English join, because the owner's own tools and every
+      // request row written before today read this field.
       name: describeVariant(r.line.title, self),
+      // And the parts, so the same line can be rebuilt in the customer's
+      // language when the replacement ships, which can be a week later.
+      parts: variantParts(r.line.title, self),
       qty: r.qty,
       // The declared value is what the goods are worth. The variant's own price
       // for the new one, what the customer actually paid for the old one.
@@ -675,8 +681,20 @@ async function quoteLeg(api, { fromPin, toPin, leg, spec, deps }) {
   return q?.amountInr ?? null;
 }
 
-const describeItems = (items) =>
-  items.map((i) => `${i.name}${i.qty > 1 ? ` x ${i.qty}` : ''}`).join(', ');
+/**
+ * "Noor, Brown, size XL x 2, Bandhan, size M".
+ *
+ * `parts` when the row has them, `name` when it does not: a request raised
+ * before this change carries only the joined English string, lives 400 days,
+ * and must still produce a readable line rather than a blank.
+ */
+const describeItems = (items, lang = DEFAULT_LANG) =>
+  (items || [])
+    .map((i) => {
+      const base = i.parts ? describeParts(i.parts, lang) : i.name;
+      return i.qty > 1 ? str(lang, 'itemQty', base, i.qty) : base;
+    })
+    .join(', ');
 
 // ---- execution --------------------------------------------------------------
 
@@ -956,10 +974,17 @@ async function notifyCustomer(deps, req, orderId) {
   if (await isUndeliverable(phone)) return { skipped: 'undeliverable' };
 
   const vars = {
-    customer_name: req.customerName || 'there',
+    customer_name: lazy((l) => langName(l, req.customerName)),
     order_number: req.orderName,
-    return_item: req.describe?.returnItem || 'the item',
-    new_item: req.describe?.newItem || 'the replacement',
+    /*
+      * Rebuilt from the request's own item snapshot, in the customer's
+      * language. req.describe is the English join written when the request was
+      * raised and is the fallback for a row that predates `parts`.
+      */
+    return_item: lazy((l) =>
+      describeItems(req.items?.return, l) || req.describe?.returnItem || str(l, 'theItem')),
+    new_item: lazy((l) =>
+      describeItems(req.items?.forward, l) || req.describe?.newItem || str(l, 'theReplacement')),
   };
 
   if (await windowOpen(phone, nowOf(deps))) {
@@ -1145,12 +1170,12 @@ async function askForPayment(orderId, seq, req, deps, reply, ordNum, now) {
   const qr = RULES.replace.upiQrUrl;
   await soft('replacePayAsk', () =>
     sess(deps, phone, 'replacement_pay_request', {
-      customer_name: req.customerName || 'there',
+      customer_name: lazy((l) => langName(l, req.customerName)),
       order_number: req.orderName,
       total: rupees(total),
       // Empty QR means the amount still goes out as text: asking for money
       // with no way to send it is worse than asking without a picture.
-      pay_line: qr ? 'You can pay by UPI using the QR below.' : 'Please pay by UPI to the number you have for us.',
+      pay_line: lazy((l) => str(l, qr ? 'payByQr' : 'payByNumber')),
     }), { orderId, seq });
   if (qr) {
     await soft('replacePayQr', () => deps.clients.whatsapp.sendImage({ to: phone, url: qr, caption: `${req.orderName}: ${rupees(total)}` }), { orderId, seq });

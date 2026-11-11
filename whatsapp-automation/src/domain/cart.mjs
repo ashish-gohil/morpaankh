@@ -6,6 +6,7 @@
  * numbers are written in rupees because that is how the owner thinks about
  * them, and they are converted once, on the way in.
  */
+import { str, DEFAULT_LANG, NAME_FALLBACK } from '../../messages/lang.mjs';
 import { toPaise } from '../lib/money.mjs';
 import { verifiedPhoneFromCustomAttributes, VERIFIED_KEY } from '../lib/phone.mjs';
 import { liveLineItems } from './order.mjs';
@@ -162,7 +163,7 @@ export function sameShopper(a, b) {
 }
 
 /**
- * "AARAV" -> "Aarav", "Aarav" -> "Aarav", nothing -> "there".
+ * "AARAV" -> "Aarav", "Aarav" -> "Aarav", nothing -> NAME_FALLBACK.
  *
  * Only an all-caps name is re-cased. Checkout forms produce plenty of those,
  * but lower-casing the tail of a name somebody typed as "McKay" or "D'Souza"
@@ -170,7 +171,7 @@ export function sameShopper(a, b) {
  */
 export function properFirstName(raw) {
   const first = String(raw || '').trim().split(/\s+/)[0] || '';
-  if (!first) return 'there';
+  if (!first) return NAME_FALLBACK;
   if (/[a-z]/.test(first)) return first;
   return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
 }
@@ -395,12 +396,12 @@ function istClock(date) {
  * without doing calendar arithmetic, which is why the near days are named.
  * @param {Date} date @param {Date} [now]
  */
-export function formatExpiresAt(date, now = new Date()) {
+export function formatExpiresAt(date, now = new Date(), lang = DEFAULT_LANG) {
   const days = Math.round((istDayStart(date) - istDayStart(now)) / (24 * HOUR));
   const time = istClock(date);
-  if (days === 0) return `today at ${time}`;
-  if (days === 1) return `tomorrow at ${time}`;
-  return `${formatISTDate(date)} at ${time}`;
+  if (days === 0) return str(lang, 'expiresToday', time);
+  if (days === 1) return str(lang, 'expiresTomorrow', time);
+  return str(lang, 'expiresOn', formatISTDate(date), time);
 }
 
 /**
@@ -408,11 +409,11 @@ export function formatExpiresAt(date, now = new Date()) {
  * Rounded because "1 hour 57 minutes" is a machine talking.
  * @param {number} ms
  */
-export function formatTimeLeft(ms) {
+export function formatTimeLeft(ms, lang = DEFAULT_LANG) {
   const mins = Math.max(0, Math.round(ms / 60000 / 5) * 5);
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (!h) return `${m} minute${m === 1 ? '' : 's'}`;
-  const hours = `${h} hour${h === 1 ? '' : 's'}`;
-  return m ? `${hours} ${m} minutes` : hours;
+  if (!h) return str(lang, 'minutesLeft', m);
+  const hours = str(lang, 'hoursLeft', h);
+  return m ? str(lang, 'hoursMinutesLeft', hours, m) : hours;
 }
