@@ -13,6 +13,7 @@
     "typecheck": "tsc -p jsconfig.json",
     "pnl:layer": "bash scripts/build-pnl-layer.sh",
     "dryrun:render": "node scripts/dryrun-render.mjs",
+    "copy:hi": "node scripts/dryrun-render.mjs --lang hi",
     "pnl": "node scripts/pnl.mjs",
     "synth:check": "cd iac && npx cdk synth > /dev/null && node synth-check.mjs"
   },

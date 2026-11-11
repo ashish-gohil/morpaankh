@@ -4,8 +4,18 @@
  * registry, print each one's status + Meta's assigned category, and fail loudly
  * if anything the sender can reach is not APPROVED and usable.
  *
- *   node scripts/templates-sync.mjs          # report + GATE (exit 2 if not ready)
- *   node scripts/templates-sync.mjs --live   # create missing templates
+ *   node scripts/templates-sync.mjs                 # report + GATE (exit 2 if not ready)
+ *   node scripts/templates-sync.mjs --live          # create missing templates
+ *   node scripts/templates-sync.mjs --only=a,b      # just these registry keys or Meta names
+ *   node scripts/templates-sync.mjs --strict        # a Hindi gap fails too
+ *
+ * A HINDI TEMPLATE THAT IS NOT READY IS NOT AN OUTAGE. The gate exists
+ * because an English template the sender can reach and Meta has not approved
+ * is a message that silently does not go out. A Hindi one is not: send.mjs
+ * falls back to the English template on exactly those Meta codes, so a pending
+ * Hindi template costs the language and never the message. Hindi problems are
+ * WARN lines and leave the exit code alone; --strict promotes them, which is
+ * what gate G3 wants when it checks the whole Hindi set really was approved.
  *
  * THE DRY RUN IS A GATE, and it did not used to be. It printed "would-create"
  * for a template that did not exist at Meta and still exited 0, so it could
@@ -31,8 +41,14 @@
 import { config } from '../src/config.mjs';
 import { getSecrets } from '../src/secrets.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, toPositionalBody, placeholderOrder } from '../messages/templates.mjs';
+import { TEMPLATES_HI, PLAIN_HI, HI_NOT_SUBMITTED } from '../messages/templates.hi.mjs';
 
 const live = process.argv.includes('--live');
+const strict = process.argv.includes('--strict');
+const onlyArg = process.argv.find((a) => a.startsWith('--only='));
+const only = onlyArg
+  ? new Set(onlyArg.slice('--only='.length).split(',').map((x) => x.trim()).filter(Boolean))
+  : null;
 const s = await getSecrets();
 if (!s.waAccessToken || !s.waWabaId) {
   console.error('WA_ACCESS_TOKEN and WA_WABA_ID required (Secrets Manager / .env).');
@@ -193,22 +209,45 @@ async function buildComponents(t) {
 }
 
 const existing = await listExisting();
-console.log(`templates-sync (${live ? 'LIVE' : 'dry-run'}) against WABA`);
+console.log(`templates-sync (${live ? 'LIVE' : 'dry-run'}${strict ? ', strict' : ''}) against WABA`);
 let failed = false;
 /** Names that are not usable today, with why. Printed as the last word. */
 const notReady = [];
+/** Hindi names that are not usable today. English is sent meanwhile. */
+const hindiNotReady = [];
 
 // Fallbacks FIRST, so one always exists at Meta before its replacement goes
-// live. NO_PRICE before LEGACY before TEMPLATES, oldest to newest.
-const all = [...Object.entries(NO_PRICE), ...Object.entries(LEGACY), ...Object.entries(TEMPLATES)];
+// live. NO_PRICE before LEGACY before TEMPLATES, oldest to newest. The Hindi
+// registries come LAST, after every English template they fall back to.
+const all = [
+  ...Object.entries(NO_PRICE),
+  ...Object.entries(LEGACY),
+  ...Object.entries(TEMPLATES),
+  ...Object.entries(PLAIN_HI),
+  ...Object.entries(TEMPLATES_HI),
+];
+const HI_NAMES = new Set([...Object.values(TEMPLATES_HI), ...Object.values(PLAIN_HI)].map((t) => t.name));
 for (const [key, t] of all) {
+  if (only && !only.has(key) && !only.has(t.name)) continue;
+  const isHi = HI_NAMES.has(t.name);
+  /*
+   * The two Hindi review asks, held back for the same reason their English
+   * twins are: Meta needs the business verified before a Flow can be
+   * published, so a FLOW button has no flow id to carry. Named explicitly
+   * rather than left to the WA_REVIEW_FLOW_ID check, so setting that variable
+   * later does not quietly submit two templates nothing can send yet.
+   */
+  if (HI_NOT_SUBMITTED.has(t.name)) {
+    console.log(`  ${t.name}: HELD BACK (needs the review Flow published, like its English twin)`);
+    continue;
+  }
   const found = existing[t.name];
   if (found) {
     const mismatch = found.category && found.category !== t.category;
     console.log(`  ${t.name}: ${found.status}${found.category ? ` [${found.category}]` : ''}${mismatch ? ` !! declared ${t.category}` : ''}`);
     if (mismatch) failed = true;
     if (String(found.status || '').toUpperCase() !== 'APPROVED') {
-      notReady.push(`${t.name}: ${found.status} at Meta`);
+      (isHi ? hindiNotReady : notReady).push(`${t.name}: ${found.status} at Meta`);
     }
     continue;
   }
@@ -222,14 +261,14 @@ for (const [key, t] of all) {
   }
   if (!components) {
     console.log(`  ${t.name}: SKIP (needs WA_REVIEW_FLOW_ID; run flows-sync first)`);
-    notReady.push(`${t.name}: skipped, needs WA_REVIEW_FLOW_ID from flows-sync`);
+    (isHi ? hindiNotReady : notReady).push(`${t.name}: skipped, needs WA_REVIEW_FLOW_ID from flows-sync`);
     continue;
   }
   if (!live) {
     console.log(`  ${t.name}: would-create [${t.category}]${t.header ? ` +${t.header.format.toLowerCase()} header` : ''}`);
     // The whole point of the gate: a template the sender can reach that does
     // not exist at Meta is a send that will fail with 132001.
-    notReady.push(`${t.name}: does not exist at Meta, run --live to submit it`);
+    (isHi ? hindiNotReady : notReady).push(`${t.name}: does not exist at Meta, run --live to submit it`);
     continue;
   }
   const r = await fetch(`${G}/${s.waWabaId}/message_templates`, {
@@ -259,7 +298,15 @@ if (notReady.length) {
   console.error('\nA closed 24 hour window has no other way to reach the customer, so each of');
   console.error('these is a message that silently does not go out. Fix before relying on them.');
 }
-if (failed || notReady.length) {
+if (hindiNotReady.length) {
+  console.warn(`\ntemplates-sync: ${hindiNotReady.length} HINDI template(s) are not usable yet:`);
+  for (const n of hindiNotReady) console.warn(`  - ${n}`);
+  console.warn('\nENGLISH IS BEING SENT MEANWHILE. These customers get the message, in the');
+  console.warn('other language, so this is a quality gap and not an outage. Each one starts');
+  console.warn('going out by itself the moment Meta approves it, with no redeploy.');
+  if (strict) console.error('\n--strict: treating the Hindi gaps above as failures.');
+}
+if (failed || notReady.length || (strict && hindiNotReady.length)) {
   if (failed) console.error('\ntemplates-sync: category mismatch or error above.');
   process.exit(2);
 }

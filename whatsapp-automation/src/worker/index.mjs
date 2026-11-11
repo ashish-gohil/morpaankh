@@ -21,7 +21,8 @@ import {
   setMarketingOptOut,
 } from '../store/phoneProfile.mjs';
 import { langFromText } from '../../messages/lang.mjs';
-import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
+import { TEMPLATES, LEGACY, NO_PRICE } from '../../messages/templates.mjs';
+import { TEMPLATES_HI, PLAIN_HI } from '../../messages/templates.hi.mjs';
 import { ownerAlert, isWindowDeliverable, sess } from './send.mjs';
 import { soft } from '../lib/resilience.mjs';
 import * as flowA from './flowA.run.mjs';
@@ -39,6 +40,23 @@ import * as language from './language.run.mjs';
 const NO_FALLBACK = new Set(
   Object.keys(TEMPLATES).filter((k) => !LEGACY[k]).map((k) => TEMPLATES[k].name),
 );
+
+/** Every Meta name that belongs to the Hindi registries. */
+const HI_NAMES = new Set([...Object.values(TEMPLATES_HI), ...Object.values(PLAIN_HI)].map((t) => t.name));
+
+/**
+ * Meta name -> registry key, across ALL FIVE registries.
+ *
+ * The reverse lookup searched TEMPLATES alone, so a Hindi name resolved to
+ * nothing and fell through to the raw name. That mattered in one specific way:
+ * URGENT_TEMPLATES is keyed by registry key, so Meta moving cod_confirm_hi_v1
+ * to MARKETING would have been reported as an ordinary category change rather
+ * than as the order confirmation becoming capped marketing.
+ */
+const KEY_BY_NAME = new Map();
+for (const reg of [NO_PRICE, LEGACY, TEMPLATES, PLAIN_HI, TEMPLATES_HI]) {
+  for (const [k, t] of Object.entries(reg)) if (t?.name) KEY_BY_NAME.set(t.name, k);
+}
 
 const OPT_OUT = new Set(['STOP', 'UNSUBSCRIBE', 'OPT OUT']);
 const OPT_IN = new Set(['START']);
@@ -900,14 +918,24 @@ async function onTemplateStatus(m) {
   metric('TemplateStatus', 1, { event: m.event || 'unknown' });
   if (!bad) return;
   const noFallback = NO_FALLBACK.has(m.name);
+  /*
+   * A HINDI TEMPLATE IS A DIFFERENT PIECE OF NEWS, and gets said differently.
+   *
+   * "those messages stop completely" and "the previous version is being sent"
+   * are both wrong for Hindi: there is no previous Hindi version, and nothing
+   * stops, because send.mjs sends the ENGLISH template for exactly the codes a
+   * rejected or paused template produces. The customer gets the message, in
+   * the other language. Reporting that in the same words as a dead order
+   * confirmation is how an owner learns to ignore both.
+   */
+  const consequence = HI_NAMES.has(m.name)
+    ? ' This is the HINDI version. English is being sent to those customers meanwhile, so nothing has stopped: they get the message, in the other language.'
+    : noFallback
+      ? ' This one has NO older version to fall back on, so those messages stop completely until it is fixed.'
+      : ' The previous version is being sent meanwhile.';
   await soft('templateStatusAlert', () =>
-    ownerAlert(
-      deps(),
-      m.name || 'template',
-      `WhatsApp has set the ${m.name} template to ${m.event}${m.reason ? ` (${m.reason})` : ''}.${
-        noFallback ? ' This one has NO older version to fall back on, so those messages stop completely until it is fixed.' : ' The previous version is being sent meanwhile.'
-      }`,
-    ),
+    ownerAlert(deps(), m.name || 'template',
+      `WhatsApp has set the ${m.name} template to ${m.event}${m.reason ? ` (${m.reason})` : ''}.${consequence}`),
     { name: m.name, event: m.event },
   );
 }
@@ -930,8 +958,9 @@ const URGENT_TEMPLATES = new Set(['cod_confirm', 'order_confirmed', 'order_shipp
 async function onTemplateCategory(m) {
   const to = String(m.to || '').toUpperCase();
   const name = String(m.name || '');
-  // The registry key, not the versioned name: cod_confirm_v3 -> cod_confirm.
-  const key = Object.keys(TEMPLATES).find((k) => TEMPLATES[k].name === name) || name;
+  // The registry key, not the versioned name: cod_confirm_v3 -> cod_confirm,
+  // and cod_confirm_hi_v1 -> cod_confirm, which is the half that was missing.
+  const key = KEY_BY_NAME.get(name) || name;
   const urgent = to === 'MARKETING' && URGENT_TEMPLATES.has(key);
   log[urgent ? 'error' : 'warn']('wa template category changed', { name, from: m.from, to: m.to });
   metric('TemplateCategoryChanged', 1, { to: to || 'unknown' });

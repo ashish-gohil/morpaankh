@@ -8,6 +8,7 @@ import { realClients } from '../clients/index.mjs';
 import { tpl, ownerSend } from '../worker/send.mjs';
 import { summarizeDigest, countEvents } from '../domain/digest.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE } from '../../messages/templates.mjs';
+import { TEMPLATES_HI, PLAIN_HI, HI_NOT_SUBMITTED } from '../../messages/templates.hi.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { table } from '../store/table.mjs';
 import { allRecs } from '../store/cartRecovery.mjs';
@@ -86,15 +87,31 @@ export const handler = async () => {
   const templateProblems = await soft('digestTemplateHealth', async () => {
     const live = await realClients.whatsapp.listTemplates();
     const reachable = [...Object.values(NO_PRICE), ...Object.values(LEGACY), ...Object.values(TEMPLATES)];
+    /*
+     * HINDI IS COLLECTED SEPARATELY and reported on its own line, because the
+     * two mean different things to the person reading the digest. An
+     * unapproved English template is a message that does not go out at all;
+     * an unapproved Hindi one is the same message in the other language. The
+     * first needs the owner to act this morning. The second needs them to know.
+     *
+     * The two Hindi review asks are excluded: they are deliberately not
+     * submitted, so reporting them every single day would be noise that trains
+     * the owner to skip this line.
+     */
+    const reachableHi = [...Object.values(PLAIN_HI), ...Object.values(TEMPLATES_HI)]
+      .filter((t) => !HI_NOT_SUBMITTED.has(t.name));
     const seen = new Set();
     const bad = [];
-    for (const t of reachable) {
-      if (!t?.name || seen.has(t.name)) continue;
-      seen.add(t.name);
-      const status = live[t.name];
-      if (String(status || '').toUpperCase() !== 'APPROVED') bad.push({ name: t.name, status: status || 'missing' });
+    const badHi = [];
+    for (const [list, out] of [[reachable, bad], [reachableHi, badHi]]) {
+      for (const t of list) {
+        if (!t?.name || seen.has(t.name)) continue;
+        seen.add(t.name);
+        const status = live[t.name];
+        if (String(status || '').toUpperCase() !== 'APPROVED') out.push({ name: t.name, status: status || 'missing' });
+      }
     }
-    return bad;
+    return { bad, badHi };
     // soft()'s third argument is LOG FIELDS, not a fallback: it returns null on
     // failure, and templateProblemsLine treats null as "nothing wrong", which
     // is the intended quiet day.

@@ -19,7 +19,9 @@
  */
 import { RULES } from '../../messages/rules.mjs';
 import { getCartLinkMap, getRec, patchRec } from '../store/cartRecovery.mjs';
-import { CART_PAGES, cartPage } from '../../messages/pages.mjs';
+import { cartPagesIn, cartPage } from '../../messages/pages.mjs';
+import { langFor } from '../worker/send.mjs';
+import { DEFAULT_LANG } from '../../messages/lang.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric } from '../log.mjs';
 import { pathToken } from '../lib/ids.mjs';
@@ -134,15 +136,26 @@ export const handler = async (event) => {
     metric('CartLinkClick', 1);
   }
 
+  /*
+   * The page is the end of a message, so it is read in the language the
+   * message was in. The phone comes off the checkout's own REC row, which is
+   * the same phone the message went to.
+   *
+   * soft, and English on ANY doubt: a page in the wrong language is a bad
+   * page, and a page that does not render is a broken shop.
+   */
+  const lang = (await soft('cartPageLang', () => langFor(rec.phone), { checkoutId })) || DEFAULT_LANG;
+  const pages = cartPagesIn(lang);
+
   if (rec.orderId) {
     log.info('cart redirect: already ordered', { checkoutId });
-    return html(cartPage(CART_PAGES.ordered, STORE));
+    return html(cartPage(pages.ordered, STORE, lang));
   }
 
   if (rec.codeEndsAt && new Date(rec.codeEndsAt).getTime() <= Date.now()) {
     log.info('cart redirect: code has closed', { checkoutId });
     // Their bag, without the code, which has genuinely gone.
-    return html(cartPage(CART_PAGES.closed, rec.recoveryUrl || STORE));
+    return html(cartPage(pages.closed, rec.recoveryUrl || STORE, lang));
   }
 
   const target = buildTarget(rec);

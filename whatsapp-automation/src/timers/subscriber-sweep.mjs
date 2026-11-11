@@ -18,7 +18,7 @@ import { realClients } from '../clients/index.mjs';
 import { istYesterdayWindow, istDayWindow, normalizeCustomer, subscriberEligible } from '../domain/subscriberOffer.mjs';
 import { getSubRec, getSweepDay, setSweepDay, subAlertOncePerDay } from '../store/subscriberOffer.mjs';
 import { subGroup } from '../worker/subscriberOffer.run.mjs';
-import { TEMPLATES } from '../../messages/templates.mjs';
+import { TEMPLATES, LEGACY } from '../../messages/templates.mjs';
 import { enqueue } from '../queue.mjs';
 import { ownerAlert } from '../worker/send.mjs';
 import { soft } from '../lib/resilience.mjs';
@@ -46,7 +46,20 @@ async function alertOnce(clients, label, text, now) {
 async function templatesReady(clients) {
   const live = await clients.whatsapp.listTemplates();
   const ok = (name) => String(live?.[name] || '').toUpperCase() === 'APPROVED';
-  return ok(TEMPLATES.subscriber_offer.name) && ok('subscriber_offer_plain_v1');
+  /*
+   * ENGLISH NAMES ONLY, deliberately, and this must stay that way.
+   *
+   * This gate decides whether the sweep runs at all, and a failed run marks
+   * people template-unusable for ever against a once-per-person offer. An
+   * unapproved HINDI template is not a reason to hold the sweep: send.mjs
+   * falls back to English, so the offer still reaches everyone. Adding the
+   * Hindi names here would let a pending translation stop a hundred welcome
+   * offers that would have gone out perfectly well.
+   *
+   * The plain twin's name comes from LEGACY rather than a literal, so bumping
+   * its version cannot leave this checking a template that no longer exists.
+   */
+  return ok(TEMPLATES.subscriber_offer.name) && ok(LEGACY.subscriber_offer.name);
 }
 
 /**

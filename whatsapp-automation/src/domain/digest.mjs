@@ -56,11 +56,29 @@ function openReplacementsLine(replacements) {
  * template problem" is not something the owner can act on.
  */
 function templateProblemsLine(problems) {
-  const bad = (problems || []).filter((p) => p && p.name);
-  if (!bad.length) return '';
-  const shown = bad.slice(0, 3).map((p) => `${p.name} is ${p.status || 'missing'}`);
-  const rest = bad.length - shown.length;
-  return `. TEMPLATE NOT USABLE: ${shown.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}`;
+  /*
+   * Takes { bad, badHi } now. An array is still accepted, because a digest
+   * built from a snapshot written before this change passes one.
+   */
+  const list = Array.isArray(problems) ? { bad: problems, badHi: [] } : problems || {};
+  const name = (p) => `${p.name} is ${p.status || 'missing'}`;
+  const join = (arr) => {
+    const shown = arr.slice(0, 3).map(name);
+    const rest = arr.length - shown.length;
+    return `${shown.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}`;
+  };
+  const bad = (list.bad || []).filter((p) => p && p.name);
+  const badHi = (list.badHi || []).filter((p) => p && p.name);
+  let out = '';
+  if (bad.length) out += `. TEMPLATE NOT USABLE: ${join(bad)}`;
+  /*
+   * Worded as a FALLBACK IN USE, not an outage, because that is what it is:
+   * send.mjs sends the English template for exactly these Meta codes, so the
+   * customer gets the message. Saying "not usable" here would read as the
+   * same emergency as the line above it, and the two need different mornings.
+   */
+  if (badHi.length) out += `. HINDI FALLING BACK TO ENGLISH: ${join(badHi)}`;
+  return out;
 }
 
 /*

@@ -200,6 +200,11 @@ export const STR = {
     pageClosedButton: 'Continue to my bag',
     pageOrderedHeading: 'Your order is placed. Thank you for choosing Morpaankh.',
     pageOrderedButton: 'Visit Morpaankh',
+
+    // --- the /p/ payment redirect, when there is nothing to send them to
+    payExpired: 'This payment link has expired. Please reply on WhatsApp and we will help you.',
+    payAlreadyPaid: 'This order is already paid, so there is nothing more to pay. Reply on WhatsApp if anything looks wrong.',
+    payClosed: 'This order is no longer open for payment. Please reply on WhatsApp and we will help you.',
   },
 
   hi: {
@@ -269,6 +274,11 @@ export const STR = {
     pageClosedButton: 'मेरे बैग पर जाएँ',
     pageOrderedHeading: 'आपका Order दर्ज हो गया है। Morpaankh चुनने के लिए Thank you।',
     pageOrderedButton: 'Morpaankh देखें',
+
+    // --- the /p/ payment redirect, when there is nothing to send them to
+    payExpired: 'यह पेमेंट लिंक बंद हो गया है। कृपया WhatsApp पर जवाब दें, हम मदद करेंगे।',
+    payAlreadyPaid: 'इस Order का पेमेंट हो चुका है, अब कुछ नहीं देना है। अगर कुछ गड़बड़ लगे तो WhatsApp पर बताएँ।',
+    payClosed: 'इस Order पर अब पेमेंट नहीं लिया जा सकता। कृपया WhatsApp पर जवाब दें, हम मदद करेंगे।',
   },
 };
 
