@@ -5,6 +5,7 @@
 import { table, VersionConflict } from './table.mjs';
 import { withinDays } from '../lib/time.mjs';
 import { RULES } from '../../messages/rules.mjs';
+import { LANGS, normalizeLang } from '../../messages/lang.mjs';
 import { log } from '../log.mjs';
 
 const pk = (phone) => `PHONE#${phone}`;
@@ -234,6 +235,60 @@ export async function markRto(phone) {
     }
   }
   throw new Error('markRto: unreachable');
+}
+
+/*
+ * THE CUSTOMER'S LANGUAGE. Chosen once, on the profile, forever.
+ *
+ * PROFILE rows carry NO TTL, deliberately and already: backfill-ttl.mjs names
+ * this sort key as one it will not touch, because an expired opt-out is
+ * marketing to somebody who said stop. A stored language inherits that, which
+ * is what it needs: a customer who picked Hindi in January and orders again in
+ * December gets Hindi, not the picker a second time.
+ *
+ *   lang         'en' | 'hi', absent means not chosen and sends go in English
+ *   langSetAt    when they chose
+ *   langSource   'picker' | 'keyword' | 'owner', so a wrong language can be
+ *                traced to the thing that set it
+ *   langAskCount how many times we have asked, across all their orders
+ *   langAskedAt  when we last asked, which is what stops two orders minutes
+ *                apart asking twice
+ */
+export async function getLang(phone) {
+  return normalizeLang((await getProfile(phone)).lang);
+}
+
+/** Has this phone ever chosen? Distinct from getLang, which answers 'en' for both. */
+export async function hasLang(phone) {
+  return LANGS.includes(String((await getProfile(phone)).lang));
+}
+
+export const setLang = (phone, lang, source = 'picker', now = new Date()) =>
+  patch(phone, { lang: normalizeLang(lang), langSetAt: now.toISOString(), langSource: source });
+
+/**
+ * Record that we asked, and return the new count.
+ *
+ * Read-increment-write against the version it read, for the same reason
+ * markRto is: two orders for one phone can be in flight at once, and a count
+ * computed from the losing row would let maxAsks be exceeded.
+ */
+export async function markLangAsked(phone, now = new Date()) {
+  for (let i = 0; i < 3; i += 1) {
+    const p = await getProfile(phone);
+    try {
+      const next = await table.update(
+        pk(phone),
+        'PROFILE',
+        { phone, langAskCount: (p.langAskCount || 0) + 1, langAskedAt: now.toISOString() },
+        p.version || 0,
+      );
+      return next.langAskCount;
+    } catch (e) {
+      if (!(e instanceof VersionConflict) || i === 2) throw e;
+    }
+  }
+  throw new Error('markLangAsked: unreachable');
 }
 
 /*

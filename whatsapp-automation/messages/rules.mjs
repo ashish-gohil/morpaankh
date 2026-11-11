@@ -607,6 +607,48 @@ export const RULES = {
     snapshotTtlDays: 400,
   },
 
+  /*
+   * The customer's own language. SHIPS OFF.
+   *
+   * `enabled: false` is exactly today's behaviour and not an approximation of
+   * it: langFor() returns 'en' without reading the profile at all, so there is
+   * no extra read, no Hindi registry lookup and no new failure mode on the path
+   * every order confirmation takes. Turning it on is one line here.
+   *
+   * askMode
+   *   'template'  the picker is its own UTILITY template, sent at the Flow A
+   *               confirmation moment and answered with a tap.
+   *   'session'   plan B, for if Meta rejects the picker or classifies it
+   *               MARKETING: no template, the free-form picker goes once per
+   *               phone right after our reply to their first tap on an order.
+   *   'off'       never ask. A language can still be set by keyword or by the
+   *               owner's /lang command.
+   *
+   * waitMinutes is how long the confirmation waits for an answer. It is short
+   * on purpose: an unanswered picker must not delay the message that tells
+   * someone their order exists. Reconcile's 20 minute grace already covers it.
+   *
+   * maxAsks is per PHONE and across all their orders, not per order. Being
+   * asked the same question on every order is how an automation starts to feel
+   * like a machine.
+   *
+   * allowPhones non-empty means ONLY those phones get the picker and Hindi.
+   * This is the G4 pilot switch: the owner's own handsets first.
+   *
+   * hiDisabledKeys forces one key back to English without touching Meta and
+   * without a registry edit, for when one Hindi template turns out wrong after
+   * it is already approved.
+   */
+  language: {
+    enabled: false,
+    default: 'en',
+    askMode: 'template',
+    waitMinutes: 5,
+    maxAsks: 2,
+    allowPhones: [],
+    hiDisabledKeys: [],
+  },
+
   // misc
   refundEtaText: '5 to 7 working days',
   stateRetentionDays: 180,
