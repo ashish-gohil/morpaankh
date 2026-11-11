@@ -1,0 +1,2807 @@
+{
+  "TEMPLATES.cart_final": {
+    "name": "cart_final_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, a gentle reminder before your private code closes.\n\n*{{code}}* closes *{{expires_at}}*, about {{time_left}} from now.\n\n{{item_line}}\n\nThat is still *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. Your bag is saved just as you left it, so finishing takes less than a minute.\n\nWhen the code closes, the offer closes with it.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Complete my order"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Talk to us"
+      }
+    ],
+    "rendered": {
+      "name": "cart_final_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "MORPAANKHAARAV47"
+            },
+            {
+              "type": "text",
+              "text": "today at 9:20 PM"
+            },
+            {
+              "type": "text",
+              "text": "2 hours"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "₹200"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|R|1234567890|help"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.cart_recovery": {
+    "name": "cart_recovery_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, your bag is still waiting for you.\n\n{{item_line}}\n\nEvery Morpaankh piece is checked by hand before it leaves us, and we would love for yours to be next. So we have made you a private code:\n\n*{{code}}*\n\nThat is *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. It is yours alone, works once, and closes *{{expires_at}}*.\n\nTap below and it is applied for you.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Complete my order"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Talk to us"
+      }
+    ],
+    "rendered": {
+      "name": "cart_recovery_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "MORPAANKHAARAV47"
+            },
+            {
+              "type": "text",
+              "text": "₹200"
+            },
+            {
+              "type": "text",
+              "text": "tomorrow at 9:20 PM"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|R|1234567890|help"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.cod_confirm": {
+    "name": "cod_confirm_v3",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, your order {{order_number}} is with us and ready to be packed.\n\n{{item_line}}\n\nCash on delivery: {{cod_total}}\nPay online instead: {{prepaid_total}}\n\nPrepaid orders are packed and dispatched on priority. Tap one below and we will take it from there.\n\nNeed a different size or colour? Tap Change or cancel and we will sort it out.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Pay online now"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Confirm cash on delivery"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Change or cancel"
+      }
+    ],
+    "rendered": {
+      "name": "cod_confirm_v3",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,349"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|pay_online"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|confirm"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.cod_reminder": {
+    "name": "cod_reminder_v3",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, we are still holding your order {{order_number}}.\n\n{{item_line}}\n\nCash on delivery: {{cod_total}}\nPay online instead: {{prepaid_total}}\n\nOne tap is all we need to send it for packing. Prepaid orders go out on priority.\n\nNeed a different size or colour? Tap Change or cancel and we will sort it out.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Pay online now"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Confirm cash on delivery"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Change or cancel"
+      }
+    ],
+    "rendered": {
+      "name": "cod_reminder_v3",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,349"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|pay_online"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|confirm"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.delivered_review": {
+    "name": "delivered_review_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, your order {{order_number}} reached you on {{delivered_date}}.\n\nWe would love to know how it fits and how it feels on. It takes a minute, and it shapes what we make next.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "flow",
+        "text": "Rate your order"
+      }
+    ],
+    "rendered": {
+      "name": "delivered_review_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "20 Sep"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "flow",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "action",
+              "action": {
+                "flow_token": "ft.exp.sig",
+                "flow_action_data": {
+                  "first_name": "Aarav"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.delivered_review_link": {
+    "name": "delivered_review_link_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, your order {{order_number}} reached you on {{delivered_date}}.\n\nWe would love to know how it fits and how it feels on. It takes a minute, and it shapes what we make next.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Share your feedback"
+      }
+    ],
+    "rendered": {
+      "name": "delivered_review_link_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "20 Sep"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.ndr_action": {
+    "name": "ndr_action_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, our courier partner tried to reach you with order {{order_number}} on {{attempt_date}} and could not complete the delivery.\n\nNothing is lost. Tell us what suits you and we will arrange it.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Deliver tomorrow"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Change address"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Cancel order"
+      }
+    ],
+    "rendered": {
+      "name": "ndr_action_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "20 Sep"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|ndr_reattempt"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|ndr_address"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|ndr_cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.ops_alert": {
+    "name": "ops_alert_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Order {{order_number}} needs a look: {{alert_text}}.\n\nOpen it in Shopify when you get a moment.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "ops_alert_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "payment received but courier edit failed"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.ops_digest": {
+    "name": "ops_digest_v2",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Here is the WhatsApp automation summary for {{date}}.\n\n{{summary}}\n\nPlease check any orders left on hold.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "ops_digest_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "20 Sep"
+            },
+            {
+              "type": "text",
+              "text": "12 COD, 9 confirmed, 2 converted"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.ops_error": {
+    "name": "ops_error_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Automation alert, {{when}} IST.\n\nWhat happened: {{detail}}\n\nImpact: {{impact}}\n\nThe full report with the stack and a log link is in the alert email.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "ops_error_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "23 Sep, 9:46 pm"
+            },
+            {
+              "type": "text",
+              "text": "wa-worker could not cancel the payment link on order #1150"
+            },
+            {
+              "type": "text",
+              "text": "None for the customer. The order is correct and nothing was resent."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.order_confirmed": {
+    "name": "order_confirmed_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, thank you for your order {{order_number}}.\n\n{{item_line}}\nOrder total: {{order_total}}\n\nIt is with our packing team now. We will send you the tracking link the moment it leaves us.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "order_confirmed_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.order_shipped": {
+    "name": "order_shipped_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, order {{order_number}} is packed and labelled and ready for pickup.\n\nItem: {{item_line}}\nAt delivery: {{payment_line}}\nCourier: {{courier}}\nTracking number: {{awb}}\n\nTracking starts updating once the courier collects it. Tap below to follow it.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Track your order"
+      }
+    ],
+    "rendered": {
+      "name": "order_shipped_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "please keep Rs 1,499 ready"
+            },
+            {
+              "type": "text",
+              "text": "Delhivery"
+            },
+            {
+              "type": "text",
+              "text": "59152210001142"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.out_for_delivery": {
+    "name": "out_for_delivery_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, thank you for your order {{order_number}}. It is out for delivery today with Delhivery. Please keep {{cod_total}} ready.\n\nIf you will not be available, please reply here and we will reschedule it.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Track your order"
+      }
+    ],
+    "rendered": {
+      "name": "out_for_delivery_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.pnl_report_ready": {
+    "name": "pnl_report_ready_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Your Morpaankh profit and loss report for {{month}} is attached. Net {{net}} on {{delivered}} delivered orders. Open the workbook for the day by day and order by order breakdown.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "pnl_report_ready_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "October 2026"
+            },
+            {
+              "type": "text",
+              "text": "+₹18,420"
+            },
+            {
+              "type": "text",
+              "text": "34"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.prepaid_confirmed": {
+    "name": "prepaid_confirmed_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, your payment of {{amount_paid}} for order {{order_number}} has come through.\n\nThe order is fully prepaid now, so there is nothing to hand over at the door. Prepaid orders are packed and dispatched on priority, so yours is already moving up the queue.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "prepaid_confirmed_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,399"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.prepaid_offer": {
+    "name": "prepaid_offer_v3",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, your order {{order_number}} is still set to cash on delivery.\n\n{{item_line}}\n\n*Pay online and you pay {{prepaid_total}}* instead of {{cod_total}}\n*{{saving}} stays with you*\n{{gift_line}}\n*Packed first and dispatched on priority*, so it reaches you sooner\n\nThe link below is open until {{valid_until}}. If you would rather not, tap Keep cash on delivery and nothing changes.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Pay online"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Keep cash on delivery"
+      }
+    ],
+    "rendered": {
+      "name": "prepaid_offer_v3",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,349"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            },
+            {
+              "type": "text",
+              "text": "Rs 150"
+            },
+            {
+              "type": "text",
+              "text": "A gift from us, wrapped in with your order"
+            },
+            {
+              "type": "text",
+              "text": "21 Sep, 8:00 PM"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|keep_cod"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.prepaid_refund": {
+    "name": "prepaid_refund_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, order {{order_number}} had already left for delivery when your payment reached us, so we could not switch it to prepaid.\n\nYour {{amount_paid}} is on its way back to the same account and usually lands within {{refund_eta}}. Please keep {{cod_amount}} ready at delivery as planned.\n\nSorry for the extra step.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "prepaid_refund_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,399"
+            },
+            {
+              "type": "text",
+              "text": "5 to 7 working days"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.replacement_raised": {
+    "name": "replacement_raised_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, we are sending a replacement for your order {{order_number}}.\n\nOur delivery partner will collect {{return_item}} from your address. The next working day after that, we will dispatch {{new_item}} to you.\n\nPlease keep it unused with the tags on, packed and ready for pickup.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Track pickup"
+      }
+    ],
+    "rendered": {
+      "name": "replacement_raised_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Noor, size M"
+            },
+            {
+              "type": "text",
+              "text": "Noor, size XL"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.replacement_shipped": {
+    "name": "replacement_shipped_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, your replacement for order {{order_number}} is on its way.\n\nItem: {{new_item}}\nCourier: Delhivery\nTracking number: {{awb}}\n\nThank you for your patience with the exchange.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Track your replacement"
+      }
+    ],
+    "rendered": {
+      "name": "replacement_shipped_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Noor, size XL"
+            },
+            {
+              "type": "text",
+              "text": "59152210001142"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.review_reminder": {
+    "name": "review_reminder_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, we are still curious how order {{order_number}} turned out for you.\n\nIf you have a minute, tell us. Honest words help us more than you would think.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "flow",
+        "text": "Rate your order"
+      }
+    ],
+    "rendered": {
+      "name": "review_reminder_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "flow",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "action",
+              "action": {
+                "flow_token": "ft.exp.sig",
+                "flow_action_data": {
+                  "first_name": "Aarav"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.rto_reason": {
+    "name": "rto_reason_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, order {{order_number}} could not be delivered and is on its way back to us.\n\nIf you can spare a moment, tell us what went wrong. We read every one of these.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "I was not available"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Changed my mind"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Size or fit concern"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Delivery took too long"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "I did not order this"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Other reason"
+      }
+    ],
+    "rendered": {
+      "name": "rto_reason_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_not_available"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_changed_mind"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_size_fit"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "3",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_delivery_late"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "4",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_did_not_order"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "5",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_other"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "TEMPLATES.subscriber_offer": {
+    "name": "subscriber_offer_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, thank you for joining Morpaankh.\n\nTo welcome you, we have made a special code just for you:\n\n*{{code}}*\n\nIt takes *{{saving}} off* any order above {{min_order}}, and *a gift from us* comes wrapped in your parcel. It is yours alone, works once, and closes *{{expires_at}}*.\n\nMost loved right now: {{top_picks}}.\n\nEvery piece is checked by hand before it leaves us, and what you see is exactly what arrives. Prepaid orders ship free.\n\nTap below and your code is applied for you.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Shop best sellers"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Talk to us"
+      }
+    ],
+    "rendered": {
+      "name": "subscriber_offer_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Priya"
+            },
+            {
+              "type": "text",
+              "text": "MORPAANKHPRIYA4729"
+            },
+            {
+              "type": "text",
+              "text": "₹200"
+            },
+            {
+              "type": "text",
+              "text": "₹1,500"
+            },
+            {
+              "type": "text",
+              "text": "tomorrow at 11:00 AM"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, Bandhan and Morani"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|W|1234567890|help"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.cart_final": {
+    "name": "cart_final_plain_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, a gentle reminder before your private code closes.\n\n*{{code}}* closes *{{expires_at}}*, about {{time_left}} from now.\n\n{{item_line}}\n\nThat is still *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. Your bag is saved just as you left it, so finishing takes less than a minute.\n\nWhen the code closes, the offer closes with it.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Complete my order"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Talk to us"
+      }
+    ],
+    "rendered": {
+      "name": "cart_final_plain_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "MORPAANKHAARAV47"
+            },
+            {
+              "type": "text",
+              "text": "today at 9:20 PM"
+            },
+            {
+              "type": "text",
+              "text": "2 hours"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "₹200"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|R|1234567890|help"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.cart_recovery": {
+    "name": "cart_recovery_plain_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, your bag is still waiting for you.\n\n{{item_line}}\n\nEvery Morpaankh piece is checked by hand before it leaves us, and we would love for yours to be next. So we have made you a private code:\n\n*{{code}}*\n\nThat is *{{saving}} off* this bag, plus *a gift from us* wrapped in with your order. It is yours alone, works once, and closes *{{expires_at}}*.\n\nTap below and it is applied for you.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Complete my order"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Talk to us"
+      }
+    ],
+    "rendered": {
+      "name": "cart_recovery_plain_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "MORPAANKHAARAV47"
+            },
+            {
+              "type": "text",
+              "text": "₹200"
+            },
+            {
+              "type": "text",
+              "text": "tomorrow at 9:20 PM"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|R|1234567890|help"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.cod_confirm": {
+    "name": "cod_confirm_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, your order {{order_number}} is with us and ready to be packed.\n\n{{item_line}}\n\nCash on delivery: {{cod_total}}\nPay online instead: {{prepaid_total}}\n\nPrepaid orders are packed and dispatched on priority. Tap one below and we will take it from there.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Pay online now"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Confirm cash on delivery"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Cancel order"
+      }
+    ],
+    "rendered": {
+      "name": "cod_confirm_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,349"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|pay_online"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|confirm"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.cod_reminder": {
+    "name": "cod_reminder_v2",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, we are still holding your order {{order_number}}.\n\n{{item_line}}\n\nCash on delivery: {{cod_total}}\nPay online instead: {{prepaid_total}}\n\nOne tap is all we need to send it for packing. Prepaid orders go out on priority.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Pay online now"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Confirm cash on delivery"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Cancel order"
+      }
+    ],
+    "rendered": {
+      "name": "cod_reminder_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,349"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|pay_online"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|confirm"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.ndr_action": {
+    "name": "ndr_action_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}},\nOur courier partner tried to deliver your order {{order_number}} on {{attempt_date}} but could not complete the delivery.\n\nPlease tell us what you would like us to do.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Deliver tomorrow"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Change address"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Cancel order"
+      }
+    ],
+    "rendered": {
+      "name": "ndr_action_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "20 Sep"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|ndr_reattempt"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|ndr_address"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|ndr_cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.ops_alert": {
+    "name": "ops_alert_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello,\nAction needed on order {{order_number}}: {{alert_text}}.\n\nPlease check the order in Shopify.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "ops_alert_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "payment received but courier edit failed"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.ops_digest": {
+    "name": "ops_digest_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello,\nHere is the WhatsApp automation summary for {{date}}: {{summary}}.\n\nPlease review any held orders.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "ops_digest_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "20 Sep"
+            },
+            {
+              "type": "text",
+              "text": "12 COD, 9 confirmed, 2 converted"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.ops_error": {
+    "name": "ops_alert_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello,\nAction needed on order {{order_number}}: {{alert_text}}.\n\nPlease check the order in Shopify.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "ops_alert_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "payment received but courier edit failed"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.order_confirmed": {
+    "name": "order_confirmed_plain_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, thank you for your order {{order_number}}.\n\n{{item_line}}\nOrder total: {{order_total}}\n\nIt is with our packing team now. We will send you the tracking link the moment it leaves us.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "order_confirmed_plain_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.order_shipped": {
+    "name": "order_shipped_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}}, order {{order_number}} has left us and is on its way to you.\n\nItem: {{item_line}}\nAt delivery: {{payment_line}}\nCourier: {{courier}}\nTracking number: {{awb}}\n\nTap below to follow it on its way.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Track your order"
+      }
+    ],
+    "rendered": {
+      "name": "order_shipped_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "please keep Rs 1,499 ready"
+            },
+            {
+              "type": "text",
+              "text": "Delhivery"
+            },
+            {
+              "type": "text",
+              "text": "59152210001142"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.prepaid_confirmed": {
+    "name": "prepaid_confirmed_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}},\nThank you. We have received your payment of {{amount_paid}} for order {{order_number}}.\n\nYour order is now fully prepaid, so there is nothing to pay at delivery.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "prepaid_confirmed_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,399"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.prepaid_offer": {
+    "name": "prepaid_offer_v2",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, your order {{order_number}} is still set to cash on delivery.\n\n{{item_line}}\n\nPay online and it comes to {{prepaid_total}} instead of {{cod_total}}, so you keep {{saving}} extra. Prepaid orders are packed and dispatched on priority, so yours reaches you sooner.\n\nThe link below stays open until {{valid_until}}. If you would rather not, tap Keep cash on delivery and nothing changes.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Pay online"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Keep cash on delivery"
+      }
+    ],
+    "rendered": {
+      "name": "prepaid_offer_v2",
+      "language": "en",
+      "components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.shopify.com/sample.jpg?width=800&height=800&crop=center"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, size M"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,399"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            },
+            {
+              "type": "text",
+              "text": "Rs 100"
+            },
+            {
+              "type": "text",
+              "text": "21 Sep, 8:00 PM"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|keep_cod"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.prepaid_refund": {
+    "name": "prepaid_refund_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}},\nSorry, your order {{order_number}} had already left for delivery, so we could not change it to prepaid.\n\nWe have started a refund of {{amount_paid}} to your original payment method. It usually takes {{refund_eta}}. Please pay {{cod_amount}} at delivery as before.",
+    "footer": null,
+    "buttons": [],
+    "rendered": {
+      "name": "prepaid_refund_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,399"
+            },
+            {
+              "type": "text",
+              "text": "5 to 7 working days"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.rto_reason": {
+    "name": "rto_reason_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}},\nYour order {{order_number}} could not be delivered and is on its way back to us.\n\nCould you please tell us what happened? Your answer helps us do better next time.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "I was not available"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Changed my mind"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Size or fit concern"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Delivery took too long"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "I did not order this"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Other reason"
+      }
+    ],
+    "rendered": {
+      "name": "rto_reason_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_not_available"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_changed_mind"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_size_fit"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "3",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_delivery_late"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "4",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_did_not_order"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "5",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|C|1234567890|rto_other"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "LEGACY.subscriber_offer": {
+    "name": "subscriber_offer_plain_v1",
+    "language": "en",
+    "category": "MARKETING",
+    "body": "Hello {{customer_name}}, thank you for joining Morpaankh.\n\nTo welcome you, we have made a special code just for you:\n\n*{{code}}*\n\nIt takes *{{saving}} off* any order above {{min_order}}, and *a gift from us* comes wrapped in your parcel. It is yours alone, works once, and closes *{{expires_at}}*.\n\nMost loved right now: {{top_picks}}.\n\nEvery piece is checked by hand before it leaves us, and what you see is exactly what arrives. Prepaid orders ship free.\n\nTap below and your code is applied for you.",
+    "footer": "Reply STOP to stop these messages",
+    "buttons": [
+      {
+        "kind": "url",
+        "text": "Shop best sellers"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Talk to us"
+      }
+    ],
+    "rendered": {
+      "name": "subscriber_offer_plain_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Priya"
+            },
+            {
+              "type": "text",
+              "text": "MORPAANKHPRIYA4729"
+            },
+            {
+              "type": "text",
+              "text": "₹200"
+            },
+            {
+              "type": "text",
+              "text": "₹1,500"
+            },
+            {
+              "type": "text",
+              "text": "tomorrow at 11:00 AM"
+            },
+            {
+              "type": "text",
+              "text": "Khili Dhoop, Bandhan and Morani"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "TESTTOKEN16CHARS"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|W|1234567890|help"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "NO_PRICE.cod_confirm": {
+    "name": "cod_confirm_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}},\nThank you for your order {{order_number}}.\n\nOrder total: {{order_total}}\nPayment: Cash on Delivery\n\nPlease confirm your order so that we can pack and dispatch it.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Confirm order"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Pay online"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Cancel order"
+      }
+    ],
+    "rendered": {
+      "name": "cod_confirm_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|confirm"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|pay_online"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "NO_PRICE.cod_reminder": {
+    "name": "cod_reminder_v1",
+    "language": "en",
+    "category": "UTILITY",
+    "body": "Hello {{customer_name}},\nThank you for shopping with us. Your order {{order_number}} of {{order_total}} is waiting for your confirmation.\n\nPlease confirm so that we can dispatch it on time.",
+    "footer": null,
+    "buttons": [
+      {
+        "kind": "quick_reply",
+        "text": "Confirm order"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Pay online"
+      },
+      {
+        "kind": "quick_reply",
+        "text": "Cancel order"
+      }
+    ],
+    "rendered": {
+      "name": "cod_reminder_v1",
+      "language": "en",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Aarav"
+            },
+            {
+              "type": "text",
+              "text": "#1234"
+            },
+            {
+              "type": "text",
+              "text": "Rs 1,499"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|confirm"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|pay_online"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "quick_reply",
+          "index": "2",
+          "parameters": [
+            {
+              "type": "payload",
+              "payload": "v1|A|1234567890|cancel"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "SESSION.already_paid": {
+    "type": "text",
+    "body": "Hello Aarav, thank you. Order #1234 is already paid online, so there is nothing to pay at delivery."
+  },
+  "SESSION.already_shipped": {
+    "type": "text",
+    "body": "Hello Aarav, thank you. Order #1234 has already left us with Delhivery. Tracking number: 59152210001142."
+  },
+  "SESSION.cancel_check": {
+    "type": "buttons",
+    "body": "Just to be sure before we stop the packing: should we cancel order #1234?",
+    "buttons": [
+      {
+        "id": "v1|A|1234567890|cancel_yes",
+        "title": "Yes, cancel"
+      },
+      {
+        "id": "v1|A|1234567890|cancel_no",
+        "title": "No, keep it"
+      }
+    ]
+  },
+  "SESSION.cancel_done": {
+    "type": "text",
+    "body": "Order #1234 is cancelled. Sorry it did not work out this time. Thank you for telling us, and we hope to dress you for the next occasion."
+  },
+  "SESSION.cancel_kept": {
+    "type": "text",
+    "body": "Good. Order #1234 stays exactly as it is."
+  },
+  "SESSION.cancel_refund_review": {
+    "type": "text",
+    "body": "Order #1234 is already paid, so we want a person to handle the cancellation and your refund rather than do it automatically. Someone from our team will call you shortly."
+  },
+  "SESSION.cancel_too_late": {
+    "type": "text",
+    "body": "Order #1234 has already left for delivery, so we cannot stop it from here. Someone from our team will call you shortly and sort it out with you."
+  },
+  "SESSION.cart_final": {
+    "type": "cta_url",
+    "body": "Hello Aarav, a gentle reminder before your private code closes.\n\n*MORPAANKHAARAV47* closes *tomorrow at 9:20 PM*, about 2 hours from now.\n\nKhili Dhoop, size M\n\nThat is still *Rs 150 off* this bag, plus *a gift from us* wrapped in with your order. Your bag is saved just as you left it, so finishing takes less than a minute.\n\nWhen the code closes, the offer closes with it.",
+    "buttonText": "Complete my order",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.cart_help_ack": {
+    "type": "text",
+    "body": "Thank you, Aarav. Someone from our team will message you here shortly. Your bag stays saved, and your code MORPAANKHAARAV47 is open until tomorrow at 9:20 PM."
+  },
+  "SESSION.cart_help_ack_closed": {
+    "type": "text",
+    "body": "Thank you, Aarav. Someone from our team will message you here shortly, and your bag stays saved."
+  },
+  "SESSION.cart_recovery": {
+    "type": "cta_url",
+    "body": "Hello Aarav, your bag is still waiting for you.\n\nKhili Dhoop, size M\n\nEvery Morpaankh piece is checked by hand before it leaves us, and we would love for yours to be next. So we have made you a private code:\n\n*MORPAANKHAARAV47*\n\nThat is *Rs 150 off* this bag, plus *a gift from us* wrapped in with your order. It is yours alone, works once, and closes *tomorrow at 9:20 PM*.\n\nTap below and it is applied for you.",
+    "buttonText": "Complete my order",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.change_or_cancel": {
+    "type": "buttons",
+    "body": "Before we stop the packing: would you like to change the size or colour on order #1234, or cancel it altogether?",
+    "buttons": [
+      {
+        "id": "v1|A|1234567890|vc",
+        "title": "Change size/colour"
+      },
+      {
+        "id": "v1|A|1234567890|cancel_yes",
+        "title": "Cancel order"
+      },
+      {
+        "id": "v1|A|1234567890|cancel_no",
+        "title": "Keep my order"
+      }
+    ]
+  },
+  "SESSION.cod_reminder_session": {
+    "type": "buttons",
+    "body": "Hello Aarav, we are still holding your order #1234.\n\nKhili Dhoop, size M\n\nCash on delivery: Rs 1,499\nPay online instead: Rs 1,349\n\nOne tap is all we need to send it for packing. Prepaid orders go out on priority.\n\nNeed a different size or colour? Tap Change or cancel and we will sort it out.",
+    "buttons": [
+      {
+        "id": "v1|A|1234567890|pay_online",
+        "title": "Pay online now"
+      },
+      {
+        "id": "v1|A|1234567890|confirm",
+        "title": "Confirm this order"
+      },
+      {
+        "id": "v1|A|1234567890|cancel",
+        "title": "Change or cancel"
+      }
+    ]
+  },
+  "SESSION.confirmed_with_offer": {
+    "type": "cta_url",
+    "body": "Thank you, Aarav. Order #1234 is confirmed and we have started getting it ready.\n\nYou can still switch to paying online, and it is worth the thirty seconds:\n\n*You pay Rs 1,399* instead of Rs 1,499\n*Rs 150 stays with you*\na gift from us\n*Packed first and dispatched on priority*, so it reaches you sooner\n\nThe link is open until 21 Sep, 8:00 PM. Nothing about your order changes unless you use it.",
+    "buttonText": "Pay Rs 1,399",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.keep_cod_ack": {
+    "type": "text",
+    "body": "Done, Aarav. Order #1234 stays on cash on delivery. We will send you the tracking link the moment it leaves us."
+  },
+  "SESSION.ndr_action_session": {
+    "type": "buttons",
+    "body": "Hello Aarav, our courier partner tried to reach you with order #1234 on 20 Sep and could not complete the delivery.\n\nNothing is lost. Tell us what suits you and we will arrange it.",
+    "buttons": [
+      {
+        "id": "v1|C|1234567890|ndr_reattempt",
+        "title": "Deliver tomorrow"
+      },
+      {
+        "id": "v1|C|1234567890|ndr_address",
+        "title": "Change address"
+      },
+      {
+        "id": "v1|C|1234567890|ndr_cancel",
+        "title": "Cancel order"
+      }
+    ]
+  },
+  "SESSION.ndr_address_ask": {
+    "type": "text",
+    "body": "Please send your full address in one message: house or flat number, street, landmark, and the 6 digit pincode."
+  },
+  "SESSION.ndr_address_retry": {
+    "type": "text",
+    "body": "We could not find a 6 digit pincode in that one. Please send the full address again with the pincode included."
+  },
+  "SESSION.ndr_address_saved": {
+    "type": "text",
+    "body": "Thank you. Our courier partner has the new address and will try the delivery again."
+  },
+  "SESSION.ndr_cancel_ack": {
+    "type": "text",
+    "body": "Noted. The parcel will come back to us. Thank you for telling us rather than leaving it."
+  },
+  "SESSION.ndr_handoff": {
+    "type": "text",
+    "body": "Thank you. Our team will arrange this by hand and call you shortly."
+  },
+  "SESSION.ndr_pincode_changed": {
+    "type": "text",
+    "body": "Thank you. That address is in a different pincode, which the courier cannot switch to once a parcel is already on the road. Our team will call you shortly and work it out."
+  },
+  "SESSION.ndr_reattempt_ok": {
+    "type": "text",
+    "body": "Done. Our courier partner will try again on the next working day."
+  },
+  "SESSION.ops_alert_session": {
+    "type": "buttons",
+    "body": "#1234: payment received but courier edit failed",
+    "buttons": [
+      {
+        "id": "v1|O|1234567890|ack",
+        "title": "Got it"
+      }
+    ]
+  },
+  "SESSION.ops_digest_session": {
+    "type": "buttons",
+    "body": "20 Sep\n\n12 COD, 9 confirmed, 2 converted, 1 held",
+    "buttons": [
+      {
+        "id": "v1|O|1234567890|ack",
+        "title": "Got it"
+      }
+    ]
+  },
+  "SESSION.ops_reply": {
+    "type": "text",
+    "body": "a line of owner copy"
+  },
+  "SESSION.optin_done": {
+    "type": "text",
+    "body": "Thank you. Your order updates will come here again."
+  },
+  "SESSION.optout_done": {
+    "type": "text",
+    "body": "You will not get order updates from us here anymore. Reply START whenever you want them back."
+  },
+  "SESSION.order_closed": {
+    "type": "text",
+    "body": "Hello Aarav, thank you for writing to us. Order #1234 is cancelled, so there is nothing to confirm or pay. Please reply here if that is not right."
+  },
+  "SESSION.order_shipped_session": {
+    "type": "cta_url",
+    "body": "Hello Aarav, order #1234 is packed and labelled and ready for pickup.\n\nItem: Khili Dhoop, size M\nAt delivery: [payment_line]\nCourier: [courier]\nTracking number: 59152210001142\n\nTracking starts updating once the courier collects it. Tap below to follow it.",
+    "buttonText": "Track your order",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.pay_at_door": {
+    "type": "text",
+    "body": "Hello Aarav, thank you. Order #1234 is already on its way, so it can no longer switch to online payment. Please keep Rs 1,499 ready at delivery."
+  },
+  "SESSION.pay_link_expired_page": {
+    "type": "html",
+    "body": "This payment link has expired. Please reply on WhatsApp and we will help you."
+  },
+  "SESSION.pay_online_offer": {
+    "type": "cta_url",
+    "body": "Here it is, Aarav. Your link for order #1234.\n\n*You pay Rs 1,399* instead of Rs 1,499\n*Rs 150 stays with you*\na gift from us\n*Packed first and dispatched on priority*, so it reaches you sooner\n\nThe link is open until 21 Sep, 8:00 PM. Nothing about your order changes unless you use it.",
+    "buttonText": "Pay Rs 1,399",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.pay_online_unavailable": {
+    "type": "text",
+    "body": "Hello Aarav, thank you. Online payment is not available for order #1234 right now, so it stays cash on delivery. Please reply here if you need help."
+  },
+  "SESSION.payment_received": {
+    "type": "text",
+    "body": "Thank you, Aarav. Your payment of Rs 1,399 for order #1234 has come through.\n\nThe order is fully prepaid now, so there is nothing to hand over at the door. Prepaid orders are packed and dispatched on priority, so yours is already moving up the queue."
+  },
+  "SESSION.payment_received_checking": {
+    "type": "text",
+    "body": "Hello Aarav, thank you, we have received Rs 1,399 for order #1234. Our team is checking it against your order and will confirm here shortly."
+  },
+  "SESSION.pnl_failed": {
+    "type": "text",
+    "body": "The P&L for [month] could not be built. [reason]"
+  },
+  "SESSION.pnl_ledger_saved": {
+    "type": "text",
+    "body": "Ledger saved for [month]: [rows] rows, [total]. Run /pnl [month] again and the report will use these actual charges instead of computed ones."
+  },
+  "SESSION.pnl_running": {
+    "type": "text",
+    "body": "A P&L for [month] is already being built. I will send it here as soon as it finishes."
+  },
+  "SESSION.pnl_summary": {
+    "type": "text",
+    "body": "P&L [month] ([state])\nNet: [net] ([margin] of net revenue)\nDelivered [delivered] | RTO [rto] ([rto_pct]) | Pending [pending]\nRTO loss both ways: [rto_loss]\nMeta [meta_basis]: [meta] | per delivered order [meta_per_order]\nCourier charges: [charge_basis]"
+  },
+  "SESSION.pnl_usage": {
+    "type": "text",
+    "body": "Usage: /pnl for last month, /pnl 2026-10 for a month, /pnl oct or /pnl oct 2026, or /pnl mtd for this month so far. Send the Delhivery ledger as a file with the caption /pnl-ledger 2026-10 to lock the actual courier charges."
+  },
+  "SESSION.pnl_working": {
+    "type": "text",
+    "body": "Building the P&L for [month]. It takes about two minutes. I will send the workbook here when it is ready."
+  },
+  "SESSION.prepaid_offer_session": {
+    "type": "cta_url",
+    "body": "Hello Aarav, your order #1234 is still set to cash on delivery.\n\nKhili Dhoop, size M\n\n*Pay online and you pay Rs 1,349* instead of Rs 1,499\n*Rs 150 stays with you*\na gift from us\n*Packed first and dispatched on priority*, so it reaches you sooner\n\nThe link below is open until 21 Sep, 8:00 PM.",
+    "buttonText": "Pay online",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.prepaid_refund": {
+    "type": "text",
+    "body": "Order #1234 had already left for delivery when your payment reached us, so we could not switch it to prepaid.\n\nYour Rs 1,399 is on its way back to the same account and usually lands within 5 to 7 working days. Please keep Rs 1,499 ready at delivery as planned.\n\nSorry for the extra step."
+  },
+  "SESSION.replace_confirm": {
+    "type": "buttons",
+    "body": "a line of owner copy",
+    "buttons": [
+      {
+        "id": "v1|P|1234567890|vcok:1:101",
+        "title": "Confirm"
+      },
+      {
+        "id": "v1|P|1234567890|vcok:1:101",
+        "title": "Cancel"
+      }
+    ]
+  },
+  "SESSION.replacement_pay_request": {
+    "type": "text",
+    "body": "Hello Aarav, thank you for your patience with order #1234.\n\nA size exchange is two courier trips, the pickup and the new delivery, and that comes to [total]. Once we have it we will book the pickup straight away.\n\n[pay_line]\n\nPlease share the payment screenshot here and we will take it from there."
+  },
+  "SESSION.replacement_raised": {
+    "type": "text",
+    "body": "Hello Aarav, we are sending a replacement for your order #1234.\n\nOur delivery partner will collect [return_item] from your address. The next working day after that, we will dispatch [new_item] to you.\n\nPlease keep it unused with the tags on, packed and ready for pickup."
+  },
+  "SESSION.review_code": {
+    "type": "text",
+    "body": "Thank you, Aarav. We read every one of these properly.\n\n[amount] towards your next piece:\n\n*MORPAANKHAARAV47*\n\nIt is yours alone, works once on an order of Rs 1,500 or more, and is good until 21 Sep, 8:00 PM.\n\nCome and see what is new at morpaankh.in"
+  },
+  "SESSION.review_code_pending": {
+    "type": "text",
+    "body": "Thank you for writing in, Aarav. Your thank you code will reach you here shortly."
+  },
+  "SESSION.rto_other_ask": {
+    "type": "text",
+    "body": "Tell us in a line or two what went wrong. We read every one of these."
+  },
+  "SESSION.rto_reason_session": {
+    "type": "list",
+    "body": "Hello Aarav, order #1234 could not be delivered and is on its way back to us.\n\nIf you can spare a moment, tell us what went wrong. We read every one of these.",
+    "buttonText": "Tell us why",
+    "rows": [
+      {
+        "id": "v1|C|1234567890|vcs:1:101",
+        "title": "M"
+      },
+      {
+        "id": "v1|C|1234567890|vcs:1:102",
+        "title": "L",
+        "description": "in stock"
+      }
+    ]
+  },
+  "SESSION.rto_thanks": {
+    "type": "text",
+    "body": "Thank you for telling us. It is noted and it will not be wasted."
+  },
+  "SESSION.subscriber_help_ack": {
+    "type": "text",
+    "body": "Thank you, Aarav. Someone from our team will message you here shortly. Your code MORPAANKHAARAV47 stays open until tomorrow at 9:20 PM."
+  },
+  "SESSION.subscriber_help_ack_closed": {
+    "type": "text",
+    "body": "Thank you, Aarav. Someone from our team will message you here shortly."
+  },
+  "SESSION.subscriber_offer": {
+    "type": "cta_url",
+    "body": "Hello Aarav, thank you for joining Morpaankh.\n\nTo welcome you, we have made a special code just for you:\n\n*MORPAANKHAARAV47*\n\nIt takes *Rs 150 off* any order above Rs 1,500, and *a gift from us* comes wrapped in your parcel. It is yours alone, works once, and closes *tomorrow at 9:20 PM*.\n\nMost loved right now: Khili Dhoop, Bandhan and Morani.\n\nEvery piece is checked by hand before it leaves us, and what you see is exactly what arrives. Prepaid orders ship free.\n\nTap below and your code is applied for you.",
+    "buttonText": "Shop best sellers",
+    "url": "https://dry.run/pay"
+  },
+  "SESSION.vc_already_done": {
+    "type": "text",
+    "body": "Good news, Aarav. Order #1234 is already [to_desc], so there is nothing left to change."
+  },
+  "SESSION.vc_changed": {
+    "type": "text",
+    "body": "Done. Order #1234 is now [to_desc], and the amount stays Rs 1,499. We will pack this one instead."
+  },
+  "SESSION.vc_confirm": {
+    "type": "buttons",
+    "body": "Almost done, Aarav. Shall we change order #1234 from [from_desc] to [to_desc]?\n\nThe amount stays Rs 1,499.\n\nNothing has changed yet. Tap below to confirm.",
+    "buttons": [
+      {
+        "id": "v1|A|1234567890|vcok:1:101",
+        "title": "Yes, change it"
+      },
+      {
+        "id": "v1|A|1234567890|vc",
+        "title": "Go back"
+      }
+    ]
+  },
+  "SESSION.vc_handoff": {
+    "type": "text",
+    "body": "We could not make that change from here. Someone from our team will message you shortly. Order #1234 stays exactly as it is until then."
+  },
+  "SESSION.vc_nothing_available": {
+    "type": "text",
+    "body": "We do not have another size or colour of [item_desc] in stock right now, so order #1234 stays as it is. Reply here and someone from our team will help you."
+  },
+  "SESSION.vc_pick_colour": {
+    "type": "list",
+    "body": "You have [item_desc]. Please choose the colour you would like instead.",
+    "buttonText": "Choose colour",
+    "rows": [
+      {
+        "id": "v1|A|1234567890|vcs:1:101",
+        "title": "M"
+      },
+      {
+        "id": "v1|A|1234567890|vcs:1:102",
+        "title": "L",
+        "description": "in stock"
+      }
+    ]
+  },
+  "SESSION.vc_pick_item": {
+    "type": "list",
+    "body": "Which item would you like to change on order #1234?",
+    "buttonText": "Choose item",
+    "rows": [
+      {
+        "id": "v1|A|1234567890|vcs:1:101",
+        "title": "M"
+      },
+      {
+        "id": "v1|A|1234567890|vcs:1:102",
+        "title": "L",
+        "description": "in stock"
+      }
+    ]
+  },
+  "SESSION.vc_pick_option": {
+    "type": "buttons",
+    "body": "You have [item_desc]. What would you like to change?",
+    "buttons": [
+      {
+        "id": "v1|A|1234567890|vcok:1:101",
+        "title": "Size"
+      },
+      {
+        "id": "v1|A|1234567890|vcok:1:101",
+        "title": "Colour"
+      },
+      {
+        "id": "v1|A|1234567890|cancel_no",
+        "title": "Keep as it is"
+      }
+    ]
+  },
+  "SESSION.vc_pick_size": {
+    "type": "list",
+    "body": "You have [item_desc]. Please choose the size you would like instead.",
+    "buttonText": "Choose size",
+    "rows": [
+      {
+        "id": "v1|A|1234567890|vcs:1:101",
+        "title": "M"
+      },
+      {
+        "id": "v1|A|1234567890|vcs:1:102",
+        "title": "L",
+        "description": "in stock"
+      }
+    ]
+  }
+}
