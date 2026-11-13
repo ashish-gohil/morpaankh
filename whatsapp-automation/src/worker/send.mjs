@@ -8,9 +8,16 @@ import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
 import { renderSession, SESSION } from '../../messages/session.mjs';
 import { TEMPLATES_HI, PLAIN_HI } from '../../messages/templates.hi.mjs';
-import { resolveVars, resolveRows, normalizeLang, DEFAULT_LANG } from '../../messages/lang.mjs';
+import { resolveVars, resolveRows, DEFAULT_LANG } from '../../messages/lang.mjs';
+
 import { log, metric, maskPhone } from '../log.mjs';
-import { isUndeliverable, windowOpen, inHumanTakeover, getLang } from '../store/phoneProfile.mjs';
+/*
+ * langFor is RE-EXPORTED, not defined here: it lives beside the profile
+ * field it reads so the /p/ and /r/ redirect handlers can resolve a language
+ * without importing every registry this file imports.
+ */
+import { isUndeliverable, windowOpen, inHumanTakeover, langFor } from '../store/phoneProfile.mjs';
+export { langFor } from '../store/phoneProfile.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { recordMessage } from '../store/orderState.mjs';
 import { table } from '../store/table.mjs';
@@ -194,37 +201,6 @@ async function dispatch(deps, phone, def, vars, ctx, key) {
   // `lang` back to the caller, so Flow A can tag the order wa-lang-hi and the
   // owner opening it in Shopify knows which language to answer by hand in.
   return { ...res, templateName: t.name, lang: t.language };
-}
-
-/*
- * WHICH LANGUAGE THIS PHONE READS. The ONE place that decides, for every
- * customer message this service sends.
- *
- * Resolved here and nowhere else, from the RECIPIENT PHONE, so no call site
- * ever passes or guesses a language. That is the whole shape of the feature: a
- * flow asks for `cod_confirm` and gets whichever language that customer chose,
- * and a new flow inherits it by doing nothing.
- *
- * Three ways out, all of them 'en':
- *   the feature is off           no read at all, so no added cost or failure
- *   allowPhones is set and this phone is not on it   the G4 pilot switch
- *   the profile read failed      a DynamoDB blip must cost a word, not a message
- *
- * The read failure is log.warn and NOT soft(): soft logs at ERROR, the alert
- * wiring emails the owner on any error line, and "we sent English" is not an
- * incident.
- */
-export async function langFor(phone) {
-  const L = RULES.language || {};
-  if (!L.enabled) return DEFAULT_LANG;
-  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return DEFAULT_LANG;
-  try {
-    return normalizeLang(await getLang(phone));
-  } catch (e) {
-    log.warn('language: profile read failed, sending English', { err: e.message, phone: maskPhone(phone) });
-    metric('LangReadFailed', 1, {});
-    return DEFAULT_LANG;
-  }
 }
 
 /*

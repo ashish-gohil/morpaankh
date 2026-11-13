@@ -5,8 +5,8 @@
 import { table, VersionConflict } from './table.mjs';
 import { withinDays } from '../lib/time.mjs';
 import { RULES } from '../../messages/rules.mjs';
-import { LANGS, normalizeLang } from '../../messages/lang.mjs';
-import { log } from '../log.mjs';
+import { LANGS, normalizeLang, DEFAULT_LANG } from '../../messages/lang.mjs';
+import { log, maskPhone, metric } from '../log.mjs';
 
 const pk = (phone) => `PHONE#${phone}`;
 const DAY = 86400 * 1000;
@@ -261,6 +261,39 @@ export async function getLang(phone) {
 /** Has this phone ever chosen? Distinct from getLang, which answers 'en' for both. */
 export async function hasLang(phone) {
   return LANGS.includes(String((await getProfile(phone)).lang));
+}
+
+/**
+ * WHICH LANGUAGE THIS PHONE READS. The one place that decides, for every
+ * customer message this service sends.
+ *
+ * Lives beside the field it reads rather than in the send helpers, because the
+ * /p/ and /r/ redirect handlers need it too and importing worker/send.mjs
+ * pulled both template registries, both session registries and the order
+ * domain into two Lambdas whose whole job is a 302. It is deliberately NOT in
+ * src/lib/: that folder is type-checked (see jsconfig.json) and is for pure
+ * logic with no I/O, and this reads DynamoDB.
+ *
+ * Three ways out, all of them English:
+ *   the feature is off           no read at all, so no added cost or failure
+ *   allowPhones is set and this phone is not on it   the G4 pilot switch
+ *   the profile read failed      a DynamoDB blip must cost a word, not a message
+ *
+ * The read failure is log.warn and NOT soft(): soft logs at ERROR, the alert
+ * wiring emails the owner on any error line, and "we sent English" is not an
+ * incident.
+ */
+export async function langFor(phone) {
+  const L = RULES.language || {};
+  if (!L.enabled) return DEFAULT_LANG;
+  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return DEFAULT_LANG;
+  try {
+    return normalizeLang((await getProfile(phone)).lang);
+  } catch (e) {
+    log.warn('language: profile read failed, sending English', { err: e.message, phone: maskPhone(phone) });
+    metric('LangReadFailed', 1, {});
+    return DEFAULT_LANG;
+  }
 }
 
 /**

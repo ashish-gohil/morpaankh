@@ -14,7 +14,7 @@ import { getState } from '../store/orderState.mjs';
 import { hasTag } from '../domain/order.mjs';
 import { log } from '../log.mjs';
 import { pathToken } from '../lib/ids.mjs';
-import { langFor } from '../worker/send.mjs';
+import { langFor } from '../store/phoneProfile.mjs';
 import { str, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { soft } from '../lib/resilience.mjs';
 

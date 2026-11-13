@@ -20,7 +20,7 @@
 import { RULES } from '../../messages/rules.mjs';
 import { getCartLinkMap, getRec, patchRec } from '../store/cartRecovery.mjs';
 import { cartPagesIn, cartPage } from '../../messages/pages.mjs';
-import { langFor } from '../worker/send.mjs';
+import { langFor } from '../store/phoneProfile.mjs';
 import { DEFAULT_LANG } from '../../messages/lang.mjs';
 import { soft } from '../lib/resilience.mjs';
 import { log, metric } from '../log.mjs';

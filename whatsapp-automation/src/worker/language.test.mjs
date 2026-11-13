@@ -36,7 +36,11 @@ const OTHER_PHONE = '+919800000011';
  * most of this file turns it on, which is exactly the leak worth guarding.
  */
 const SHIPPED_LANGUAGE = { ...RULES.language };
-afterEach(() => { RULES.language = { ...SHIPPED_LANGUAGE }; });
+const SHIPPED_DIGEST_CHANNEL = RULES.digestChannel;
+afterEach(() => {
+  RULES.language = { ...SHIPPED_LANGUAGE };
+  RULES.digestChannel = SHIPPED_DIGEST_CHANNEL;
+});
 
 /** Turn the feature on for one test, with any rule overridden. */
 const withLanguage = (over = {}) => {
@@ -253,12 +257,14 @@ describe('when Meta will not take the Hindi template', () => {
    */
   it('answers English, and does not throw, when the profile cannot be read', async () => {
     const { table } = await import('../store/table.mjs');
-    const realGet = table.get;
-    table.get = async () => { throw new Error('dynamo is having a moment'); };
+    // vi.spyOn rather than assigning table.get directly: a bare assignment
+    // widens the inferred type of the table object literal and tsc then
+    // reports errors inside store/table.mjs itself.
+    const spy = vi.spyOn(table, 'get').mockRejectedValue(new Error('dynamo is having a moment'));
     try {
       await expect(langFor(PHONE)).resolves.toBe('en');
     } finally {
-      table.get = realGet;
+      spy.mockRestore();
     }
   });
 });
@@ -766,5 +772,60 @@ describe('a picker that WhatsApp accepted and then failed to deliver', () => {
       status: { id: 'wamid.COD', status: 'failed', recipient_id: '919812345678', errors: [{ code: 131026, title: 'x' }] },
     });
     expect((await getState('12345')).flowA?.undeliverableAt).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/*
+ * The owner reads their own alerts whatever the customer chose, and the claim
+ * in DECISIONS.md is that this holds STRUCTURALLY rather than by checking the
+ * phone: there are no Hindi definitions for ops_* or pnl_*, so renderSession
+ * and tpl fall back to English for them on their own. That is a claim about
+ * absence, which is exactly the kind that rots quietly, so it is a test.
+ */
+describe('the owner keeps reading English, even with Hindi set on their own handset', () => {
+  beforeEach(async () => {
+    withLanguage();
+    config.ownerAlertPhones = [PHONE];
+    await setLang(PHONE, 'hi');
+  });
+
+  it('an owner alert goes out in English', async () => {
+    const { clients, deps } = setup();
+    const { ownerAlert } = await import('./send.mjs');
+    await ownerAlert(deps, '#1234', 'the courier edit failed');
+    const sent = clients.whatsapp.sent.at(-1);
+    expect(sent.type).toBe('template');
+    expect(sent.name).toBe('ops_alert_v2');
+    expect(bodyParams(sent)).toContain('the courier edit failed');
+  });
+
+  it('the session twin of an owner alert is English too', async () => {
+    const { clients, deps } = setup();
+    const { ownerSend } = await import('./send.mjs');
+    const { touchInbound } = await import('../store/phoneProfile.mjs');
+    /*
+     * The REAL clock, not NOW. ownerSend asks windowOpen(new Date()) rather
+     * than taking a time from deps, so a 2026-09-20 inbound reads as more
+     * than a day old and the twin is never reached.
+     */
+    await touchInbound(PHONE, new Date());
+    RULES.digestChannel = 'session';
+    await ownerSend(deps, PHONE, 'ops_alert', { order_number: '#1234', alert_text: 'x' });
+    const sent = clients.whatsapp.sent.at(-1);
+    expect(sent.type).toBe('buttons');
+    expect(sent.body).toBe(renderSession('ops_alert_session', { order_number: '#1234', alert_text: 'x' }).body);
+    expect(sent.buttons[0].title).toBe('Got it');
+  });
+
+  it('no owner key has a Hindi definition, in either registry', async () => {
+    const { TEMPLATES } = await import('../../messages/templates.mjs');
+    const { SESSION } = await import('../../messages/session.mjs');
+    const ownerKeys = Object.keys(TEMPLATES).filter((k) => /^(ops_|pnl_)/.test(k));
+    const ownerSessionKeys = Object.keys(SESSION).filter((k) => /^(ops_|pnl_)/.test(k) || k === 'replace_confirm');
+    expect(ownerKeys.length).toBeGreaterThan(3);
+    for (const k of ownerKeys) expect(TEMPLATES_HI[k], `TEMPLATES_HI.${k}`).toBeUndefined();
+    for (const k of ownerSessionKeys) expect(SESSION_HI[k], `SESSION_HI.${k}`).toBeUndefined();
   });
 });
