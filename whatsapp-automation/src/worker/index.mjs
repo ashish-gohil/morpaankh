@@ -193,28 +193,6 @@ async function onWaInbound(m) {
   }
 
   /*
-   * THE LANGUAGE KEYWORDS, checked here: after STOP and START, after the
-   * slash commands, and before the awaiting-answer branch below.
-   *
-   * After STOP, because STOP is the instruction that matters most and must not
-   * be shadowed. Before `awaiting`, because a customer who has been asked for
-   * their address and instead types HINDI is asking to switch languages, not
-   * giving us "HINDI" as a street.
-   *
-   * Matched on the WHOLE trimmed message, never on a substring: "HINDI" inside
-   * a sentence is somebody talking about Hindi, and switching their language
-   * over it would be worse than doing nothing.
-   *
-   * Deliberately BEFORE the opt-out gate further down and not behind it. A
-   * customer who once sent STOP is still entitled to be read in their own
-   * language when they do write in: an opt-out stops what we start, and this
-   * is them asking for something.
-   */
-  const asked = langFromText(msg.text?.body);
-  if (asked === 'pick') return language.onShowPicker(phone, deps());
-  if (asked) return language.onKeyword(phone, asked, deps());
-
-  /*
    * OPT-OUT STOPS WHAT WE START. IT DOES NOT STOP WHAT THEY DO.
    *
    * This return used to sit here, above everything, so a customer who had ever
@@ -246,6 +224,35 @@ async function onWaInbound(m) {
     // that threw a refused marketing send away and then reported the customer
     // as never having been told.
     await soft('flowAOnWindowOpen', () => flowA.onWindowOpen(phone, deps()), {});
+  }
+
+  /*
+   * THE LANGUAGE KEYWORDS.
+   *
+   * Placed here deliberately: AFTER the window-open hooks above, and before
+   * the awaiting-answer branch below.
+   *
+   * After the hooks, because this branch RETURNS. It sat above them, so a
+   * customer whose first word back to us was "HINDI" switched language and
+   * left a parked cart recovery, welcome offer or prepaid offer sitting
+   * unreleased, when their message had just opened the one window that could
+   * have delivered it.
+   *
+   * Before `awaiting`, because a customer who was asked for their address and
+   * types HINDI is asking to switch languages, not giving us "HINDI" as a
+   * street.
+   *
+   * Matched on the WHOLE trimmed message, never a substring: "HINDI" inside a
+   * sentence is somebody talking about Hindi.
+   *
+   * Gated on the feature being enabled. With it off, langFor returns English
+   * regardless, so accepting a switch would reply "we will write to you in
+   * Hindi from now on" and then never do it.
+   */
+  if (RULES.language?.enabled) {
+    const asked = langFromText(msg.text?.body);
+    if (asked === 'pick') return language.onShowPicker(phone, deps());
+    if (asked) return language.onKeyword(phone, asked, deps());
   }
 
   // WhatsApp Flow completion (review form): the signed flow_token carries the order.
@@ -311,7 +318,17 @@ async function onWaInbound(m) {
      * sets the FORGER's language, which is theirs to set, and moves the
      * stranger's order not at all.
      */
-    if (p.flow === 'L') return language.onPick(phone, p.action, p.orderId, deps());
+    /*
+     * Only while the feature is ON. A tap can arrive from a picker sent before
+     * a rollback, and honouring it then would store a language, reply "we will
+     * write to you in Hindi from now on", and then send English for ever,
+     * because langFor returns English when the feature is off. Stored choices
+     * survive a rollback; new ones are not accepted during one.
+     */
+    if (p.flow === 'L') {
+      if (!RULES.language?.enabled) return log.info('language: tap ignored, the feature is off', { action: p.action });
+      return language.onPick(phone, p.action, p.orderId, deps());
+    }
     // Button payloads are "v1|A|<orderId>|cancel_yes" in CLEAR TEXT: unlike the
     // Flow token they carry no signature, and the order id is the plain Shopify
     // number. The review path right above already refuses a phone that does not

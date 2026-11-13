@@ -11,8 +11,24 @@ import { log, maskPhone, metric } from '../log.mjs';
 const pk = (phone) => `PHONE#${phone}`;
 const DAY = 86400 * 1000;
 
+/*
+ * STRONGLY CONSISTENT, and that is a decision rather than a default.
+ *
+ * This row holds the opt-out, the undeliverable flag, the marketing cap and
+ * now the language, and every one of those is read moments after something
+ * else wrote it. The language case is the one that forced it: onPick writes
+ * the customer's choice and then, in the same invocation, the send path reads
+ * it back to pick a registry. An eventually consistent read there sends
+ * English seconds after they tapped Hindi, and the gate's own ordering fix
+ * depends on seeing that write.
+ *
+ * It costs twice the read units on a row this service reads a few thousand
+ * times a month, which at this volume is cents. The same change quietly
+ * closes a narrower window on the opt-out: STOP written by one record and read
+ * by another seconds later.
+ */
 export async function getProfile(phone) {
-  return (await table.get(pk(phone), 'PROFILE')) || { PK: pk(phone), SK: 'PROFILE', phone };
+  return (await table.get(pk(phone), 'PROFILE', { consistent: true })) || { PK: pk(phone), SK: 'PROFILE', phone };
 }
 /**
  * Merge fields into the profile. Retries once on a version conflict.
@@ -339,6 +355,59 @@ export async function markLangAsked(phone, now = new Date()) {
   }
   throw new Error('markLangAsked: unreachable');
 }
+
+/**
+ * CLAIM the right to ask this phone which language it reads.
+ *
+ * The borrow-the-deadline check in the Flow A gate can only see a write that
+ * has already landed, and the queue serialises by ORDER: two orders placed
+ * seconds apart are two message groups running in parallel, so both read
+ * `langAskedAt: null` and both send a picker. The customer is asked the same
+ * question twice, which is the one thing the design says must not happen.
+ *
+ * So the slot is CLAIMED before the send, with a version-conditioned write.
+ * Concurrent callers serialise on that condition: one wins, the other retries,
+ * re-reads, now sees a recent `langAskedAt` and is told to wait behind it.
+ *
+ * Returns `{ claimed: true, prev }` to the winner, where `prev` is what to put
+ * back if the send then turns out to be skipped, and `{ claimed: false,
+ * reason, askedAt }` to everybody else.
+ */
+export async function claimLangAsk(phone, now = new Date(), waitMs = 0, maxAsks = 2) {
+  for (let i = 0; i < 3; i += 1) {
+    const p = await getProfile(phone);
+    if (LANGS.includes(String(p.lang))) return { claimed: false, reason: 'chosen' };
+    const count = Number(p.langAskCount) || 0;
+    const askedAt = p.langAskedAt ? new Date(p.langAskedAt).getTime() : 0;
+    // Somebody else is mid-wait on this phone. Wait behind their deadline.
+    if (askedAt && now.getTime() - askedAt < waitMs) {
+      return { claimed: false, reason: 'asked-recently', askedAt: p.langAskedAt };
+    }
+    if (count >= maxAsks) return { claimed: false, reason: 'max-asks' };
+    try {
+      await table.update(
+        pk(phone),
+        'PROFILE',
+        { phone, langAskCount: count + 1, langAskedAt: now.toISOString() },
+        p.version || 0,
+      );
+      return { claimed: true, prev: { langAskCount: count, langAskedAt: p.langAskedAt || null } };
+    } catch (e) {
+      if (!(e instanceof VersionConflict) || i === 2) throw e;
+    }
+  }
+  throw new Error('claimLangAsk: unreachable');
+}
+
+/**
+ * Give the claim back, because the picker was never actually sent.
+ *
+ * A dry run, a send allowlist or a human takeover returns a SKIP rather than a
+ * send, and spending the per-phone budget on a question nobody was asked would
+ * mean they are never asked once the gate that skipped it is lifted.
+ */
+export const releaseLangAsk = (phone, prev) =>
+  patch(phone, { langAskCount: prev?.langAskCount || 0, langAskedAt: prev?.langAskedAt || null });
 
 /*
  * PHONE#<e164> / OFFERWAIT — a prepaid offer Meta refused, waiting for a window.

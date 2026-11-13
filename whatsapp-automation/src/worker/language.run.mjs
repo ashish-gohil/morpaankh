@@ -13,7 +13,7 @@
  * receipt.
  */
 import { log, maskPhone, metric } from '../log.mjs';
-import { setLang, getLang, langState, markLangAsked } from '../store/phoneProfile.mjs';
+import { setLang, getLang, langState, claimLangAsk, releaseLangAsk } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { sess, getNormByName } from './send.mjs';
@@ -48,7 +48,7 @@ export async function onPick(phone, action, orderId, deps) {
   metric('LangPicked', 1, { lang });
   log.info('language: customer chose a language', { lang, phone: maskPhone(phone) });
 
-  const st = orderId && orderId !== 'owner' ? await getState(orderId) : null;
+  const st = orderId && orderId !== 'owner' && orderId !== 'picker' ? await getState(orderId) : null;
   /*
    * STRICT equality, and not ownsOrder's fail-open. ownsOrder lets an order it
    * has never seen through, which is right for a read and wrong here: this
@@ -81,7 +81,16 @@ export async function onPick(phone, action, orderId, deps) {
     }
   }
 
-  await sess(deps, phone, 'language_set', {}, { lang });
+  /*
+   * soft, and this is the last thing that happens.
+   *
+   * Branch 1 above sets codConfirmAt. If this receipt then threw, the SQS
+   * record would be redelivered, the condition that selected branch 1 would
+   * now be false, and the customer would get a reminder on top of the
+   * confirmation they already had. The receipt is the least important message
+   * in this handler and must not be able to cause a second one.
+   */
+  await soft('languageSetAck', () => sess(deps, phone, 'language_set', {}, { lang }), {});
   return { replied: 'ack' };
 }
 
@@ -95,8 +104,8 @@ export async function onPick(phone, action, orderId, deps) {
  * time the customer taps anything on an order message, which is the first
  * moment a 24 hour window is open and a free-form message can reach them.
  *
- * ONCE PER PHONE, ever, and recorded through the same markLangAsked counter the
- * template path uses, so maxAsks means the same thing on both routes.
+ * ONCE PER PHONE, ever, and claimed through the same counter the template
+ * route uses, so maxAsks means the same thing on both.
  *
  * soft at the call site: this is an extra question asked after the customer has
  * already been answered. It must never cost them the reply they tapped for.
@@ -111,11 +120,27 @@ export async function offerPickerAfterTap(phone, deps) {
   // Asked before, on either route. One question, not one per tap.
   if (ls.askedAt || ls.askCount >= (L.maxAsks ?? 2)) return null;
 
-  const r = await sess(deps, phone, 'language_select', { customer_name: langName(DEFAULT_LANG, null) }, {});
-  // A skipped send is not a send, so nothing is stamped and the question is
+  /*
+   * Claimed before sending, for the same reason the template route claims it:
+   * a customer with two open orders can tap a button on each within a second,
+   * and two taps are two message groups running in parallel.
+   */
+  const now = nowOf(deps);
+  const claim = await claimLangAsk(phone, now, (L.waitMinutes ?? 5) * 60 * 1000, L.maxAsks ?? 2);
+  if (!claim.claimed) return null;
+
+  /*
+   * orderId: 'picker', a literal, for the same reason ownerSend passes
+   * 'owner'. Without it encodePayload writes the string "undefined" into both
+   * button ids and onPick then reads the state of an order called "undefined".
+   */
+  const r = await sess(deps, phone, 'language_select', { customer_name: langName(DEFAULT_LANG, null) }, { orderId: 'picker' });
+  // A skipped send is not a send, so the claim goes back and the question is
   // still owed once the gate that skipped it lifts.
-  if (!r) return null;
-  await markLangAsked(phone, nowOf(deps));
+  if (!r) {
+    await releaseLangAsk(phone, claim.prev);
+    return null;
+  }
   metric('LangAskedSession', 1, {});
   log.info('language: asked which language after their first tap', { phone: maskPhone(phone) });
   return r;
@@ -147,7 +172,7 @@ export async function onShowPicker(phone, deps) {
    * is missing, which is the same one every other message uses, rather than
    * leaving "Hello ," with a hole in it.
    */
-  return sess(deps, phone, 'language_select', { customer_name: langName(lang, null) }, { lang });
+  return sess(deps, phone, 'language_select', { customer_name: langName(lang, null) }, { lang, orderId: 'picker' });
 }
 
 /**
@@ -160,6 +185,14 @@ export async function onShowPicker(phone, deps) {
 export async function onOwnerRequest(args, deps, _ownerPhone) {
   const [order, want] = String(args || '').trim().split(/\s+/);
   if (!order || !want) return { reply: 'Use it like this: /lang 1214 hi' };
+  /*
+   * Say so rather than promising it. langFor returns English while the feature
+   * is off, so setting a language here would reply "I will write to this
+   * customer in Hindi from now on" and then not.
+   */
+  if (!RULES.language?.enabled) {
+    return { reply: 'Languages are switched off right now, so everyone gets English. Turn on RULES.language.enabled first.' };
+  }
   if (!LANGS.includes(want)) return { reply: `I know ${LANGS.join(' and ')}, not ${want}.` };
 
   const n = await getNormByName(deps, order.replace(/^#/, ''));

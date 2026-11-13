@@ -138,3 +138,42 @@ describe('the name we use when the order carries none', () => {
     }
   });
 });
+
+/*
+ * The fragments that become LIST ROW TITLES and QUICK REPLY BUTTONS.
+ *
+ * These are the tightest caps in the whole registry and the only thing that
+ * was enforcing them was a .slice() at the call site, which does not fail, it
+ * truncates: and truncating Devanagari at a fixed offset can cut a combining
+ * mark away from the character it belongs to. Two of the RTO reasons were
+ * sitting on exactly 24 characters with no headroom.
+ */
+describe('the fragments that have to fit inside a WhatsApp control', () => {
+  const RTO = ['rto_not_available', 'rto_changed_mind', 'rto_size_fit', 'rto_delivery_late', 'rto_did_not_order', 'rto_other'];
+  const NDR = ['ndr_reattempt', 'ndr_address', 'ndr_cancel'];
+
+  it('every RTO reason fits a 24 character list row title, in both languages', () => {
+    for (const l of LANGS) {
+      for (const k of RTO) {
+        const v = str(l, k);
+        expect(v.length, `${l}.${k} = ${JSON.stringify(v)}`).toBeLessThanOrEqual(24);
+        // And leaves room for one more character, so a copy edit is not a cliff.
+        expect(v.length, `${l}.${k} has no headroom`).toBeLessThanOrEqual(23);
+      }
+    }
+  });
+
+  it('every NDR option fits a 20 character session button title, in both languages', () => {
+    for (const l of LANGS) {
+      for (const k of NDR) expect(str(l, k).length, `${l}.${k}`).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it('the RTO keys are exactly the reason ids, so a row is translated by id and never by label', async () => {
+    const { RTO_REASONS } = await import('./labels.mjs');
+    for (const r of RTO_REASONS) {
+      for (const l of LANGS) expect(() => str(l, `rto_${r.id}`), `rto_${r.id}`).not.toThrow();
+    }
+    expect(RTO_REASONS.map((r) => `rto_${r.id}`).sort()).toEqual([...RTO].sort());
+  });
+});

@@ -290,6 +290,23 @@ describe('a multi-line order asks which item', () => {
     await VC.route(ORDER, 'vcl:2', deps, PHONE);
     expect(rowActions(last(clients))).toEqual(['vcs:2:101', 'vcs:2:102']);
   });
+
+  /*
+   * THE ROW DESCRIPTION IS WHAT TELLS TWO ROWS APART.
+   *
+   * Nothing asserted this, and it regressed in silence: the language work put
+   * a lazy((l) => ...) inside .map((l) => ...) over the line items, so the
+   * closure's parameter shadowed the line and read .size off the string 'en'.
+   * Every description came out empty. sendList drops an empty description, so
+   * Meta accepted the message and a customer who ordered the same garment in
+   * two colours saw two identical rows with no way to choose.
+   */
+  it('describes each row, so two of the same garment are not two identical rows', async () => {
+    const { clients, deps } = await setup(twoLines);
+    await VC.route(ORDER, 'vc', deps, PHONE);
+    const m = last(clients);
+    for (const r of m.rows) expect(r.description, `row ${r.title}`).toMatch(/size XS/);
+  });
 });
 
 describe('a typed message in the middle changes nothing', () => {

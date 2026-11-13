@@ -274,11 +274,19 @@ export const STR = {
      * past tense carries gender ("मैं उपलब्ध नहीं था" assumes a man), and this
      * is a list a customer picks from, so the wording cannot assume.
      */
+    /*
+     * Also inside 24 CHARACTERS, which is Meta's cap on a list row title and
+     * is the tightest cap in this file. Two of these were exactly 24 with zero
+     * headroom, and the only thing enforcing the cap was a .slice(24) at the
+     * call site, which truncates mid-grapheme: Devanagari combining marks get
+     * cut from the character they belong to. lang.test.mjs asserts the lengths
+     * now, so a copy edit that pushes one over fails the build instead.
+     */
     rto_not_available: 'घर पर कोई नहीं था',
     rto_changed_mind: 'मैंने मन बदल लिया',
     rto_size_fit: 'Size ठीक नहीं था',
-    rto_delivery_late: 'डिलीवरी में बहुत देर हुई',
-    rto_did_not_order: 'मैंने यह Order नहीं किया',
+    rto_delivery_late: 'डिलीवरी में देर हुई',
+    rto_did_not_order: 'यह Order मेरा नहीं',
     rto_other: 'कोई और कारण',
     ndr_reattempt: 'कल डिलीवरी करें',
     ndr_address: 'Address बदलें',

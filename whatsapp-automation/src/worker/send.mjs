@@ -213,6 +213,17 @@ async function dispatch(deps, phone, def, vars, ctx, key) {
  * one extra attempt.
  */
 const HI_RETRY_MS = 10 * 60 * 1000;
+/*
+ * The codes worth REMEMBERING, which is a narrower set than the ones worth
+ * falling back on.
+ *
+ * TEMPLATE_UNUSABLE includes 131052 and 131053, "the header image could not be
+ * downloaded or uploaded". That is a fact about ONE ORDER'S product photo, not
+ * about the template, so caching it would take Hindi away from every other
+ * customer for ten minutes because one garment had a bad image URL. Fall back
+ * for that order, remember nothing.
+ */
+const HI_CACHEABLE = new Set([132000, 132001, 132005, 132007, 132012, 132015, 132016]);
 const hiUnusable = new Map();
 const hiPaused = (name, at) => (hiUnusable.get(name) || 0) > at;
 const markHiUnusable = (name, at) => hiUnusable.set(name, at + HI_RETRY_MS);
@@ -304,7 +315,7 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
         return await dispatch(deps, phone, hiDef, resolveVars(vars, 'hi'), { ...ctx, lang: 'hi' }, key);
       } catch (e) {
         if (!isTemplateUnusable(e)) throw e;
-        markHiUnusable(hiDef.name, at);
+        if (HI_CACHEABLE.has(e.waCode)) markHiUnusable(hiDef.name, at);
         log.warn('hindi template unusable, sending the English one', {
           key,
           name: hiDef.name,

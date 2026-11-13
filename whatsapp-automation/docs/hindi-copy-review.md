@@ -1963,8 +1963,8 @@ in English by mistake.
 | `rto_not_available` | I was not available | घर पर कोई नहीं था |
 | `rto_changed_mind` | Changed my mind | मैंने मन बदल लिया |
 | `rto_size_fit` | Size or fit concern | Size ठीक नहीं था |
-| `rto_delivery_late` | Delivery took too long | डिलीवरी में बहुत देर हुई |
-| `rto_did_not_order` | I did not order this | मैंने यह Order नहीं किया |
+| `rto_delivery_late` | Delivery took too long | डिलीवरी में देर हुई |
+| `rto_did_not_order` | I did not order this | यह Order मेरा नहीं |
 | `rto_other` | Other reason | कोई और कारण |
 | `ndr_reattempt` | Deliver tomorrow | कल डिलीवरी करें |
 | `ndr_address` | Change address | Address बदलें |
@@ -1973,4 +1973,7 @@ in English by mistake.
 | `pageClosedButton` | Continue to my bag | मेरे बैग पर जाएँ |
 | `pageOrderedHeading` | Your order is placed. Thank you for choosing Morpaankh. | आपका Order दर्ज हो गया है। Morpaankh चुनने के लिए Thank you। |
 | `pageOrderedButton` | Visit Morpaankh | Morpaankh देखें |
+| `payExpired` | This payment link has expired. Please reply on WhatsApp and we will help you. | यह पेमेंट लिंक बंद हो गया है। कृपया WhatsApp पर जवाब दें, हम मदद करेंगे। |
+| `payAlreadyPaid` | This order is already paid, so there is nothing more to pay. Reply on WhatsApp if anything looks wrong. | इस Order का पेमेंट हो चुका है, अब कुछ नहीं देना है। अगर कुछ गड़बड़ लगे तो WhatsApp पर बताएँ। |
+| `payClosed` | This order is no longer open for payment. Please reply on WhatsApp and we will help you. | इस Order पर अब पेमेंट नहीं लिया जा सकता। कृपया WhatsApp पर जवाब दें, हम मदद करेंगे। |
 

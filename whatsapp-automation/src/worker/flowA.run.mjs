@@ -28,7 +28,7 @@ import {
 } from '../store/orderState.mjs';
 import {
   isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing,
-  getParkedOffer, clearParkedOffer, langState, markLangAsked } from '../store/phoneProfile.mjs';
+  getParkedOffer, clearParkedOffer, langState, claimLangAsk, releaseLangAsk } from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
@@ -363,6 +363,32 @@ async function languageGate(deps, orderId, n, st, now) {
     return 'go';
   }
 
+  /*
+   * CLAIM THE SLOT BEFORE SENDING, which is what makes the borrow branch above
+   * more than a best effort.
+   *
+   * Everything above this line is a read, and the queue serialises by ORDER,
+   * so two orders placed seconds apart both get here having seen no previous
+   * ask. The claim is a version-conditioned write, so they serialise on it:
+   * one wins and sends, the other is told 'asked-recently' and waits behind
+   * the winner's deadline. One tap then answers both, because the tap writes
+   * to the PHONE.
+   */
+  const claim = await soft('claimLangAsk', () => claimLangAsk(phone, now, waitMs, L.maxAsks ?? 2), { orderId });
+  // A profile we could not write is not a reason to hold a confirmation.
+  if (!claim) return 'go';
+  if (!claim.claimed) {
+    if (claim.reason !== 'asked-recently') {
+      log.info('flowA lang: not asking', { orderId, reason: claim.reason });
+      return 'go';
+    }
+    const due = new Date(claim.askedAt).getTime() + waitMs;
+    await patchFlowA(orderId, { langAskAt: claim.askedAt });
+    await armTimer(orderId, 'lang_wait', new Date(due), now);
+    log.info('flowA lang: another order claimed the question first, waiting behind it', { orderId });
+    return 'wait';
+  }
+
   let res;
   try {
     res = await runOnce(orderId, 'lang-ask', () =>
@@ -371,18 +397,22 @@ async function languageGate(deps, orderId, n, st, now) {
     // Never block the confirmation on the picker. Both versions of
     // language_select are new, so both are in Meta review at first and this is
     // the expected path on day one.
+    await soft('releaseLangAsk', () => releaseLangAsk(phone, claim.prev), { orderId });
     log.warn('flowA lang: the picker could not be sent, confirming in English', { orderId, err: e.message, waCode: e.waCode });
     metric('LangAskFailed', 1, {});
     return 'go';
   }
   /*
    * A skipped send is not a send: dry run, not on the send allowlist, human
-   * takeover, an undeliverable number. Nothing is stamped, so the picker is
-   * still owed once the gate that skipped it lifts.
+   * takeover, an undeliverable number. The claim goes back, so the question is
+   * still owed once the gate that skipped it lifts, and nothing is stamped on
+   * the order either.
    */
-  if (!res || res.skipped) return 'go';
+  if (!res || res.skipped) {
+    await soft('releaseLangAsk', () => releaseLangAsk(phone, claim.prev), { orderId });
+    return 'go';
+  }
 
-  await soft('markLangAsked', () => markLangAsked(phone, now), { orderId });
   await patchFlowA(orderId, { langAskAt: now.toISOString() });
   await armTimer(orderId, 'lang_wait', new Date(now.getTime() + waitMs), now);
   metric('LangAsked', 1, {});
@@ -873,7 +903,15 @@ export async function resendConfirm(orderId, deps, lang) {
   if (!n || !n.verifiedPhone) return null;
   if (tapState(n, st) !== 'open') return null;
 
-  const action = `lang-resend:${lang}`;
+  /*
+   * ONE resend per ORDER, not one per language.
+   *
+   * The key carried the language, so SIDE#lang-resend:hi and
+   * SIDE#lang-resend:en were two different rows: tapping English, then Hindi,
+   * then English again produced the confirmation plus TWO reminders off a
+   * single picker. Nobody needs the same order explained three times.
+   */
+  const action = 'lang-resend';
   /*
    * Checked BEFORE runOnce, not instead of it. runOnce returns the stored
    * result on a repeat and the caller cannot tell that from a fresh send, so a
@@ -890,7 +928,17 @@ export async function resendConfirm(orderId, deps, lang) {
       preferLegacy: !offerOk,
       now,
     });
-    return { resent: !res?.skipped };
+    if (res?.skipped) return { resent: false };
+    /*
+     * STAMPED AS THE REMINDER, because that is what was just sent.
+     *
+     * onReminder returns early only on reminderSentAt, and this writes the
+     * same template to the same customer. Without the stamp the scheduled
+     * reminder fires a few hours later and sends a second, identical
+     * cod_reminder.
+     */
+    await patchFlowA(orderId, { reminderSentAt: now.toISOString(), reminderSource: 'lang-resend' });
+    return { resent: true };
   });
 }
 

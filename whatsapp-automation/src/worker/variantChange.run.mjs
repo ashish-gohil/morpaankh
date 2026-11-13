@@ -115,10 +115,19 @@ export async function onStart(orderId, deps, phone, { touch = true } = {}) {
     const rows = lines.slice(0, MAX_ROWS).map((l) => ({
       action: act('vcl', numOf(l.id)),
       title: l.title.slice(0, 24),
-      // The row DESCRIPTION is prose too, so it waits for the language like
-      // the title does. The colour name itself is never translated.
-      description: lazy((l) =>
-        [colourOfVariant(currentVariantOf(l)), l.size && str(l, 'describeSize', l.size)]
+      /*
+       * The row DESCRIPTION is prose too, so it waits for the language like
+       * the title does. The colour name itself is never translated.
+       *
+       * `lng`, NOT `l`. This closure sits inside `.map((l) => ...)` over the
+       * LINE ITEMS, and naming the language parameter `l` shadowed the line:
+       * currentVariantOf('en') returned an empty variant and 'en'.size was
+       * undefined, so every row went out with a blank description. sendList
+       * drops an empty description, so Meta accepted it and it failed in
+       * silence, in BOTH languages, with the feature switched off.
+       */
+      description: lazy((lng) =>
+        [colourOfVariant(currentVariantOf(l)), l.size && str(lng, 'describeSize', l.size)]
           .filter(Boolean)
           .join(', ')
           .slice(0, 72)),

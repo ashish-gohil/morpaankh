@@ -516,7 +516,9 @@ describe('a tap is never met with silence', () => {
     const sent = clients.whatsapp.sent.at(-1);
     expect(sent.type).toBe('buttons');
     expect(sent.body).not.toMatch(/Hello\s*,/);
-    expect(sent.buttons.map((b) => b.id)).toEqual(['v1|L|undefined|lang_en', 'v1|L|undefined|lang_hi']);
+    // 'picker', a literal, the way ownerSend passes 'owner'. The string
+    // "undefined" in a payload is a wasted state read on an order of that name.
+    expect(sent.buttons.map((b) => b.id)).toEqual(['v1|L|picker|lang_en', 'v1|L|picker|lang_hi']);
   });
 });
 
@@ -827,5 +829,178 @@ describe('the owner keeps reading English, even with Hindi set on their own hand
     expect(ownerKeys.length).toBeGreaterThan(3);
     for (const k of ownerKeys) expect(TEMPLATES_HI[k], `TEMPLATES_HI.${k}`).toBeUndefined();
     for (const k of ownerSessionKeys) expect(SESSION_HI[k], `SESSION_HI.${k}`).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/*
+ * Everything in here was found by an adversarial read of the branch, not by a
+ * failing test. Each one is a regression guard for a specific hole.
+ */
+describe('with the feature OFF, nothing accepts a language', () => {
+  let quiet;
+  beforeEach(() => {
+    // Shipped state: enabled is false. Deliberately NOT calling withLanguage.
+    config.ownerAlertPhones = [];
+    quiet = [
+      vi.spyOn(console, 'error').mockImplementation(() => {}),
+      vi.spyOn(console, 'warn').mockImplementation(() => {}),
+      vi.spyOn(console, 'log').mockImplementation(() => {}),
+    ];
+    vi.spyOn(realClients.whatsapp, 'sendText').mockImplementation(async () => ({ messageId: 'x' }));
+  });
+  afterEach(() => {
+    for (const s of quiet) s.mockRestore();
+    vi.restoreAllMocks();
+  });
+
+  /*
+   * A typed keyword used to set a language and reply, in HINDI, "from now on
+   * we will speak to you in Hindi". langFor returns English when the feature
+   * is off, so that promise was never kept.
+   */
+  it('a typed keyword stores nothing and promises nothing', async () => {
+    await routes.wa_inbound({ kind: 'wa_inbound', from: PHONE, msg: { text: { body: 'हिंदी' } } });
+    expect((await getProfile(PHONE)).lang).toBeUndefined();
+  });
+
+  /*
+   * And it must not swallow the message either. This branch RETURNS, and it
+   * used to sit above the window-open hooks, so a customer whose first word
+   * back was "HINDI" left a parked offer unreleased when their message had
+   * just opened the only window that could deliver it.
+   */
+  it('a keyword message still reaches the hooks that release a parked offer', async () => {
+    const { parkOffer } = await import('../store/phoneProfile.mjs');
+    await ensureState('12345', {});
+    await patchState('12345', { verifiedPhone: PHONE, name: '#1234' });
+    await parkOffer(PHONE, '12345', null);
+
+    /*
+     * Asserted on the Shopify READ rather than on the park being cleared:
+     * flowA.onWindowOpen finds the park and then re-reads the order, and that
+     * read is what proves the hook was reached. Clearing the park needs a live
+     * Shopify, which these tests do not have.
+     */
+    const read = vi.spyOn(realClients.shopify, 'getOrder');
+    await routes.wa_inbound({ kind: 'wa_inbound', from: PHONE, msg: { text: { body: 'HINDI' } } });
+    expect(read).toHaveBeenCalled();
+  });
+
+  /*
+   * A tap can arrive from a picker that went out before a rollback.
+   */
+  it('a Flow L tap from before a rollback is ignored, not honoured', async () => {
+    await routes.wa_inbound({ kind: 'wa_inbound', from: PHONE, msg: { button: { payload: 'v1|L|picker|lang_hi' } } });
+    expect((await getProfile(PHONE)).lang).toBeUndefined();
+  });
+
+  it('/lang says languages are off rather than promising Hindi', async () => {
+    const { deps } = setup();
+    const r = await language.onOwnerRequest('1234 hi', deps, OTHER_PHONE);
+    expect(r.reply).toMatch(/switched off/i);
+    expect((await getProfile(PHONE)).lang).toBeUndefined();
+  });
+});
+
+describe('two orders asking at the same moment', () => {
+  beforeEach(() => withLanguage());
+
+  /*
+   * The queue serialises by ORDER, not by phone, so two orders placed seconds
+   * apart are two message groups running in parallel. Every check before the
+   * claim is a read, so both saw no previous ask and both sent a picker. The
+   * claim is a version-conditioned write, so they serialise on it.
+   */
+  it('asks once, and the loser waits behind the winner deadline', async () => {
+    const { clients, deps } = setup([codOrder(), codOrder({ id: 'gid://shopify/Order/12346', name: '#1235' })]);
+    await Promise.all([A.onCodTimer('12345', deps), A.onCodTimer('12346', deps)]);
+
+    expect(templateNames(clients.whatsapp)).toEqual(['language_select_v1']);
+    expect((await langState(PHONE)).askCount).toBe(1);
+    // Both orders are waiting, and both are recoverable.
+    for (const id of ['12345', '12346']) {
+      const st = await getState(id);
+      expect(st.flowA?.langAskAt, id).toBeTruthy();
+      expect(st.flowA?.codConfirmAt, id).toBeFalsy();
+      expect(st.flowA?.codSkip, id).toBeFalsy();
+    }
+  });
+
+  it('gives the claim back when the picker turns out to be skipped', async () => {
+    const { clients, deps } = setup();
+    skip(clients.whatsapp, 'language_select_v1');
+    await A.onCodTimer('12345', deps);
+    // Nothing spent, so the question is still owed once the gate lifts.
+    const ls = await langState(PHONE);
+    expect(ls.askCount).toBe(0);
+    expect(ls.askedAt).toBeNull();
+  });
+});
+
+describe('a late switch does not turn into two reminders', () => {
+  beforeEach(() => withLanguage());
+
+  /*
+   * The resend guard keyed on the LANGUAGE, so lang-resend:hi and
+   * lang-resend:en were different rows and a customer tapping English, Hindi,
+   * English got the confirmation plus TWO reminders off one picker.
+   */
+  it('tapping both buttons in turn resends once, not once per language', async () => {
+    const { clients, deps } = setup();
+    await setLang(PHONE, 'en');
+    await A.onCodTimer('12345', deps);
+    await language.onPick(PHONE, 'lang_hi', '12345', deps);
+    await language.onPick(PHONE, 'lang_en', '12345', deps);
+    await language.onPick(PHONE, 'lang_hi', '12345', deps);
+    expect(templateNames(clients.whatsapp)).toEqual(['cod_confirm_v3', 'cod_reminder_hi_v1']);
+  });
+
+  /*
+   * resendConfirm sends cod_reminder, and onReminder returns early only on
+   * reminderSentAt. Without the stamp the scheduled reminder fires hours later
+   * and sends the same message a second time.
+   */
+  it('and the scheduled reminder does not repeat what the switch already sent', async () => {
+    const { clients, deps } = setup();
+    await setLang(PHONE, 'en');
+    await A.onCodTimer('12345', deps);
+    await language.onPick(PHONE, 'lang_hi', '12345', deps);
+    await A.onReminder('12345', { ...deps, now: new Date(NOW.getTime() + 7 * 60 * 60 * 1000) });
+    expect(templateNames(clients.whatsapp)).toEqual(['cod_confirm_v3', 'cod_reminder_hi_v1']);
+  });
+});
+
+describe('the refused-Hindi cache remembers the template, not one order photo', () => {
+  beforeEach(async () => {
+    withLanguage();
+    await setLang(PHONE, 'hi');
+  });
+
+  /*
+   * 131052 is "the header image could not be downloaded", which is a fact
+   * about ONE order's product photo. Caching it took Hindi away from every
+   * other customer for ten minutes because one garment had a bad image URL.
+   */
+  it('a per-order media failure does not take Hindi away from the next customer', async () => {
+    const { clients, deps } = setup([codOrder(), codOrder({ id: 'gid://shopify/Order/12346', name: '#1235' })]);
+    let attempts = 0;
+    const real = clients.whatsapp.sendTemplate;
+    clients.whatsapp.sendTemplate = async (a) => {
+      if (a.name === 'cod_confirm_hi_v1') {
+        attempts += 1;
+        if (attempts === 1) {
+          const e = new Error('media download failed');
+          /** @type {any} */ (e).waCode = 131052;
+          throw e;
+        }
+      }
+      return real(a);
+    };
+    await A.onCodTimer('12345', deps);
+    await A.onCodTimer('12346', deps);
+    expect(attempts).toBe(2);
+    expect(templateNames(clients.whatsapp)).toEqual(['cod_confirm_v3', 'cod_confirm_hi_v1']);
   });
 });

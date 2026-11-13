@@ -1684,3 +1684,71 @@ G0 code complete, off. G1 the owner reads `docs/hindi-copy-review.md`
 `allowPhones` set to the owner's handsets, checked on a real order. G5
 `allowPhones: []`. Rollback at any point is `enabled: false`; stored choices
 survive and apply again when it is switched back on.
+
+### What an adversarial read found afterwards
+
+The 50-test suite found two bugs while being written. A separate read of the
+whole branch, with the tests passing, found nine more. Worth recording because
+most of them were in the same shape: code that was correct for Hindi and wrong
+for the shipped state, or correct in sequence and wrong in parallel.
+
+**The worst one was not about Hindi at all.** The `vc_pick_item` row builder is
+`lines.map((l) => ...)`, and the lazy wrapper went in as `lazy((l) => ...)`.
+The parameter shadowed the line item, so inside the closure `l` was the string
+`'en'`: `currentVariantOf('en')` returned an empty variant and `'en'.size` was
+undefined. Every row went out with a BLANK description, in both languages, with
+the feature switched off. `sendList` drops an empty description, so Meta
+accepted it and it failed in silence. A customer who ordered the same garment
+in two colours saw two identical rows. It is the only one of 56 `lazy()` sites
+that shadows its parameter, and nothing asserted that a row has a description.
+
+**A keyword worked while the feature was off.** `langFromText` was checked
+unconditionally, so a customer typing `हिंदी` got a Hindi reply saying "from
+now on we will speak to you in Hindi", a stored language, and English for ever
+after, because `langFor` returns English when the feature is off. The same
+branch also RETURNED above the window-open hooks, so that inbound no longer
+released a parked cart recovery or welcome offer: their message had just opened
+the only window that could deliver it. Both fixed; `/lang` says plainly that
+languages are off rather than promising one.
+
+**Two orders seconds apart could both ask.** Every check before the send was a
+read, and the queue serialises by ORDER, so two parallel records both saw no
+previous ask. The sequential case was tested and passed; the parallel one was
+the bug. The slot is CLAIMED now with a version-conditioned write, so
+concurrent callers serialise on it: one asks, the other waits behind its
+deadline, and the claim is given back if the send turns out to be skipped.
+
+**The resend guard keyed on the language.** `SIDE#lang-resend:hi` and
+`SIDE#lang-resend:en` are different rows, so tapping English, Hindi, English
+produced the confirmation and TWO reminders off one picker. One key per order
+now. And `resendConfirm` sends `cod_reminder` without stamping
+`reminderSentAt`, so the scheduled reminder fired hours later and sent the same
+message again.
+
+**The read-your-own-write the gate depends on.** `table.get` had no
+`ConsistentRead`, and DynamoDB defaults to eventually consistent. `onPick`
+writes the choice and then reads it back in the same invocation to pick a
+registry; a stale read sends English seconds after the customer tapped Hindi.
+`getProfile` is a strongly consistent read now. It costs twice the read units
+on a row this service reads a few thousand times a month, which is cents, and
+it quietly closes the same window on the opt-out: STOP written by one record
+and read by another seconds later.
+
+**Two Hindi list row titles sat on exactly 24 characters**, Meta's cap, with
+the only enforcement a `.slice(0, 24)` at the call site. A slice does not fail,
+it truncates, and truncating Devanagari at a fixed offset can cut a combining
+mark from the character it belongs to. Both shortened, and the caps are
+asserted now with one character of headroom so a copy edit is not a cliff.
+
+**The refused-Hindi cache keyed on the template name but was fed per-order
+failures.** 131052 and 131053 mean "the header image could not be downloaded",
+which is a fact about one order's product photo. Caching it took Hindi away
+from every other customer for ten minutes. The cache now only remembers codes
+that are genuinely about the template.
+
+Every one has a regression test. The categories the read could NOT break are
+worth recording too: the English-fragment-in-a-Hindi-body sweep came back clean
+across all 56 lazy sites bar the shadow; `tpl`'s fallback does re-resolve vars
+for English; owner-facing English holds structurally; a forged Flow L payload
+touches nothing; and no `vars` object is ever persisted or logged, so neither
+`Lazy` throw can land anywhere harmful.
