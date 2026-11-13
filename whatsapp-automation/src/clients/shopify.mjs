@@ -513,7 +513,8 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
        orderEditBegin(id:$id){
          calculatedOrder{
            id
-           lineItems(first:50){ nodes{ id quantity originalUnitPriceSet{ shopMoney{ amount } } } }
+           totalPriceSet{ shopMoney{ amount } }
+           lineItems(first:50){ nodes{ id quantity restockable originalUnitPriceSet{ shopMoney{ amount } } } }
            shippingLines{ id title }
          }
          userErrors{ field message }
@@ -525,48 +526,182 @@ async function convertToPrepaid({ order, amounts, paymentId, linkId }) {
   if (beginErrs.length) throw new Error(`orderEditBegin: ${JSON.stringify(beginErrs)}`);
   const calc = begun.orderEditBegin.calculatedOrder;
 
+  const paiseOf = (c) => Math.round(Number(c?.totalPriceSet?.shopMoney?.amount || 0) * 100);
+  // The staged total, kept current by every step below. It is what the
+  // pre-commit check reads, and on the CalculatedOrder it really does move
+  // with the edit (on the Order type the same field name is a pre-edit
+  // snapshot that does not: see changeLineItemVariant).
+  let stagedPaise = paiseOf(calc);
+
+  if (amounts.discountPaise > 0) {
+    /*
+     * WHICH LINE CARRIES THE PREPAID DISCOUNT.
+     *
+     * Picked from the ORDER and not from the calculated order, because only
+     * the order knows what each line is already discounted by, and that
+     * decides which of the two routes below is even possible.
+     * CalculatedLineItem cannot answer it: its calculatedDiscountAllocations
+     * additionally needs read_returns, which this app does not hold.
+     *
+     * A removed line stays on the order at currentQuantity 0 with its original
+     * price intact and sorts first on a tie, so normalizeOrder's live-line
+     * filter matters here. On #1182 both lines are the same price, and the
+     * top-priced pick would otherwise have discounted the garment the customer
+     * is not getting.
+     */
+    const top = (order.lineItems || [])
+      .slice()
+      .sort((a, b) => (b.unitPaise || 0) - (a.unitPaise || 0))[0];
+    if (!top) throw new Error('convertToPrepaid: no line item to discount');
+    // The calculated twin is LOOKED UP by the shared numeric suffix rather
+    // than built by swapping the gid prefix: a lookup survives Shopify
+    // changing the shape, a reconstruction sends a plausible id that names
+    // nothing. Same technique as changeLineItemVariant.
+    const suffix = String(top.id).split('/').pop();
+    const calcTop = (calc.lineItems?.nodes || []).find((l) => String(l.id).split('/').pop() === suffix);
+    if (!calcTop) {
+      throw new Error(`convertToPrepaid: no calculated line matches ${top.id}; nothing was changed`);
+    }
+
+    const addDiscount = async (lineItemId, paise, description) => {
+      const r = await graphql(
+        `mutation Disc($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!){
+           orderEditAddLineItemDiscount(id:$id, lineItemId:$lineItemId, discount:$discount){
+             calculatedOrder{ totalPriceSet{ shopMoney{ amount } } }
+             userErrors{ field message }
+           }
+         }`,
+        {
+          id: calc.id,
+          lineItemId,
+          discount: { description, fixedValue: { amount: (paise / 100).toFixed(2), currencyCode: 'INR' } },
+        },
+      );
+      const e = r.orderEditAddLineItemDiscount?.userErrors || [];
+      if (e.length) throw new Error(`orderEditAddLineItemDiscount: ${JSON.stringify(e)}`);
+      stagedPaise = paiseOf(r.orderEditAddLineItemDiscount?.calculatedOrder) || stagedPaise;
+    };
+
+    if (!top.discountPaise) {
+      await addDiscount(calcTop.id, amounts.discountPaise, 'Prepaid offer');
+    } else {
+      /*
+       * THE LINE ALREADY HAS A DISCOUNT, so Shopify will not take another one:
+       * "The order has a discount which prevents applying additional discounts
+       * to this line item." There is no way to edit the one that is in the way
+       * either. orderEditUpdateDiscount only touches a MANUAL line-level
+       * discount, and the blocking discount is Shopify's own order-level
+       * application, which the edit session cannot even see: CalculatedOrder
+       * exposes addedDiscountApplications, meaning the ones added by THIS edit,
+       * and has no field for the ones already on the order.
+       *
+       * IT COST A REAL PAYMENT. On #1252 (2026-11-13) a Rs 150 automatic
+       * discount made the offer quote Rs 2,249 against a Rs 2,399 order. The
+       * customer paid, this mutation was refused five times, and the record
+       * dead-lettered: money in Razorpay, Shopify still PENDING at Rs 2,399,
+       * the waybill still saying collect cash.
+       *
+       * So the line is re-added instead. A line added during an edit carries
+       * no allocation, Shopify takes a discount on it, and the two discounts
+       * become one: the share the line already had plus the prepaid discount.
+       * The order then totals exactly what the customer paid, with the
+       * difference showing as a discount rather than as money we never took.
+       *
+       * Automatic discounts are NOT re-run on an order edit, which is what
+       * makes the arithmetic hold. Verified on #1252 end to end before this
+       * was written: 2399 -> 50 (line removed) -> 2549 (re-added at 2499) ->
+       * 2299 (Rs 250 discount) -> 2249 (COD line removed), against Rs 2,249
+       * captured. The pre-commit check below is what enforces it from here on.
+       *
+       * restock, then re-add the same variant: the two cancel out, so
+       * inventory ends where it started. Without the restock the garment the
+       * customer IS getting would be counted out of stock twice.
+       */
+      if (!top.variantGid) {
+        throw new Error(
+          `convertToPrepaid: ${top.title || top.id} is discounted and has no variant to re-add, ` +
+            'so the prepaid discount cannot be applied; nothing was changed',
+        );
+      }
+      const removed = await graphql(
+        `mutation Rm($id: ID!, $lineItemId: ID!, $restock: Boolean){
+           orderEditSetQuantity(id:$id, lineItemId:$lineItemId, quantity:0, restock:$restock){
+             calculatedOrder{ totalPriceSet{ shopMoney{ amount } } }
+             userErrors{ field message }
+           }
+         }`,
+        { id: calc.id, lineItemId: calcTop.id, restock: calcTop.restockable !== false },
+      );
+      const rmErrs = removed.orderEditSetQuantity?.userErrors || [];
+      if (rmErrs.length) throw new Error(`orderEditSetQuantity: ${JSON.stringify(rmErrs)}`);
+
+      const added = await graphql(
+        `mutation Add($id: ID!, $variantId: ID!, $quantity: Int!){
+           orderEditAddVariant(id:$id, variantId:$variantId, quantity:$quantity, allowDuplicates:true){
+             calculatedLineItem{ id }
+             calculatedOrder{ totalPriceSet{ shopMoney{ amount } } }
+             userErrors{ field message }
+           }
+         }`,
+        { id: calc.id, variantId: top.variantGid, quantity: top.quantity || 1 },
+      );
+      const addErrs = added.orderEditAddVariant?.userErrors || [];
+      if (addErrs.length) throw new Error(`orderEditAddVariant: ${JSON.stringify(addErrs)}`);
+      const newLineId = added.orderEditAddVariant?.calculatedLineItem?.id;
+      if (!newLineId) throw new Error('convertToPrepaid: the re-added line came back without an id');
+      stagedPaise = paiseOf(added.orderEditAddVariant?.calculatedOrder) || stagedPaise;
+
+      await addDiscount(
+        newLineId,
+        top.discountPaise + amounts.discountPaise,
+        `Discount carried over plus prepaid offer`,
+      );
+      plan.method = 'order_edit_line_replaced';
+      plan.carriedDiscountPaise = top.discountPaise;
+    }
+  }
+
+  /*
+   * THE COD FEE LINE GOES LAST, because that is the order the whole sequence
+   * was verified in on #1252: 2399 -> 50 (line removed) -> 2549 (re-added) ->
+   * 2299 (discount) -> 2249 (this). The sum does not care, but an intermediate
+   * state Shopify refuses would, and this is the one that was actually run.
+   */
   const codLine = (calc.shippingLines || []).find((sl) => /cash on delivery/i.test(sl.title || ''));
   if (codLine) {
     const r = await graphql(
       `mutation RmShip($id: ID!, $lineId: ID!){
-         orderEditRemoveShippingLine(id:$id, shippingLineId:$lineId){ userErrors{ field message } }
+         orderEditRemoveShippingLine(id:$id, shippingLineId:$lineId){
+           calculatedOrder{ totalPriceSet{ shopMoney{ amount } } }
+           userErrors{ field message }
+         }
        }`,
       { id: calc.id, lineId: codLine.id },
     );
     const e = r.orderEditRemoveShippingLine?.userErrors || [];
     if (e.length) throw new Error(`orderEditRemoveShippingLine: ${JSON.stringify(e)}`);
+    stagedPaise = paiseOf(r.orderEditRemoveShippingLine?.calculatedOrder) || stagedPaise;
   }
 
-  if (amounts.discountPaise > 0) {
-    // A removed line stays on the calculated order at quantity 0 with its
-    // original price intact, and it sorts first on a tie. On #1182 both lines
-    // are the same price, so the top-priced pick would have put the prepaid
-    // discount on the line the customer is not getting. This is the money
-    // path, so filter before sorting.
-    const lines = (calc.lineItems?.nodes || []).filter((li) => (li.quantity ?? 1) > 0);
-    const top = lines
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(b.originalUnitPriceSet?.shopMoney?.amount || 0) -
-          Number(a.originalUnitPriceSet?.shopMoney?.amount || 0),
-      )[0];
-    if (!top) throw new Error('convertToPrepaid: no line item to discount');
-    const r = await graphql(
-      `mutation Disc($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!){
-         orderEditAddLineItemDiscount(id:$id, lineItemId:$lineItemId, discount:$discount){ userErrors{ field message } }
-       }`,
-      {
-        id: calc.id,
-        lineItemId: top.id,
-        discount: {
-          description: 'Prepaid offer',
-          fixedValue: { amount: (amounts.discountPaise / 100).toFixed(2), currencyCode: 'INR' },
-        },
-      },
+  /*
+   * THE CHECK THAT HAS TO HAPPEN BEFORE THE COMMIT.
+   *
+   * An order edit cannot be rolled back, and the next call settles the whole
+   * outstanding, so the only safe place to find out that the arithmetic did
+   * not land is while nothing has been applied. The check further down reads
+   * the same number after the commit and says "reconcile by hand", which is a
+   * worse place to learn it: the order is edited and the money is not
+   * recorded.
+   *
+   * It catches the one thing the sequence above cannot control: the variant's
+   * price moving between the order and the re-add, which would silently change
+   * what the customer owes.
+   */
+  if (stagedPaise !== amounts.newTotalPaise) {
+    throw new Error(
+      `convertToPrepaid: the staged edit totals ${stagedPaise} but the customer paid ` +
+        `${amounts.newTotalPaise}; NOTHING was committed and nothing was marked paid`,
     );
-    const e = r.orderEditAddLineItemDiscount?.userErrors || [];
-    if (e.length) throw new Error(`orderEditAddLineItemDiscount: ${JSON.stringify(e)}`);
   }
 
   const committed = await graphql(

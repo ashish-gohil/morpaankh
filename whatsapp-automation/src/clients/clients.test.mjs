@@ -149,6 +149,13 @@ describe('convertToPrepaid never discounts a line the customer no longer has', (
 
     const seen = [];
     const reply = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify({ data }) });
+    // Rs 1,249 of goods + the Rs 50 COD fee, so Rs 1,299 charged and Rs 1,149
+    // quoted. Kept as a RUNNING total, because the pre-commit check reads it:
+    // a fixture that reports no total at all makes the conversion refuse, and
+    // this one used to report Rs 1,149 outstanding after an edit that never
+    // removed the fee.
+    let totalPaise = 129900;
+    const money = () => ({ shopMoney: { amount: (totalPaise / 100).toFixed(2) } });
     globalThis.fetch = async (_url, init) => {
       const { query, variables } = JSON.parse(init.body);
       seen.push({ query, variables });
@@ -156,25 +163,33 @@ describe('convertToPrepaid never discounts a line the customer no longer has', (
         return reply({ orderEditBegin: {
           calculatedOrder: {
             id: 'gid://shopify/CalculatedOrder/1',
+            totalPriceSet: money(),
             lineItems: { nodes: [
-              { id: 'gid://CalculatedLineItem/REMOVED', quantity: 0, originalUnitPriceSet: { shopMoney: { amount: '1249.00' } } },
-              { id: 'gid://CalculatedLineItem/KEPT', quantity: 1, originalUnitPriceSet: { shopMoney: { amount: '1249.00' } } },
+              { id: 'gid://CalculatedLineItem/REMOVED', quantity: 0, restockable: true, originalUnitPriceSet: { shopMoney: { amount: '1249.00' } } },
+              { id: 'gid://CalculatedLineItem/KEPT', quantity: 1, restockable: true, originalUnitPriceSet: { shopMoney: { amount: '1249.00' } } },
             ] },
-            shippingLines: [],
+            shippingLines: [{ id: 'gid://shopify/CalculatedShippingLine/9', title: 'Cash on Delivery' }],
           },
           userErrors: [],
         } });
       }
-      if (query.includes('orderEditAddLineItemDiscount')) return reply({ orderEditAddLineItemDiscount: { userErrors: [] } });
+      if (query.includes('orderEditAddLineItemDiscount')) {
+        totalPaise -= Math.round(Number(variables.discount.fixedValue.amount) * 100);
+        return reply({ orderEditAddLineItemDiscount: { calculatedOrder: { totalPriceSet: money() }, userErrors: [] } });
+      }
+      if (query.includes('orderEditRemoveShippingLine')) {
+        totalPaise -= 5000;
+        return reply({ orderEditRemoveShippingLine: { calculatedOrder: { totalPriceSet: money() }, userErrors: [] } });
+      }
       if (query.includes('orderEditCommit')) {
         return reply({ orderEditCommit: {
-          order: { id: 'gid://shopify/Order/1', totalOutstandingSet: { shopMoney: { amount: '1149.00' } } },
+          order: { id: 'gid://shopify/Order/1', totalOutstandingSet: money() },
           userErrors: [],
         } });
       }
       if (query.includes('orderMarkAsPaid')) {
         return reply({ orderMarkAsPaid: {
-          order: { id: 'gid://shopify/Order/1', displayFinancialStatus: 'PAID', netPaymentSet: { shopMoney: { amount: '1149.00' } } },
+          order: { id: 'gid://shopify/Order/1', displayFinancialStatus: 'PAID', netPaymentSet: money() },
           userErrors: [],
         } });
       }
@@ -183,7 +198,29 @@ describe('convertToPrepaid never discounts a line the customer no longer has', (
 
     try {
       const r = await shopify.convertToPrepaid({
-        order: { gid: 'gid://shopify/Order/1', numericId: '1' },
+        /*
+         * The order as normalizeOrder hands it over, which is where the line
+         * is chosen from now: only the LIVE line is in it, because the
+         * discount has to be put on the garment the customer is getting and
+         * only the order knows what each line is already discounted by. The
+         * calculated order above still returns both, removed line first on the
+         * tie, so a pick that goes back to reading it would still land on the
+         * garment going back to stock and fail here.
+         */
+        order: {
+          gid: 'gid://shopify/Order/1',
+          numericId: '1',
+          lineItems: [
+            {
+              id: 'gid://shopify/LineItem/KEPT',
+              title: '2XL',
+              quantity: 1,
+              unitPaise: 124900,
+              discountPaise: 0,
+              variantGid: 'gid://shopify/ProductVariant/2XL',
+            },
+          ],
+        },
         amounts: { discountPaise: 10000, codFeePaise: 5000, newTotalPaise: 114900 },
         paymentId: 'pay_X',
       });

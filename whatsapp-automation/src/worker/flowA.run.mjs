@@ -133,6 +133,23 @@ async function ensurePaymentLink(deps, n, amt, now) {
     );
     return null;
   }
+  /*
+   * NOTHING TO SAVE IS NOT AN OFFER.
+   *
+   * On a discounted order the line discount is unavailable (see
+   * prepaidDiscountApplicable), so the saving is the COD fee alone, and an
+   * order carrying no fee leaves nothing at all. A link for the full COD price
+   * under copy that promises a saving is a worse answer than no link: the
+   * customer pays the same money and loses the right to inspect at the door.
+   */
+  if (amt.savingPaise <= 0) {
+    log.warn('flowA: no saving available, offering nothing', {
+      orderId: n.numericId,
+      discountBlocked: amt.discountBlocked,
+      codFeePaise: amt.codFeePaise,
+    });
+    return null;
+  }
   const orderId = n.numericId;
   const st = await getState(orderId);
   const seq = st?.flowA?.paylinkSeq || 0;
@@ -535,7 +552,7 @@ export async function onCodTimer(orderId, deps) {
   // refuse to create a link, and a customer who tapped Pay online after seeing a
   // number would get an apology instead. Send the price-free version instead.
   const amt = computeAmounts(n, RULES);
-  const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
+  const offerOk = amt.feeMatches && amt.newTotalPaise > 0 && amt.savingPaise > 0;
   if (!offerOk) log.warn('flowA cod: no prepaid price quoted', { orderId, feeMatches: amt.feeMatches });
 
   const res = await tpl(deps, n.verifiedPhone, 'cod_confirm', confirmVars(n, amt), {
@@ -932,7 +949,7 @@ export async function resendConfirm(orderId, deps, lang) {
 
   return runOnce(orderId, action, async () => {
     const amt = computeAmounts(n, RULES);
-    const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
+    const offerOk = amt.feeMatches && amt.newTotalPaise > 0 && amt.savingPaise > 0;
     const res = await sendBest(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
       orderId: n.numericId,
       preferLegacy: !offerOk,
@@ -968,7 +985,7 @@ export async function onReminder(orderId, deps) {
   if (await dispatchSkip(orderId, n, 'reminder')) return;
   if (await isOptedOut(n.verifiedPhone)) return;
   const amt = computeAmounts(n, RULES);
-  const offerOk = amt.feeMatches && amt.newTotalPaise > 0;
+  const offerOk = amt.feeMatches && amt.newTotalPaise > 0 && amt.savingPaise > 0;
   const res = await sendBest(deps, n.verifiedPhone, 'cod_reminder', confirmVars(n, amt), {
     orderId: n.numericId,
     preferLegacy: !offerOk,
@@ -1206,11 +1223,59 @@ export async function onPaymentPaid(orderId, entity, deps) {
     }
 
     const linkId = (await getSide(orderId, 'paylink'))?.linkId;
-    // The order edit is not repeatable: a second run would discount the order
-    // twice. runOnce makes a redelivery return the first result untouched.
+    /*
+     * THE MONEY IS ALREADY OURS BY THIS POINT, so a failure here cannot be
+     * silent.
+     *
+     * convertToPrepaid throws BEFORE it commits, which is the right thing:
+     * nothing half-edited, nothing marked paid for money nobody paid. But the
+     * throw used to be the whole story. It left SQS to retry five times and
+     * park the record in the DLQ, and the customer who had just paid heard
+     * NOTHING AT ALL, because every message below this line is after the
+     * conversion. That is what order #1252 looked like from the customer's
+     * side on 2026-11-13: Rs 2,249 paid at 08:31, five failures by 08:57,
+     * silence.
+     *
+     * So the customer is told their payment arrived and is being checked,
+     * which is true, the order is tagged so it can be found in Shopify, and
+     * the owner is told the figure and the payment id. Then it rethrows, so
+     * the retries and the DLQ alarm still happen exactly as before.
+     *
+     * Each one is runOnce-guarded because this runs again on every retry and
+     * nobody needs the same bad news five times.
+     */
     const conv = await runOnce(orderId, 'convert-prepaid', () =>
       deps.clients.shopify.convertToPrepaid({ order: n, amounts: amt, paymentId, linkId }),
-    );
+    ).catch(async (e) => {
+      const paid = formatINR(paidPaise ?? amt.newTotalPaise);
+      await soft('paymentHeldMsg', () =>
+        runOnce(orderId, 'payment-held-msg', async () => {
+          await sess(deps, n.verifiedPhone, 'payment_received_checking', {
+            customer_name: lazy((l) => langName(l, n.firstName)),
+            order_number: n.name,
+            amount_paid: paid,
+          });
+          return { sent: true };
+        }),
+        { orderId },
+      );
+      await soft('tagsAdd:payment-unapplied', () =>
+        deps.clients.shopify.tagsAdd(n.gid, ['wa-payment-unapplied']), { orderId });
+      await soft('alertConversionFailed', () =>
+        runOnce(orderId, 'alert-convert-failed', async () => {
+          await ownerAlert(
+            deps,
+            n.name,
+            `URGENT: ${paid} received online (razorpay ${paymentId || 'no payment id'}) but Shopify could NOT be ` +
+              'updated, so the order still reads unpaid cash on delivery. Record the payment by hand and check the ' +
+              'waybill before dispatch, or the courier will collect it a second time',
+          );
+          return { alerted: true };
+        }),
+        { orderId },
+      );
+      throw e;
+    });
     // convertedAt is the guard that stops a redelivery re-entering this branch,
     // so it is written immediately after the conversion and before the
     // bookkeeping that follows it.

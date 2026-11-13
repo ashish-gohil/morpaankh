@@ -294,6 +294,49 @@ describe('Flow A prepaid conversion tagging', () => {
     expect(tagsAdded(clients.shopify)).not.toContain('PREPAID-CONVERTED');
     expect(tagsAdded(clients.shopify)).not.toContain('wa-prepaid-converted');
   });
+
+  /*
+   * ORDER #1252, 2026-11-13: paid at 08:31, the conversion refused five times
+   * by 08:57, and the customer was told nothing whatsoever. Everything that
+   * speaks to them lives after the conversion, so a throw there was silence.
+   */
+  it('tells the customer and the owner when a payment cannot be applied', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.convertToPrepaid = async () => {
+      throw new Error('orderEditAddLineItemDiscount: the order has a discount');
+    };
+
+    await A.onCodTimer('12345', deps);
+    await A.onConfirm('12345', deps);
+    await expect(
+      A.onPaymentPaid('12345', { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 }, deps),
+    ).rejects.toThrow();
+
+    const said = clients.whatsapp.sent.map((x) => `${x.body || ''}`).join(' | ');
+    // their money arrived and is being looked at, which is the truth
+    expect(said).toContain('Our team is checking');
+    // findable in Shopify without reading a log
+    expect(tagsAdded(clients.shopify)).toContain('wa-payment-unapplied');
+    // and the owner has the figure
+    expect(said).toContain('1,349');
+  });
+
+  it('says it once, however many times SQS retries', async () => {
+    const { clients, deps } = setup();
+    clients.shopify.convertToPrepaid = async () => {
+      throw new Error('orderEditAddLineItemDiscount: the order has a discount');
+    };
+    await A.onCodTimer('12345', deps);
+    await A.onConfirm('12345', deps);
+    const paid = { id: 'plink_1', payment_id: 'pay_1', amount_paid: 134900 };
+    for (let i = 0; i < 3; i += 1) {
+      await expect(A.onPaymentPaid('12345', paid, deps)).rejects.toThrow();
+    }
+    const checking = clients.whatsapp.sent.filter((x) =>
+      String(x.body || '').includes('Our team is checking'),
+    );
+    expect(checking).toHaveLength(1);
+  });
 });
 
 describe('Flow A dispatch message', () => {

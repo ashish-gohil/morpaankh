@@ -114,6 +114,79 @@ describe('computeAmounts', () => {
     expect(a.feeMatches).toBe(true); // 50.0 attr == Rs 50 line
   });
 
+  /*
+   * ORDER #1252, 2026-11-13. A Rs 2,499 garment carrying a Rs 150 automatic
+   * discount, plus the Rs 50 COD fee. The quote was right and the CONVERSION
+   * was what broke: Shopify refused to stack the prepaid discount on the line,
+   * the payment dead-lettered, and the order stayed PENDING at Rs 2,399 with
+   * the customer's Rs 2,249 in Razorpay.
+   *
+   * So the quote still promises the whole tier saving, and convertToPrepaid
+   * re-adds the line carrying both discounts as one to deliver it. This test
+   * pins the number the customer is asked for; the route that honours it is
+   * pinned in clients/shopify.prepaid.test.mjs. If the two ever disagree, the
+   * payment handler's own check refuses rather than marking anything paid.
+   */
+  it('quotes the full tier saving even when the order already carries a discount', () => {
+    const a = computeAmounts(
+      normalizeOrder(
+        codOrder({
+          currentTotalPriceSet: { shopMoney: { amount: '2399.00' } },
+          totalPriceSet: { shopMoney: { amount: '2399.00' } },
+          lineItems: {
+            nodes: [
+              {
+                id: 'li1',
+                title: 'Kalika',
+                quantity: 1,
+                originalUnitPriceSet: { shopMoney: { amount: '2499.00' } },
+                discountAllocations: [{ allocatedAmountSet: { shopMoney: { amount: '150.00' } } }],
+              },
+            ],
+          },
+        }),
+      ),
+      RULES,
+    );
+    expect(a.discountPaise).toBe(10000); // Rs 150 tier less the Rs 50 fee
+    expect(a.savingPaise).toBe(15000);
+    expect(a.newTotalPaise).toBe(224900); // exactly what #1252 was asked for and paid
+    expect(a.savingInr).toBe(150);
+  });
+
+  /*
+   * The allocation the conversion has to carry. normalizeOrder sums it per
+   * line because Shopify allocates once per discount application, so a line
+   * can hold several, and carrying only the first would lose the rest off the
+   * order total.
+   */
+  it('reads the discount already allocated to a line, summed', () => {
+    const n = normalizeOrder(
+      codOrder({
+        lineItems: {
+          nodes: [
+            {
+              id: 'li1',
+              title: 'Bandhan',
+              quantity: 1,
+              originalUnitPriceSet: { shopMoney: { amount: '1449.00' } },
+              discountAllocations: [
+                { allocatedAmountSet: { shopMoney: { amount: '100.00' } } },
+                { allocatedAmountSet: { shopMoney: { amount: '50.00' } } },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(n.lineItems[0].discountPaise).toBe(15000);
+  });
+
+  it('reads an undiscounted line as carrying nothing', () => {
+    const n = normalizeOrder(codOrder());
+    expect(n.lineItems[0].discountPaise).toBe(0);
+  });
+
   it('never discounts below zero when the COD fee already covers the saving', () => {
     const order = codOrder({
       shippingLines: { nodes: [{ title: 'Cash on Delivery', originalPriceSet: { shopMoney: { amount: '150.00' } } }] },
