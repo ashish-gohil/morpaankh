@@ -33,7 +33,7 @@ import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
 import { onUntrackedFulfillment } from './flowB.run.mjs';
-import { log } from '../log.mjs';
+import { log, metric } from '../log.mjs';
 import { soft, withRetry } from '../lib/resilience.mjs';
 
 const nowOf = (deps) => deps.now || new Date();
@@ -310,18 +310,30 @@ async function languageGate(deps, orderId, n, st, now) {
 
   const waitMs = (L.waitMinutes ?? 5) * 60 * 1000;
 
-  // Already asked ON THIS ORDER. Either the wait is up, or we wait on.
+  const ls = await soft('langState', () => langState(phone), { orderId });
+  // A profile we could not read is not a reason to hold a confirmation.
+  if (!ls) return 'go';
+  /*
+   * THE ANSWER IS CHECKED BEFORE THE QUESTION, and that order is the whole
+   * point of the read happening here rather than lower down.
+   *
+   * The tap handler sets the language and then calls onCodTimer to let the
+   * confirmation be its reply. If the "already asked on this order" branch ran
+   * first, it would find langAskAt stamped, see the five minutes were not up,
+   * re-arm the timer and return 'wait' - so the customer taps Hindi and
+   * nothing happens for five minutes, then the confirmation arrives anyway.
+   * That is exactly the bug this ordering prevents, and it cost one read.
+   */
+  if (ls.chosen) return 'go';
+
+  // Already asked ON THIS ORDER, and not answered. Either the wait is up, or
+  // we wait on.
   if (st.flowA?.langAskAt) {
     const due = new Date(st.flowA.langAskAt).getTime() + waitMs;
     if (now.getTime() >= due) return 'go';
     await armTimer(orderId, 'lang_wait', new Date(due), now);
     return 'wait';
   }
-
-  const ls = await soft('langState', () => langState(phone), { orderId });
-  // A profile we could not read is not a reason to hold a confirmation.
-  if (!ls) return 'go';
-  if (ls.chosen) return 'go';
 
   /*
    * ANOTHER ORDER ASKED THIS PHONE MOMENTS AGO.

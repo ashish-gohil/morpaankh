@@ -242,6 +242,13 @@ const hiPaused = (name, at) => (hiUnusable.get(name) || 0) > at;
 const markHiUnusable = (name, at) => hiUnusable.set(name, at + HI_RETRY_MS);
 
 /**
+ * Empty the cache. For tests, which share a module instance the way a warm
+ * Lambda container does, so one test's refusal would otherwise silently
+ * suppress the next test's Hindi attempt.
+ */
+export const _resetLangCache = () => hiUnusable.clear();
+
+/**
  * Send a template by registry key, falling back to its LEGACY version when the
  * current one cannot be used.
  *
