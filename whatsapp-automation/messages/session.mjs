@@ -736,6 +736,22 @@ function fill(str, vars, key) {
  * @param {{orderId?:string, url?:string}} [ctx]  url for cta_url; orderId for button ids
  * @returns a shape the whatsapp client can send (or {type:'html',body} for the page)
  */
+/**
+ * The language this key will ACTUALLY render in.
+ *
+ * Not the same question as "what does this customer read". A key with no Hindi
+ * twin renders in English however the recipient's profile is set, and the vars
+ * have to be resolved to match the BODY or a lazy value lands in the wrong
+ * language inside the right one.
+ *
+ * Today every owner key is in exactly that position: ops_* and pnl_* have no
+ * Hindi definition, and their vars happen to be plain strings, so nothing is
+ * visibly wrong. The first lazy() ever added to an owner alert would have
+ * resolved in Hindi inside an English body whenever the owner's own handset
+ * had lang: 'hi'. This closes that before it can happen rather than after.
+ */
+export const sessionLang = (key, lang) => (lang === 'hi' && SESSION_HI[key] ? 'hi' : 'en');
+
 export function renderSession(key, vars = {}, ctx = {}) {
   /*
    * THE HINDI TWIN, OR ENGLISH. Never a throw, and never a mixture.

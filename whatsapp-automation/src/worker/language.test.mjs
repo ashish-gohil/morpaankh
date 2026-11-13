@@ -1004,3 +1004,37 @@ describe('the refused-Hindi cache remembers the template, not one order photo', 
     expect(templateNames(clients.whatsapp)).toEqual(['cod_confirm_v3', 'cod_confirm_hi_v1']);
   });
 });
+
+/* ------------------------------------------------------------------ */
+
+describe('a variable is resolved in the language of the BODY, not the recipient preference', () => {
+  beforeEach(async () => {
+    withLanguage();
+    config.ownerAlertPhones = [];
+    await setLang(PHONE, 'hi');
+  });
+
+  /*
+   * A key with no Hindi twin renders in English however the profile is set, so
+   * the vars have to be resolved to match the BODY. Every owner key is in
+   * exactly that position today and their vars happen to be plain strings, so
+   * nothing was visibly wrong. The first lazy() ever added to an owner alert
+   * would have resolved in Hindi inside an English body whenever the owner's
+   * own handset had lang: 'hi'. This pins the rule before that can happen.
+   */
+  it('an English-only key resolves its lazy vars in English, for a Hindi phone', async () => {
+    const { lazy } = await import('../../messages/lang.mjs');
+    const { sess } = await import('./send.mjs');
+    const { clients, deps } = setup();
+    await sess(deps, PHONE, 'ops_reply', { text: lazy((l) => `resolved-${l}`) });
+    expect(clients.whatsapp.sent.at(-1).body).toContain('resolved-en');
+  });
+
+  it('and a key that DOES have a Hindi twin resolves them in Hindi', async () => {
+    const { lazy } = await import('../../messages/lang.mjs');
+    const { sess } = await import('./send.mjs');
+    const { clients, deps } = setup();
+    await sess(deps, PHONE, 'cancel_done', { order_number: lazy((l) => `resolved-${l}`) });
+    expect(clients.whatsapp.sent.at(-1).body).toContain('resolved-hi');
+  });
+});

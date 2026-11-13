@@ -331,7 +331,7 @@ async function languageGate(deps, orderId, n, st, now) {
   if (st.flowA?.langAskAt) {
     const due = new Date(st.flowA.langAskAt).getTime() + waitMs;
     if (now.getTime() >= due) return 'go';
-    await armTimer(orderId, 'lang_wait', new Date(due), now);
+    await armTimer(orderId, 'lang_wait', armAfter(new Date(due)), now);
     return 'wait';
   }
 
@@ -348,7 +348,7 @@ async function languageGate(deps, orderId, n, st, now) {
   if (ls.askedAt && now.getTime() - new Date(ls.askedAt).getTime() < waitMs) {
     const due = new Date(ls.askedAt).getTime() + waitMs;
     await patchFlowA(orderId, { langAskAt: ls.askedAt });
-    await armTimer(orderId, 'lang_wait', new Date(due), now);
+    await armTimer(orderId, 'lang_wait', armAfter(new Date(due)), now);
     log.info('flowA lang: another order just asked this phone, waiting behind it', { orderId });
     return 'wait';
   }
@@ -384,7 +384,7 @@ async function languageGate(deps, orderId, n, st, now) {
     }
     const due = new Date(claim.askedAt).getTime() + waitMs;
     await patchFlowA(orderId, { langAskAt: claim.askedAt });
-    await armTimer(orderId, 'lang_wait', new Date(due), now);
+    await armTimer(orderId, 'lang_wait', armAfter(new Date(due)), now);
     log.info('flowA lang: another order claimed the question first, waiting behind it', { orderId });
     return 'wait';
   }
@@ -414,7 +414,7 @@ async function languageGate(deps, orderId, n, st, now) {
   }
 
   await patchFlowA(orderId, { langAskAt: now.toISOString() });
-  await armTimer(orderId, 'lang_wait', new Date(now.getTime() + waitMs), now);
+  await armTimer(orderId, 'lang_wait', armAfter(new Date(now.getTime() + waitMs)), now);
   metric('LangAsked', 1, {});
   log.info('flowA lang: asked which language, holding the confirmation', { orderId, waitMinutes: L.waitMinutes });
   return 'wait';
@@ -565,6 +565,16 @@ export async function onCodTimer(orderId, deps) {
   }
   await armTimer(orderId, 'highrisk', deferPastQuietHours(addHours(now, RULES.highRiskCheckAfterHours), RULES.quietHours), now);
 }
+
+/*
+ * The scheduler expresses a one-time timer to the MINUTE (at(...), see
+ * timers/schedule.mjs), so a wait armed at T+5m00s can fire at T+4m00s. The
+ * gate then finds the deadline not yet reached, re-arms, and the confirmation
+ * lands about a minute late after a wasted invocation and a wasted Shopify
+ * read. Rounding the arm time UP past the minute boundary costs at most 59
+ * seconds of extra wait and removes the extra round trip entirely.
+ */
+const armAfter = (at) => new Date(Math.ceil(at.getTime() / 60000) * 60000 + 60000);
 
 /**
  * Arm one Flow A timer.

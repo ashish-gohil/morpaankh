@@ -6,7 +6,7 @@ import { config } from '../config.mjs';
 import { normalizeOrder } from '../domain/order.mjs';
 import { resolveOrderPhone } from '../lib/phone.mjs';
 import { TEMPLATES, LEGACY, NO_PRICE, renderTemplateDef } from '../../messages/templates.mjs';
-import { renderSession, SESSION } from '../../messages/session.mjs';
+import { renderSession, sessionLang, SESSION } from '../../messages/session.mjs';
 import { TEMPLATES_HI, PLAIN_HI } from '../../messages/templates.hi.mjs';
 import { resolveVars, resolveRows, DEFAULT_LANG } from '../../messages/lang.mjs';
 
@@ -394,7 +394,14 @@ export async function tpl(deps, phone, key, vars, ctx = {}) {
  * own, so there is nothing to check here.
  */
 export async function sess(deps, phone, key, vars, ctx = {}) {
-  const lang = ctx.lang || (await langFor(phone));
+  const want = ctx.lang || (await langFor(phone));
+  /*
+   * The language of the BODY, which is not always what the recipient reads: a
+   * key with no Hindi twin renders in English whatever the profile says. The
+   * vars are resolved to match the body, so a lazy value cannot end up in the
+   * wrong language inside the right one.
+   */
+  const lang = sessionLang(key, want);
   const r = renderSession(key, resolveVars(vars, lang), { ...ctx, lang, rows: resolveRows(ctx.rows, lang) });
   const wa = deps.clients.whatsapp;
   if (r.type === 'text') return wa.sendText({ to: phone, body: r.body });
