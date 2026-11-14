@@ -12,7 +12,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { config } from '../config.mjs';
 import { _resetMemory } from '../store/table.mjs';
 import { _resetTimers, _peekTimers } from '../timers/schedule.mjs';
-import { setOptOut, setLang, getLang, getProfile, langState, markLangAsked } from '../store/phoneProfile.mjs';
+import { setOptOut, setLang, getLang, getProfile, langState, markLangAsked,
+  langPilotAllows, langAllowList } from '../store/phoneProfile.mjs';
 import { getState, ensureState, patchState, patchFlowA, recordMessage, getSide } from '../store/orderState.mjs';
 import { realClients } from '../clients/index.mjs';
 import { routes } from './index.mjs';
@@ -32,8 +33,9 @@ const OTHER_PHONE = '+919800000011';
 
 /*
  * The shipped values, read at import so a leaked override from one test cannot
- * become another test's starting point. RULES.language ships ENTIRELY OFF and
- * most of this file turns it on, which is exactly the leak worth guarding.
+ * become another test's starting point. Since 2026-11-14 RULES.language ships
+ * ON but scoped to the owner's own handsets (gate G4), so what this file turns
+ * on is the SCOPE, not the feature, which is exactly the leak worth guarding.
  */
 const SHIPPED_LANGUAGE = { ...RULES.language };
 const SHIPPED_DIGEST_CHANNEL = RULES.digestChannel;
@@ -42,9 +44,17 @@ afterEach(() => {
   RULES.digestChannel = SHIPPED_DIGEST_CHANNEL;
 });
 
-/** Turn the feature on for one test, with any rule overridden. */
+/**
+ * Turn the feature on for one test, with any rule overridden.
+ *
+ * The pilot scoping is cleared, because these tests are about the language
+ * logic rather than about who is let into it, and the suite runs with no
+ * OWNER_ALERT_PHONES configured. A test that wants the pilot asks for it.
+ */
 const withLanguage = (over = {}) => {
-  RULES.language = { ...SHIPPED_LANGUAGE, enabled: true, ...over };
+  RULES.language = {
+    ...SHIPPED_LANGUAGE, enabled: true, pilotOwnerPhonesOnly: false, allowPhones: [], ...over,
+  };
 };
 
 function codOrder(overrides = {}) {
@@ -841,7 +851,13 @@ describe('the owner keeps reading English, even with Hindi set on their own hand
 describe('with the feature OFF, nothing accepts a language', () => {
   let quiet;
   beforeEach(() => {
-    // Shipped state: enabled is false. Deliberately NOT calling withLanguage.
+    /*
+     * The ROLLBACK state, stated rather than inherited. This used to lean on
+     * the shipped default being enabled:false, which stopped being true when
+     * the flow was turned on for the owner's handsets on 2026-11-14. A test of
+     * the off behaviour has to say off, or it quietly tests something else.
+     */
+    RULES.language = { ...SHIPPED_LANGUAGE, enabled: false };
     config.ownerAlertPhones = [];
     quiet = [
       vi.spyOn(console, 'error').mockImplementation(() => {}),
@@ -1036,5 +1052,59 @@ describe('a variable is resolved in the language of the BODY, not the recipient 
     const { clients, deps } = setup();
     await sess(deps, PHONE, 'cancel_done', { order_number: lazy((l) => `resolved-${l}`) });
     expect(clients.whatsapp.sent.at(-1).body).toContain('resolved-hi');
+  });
+});
+
+/*
+ * The G4 pilot switch, which decides who the picker and Hindi may reach.
+ *
+ * Worth its own block because all three gates (langFor here, languageGate in
+ * flowA.run, offerPickerAfterTap in language.run) now route through one
+ * helper, and because the first version of that helper read an empty list as
+ * "everyone". With pilotOwnerPhonesOnly set and OWNER_ALERT_PHONES unset, that
+ * turned the owner-only pilot into a full rollout to every customer. The Flow
+ * A suite caught it; these pin it.
+ */
+describe('the pilot switch decides who gets Hindi', () => {
+  const OWNER = '+919999000011';
+
+  it('lets an owner handset in and keeps every customer out', () => {
+    RULES.language = { ...SHIPPED_LANGUAGE, enabled: true, pilotOwnerPhonesOnly: true };
+    config.ownerAlertPhones = [OWNER];
+    expect(langAllowList()).toEqual([OWNER]);
+    expect(langPilotAllows(OWNER)).toBe(true);
+    expect(langPilotAllows(PHONE)).toBe(false);
+  });
+
+  it('FAILS CLOSED when the pilot is on but no owner phone is configured', () => {
+    RULES.language = { ...SHIPPED_LANGUAGE, enabled: true, pilotOwnerPhonesOnly: true };
+    config.ownerAlertPhones = [];
+    // Never `true` here: that is the full rollout nobody asked for.
+    expect(langPilotAllows(PHONE)).toBe(false);
+    expect(langPilotAllows(OWNER)).toBe(false);
+  });
+
+  it('an explicit allowPhones wins, for piloting on a phone that is not an owner', () => {
+    RULES.language = {
+      ...SHIPPED_LANGUAGE, enabled: true, pilotOwnerPhonesOnly: true, allowPhones: [PHONE],
+    };
+    config.ownerAlertPhones = [OWNER];
+    expect(langPilotAllows(PHONE)).toBe(true);
+    expect(langPilotAllows(OWNER)).toBe(false);
+  });
+
+  it('only G5, both knobs clear, means everyone', () => {
+    RULES.language = {
+      ...SHIPPED_LANGUAGE, enabled: true, pilotOwnerPhonesOnly: false, allowPhones: [],
+    };
+    config.ownerAlertPhones = [];
+    expect(langPilotAllows(PHONE)).toBe(true);
+    expect(langPilotAllows(OWNER)).toBe(true);
+  });
+
+  it('the shipped state is the owner-only pilot, not a rollout', () => {
+    expect(SHIPPED_LANGUAGE.enabled).toBe(true);
+    expect(SHIPPED_LANGUAGE.pilotOwnerPhonesOnly).toBe(true);
+    expect(SHIPPED_LANGUAGE.allowPhones).toEqual([]);
   });
 });

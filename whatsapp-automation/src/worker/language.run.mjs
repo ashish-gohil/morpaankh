@@ -13,7 +13,7 @@
  * receipt.
  */
 import { log, maskPhone, metric } from '../log.mjs';
-import { setLang, getLang, langState, claimLangAsk, releaseLangAsk } from '../store/phoneProfile.mjs';
+import { setLang, getLang, langState, claimLangAsk, releaseLangAsk, langPilotAllows } from '../store/phoneProfile.mjs';
 import { getState } from '../store/orderState.mjs';
 import { RULES } from '../../messages/rules.mjs';
 import { sess, getNormByName } from './send.mjs';
@@ -113,7 +113,7 @@ export async function onPick(phone, action, orderId, deps) {
 export async function offerPickerAfterTap(phone, deps) {
   const L = RULES.language || {};
   if (!L.enabled || L.askMode !== 'session') return null;
-  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return null;
+  if (!langPilotAllows(phone)) return null;
 
   const ls = await langState(phone);
   if (ls.chosen) return null;

@@ -5,6 +5,7 @@
 import { table, VersionConflict } from './table.mjs';
 import { withinDays } from '../lib/time.mjs';
 import { RULES } from '../../messages/rules.mjs';
+import { config } from '../config.mjs';
 import { LANGS, normalizeLang, DEFAULT_LANG } from '../../messages/lang.mjs';
 import { log, maskPhone, metric } from '../log.mjs';
 
@@ -299,10 +300,51 @@ export async function hasLang(phone) {
  * wiring emails the owner on any error line, and "we sent English" is not an
  * incident.
  */
+/**
+ * The G4 pilot list: whose phone the language picker and Hindi may reach.
+ *
+ * ONE HELPER BECAUSE THERE ARE THREE GATES. langFor here, languageGate in
+ * flowA.run and offerPickerAfterTap in language.run each used to inline
+ * `L.allowPhones?.length && !L.allowPhones.includes(phone)`, so a pilot that
+ * was not applied identically in all three would leak Hindi down one path.
+ *
+ * `pilotOwnerPhonesOnly` resolves to OWNER_ALERT_PHONES rather than to a list
+ * in messages/rules.mjs, because rules.mjs is committed and this repo is
+ * PUBLIC: hardcoding the owner's number there publishes it again. The owner's
+ * handsets are already configured, which is exactly the set the pilot wants.
+ *
+ * An explicit allowPhones still wins, for piloting on a number that is not an
+ * owner handset. Empty list with the flag off means everyone, which is G5.
+ */
+export function langAllowList() {
+  const L = RULES.language || {};
+  if (L.allowPhones?.length) return L.allowPhones;
+  if (L.pilotOwnerPhonesOnly) return config.ownerAlertPhones || [];
+  return [];
+}
+
+/**
+ * True when this phone may be offered the picker and Hindi.
+ *
+ * FAILS CLOSED WHILE A PILOT IS ON. An empty list read as "everyone" is how a
+ * pilot turns into a full rollout without anyone choosing it: with
+ * pilotOwnerPhonesOnly set and OWNER_ALERT_PHONES unset or misspelled, every
+ * customer would get Hindi. Caught by the Flow A suite, which runs with no
+ * owner phones configured and so had the picker firing for every order.
+ *
+ * Only G5, both knobs clear, means everyone.
+ */
+export function langPilotAllows(phone) {
+  const L = RULES.language || {};
+  const scoped = Boolean(L.allowPhones?.length || L.pilotOwnerPhonesOnly);
+  if (!scoped) return true;
+  return langAllowList().includes(phone);
+}
+
 export async function langFor(phone) {
   const L = RULES.language || {};
   if (!L.enabled) return DEFAULT_LANG;
-  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return DEFAULT_LANG;
+  if (!langPilotAllows(phone)) return DEFAULT_LANG;
   try {
     return normalizeLang((await getProfile(phone)).lang);
   } catch (e) {

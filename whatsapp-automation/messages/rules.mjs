@@ -640,12 +640,30 @@ export const RULES = {
    * it is already approved.
    */
   language: {
-    enabled: false,
+    /*
+     * ON as of 2026-11-14, scoped to the owner's own handsets (gate G4).
+     *
+     * All 64 templates are APPROVED at Meta, English and Hindi, which was the
+     * condition for turning this on. Meta reviewed them for POLICY, not for
+     * whether the Hindi reads well, and docs/hindi-copy-review.md has not been
+     * signed off, so the first real traffic is the owner's.
+     *
+     * To go to every customer (G5): set pilotOwnerPhonesOnly to false.
+     * To roll back: set enabled to false. Both are one line and a deploy.
+     */
+    enabled: true,
     default: 'en',
     askMode: 'template',
     waitMinutes: 5,
     maxAsks: 2,
+    /*
+     * Empty on purpose. The pilot list comes from OWNER_ALERT_PHONES via
+     * langAllowList() in store/phoneProfile.mjs, because this file is
+     * committed to a PUBLIC repo and a number here would be published.
+     * Set this only to pilot on a phone that is not an owner handset.
+     */
     allowPhones: [],
+    pilotOwnerPhonesOnly: true,
     hiDisabledKeys: [],
   },
 

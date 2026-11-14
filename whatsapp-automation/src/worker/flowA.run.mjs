@@ -28,7 +28,8 @@ import {
 } from '../store/orderState.mjs';
 import {
   isOptedOut, touchInbound, windowOpen, canSendMarketing, markMarketing,
-  getParkedOffer, clearParkedOffer, langState, claimLangAsk, releaseLangAsk } from '../store/phoneProfile.mjs';
+  getParkedOffer, clearParkedOffer, langState, claimLangAsk, releaseLangAsk,
+  langPilotAllows } from '../store/phoneProfile.mjs';
 import { setPaylinkMap, setPayTokenMap, setAwbMap } from '../store/maps.mjs';
 import { scheduleTimer, cancelTimer } from '../timers/schedule.mjs';
 import { getNorm, tpl, sendBest, sess, ownerAlert, isTemplateUnusable } from './send.mjs';
@@ -316,7 +317,7 @@ async function languageGate(deps, orderId, n, st, now) {
   if (!L.enabled || L.askMode !== 'template') return 'go';
   const phone = n.verifiedPhone;
   // The G4 pilot switch: off the list, nothing about this order changes.
-  if (L.allowPhones?.length && !L.allowPhones.includes(phone)) return 'go';
+  if (!langPilotAllows(phone)) return 'go';
   /*
    * The picker was accepted by Meta and then failed to deliver. onWaStatus
    * sets this and runs onCodTimer again, so the confirmation goes now. A phone
