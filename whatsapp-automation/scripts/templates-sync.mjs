@@ -85,22 +85,51 @@ async function appId() {
 }
 
 /**
- * A one-cell workbook to be the CREATE-time example for a DOCUMENT header.
+ * A one-page PDF to be the CREATE-time example for a DOCUMENT header.
  *
- * The real monthly report is generated per run and kept in a private bucket, so
- * there is no sample URL to fetch. Meta only needs something of the right type
- * to look at in review, so a throwaway is both sufficient and honest: shipping
- * a real month's figures to Meta as a template example would hand them the
- * business's accounts.
+ * THIS USED TO BE A ONE-CELL XLSX, WHICH META REFUSES. The resumable upload
+ * that mints a header handle accepts image/jpeg, image/png, video/mp4 and
+ * application/pdf, and nothing else, so pnl_report_ready_v1 came back with
+ *
+ *   code 100, subcode 2388084, "File type not supported"
+ *
+ * on 2026-11-14 and stayed unsubmitted. Nothing said why: the registry asked
+ * for a .xlsx sample because the real report is one, which looks right.
+ *
+ * The sample's type does not constrain what the template may carry later. The
+ * header is a DOCUMENT either way, so the monthly workbook still goes out as
+ * xlsx; this file exists only for a human reviewer to glance at.
+ *
+ * Hand-built rather than pulled from a library: it is a throwaway, and a PDF
+ * holding one line of text is a few hundred bytes of ASCII. The xref offsets
+ * are COMPUTED, because a stale byte offset is exactly how a hand-written PDF
+ * gets rejected as corrupt. latin1 keeps one character to one byte, so
+ * String#length is the byte length the table has to describe.
  */
-async function sampleWorkbook(filename) {
-  const { default: ExcelJS } = await import('exceljs');
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Sample');
-  ws.getCell('A1').value = 'Morpaankh profit and loss';
-  ws.getCell('A2').value = 'This is a sample file for template review.';
-  const bytes = Buffer.from(await wb.xlsx.writeBuffer());
-  return { bytes, filename, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+function samplePdf(filename) {
+  const page =
+    'BT /F1 14 Tf 72 760 Td (Morpaankh profit and loss. Sample file for template review.) Tj ET\n';
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] '
+      + '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${page.length} >>\nstream\n${page}endstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+
+  let out = '%PDF-1.4\n';
+  const offsets = [];
+  objs.forEach((body, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const startxref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) out += `${String(off).padStart(10, '0')} 00000 n \n`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`;
+
+  return { bytes: Buffer.from(out, 'latin1'), filename, mime: 'application/pdf' };
 }
 
 /**
@@ -164,7 +193,7 @@ async function buildComponents(t) {
     components.push({
       type: 'HEADER',
       format: 'DOCUMENT',
-      example: { header_handle: [await headerHandle(await sampleWorkbook(t.header.sampleName))] },
+      example: { header_handle: [await headerHandle(samplePdf(t.header.sampleName))] },
     });
   }
   components.push({

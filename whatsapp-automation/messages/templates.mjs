@@ -628,7 +628,9 @@ export const TEMPLATES = {
     name: 'pnl_report_ready_v1',
     language: 'en',
     category: 'UTILITY',
-    header: documentHeader('Morpaankh-PnL-sample.xlsx'),
+    // The REVIEW sample only. It is a PDF because Meta's upload takes no
+    // spreadsheet type; the report itself still goes out as a .xlsx workbook.
+    header: documentHeader('Morpaankh-PnL-sample.pdf'),
     body:
       'Your Morpaankh profit and loss report for {{month}} is attached. ' +
       'Net {{net}} on {{delivered}} delivered orders. ' +
