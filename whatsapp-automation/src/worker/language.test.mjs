@@ -149,7 +149,17 @@ beforeEach(() => {
 
 /* ------------------------------------------------------------------ */
 
-describe('with the feature off, which is how it ships', () => {
+/*
+ * The ROLLBACK state. This block was "which is how it ships" until the flow
+ * went to every customer on 2026-11-14 (G5), so `enabled: false` now has to be
+ * asked for rather than inherited, and what it proves is that the one-line
+ * rollback really does put every order back on English in a single call.
+ */
+describe('with the feature off, which is the rollback state', () => {
+  beforeEach(() => {
+    RULES.language = { ...SHIPPED_LANGUAGE, enabled: false };
+  });
+
   it('sends the English confirmation in the same call, and asks nothing', async () => {
     const { clients, deps } = setup();
     await A.onCodTimer('12345', deps);
@@ -1102,9 +1112,16 @@ describe('the pilot switch decides who gets Hindi', () => {
     expect(langPilotAllows(OWNER)).toBe(true);
   });
 
-  it('the shipped state is the owner-only pilot, not a rollout', () => {
+  /*
+   * The shipped state, asserted so a rollback or a re-pilot is a DELIBERATE
+   * edit to this test and not a silent config drift. G5 since 2026-11-14,
+   * after the owner's pilot on #1255.
+   */
+  it('ships open to every customer, with no pilot scoping left on', () => {
     expect(SHIPPED_LANGUAGE.enabled).toBe(true);
-    expect(SHIPPED_LANGUAGE.pilotOwnerPhonesOnly).toBe(true);
+    expect(SHIPPED_LANGUAGE.pilotOwnerPhonesOnly).toBe(false);
     expect(SHIPPED_LANGUAGE.allowPhones).toEqual([]);
+    // Nothing is force-disabled: a key here would be sent in English instead.
+    expect(SHIPPED_LANGUAGE.hiDisabledKeys).toEqual([]);
   });
 });

@@ -14,10 +14,14 @@ import * as A from './flowA.run.mjs';
 // Read at import, before any afterEach can force it false, so the test below
 // really does pin what rules.mjs SHIPS and not what a previous test left behind.
 const SHIPPED_prepaidOfferEnabled = RULES.prepaidOfferEnabled;
+const SHIPPED_LANGUAGE = { ...RULES.language };
 
 // A test that flips RULES.prepaidOfferEnabled on must not leak it into the next one:
 // the default is OFF and a leaked true would hide a real regression.
-afterEach(() => { RULES.prepaidOfferEnabled = SHIPPED_prepaidOfferEnabled; });
+afterEach(() => {
+  RULES.prepaidOfferEnabled = SHIPPED_prepaidOfferEnabled;
+  RULES.language = { ...SHIPPED_LANGUAGE };
+});
 import { tpl } from './send.mjs';
 
 const NOW = fromISTWall(2026, 9, 20, 12, 0); // daytime IST, not quiet
@@ -74,6 +78,23 @@ beforeEach(() => {
   config.flows.A = { enabled: true, startAt: '2020-01-01T00:00:00Z' };
   config.orderAllowlist = [];
   config.ownerAlertPhones = [];
+  /*
+   * THE LANGUAGE PICKER IS OFF FOR THIS SUITE, STATED RATHER THAN INHERITED.
+   *
+   * It shipped on for every customer on 2026-11-14 (gate G5), and the picker
+   * runs BEFORE the COD confirmation and holds it, so leaving it on put a
+   * language_select_v1 in front of every assertion here and 16 of these tests
+   * failed on the message order alone.
+   *
+   * This suite is about the COD chase: what is sent, in what order, how often,
+   * and what the retries do. The picker's interaction WITH Flow A is covered
+   * in language.test.mjs, which drives these same handlers with the feature on
+   * ("asks a new phone and holds the confirmation", "a tap then sends the
+   * confirmation once, in Hindi", "no tap: the confirmation goes out in
+   * English when the wait is up"), so turning it off here narrows the suite
+   * rather than hiding anything.
+   */
+  RULES.language = { ...SHIPPED_LANGUAGE, enabled: false };
 });
 
 const types = (wa) => wa.sent.map((s) => s.type);

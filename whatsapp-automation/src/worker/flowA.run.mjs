@@ -316,7 +316,10 @@ async function languageGate(deps, orderId, n, st, now) {
   const L = RULES.language || {};
   if (!L.enabled || L.askMode !== 'template') return 'go';
   const phone = n.verifiedPhone;
-  // The G4 pilot switch: off the list, nothing about this order changes.
+  // Off the pilot list, nothing about this order changes. Open to everyone
+  // since G5 (2026-11-14), so this is normally a pass; it is the rollback
+  // and re-pilot path, and langPilotAllows fails closed if a pilot is set
+  // with no phones behind it.
   if (!langPilotAllows(phone)) return 'go';
   /*
    * The picker was accepted by Meta and then failed to deliver. onWaStatus

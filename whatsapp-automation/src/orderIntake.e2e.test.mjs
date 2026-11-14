@@ -24,6 +24,7 @@
  * WhatsApp and Shopify are faked, and the table is the memory backend.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import { RULES } from '../messages/rules.mjs';
 import { config } from '../src/config.mjs';
 import { _resetMemory } from './store/table.mjs';
 import { _resetTimers, _dueTimers } from './timers/schedule.mjs';
@@ -167,6 +168,19 @@ beforeEach(() => {
   config.flows.B = { enabled: true, startAt: '2026-01-01T00:00:00Z' };
   config.sendAllowlist = [];
   config.orderAllowlist = [];
+  /*
+   * THE LANGUAGE PICKER IS OFF FOR THIS SUITE, STATED RATHER THAN INHERITED.
+   *
+   * It went to every customer on 2026-11-14 (G5) and it runs BEFORE the
+   * confirmation and holds it, so every assertion below about which template
+   * an intake path produces found a language_select_v1 in front of it.
+   *
+   * What this file proves is that each CREATION PATH reaches the customer at
+   * all: COD King, Cashfree from the cart, a recovery link with no OTP, an API
+   * order with no gateway. The picker's interaction with Flow A belongs to
+   * language.test.mjs, which drives these handlers with the feature on.
+   */
+  RULES.language = { ...RULES.language, enabled: false };
 });
 
 describe('every creation path reaches the customer', () => {

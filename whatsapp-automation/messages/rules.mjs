@@ -641,15 +641,22 @@ export const RULES = {
    */
   language: {
     /*
-     * ON as of 2026-11-14, scoped to the owner's own handsets (gate G4).
+     * ON FOR EVERY CUSTOMER as of 2026-11-14 (gate G5).
      *
-     * All 64 templates are APPROVED at Meta, English and Hindi, which was the
-     * condition for turning this on. Meta reviewed them for POLICY, not for
-     * whether the Hindi reads well, and docs/hindi-copy-review.md has not been
-     * signed off, so the first real traffic is the owner's.
+     * All 64 templates are APPROVED at Meta, English and Hindi. The owner's
+     * pilot (G4) ran on order #1255 and the whole path held: the picker was
+     * asked and delivered, the confirmation was held behind it, the Hindi tap
+     * was stored, cod_confirm_hi_v1 went out in Hindi, and an in-flow variant
+     * change and a cancel were both honoured afterwards. askCount stayed at 1,
+     * so nobody is asked twice, and no lambda logged an error.
      *
-     * To go to every customer (G5): set pilotOwnerPhonesOnly to false.
-     * To roll back: set enabled to false. Both are one line and a deploy.
+     * Three ways back, smallest first:
+     *   hiDisabledKeys: ['<key>']   one Hindi template back to English
+     *   pilotOwnerPhonesOnly: true  back to the owner's handsets only
+     *   enabled: false              full rollback, everyone on English
+     *
+     * A stored language survives all three, so a customer who picked Hindi
+     * keeps it when the feature comes back on.
      */
     enabled: true,
     default: 'en',
@@ -663,7 +670,7 @@ export const RULES = {
      * Set this only to pilot on a phone that is not an owner handset.
      */
     allowPhones: [],
-    pilotOwnerPhonesOnly: true,
+    pilotOwnerPhonesOnly: false,
     hiDisabledKeys: [],
   },
 
