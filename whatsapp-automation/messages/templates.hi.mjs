@@ -327,11 +327,28 @@ export const TEMPLATES_HI = {
     category: 'MARKETING',
     header: imageHeader(SAMPLE_PRODUCT_IMAGE),
     body:
-      'Hello {{customer_name}}, आपका निजी कोड बंद होने से पहले एक याद दिला रहे हैं।\n\n' +
+      /*
+       * REJECTED BY META AS INCORRECT_CATEGORY ON 2026-11-14, as MARKETING,
+       * while the identical English cart_final_v1 and the Hindi sibling
+       * cart_recovery_hi_v1 are both APPROVED as MARKETING.
+       *
+       * The category was right; the copy was not. The first version read as a
+       * UTILITY status reminder wearing a MARKETING label: it opened on "एक
+       * याद दिला रहे हैं" (we are sending a reminder), and it never once named
+       * the thing as an offer. The English closes on "the offer closes with
+       * it"; this had softened that to "यह बात भी बंद हो जाएगी" ("this matter
+       * will also close"). cart_recovery_hi_v1 passed because it CREATES the
+       * offer out loud ("हमने आपके लिए एक निजी कोड बनाया है").
+       *
+       * So ऑफ़र and छूट are named explicitly, which is what the English always
+       * did. Placeholders are unchanged, because templates.hi.test.mjs pins
+       * them to the English twin's set.
+       */
+      'Hello {{customer_name}}, आपके निजी ऑफ़र का कोड बंद होने में अब थोड़ा ही समय बाकी है।\n\n' +
       '*{{code}}* *{{expires_at}}* बंद हो जाता है, यानी अब से करीब {{time_left}} में।\n\n' +
       '{{item_line}}\n\n' +
-      'यह अब भी इस बैग पर *{{saving}} कम* करता है, और साथ में *हमारी तरफ़ से एक गिफ्ट* आपके पार्सल में आता है। आपका बैग वैसे ही सहेजा हुआ है जैसे आपने छोड़ा था, इसलिए पूरा करने में एक मिनट से भी कम लगेगा।\n\n' +
-      'कोड बंद होते ही यह बात भी बंद हो जाएगी।',
+      'इस ऑफ़र में आपको इस बैग पर *{{saving}} की छूट* मिलती है, और साथ में *हमारी तरफ़ से एक गिफ्ट* आपके पार्सल में आता है। आपका बैग वैसे ही सहेजा हुआ है जैसे आपने छोड़ा था, इसलिए पूरा करने में एक मिनट से भी कम लगेगा।\n\n' +
+      'कोड बंद होते ही यह ऑफ़र भी बंद हो जाएगा।',
     examples: {
       customer_name: EX.customer_name,
       code: 'MORPAANKHAARAV47',

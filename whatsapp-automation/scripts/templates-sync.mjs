@@ -8,6 +8,13 @@
  *   node scripts/templates-sync.mjs --live          # create missing templates
  *   node scripts/templates-sync.mjs --only=a,b      # just these registry keys or Meta names
  *   node scripts/templates-sync.mjs --strict        # a Hindi gap fails too
+ *   node scripts/templates-sync.mjs --live --resubmit   # re-review REJECTED ones
+ *
+ * --resubmit edits a REJECTED template in place and sends it back for
+ * review, which is the only way to correct one: its name stays taken, so a
+ * plain --live reports it and moves on, and deleting it to recreate throws
+ * away the name's history for nothing. Meta re-reviews an edit, so the copy
+ * in messages/ is the single source of truth either way.
  *
  * A HINDI TEMPLATE THAT IS NOT READY IS NOT AN OUTAGE. The gate exists
  * because an English template the sender can reach and Meta has not approved
@@ -45,6 +52,7 @@ import { TEMPLATES_HI, PLAIN_HI, HI_NOT_SUBMITTED } from '../messages/templates.
 
 const live = process.argv.includes('--live');
 const strict = process.argv.includes('--strict');
+const resubmit = process.argv.includes('--resubmit');
 const onlyArg = process.argv.find((a) => a.startsWith('--only='));
 const only = onlyArg
   ? new Set(onlyArg.slice('--only='.length).split(',').map((x) => x.trim()).filter(Boolean))
@@ -59,7 +67,7 @@ const auth = { Authorization: `Bearer ${s.waAccessToken}` };
 
 async function listExisting() {
   const out = {};
-  let url = `${G}/${s.waWabaId}/message_templates?fields=name,status,category&limit=200`;
+  let url = `${G}/${s.waWabaId}/message_templates?fields=name,status,category,id&limit=200`;
   while (url) {
     const r = await fetch(url, { headers: auth });
     const j = await r.json();
@@ -275,9 +283,45 @@ for (const [key, t] of all) {
     const mismatch = found.category && found.category !== t.category;
     console.log(`  ${t.name}: ${found.status}${found.category ? ` [${found.category}]` : ''}${mismatch ? ` !! declared ${t.category}` : ''}`);
     if (mismatch) failed = true;
-    if (String(found.status || '').toUpperCase() !== 'APPROVED') {
-      (isHi ? hindiNotReady : notReady).push(`${t.name}: ${found.status} at Meta`);
+    const rejected = String(found.status || '').toUpperCase() === 'REJECTED';
+    if (!(rejected && resubmit && live)) {
+      if (String(found.status || '').toUpperCase() !== 'APPROVED') {
+        (isHi ? hindiNotReady : notReady).push(`${t.name}: ${found.status} at Meta`);
+      }
+      continue;
     }
+    /*
+     * REJECTED, and we were asked to correct it. Edit in place: the name is
+     * already taken, and Meta puts an edited template back into review.
+     */
+    let fixed;
+    try {
+      fixed = await buildComponents(t);
+    } catch (e) {
+      console.log(`  ${t.name}: ERROR building components: ${e.message}`);
+      failed = true;
+      continue;
+    }
+    const er = await fetch(`${G}/${found.id}`, {
+      method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: t.category, components: fixed }),
+    });
+    const etext = await er.text();
+    let ej = {};
+    try {
+      ej = etext ? JSON.parse(etext) : {};
+    } catch {
+      ej = { raw: etext };
+    }
+    if (!er.ok) {
+      console.log(`  ${t.name}: RESUBMIT FAILED ${JSON.stringify(ej).slice(0, 300)}`);
+      failed = true;
+      (isHi ? hindiNotReady : notReady).push(`${t.name}: resubmit failed`);
+      continue;
+    }
+    console.log(`  ${t.name}: resubmitted for review [${t.category}]`);
+    (isHi ? hindiNotReady : notReady).push(`${t.name}: resubmitted, back in review`);
     continue;
   }
   let components;
