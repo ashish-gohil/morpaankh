@@ -103,8 +103,9 @@ export async function deliver({ report, meta, bytes, filename, clients, phones, 
   const to = emails && emails.length ? emails : config.pnlEmailTo;
   const { subject, text, html } = emailParts(report, meta);
   for (const addr of to) {
-    // One SES call per recipient: sendWithAttachment takes a single
-    // destination, like send() does, so a dud address cannot take the rest down.
+    // One SES call per recipient, so a dud address cannot take the rest down.
+    // Both send() and sendWithAttachment accept a list, but per recipient keeps
+    // one bounce from costing the other owner their copy.
     const r = await soft('pnl.email', () =>
       clients.email.sendWithAttachment({
         to: addr,

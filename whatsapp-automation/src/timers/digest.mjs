@@ -203,16 +203,47 @@ export const handler = async () => {
   }
 
   const byEmail = sent < config.ownerAlertPhones.length && config.pnlEmailTo.length > 0;
+  let emailed = 0;
   if (byEmail) {
-    await soft('digestEmail', () =>
-      realClients.email.send({
-        to: config.pnlEmailTo.join(','),
-        subject: `Morpaankh, ${formatISTDate(yStart)}`,
-        text: `${formatISTDate(yStart)}\n\n${line}\n`,
-        html: `<p><strong>${formatISTDate(yStart)}</strong></p><p>${line}</p>`,
-      }), {});
+    const parts = {
+      subject: `Morpaankh, ${formatISTDate(yStart)}`,
+      text: `${formatISTDate(yStart)}\n\n${line}\n`,
+      html: `<p><strong>${formatISTDate(yStart)}</strong></p><p>${line}</p>`,
+    };
+    /*
+     * ONE SES CALL PER RECIPIENT, as pnl/deliver.mjs already does for the
+     * workbook, so a dud address cannot take the other one down with it. That
+     * matters at one or two emails a day: SES judges a sender on its bounce
+     * RATE, where a single bad address is a double-digit percentage of the day.
+     *
+     * This used to pass `pnlEmailTo.join(',')` as one address. SES refused the
+     * whole send with "Illegal address" and the digest silently went nowhere.
+     */
+    for (const addr of config.pnlEmailTo) {
+      const r = await soft('digestEmail', () => realClients.email.send({ to: addr, ...parts }), {});
+      if (r && !r.skipped) emailed += 1;
+    }
   }
 
-  log.info('digest sent', { line, byWhatsApp: sent, byEmail });
+  /*
+   * NOTHING REACHED THE OWNER YET, so send the template after all.
+   *
+   * The WhatsApp route above was skipped in FAVOUR of email, so when email does
+   * not go there is no route left and the digest is simply lost, with a soft
+   * error in the log as its only trace. That is how 2026-11-14 passed with no
+   * digest and no alert.
+   *
+   * ops_digest is MARKETING and may be refused by the per-user cap behind
+   * 131049, which is exactly why it is the last resort rather than the first.
+   * A refused attempt still beats no attempt.
+   */
+  const rescued = byEmail && emailed === 0;
+  if (rescued) {
+    for (const phone of config.ownerAlertPhones) {
+      await soft('digestRescue', () => ownerSend(deps, phone, 'ops_digest', vars), {});
+    }
+  }
+
+  log.info('digest sent', { line, byWhatsApp: sent, byEmail, emailed, rescued });
   return { ok: true, line };
 };

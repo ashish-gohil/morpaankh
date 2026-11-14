@@ -51,6 +51,23 @@ async function client() {
 const suppressed = (e) =>
   e?.name === 'AccountSuppressionListException' || /suppress/i.test(String(e?.message || ''));
 
+/*
+ * SES v2 wants ONE ADDRESS PER ToAddresses ENTRY. A comma-joined list in a
+ * single entry is not a legal address and the whole send is refused with
+ * `BadRequestException: Illegal address`, which is how the owner's daily digest
+ * silently went nowhere on 2026-11-14: PNL_EMAIL_TO held two addresses and
+ * timers/digest.mjs passed `pnlEmailTo.join(',')`.
+ *
+ * Splitting here rather than only at that caller is what makes the class of bug
+ * go away: every caller reaches SES through this one function, so none of them
+ * can hand it something it cannot send.
+ */
+const addressList = (to) =>
+  String(to ?? '')
+    .split(',')
+    .map((s) => headerSafe(s.trim()))
+    .filter(Boolean);
+
 export const email = {
   /**
    * The service-wide gate, asked BEFORE the caller spends anything.
@@ -100,6 +117,8 @@ export const email = {
     if (!config.emailFrom) return { skipped: 'email-unavailable' };
     const c = await client();
     if (!c) return { skipped: 'email-unavailable' };
+    const dest = addressList(to);
+    if (!dest.length) return { skipped: 'email-invalid' };
 
     /*
      * Every header value is stripped of CR and LF. Two of these come from
@@ -119,7 +138,7 @@ export const email = {
       const res = await c.send(
         new c.SendEmailCommand({
           FromEmailAddress: headerSafe(config.emailFrom),
-          Destination: { ToAddresses: [headerSafe(to)] },
+          Destination: { ToAddresses: dest },
           ReplyToAddresses: [headerSafe(config.emailReplyTo || config.emailFrom)],
           Content: {
             Simple: {
@@ -185,7 +204,8 @@ export const email = {
 
     const from = headerSafe(config.emailFrom);
     const replyTo = headerSafe(config.emailReplyTo || config.emailFrom);
-    const dest = headerSafe(to);
+    const dest = addressList(to);
+    if (!dest.length) return { skipped: 'email-invalid' };
     /*
      * A subject that is pure ASCII travels as-is; anything else has to be an
      * RFC 2047 encoded word or the rupee sign arrives as mojibake. Every
@@ -208,7 +228,7 @@ export const email = {
 
     const mime =
       `From: ${from}\r\n` +
-      `To: ${dest}\r\n` +
+      `To: ${dest.join(', ')}\r\n` +
       `Reply-To: ${replyTo}\r\n` +
       `Subject: ${subj}\r\n` +
       extra +
@@ -236,7 +256,7 @@ export const email = {
       const res = await c.send(
         new c.SendEmailCommand({
           FromEmailAddress: from,
-          Destination: { ToAddresses: [dest] },
+          Destination: { ToAddresses: dest },
           Content: { Raw: { Data: Buffer.from(mime, 'utf8') } },
         }),
       );
