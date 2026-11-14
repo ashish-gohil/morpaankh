@@ -486,8 +486,20 @@ class WaAutomationStack extends cdk.Stack {
     }
 
     /*
-     * SES, on the WORKER role and nowhere else, because that is where the send
-     * happens: reconcile only enqueues. Scoped to the one verified identity
+     * SES, on the THREE ROLES THAT ACTUALLY CALL IT and no others. Every one of
+     * them reaches SES through clients/email.mjs, so the list below is exactly
+     * the set of functions that import a path which sends: the worker (Flow W's
+     * welcome offer), the report (the workbook) and the digest.
+     *
+     * The digest was missing until 2026-11-14, and a second bug hid it: the
+     * digest's own email call passed a comma-joined address list, so SES
+     * refused on "Illegal address" BEFORE IAM was ever consulted. With that
+     * fixed the real denial surfaced, on a soft() path where it cost the owner
+     * their daily digest in silence. CHECK THIS LIST when a new function starts
+     * sending email; a missing grant here is invisible until it is the only
+     * route left.
+     *
+     * Scoped to the one verified identity
      * and, when EMAIL_FROM is set, to that exact address, so a flaw in a flow
      * cannot send mail as anybody else on the domain.
      *
@@ -537,6 +549,13 @@ class WaAutomationStack extends cdk.Stack {
     // from the worker, so it needs the same narrow grant of its own. Scoped the
     // same way deliberately: read the long comment above before widening it.
     pnlFn.addToRolePolicy(sesGrant({ raw: true }));
+    /*
+     * The daily digest emails itself when the owner's WhatsApp window is shut
+     * (RULES.digestChannel is 'window-else-email'), which is most mornings, so
+     * email is its NORMAL route and not a rare fallback. Simple content only:
+     * it sends a one-line summary, never an attachment, so no SendRawEmail.
+     */
+    digestFn.addToRolePolicy(sesGrant());
 
     /*
      * The report reads and writes its bucket. The worker only writes, and only

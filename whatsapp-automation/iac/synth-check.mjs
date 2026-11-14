@@ -129,6 +129,50 @@ check('the public routes are throttled, in CloudFormation s casing', () => {
 });
 
 /*
+ * EVERY FUNCTION THAT SENDS EMAIL NEEDS ITS OWN SES GRANT, and a missing one
+ * is invisible until the send is the only route left.
+ *
+ * wa-digest sent nothing on 2026-11-14 and its role had never been granted
+ * ses:SendEmail. The grant block said "on the WORKER role and nowhere else",
+ * which stopped being true when the digest and the P&L report started sending
+ * for themselves. It stayed hidden because the digest's own call passed a
+ * comma-joined address list, so SES refused on "Illegal address" before IAM was
+ * consulted, and both failures landed on a soft() path that logs and continues.
+ *
+ * Each of these three reaches SES through clients/email.mjs. Add a function
+ * here when it starts sending, and read the grant comment in lib/stack.js
+ * before widening anything.
+ */
+check('every email-sending function can actually send email', () => {
+  const needsSes = ['wa-worker', 'wa-pnl-report', 'wa-digest'];
+
+  // FunctionName -> the logical id of its role, via Role: Fn::GetAtt.
+  const roleOf = new Map();
+  for (const [, r] of resources) {
+    if (r.Type !== 'AWS::Lambda::Function') continue;
+    const name = r.Properties?.FunctionName;
+    const att = r.Properties?.Role?.['Fn::GetAtt'];
+    if (typeof name === 'string' && Array.isArray(att)) roleOf.set(name, att[0]);
+  }
+
+  for (const fn of needsSes) {
+    const role = roleOf.get(fn);
+    assert.ok(role, `${fn}: no function found, or it has no role`);
+
+    const granted = resources.some(([, r]) => {
+      if (r.Type !== 'AWS::IAM::Policy') return false;
+      const roles = (r.Properties?.Roles || []).map((x) => x?.Ref);
+      if (!roles.includes(role)) return false;
+      return (r.Properties?.PolicyDocument?.Statement || []).some((st) => {
+        const actions = [].concat(st.Action || []);
+        return st.Effect === 'Allow' && actions.includes('ses:SendEmail');
+      });
+    });
+    assert.ok(granted, `${fn}: its role has no ses:SendEmail, so every email it sends is denied`);
+  }
+});
+
+/*
  * O7. Arm costs about 20% less per GB-second for the same Node code, and a
  * function added later without it is invisible: it just costs more.
  */
