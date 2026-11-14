@@ -64,7 +64,7 @@ export async function onPick(phone, action, orderId, deps) {
       await flowA.onCodTimer(String(orderId), deps);
       /*
        * Re-read, because onCodTimer may legitimately have decided NOT to send:
-       * the order may have shipped or been cancelled in the five minutes the
+       * the order may have shipped or been cancelled in the minutes the
        * picker was open. Either it sent (codConfirmAt) or it recorded a
        * decision (codSkip); if neither, the tap would otherwise go unanswered.
        */

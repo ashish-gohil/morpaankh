@@ -627,6 +627,11 @@ export const RULES = {
    * waitMinutes is how long the confirmation waits for an answer. It is short
    * on purpose: an unanswered picker must not delay the message that tells
    * someone their order exists. Reconcile's 20 minute grace already covers it.
+   * Cut from 5 to 3 on 2026-11-14, once the picker went to every customer
+   * (G5): at 5 it was every unanswered order's confirmation held for five
+   * minutes, and nothing downstream needs the wait to be that long. When it
+   * expires the confirmation goes out in ENGLISH and the rest of Flow A
+   * proceeds normally from there, driven by the buttons on it.
    *
    * maxAsks is per PHONE and across all their orders, not per order. Being
    * asked the same question on every order is how an automation starts to feel
@@ -661,7 +666,7 @@ export const RULES = {
     enabled: true,
     default: 'en',
     askMode: 'template',
-    waitMinutes: 5,
+    waitMinutes: 3,
     maxAsks: 2,
     /*
      * Empty on purpose. The pilot list comes from OWNER_ALERT_PHONES via

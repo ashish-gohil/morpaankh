@@ -234,6 +234,22 @@ describe('every creation path reaches the customer', () => {
     expect(customerSends(c)[0].to).toBe(SHIP);
     expect(templates(c)[0]).toMatch(/^cod_confirm/);
     expect(tags(c)).toContain('wa-cod-sent');
+    /*
+     * AND THE OWNER CAN SEE THE PHONE WAS NEVER OTP VERIFIED.
+     *
+     * phoneSource was asserted above and used to live only in DynamoDB, so in
+     * Shopify this order was indistinguishable from a COD King verified one.
+     * #1254 was shipped-ready at Rs 1,649 on MEDIUM RTO risk with an address
+     * phone that was not even on WhatsApp, and nothing on the order said so.
+     */
+    expect(tags(c)).toContain('wa-phone-unverified');
+  });
+
+  it('an OTP verified order is NOT tagged unverified', async () => {
+    const c = await place(9014, { phones: { shipping: SHIP, billing: SHIP } });
+    expect((await getState('9014')).phoneSource).toBe('otp');
+    // The tag has to mean something, so it must not land on a verified order.
+    expect(tags(c)).not.toContain('wa-phone-unverified');
   });
 
   it('#1233 a draft order completed: COD, no OTP', async () => {

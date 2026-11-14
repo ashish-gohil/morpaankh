@@ -291,7 +291,8 @@ async function tagLang(deps, n, orderId, res) {
 }
 
 /*
- * THE LANGUAGE GATE. Ask once, wait five minutes, then send regardless.
+ * THE LANGUAGE GATE. Ask once, wait RULES.language.waitMinutes (3), then
+ * send regardless, in English.
  *
  * This is the only place in the service that delays a customer message, so it
  * is worth being precise about what it is buying. The confirmation is the
@@ -340,9 +341,9 @@ async function languageGate(deps, orderId, n, st, now) {
    *
    * The tap handler sets the language and then calls onCodTimer to let the
    * confirmation be its reply. If the "already asked on this order" branch ran
-   * first, it would find langAskAt stamped, see the five minutes were not up,
+   * first, it would find langAskAt stamped, see the wait was not up,
    * re-arm the timer and return 'wait' - so the customer taps Hindi and
-   * nothing happens for five minutes, then the confirmation arrives anyway.
+   * nothing happens until the wait expires, then the confirmation arrives anyway.
    * That is exactly the bug this ordering prevents, and it cost one read.
    */
   if (ls.chosen) return 'go';
@@ -450,6 +451,38 @@ export async function onCodTimer(orderId, deps) {
   // phoneSource records WHICH field the recipient came from, so an owner asking
   // "who did we message about this order" has an answer that is not a guess.
   await patchState(orderId, { class: cls, riskTag: n.riskTag, verifiedPhone: n.verifiedPhone, phoneSource: n.phoneSource || null, firstName: n.firstName, name: n.name });
+
+  /*
+   * THE PHONE WAS NEVER OTP VERIFIED, AND THE OWNER COULD NOT SEE THAT.
+   *
+   * phoneSource went into the state row above and was read by NOBODY, so an
+   * order whose recipient came off the delivery address looked exactly like
+   * one COD King had verified. The only visible difference in Shopify was a
+   * missing "COD-Verified" tag, and an absence is not something anyone
+   * filters a list on.
+   *
+   * #1254 on 2026-11-13 was the cost: COD, Rs 1,649, MEDIUM RTO risk, a phone
+   * taken off the shipping address, and nothing on the order said so. Its
+   * number turned out not to be on WhatsApp at all (131026), so the customer
+   * was never told anything and the parcel was one tap from being shipped.
+   *
+   * WHY THIS IS A TAG AND NOT A FIX OF THE GATE: COD King's OTP popup is
+   * client-side, so it fails OPEN. A blocked, broken or unloaded script sends
+   * the shopper straight into Shopify's own checkout with no popup, and the
+   * order then carries no _codk attribute at all, which is exactly what #1254
+   * looks like (#1239 got there a different way, through an abandoned-cart
+   * recovery link that skips the storefront). Shopify Basic has no server-side
+   * checkout validation to close that with, so the gate cannot be made
+   * airtight from here. What we CAN do is stop an unverified COD order from
+   * looking like a verified one.
+   *
+   * runOnce: a tag is written once per order, not on every stale timer.
+   */
+  if (n.phoneSource && n.phoneSource !== 'otp') {
+    await soft('tag-phone-unverified', () =>
+      runOnce(orderId, 'tag-phone-unverified', () =>
+        deps.clients.shopify.tagsAdd(n.gid, ['wa-phone-unverified'])), { orderId, source: n.phoneSource });
+  }
 
   if (st.flowA?.codConfirmAt) return; // already sent (stale timer)
 

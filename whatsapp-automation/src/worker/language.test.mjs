@@ -291,7 +291,7 @@ describe('when Meta will not take the Hindi template', () => {
 
 /* ------------------------------------------------------------------ */
 
-describe('the gate: asked once, waited on for five minutes, then sent regardless', () => {
+describe('the gate: asked once, waited on for three minutes, then sent regardless', () => {
   beforeEach(() => withLanguage());
 
   it('asks a new phone and holds the confirmation', async () => {
@@ -338,6 +338,38 @@ describe('the gate: asked once, waited on for five minutes, then sent regardless
     const later = { ...deps, now: new Date(NOW.getTime() + 6 * 60 * 1000) };
     await A.onCodTimer('12345', later);
     expect(templateNames(clients.whatsapp)).toEqual(['language_select_v1', 'cod_confirm_v3']);
+  });
+
+  /*
+   * THE THREE MINUTE BOUNDARY, pinned to the number rather than to "some time
+   * later". The existing test above waits six minutes, which passes at any
+   * waitMinutes <= 6, so it proved the English fallback without ever proving
+   * the wait. RULES.language.waitMinutes went 5 -> 3 on 2026-11-14 once the
+   * picker reached every customer, and the owner asked for exactly 3.
+   */
+  it('holds at two minutes and releases English at three, then Flow A carries on', async () => {
+    const { clients, deps } = setup();
+    await A.onCodTimer('12345', deps);
+    expect(templateNames(clients.whatsapp)).toEqual(['language_select_v1']);
+
+    // Two minutes: still inside the wait, so nothing new.
+    await A.onCodTimer('12345', { ...deps, now: new Date(NOW.getTime() + 2 * 60 * 1000) });
+    expect(templateNames(clients.whatsapp)).toEqual(['language_select_v1']);
+
+    // Three minutes and a second: nobody answered, so English goes out.
+    const after = new Date(NOW.getTime() + 3 * 60 * 1000 + 1000);
+    await A.onCodTimer('12345', { ...deps, now: after });
+    expect(templateNames(clients.whatsapp)).toEqual(['language_select_v1', 'cod_confirm_v3']);
+
+    /*
+     * AND THE REST OF FLOW A FOLLOWS, in English, off the buttons on that
+     * confirmation. A timed-out picker must not strand the order: the whole
+     * point of releasing at three minutes is that the sequence continues.
+     */
+    await A.onReminder('12345', { ...deps, now: new Date(NOW.getTime() + 7 * 60 * 60 * 1000) });
+    expect(templateNames(clients.whatsapp)).toEqual([
+      'language_select_v1', 'cod_confirm_v3', 'cod_reminder_v3',
+    ]);
   });
 
   it('does not ask again before the wait is up, and does not send twice either', async () => {
